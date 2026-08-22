@@ -85,6 +85,18 @@ pub enum Error {
 
     #[error("the host name typed back does not match")]
     ConfirmationMismatch,
+
+    #[error("this machine has no credential store")]
+    KeychainUnavailable { reason: String },
+
+    #[error("the credential store refused a read")]
+    KeychainReadFailed { reason: String },
+
+    #[error("the credential store refused a write")]
+    KeychainWriteFailed { reason: String },
+
+    #[error("no credential is saved for this session")]
+    NoSavedCredential,
 }
 
 /// A failure as the webview sees it: a code, and the fields it needs to render
@@ -146,6 +158,18 @@ pub enum IpcError {
     HostKeyRevoked,
     HostKeyCertificateRequired,
     ConfirmationMismatch,
+    /// This machine has no credential store. `reason` is a fixed phrase, never
+    /// the platform's own text — see `vault::describe`.
+    KeychainUnavailable {
+        reason: String,
+    },
+    KeychainReadFailed {
+        reason: String,
+    },
+    KeychainWriteFailed {
+        reason: String,
+    },
+    NoSavedCredential,
     /// A saved session was rejected; `field` names which part.
     InvalidSession {
         field: String,
@@ -189,6 +213,10 @@ impl From<Error> for IpcError {
             Error::HostKeyRevoked => Self::HostKeyRevoked,
             Error::HostKeyCertificateRequired => Self::HostKeyCertificateRequired,
             Error::ConfirmationMismatch => Self::ConfirmationMismatch,
+            Error::KeychainUnavailable { reason } => Self::KeychainUnavailable { reason },
+            Error::KeychainReadFailed { reason } => Self::KeychainReadFailed { reason },
+            Error::KeychainWriteFailed { reason } => Self::KeychainWriteFailed { reason },
+            Error::NoSavedCredential => Self::NoSavedCredential,
         }
     }
 }

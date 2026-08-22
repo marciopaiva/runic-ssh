@@ -56,7 +56,20 @@ export type IpcError =
   | { readonly code: 'hostKeyRevoked' }
   /** The host authenticates with a certificate; a bare key will not do. */
   | { readonly code: 'hostKeyCertificateRequired' }
-  | { readonly code: 'confirmationMismatch' };
+  | { readonly code: 'confirmationMismatch' }
+  /**
+   * This machine has no credential store.
+   *
+   * `reason` is a phrase the core wrote, never the platform's own text — see
+   * `vault::describe`. The interface degrades to prompting per connection and
+   * says why; ADR-0004 required a real answer here rather than a silent
+   * failure.
+   */
+  | { readonly code: 'keychainUnavailable'; readonly reason: string }
+  | { readonly code: 'keychainReadFailed'; readonly reason: string }
+  | { readonly code: 'keychainWriteFailed'; readonly reason: string }
+  /** Distinct from an unavailable store: ask the user rather than explain. */
+  | { readonly code: 'noSavedCredential' };
 
 export type IpcErrorCode = IpcError['code'];
 
@@ -85,6 +98,10 @@ const CODES: ReadonlySet<string> = new Set<IpcErrorCode>([
   'hostKeyRevoked',
   'hostKeyCertificateRequired',
   'confirmationMismatch',
+  'keychainUnavailable',
+  'keychainReadFailed',
+  'keychainWriteFailed',
+  'noSavedCredential',
 ]);
 
 /**
