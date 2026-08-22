@@ -164,9 +164,23 @@ longest of the three languages, not the shortest.
 `es-ES` and `es-419`. Section 1 of `CLAUDE.md` was amended the same day to carve
 out `src/locales/` and to require native-speaker review of security copy.
 
-**Follow-up**: identify who reviews the Spanish security copy, since no native
-speaker is currently on the project — this is the one open thread from this
-decision, and it blocks release rather than implementation. Use CSS logical
+**Resolved on 2026-08-22**: Spanish is not offered in v0.1.0. The context above
+says the client ships in three languages from the first release; that is no
+longer true, and the reason is the review requirement this same decision
+created. No native Spanish speaker is on the project, and a mistranslated host
+key warning is a vulnerability rather than a typo — so shipping the language
+unreviewed would mean shipping a security control in a language nobody here can
+check.
+
+`es.json` stays in the tree, translated and held to the same key-parity tests as
+the other two. It is simply not offered in the language selector until the
+security copy is signed off, at which point exposing it is a one-line change.
+The alternative was leaving the release blocked on finding a person, with no
+owner and no date, which is the state that produced this decision.
+
+**Follow-up**: find that reviewer, tracked in #4 and no longer release-blocking
+for v0.1.0. The locale registry needs to carry availability separately from
+existence, so a catalogue can be complete and still not offered. Use CSS logical
 properties from the first
 component, since that is the entire cost of supporting a right-to-left language
 later and it is free today. Revisit this decision if the catalog outgrows a few
