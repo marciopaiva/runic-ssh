@@ -15,6 +15,17 @@
 
 [advisories]
 ignore = [
+  # RUSTSEC-2023-0071, the Marvin Attack: a timing side channel in RSA private
+  # key operations, with no fixed version available. It is listed here because
+  # the reachable path is removed, not because the risk is accepted:
+  # `ssh::connection` refuses an RSA private key before any signing happens,
+  # and a test asserts it. Verifying an RSA *host* key is a public-key
+  # operation and is not what the attack reaches, so old servers stay usable.
+  #
+  # This entry and that refusal come out together when `rsa` ships a fix.
+  # Removing either alone reintroduces the exposure. See ADR-0010.
+  "RUSTSEC-2023-0071", # rsa, reached only by signing, which we refuse
+
   # The gtk-rs bindings Tauri builds its Linux webview on. Unmaintained as a
   # set since the gtk3 generation was retired in favour of gtk4.
   "RUSTSEC-2024-0411", # gdkwayland-sys
