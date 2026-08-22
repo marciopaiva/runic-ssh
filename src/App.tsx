@@ -1,19 +1,17 @@
 import type { JSX } from 'react';
 
-import { createTranslator } from './lib/i18n';
+import { useTranslator } from './features/settings';
 
 /**
  * The application shell.
  *
  * Deliberately almost empty. The titlebar, sidebar, terminal and status bar
  * each land with the issue that owns them, so this renders only enough to
- * prove the webview is mounted, the tokens resolve and the catalogue is wired.
- *
- * The locale is hard-coded here until detection and persistence land: this
- * reads the catalogue, it does not yet know which one the user wants.
+ * prove the webview is mounted, the tokens resolve and the active language
+ * reaches a component.
  */
 export function App(): JSX.Element {
-  const i18n = createTranslator('en');
+  const i18n = useTranslator();
 
   return (
     <main className="flex h-full flex-col items-center justify-center gap-4">
