@@ -5,4 +5,5 @@
 //! Business logic does not live here — it lives where it can be tested without
 //! a webview or an app handle.
 
+pub mod sessions;
 pub mod settings;

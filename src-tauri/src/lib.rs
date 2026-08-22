@@ -27,9 +27,13 @@ pub mod ssh;
 /// invalid. Both are startup failures, not conditions a user can reach.
 pub fn run() -> tauri::Result<()> {
     tauri::Builder::default()
+        .manage(ssh::registry::Registry::new())
         .invoke_handler(tauri::generate_handler![
             commands::settings::get_settings,
             commands::settings::set_locale,
+            commands::sessions::connect_session,
+            commands::sessions::authenticate_session,
+            commands::sessions::disconnect_session,
         ])
         .run(tauri::generate_context!())
 }
