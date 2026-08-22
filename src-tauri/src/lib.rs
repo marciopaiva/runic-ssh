@@ -28,6 +28,7 @@ pub mod ssh;
 pub fn run() -> tauri::Result<()> {
     tauri::Builder::default()
         .manage(ssh::registry::Registry::new())
+        .manage(ssh::pending::PendingHostKeys::new())
         .invoke_handler(tauri::generate_handler![
             commands::settings::get_settings,
             commands::settings::set_locale,
@@ -35,6 +36,7 @@ pub fn run() -> tauri::Result<()> {
             commands::sessions::save_session,
             commands::sessions::delete_session,
             commands::sessions::connect_session,
+            commands::sessions::trust_host_key,
             commands::sessions::authenticate_session,
             commands::sessions::disconnect_session,
             commands::terminal::open_terminal,

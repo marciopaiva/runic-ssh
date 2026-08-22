@@ -7,13 +7,18 @@
  */
 
 import { formatBytes, formatNumber, formatRelativeTime, pluralCategory } from './format';
-import type { Catalog, MessageKey, MessageParams } from './messages';
+import type { Catalog, MessageArgs, MessageKey } from './messages';
 import { DEFAULT_LOCALE, findLocale, resolveLocale } from './locales';
 
 export interface Translator {
   readonly locale: string;
-  /** Looks up a message and fills its placeholders. */
-  t<K extends MessageKey>(key: K, params?: MessageParams<K>): string;
+  /**
+   * Looks up a message and fills its placeholders.
+   *
+   * The parameter object is required when the message has holes and refused
+   * when it does not, so neither a missing nor a spurious one compiles.
+   */
+  t<K extends MessageKey>(key: K, ...args: MessageArgs<K>): string;
   number(value: number, options?: Intl.NumberFormatOptions): string;
   bytes(value: number): string;
   relativeTime(value: number, unit: Intl.RelativeTimeFormatUnit): string;
@@ -39,7 +44,8 @@ export function createTranslator(requestedLocale: string | undefined): Translato
   return {
     locale: tag,
 
-    t<K extends MessageKey>(key: K, params?: MessageParams<K>): string {
+    t<K extends MessageKey>(key: K, ...args: MessageArgs<K>): string {
+      const params = args[0];
       const message = catalog[key];
       /* The types make a missing key impossible, so this only fires when a
          catalogue has been edited to something the compiler never saw — and

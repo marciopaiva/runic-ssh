@@ -90,12 +90,31 @@ pub enum ConnectionError {
     Transport,
 }
 
+/// What a server offered, kept so a refusal can be acted on.
+#[derive(Debug, Clone)]
+pub struct OfferedKey {
+    pub host: String,
+    pub port: u16,
+    pub key_type: String,
+    pub key: Vec<u8>,
+    pub verdict: Trust,
+}
+
 /// Checks the host key, and nothing else.
 struct HostKeyCheck {
     endpoint: Endpoint,
     known: KnownHosts,
-    /// The verdict, kept so the caller can see *why* a connection was refused.
-    verdict: Option<Trust>,
+    /// What was offered and what we made of it, kept so the caller can see
+    /// *why* a connection was refused and can act on it afterwards.
+    offered: Arc<std::sync::Mutex<Option<OfferedKey>>>,
+}
+
+impl HostKeyCheck {
+    fn remember(&self, offered: OfferedKey) {
+        if let Ok(mut slot) = self.offered.lock() {
+            *slot = Some(offered);
+        }
+    }
 }
 
 impl client::Handler for HostKeyCheck {
@@ -108,8 +127,14 @@ impl client::Handler for HostKeyCheck {
         let russh::keys::PublicKeyOrCertificate::PublicKey { key, .. } = key else {
             /* A certificate needs certificate verification, which we do not
             implement. Refusing is the only honest answer. */
-            self.verdict = Some(Trust::CertificateRequired {
-                fingerprint: String::from("SHA256:<certificate>"),
+            self.remember(OfferedKey {
+                host: self.endpoint.host.clone(),
+                port: self.endpoint.port,
+                key_type: String::from("ssh-certificate"),
+                key: Vec::new(),
+                verdict: Trust::CertificateRequired {
+                    fingerprint: String::from("SHA256:<certificate>"),
+                },
             });
             return Ok(false);
         };
@@ -127,7 +152,15 @@ impl client::Handler for HostKeyCheck {
         );
 
         let accepted = matches!(verdict, Trust::Matched);
-        self.verdict = Some(verdict);
+
+        self.remember(OfferedKey {
+            host: self.endpoint.host.clone(),
+            port: self.endpoint.port,
+            key_type: key.algorithm().as_str().to_owned(),
+            key: blob,
+            verdict,
+        });
+
         Ok(accepted)
     }
 
@@ -150,25 +183,47 @@ pub struct Connection {
 ///
 /// Fails when the key is anything but already trusted, carrying the verdict.
 pub async fn connect(endpoint: Endpoint, known: KnownHosts) -> Result<Connection, ConnectionError> {
+    connect_reporting(endpoint, known)
+        .await
+        .map_err(|(error, _)| error)
+}
+
+/// Connects, and on a host key refusal hands back what was offered.
+///
+/// The caller needs the key itself, not only the verdict: accepting it later
+/// means writing those exact bytes, and asking the server again would let a
+/// different answer be written than the one the user was shown.
+pub async fn connect_reporting(
+    endpoint: Endpoint,
+    known: KnownHosts,
+) -> Result<Connection, (ConnectionError, Option<OfferedKey>)> {
     let config = Arc::new(client::Config::default());
     let address = (endpoint.host.clone(), endpoint.port);
+    let offered = Arc::new(std::sync::Mutex::new(None));
 
     let checker = HostKeyCheck {
         endpoint,
         known,
-        verdict: None,
+        offered: Arc::clone(&offered),
     };
+
+    let taken = || offered.lock().ok().and_then(|mut slot| slot.take());
 
     match client::connect(config, address, checker).await {
         Ok(handle) => Ok(Connection { handle }),
         Err(russh::Error::UnknownKey) => {
-            Err(ConnectionError::HostKeyRejected(Box::new(Trust::Unknown {
-                fingerprint: String::new(),
-                other_types: Vec::new(),
-            })))
+            let seen = taken();
+            let verdict = seen.as_ref().map_or(
+                Trust::Unknown {
+                    fingerprint: String::new(),
+                    other_types: Vec::new(),
+                },
+                |offered| offered.verdict.clone(),
+            );
+            Err((ConnectionError::HostKeyRejected(Box::new(verdict)), seen))
         }
-        Err(russh::Error::IO(_)) => Err(ConnectionError::Unreachable),
-        Err(_) => Err(ConnectionError::Transport),
+        Err(russh::Error::IO(_)) => Err((ConnectionError::Unreachable, None)),
+        Err(_) => Err((ConnectionError::Transport, taken())),
     }
 }
 

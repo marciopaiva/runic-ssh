@@ -8,6 +8,7 @@ export {
   disconnectSession,
   listSessions,
   saveSession,
+  trustHostKey,
 } from './sessions';
 export type {
   OpenSession,

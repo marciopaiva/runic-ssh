@@ -117,6 +117,27 @@ export async function authenticateSession(
   return invoke<void>('authenticate_session', payload);
 }
 
+/**
+ * Accepts a host key the user was shown.
+ *
+ * Takes the id of a refusal the core is holding — not a host and a key. The
+ * interface can answer a decision it was shown and cannot describe one it
+ * would like made, which is what keeps rule 3's deliberate override from
+ * becoming a boolean somebody passes `true` to.
+ *
+ * `confirmation` is the host name typed back, required for a changed key and
+ * checked by the core rather than here.
+ */
+export async function trustHostKey(
+  pendingId: number,
+  confirmation?: string,
+): Promise<void> {
+  return invoke<void>('trust_host_key', {
+    pendingId,
+    confirmation: confirmation ?? null,
+  });
+}
+
 export async function disconnectSession(handle: SessionHandle): Promise<void> {
   return invoke<void>('disconnect_session', { handle });
 }
