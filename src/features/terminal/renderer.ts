@@ -14,11 +14,24 @@
  * - **The context is lost while running.** A driver reset, a laptop switching
  *   GPUs, the system reclaiming memory. The addon reports it, and from that
  *   moment it draws nothing at all.
+ *
+ * The loader is a parameter so both paths are reachable from a test. The
+ * fallback is the least-exercised code in the terminal — it only runs on the
+ * machines we have least of — and ADR-0006 said in its follow-up that it has
+ * to be forced somewhere so it does not rot.
  */
 
 import type { Terminal } from '@xterm/xterm';
 
 export type RendererKind = 'webgl' | 'dom';
+
+/** The part of the WebGL addon this module depends on. */
+export interface WebglLike {
+  onContextLoss(handler: () => void): void;
+  dispose(): void;
+}
+
+export type WebglLoader = () => Promise<{ new (): WebglLike }>;
 
 export interface RendererChoice {
   readonly kind: RendererKind;
@@ -26,6 +39,12 @@ export interface RendererChoice {
   readonly reason?: string;
   dispose(): void;
 }
+
+/** Loads the real addon. Replaced in tests, and only there. */
+const loadWebgl: WebglLoader = async () => {
+  const { WebglAddon } = await import('@xterm/addon-webgl');
+  return WebglAddon as unknown as { new (): WebglLike };
+};
 
 /**
  * Attaches the fastest renderer that works, and keeps working if it stops.
@@ -35,16 +54,12 @@ export interface RendererChoice {
  * them to wonder.
  */
 export async function attachRenderer(
-  terminal: Terminal,
+  terminal: Pick<Terminal, 'loadAddon'>,
   onFallback?: (reason: string) => void,
+  load: WebglLoader = loadWebgl,
 ): Promise<RendererChoice> {
-  const dom: RendererChoice = {
-    kind: 'dom',
-    dispose: () => {},
-  };
-
   try {
-    const { WebglAddon } = await import('@xterm/addon-webgl');
+    const WebglAddon = await load();
     const addon = new WebglAddon();
 
     /* Losing the context is not an error to report and move on from: the
@@ -52,10 +67,12 @@ export async function attachRenderer(
        DOM renderer, which is the only way the terminal keeps working. */
     addon.onContextLoss(() => {
       addon.dispose();
-      onFallback?.('The graphics context was lost, so the terminal fell back to software rendering.');
+      onFallback?.(
+        'The graphics context was lost, so the terminal fell back to software rendering.',
+      );
     });
 
-    terminal.loadAddon(addon);
+    terminal.loadAddon(addon as never);
 
     return {
       kind: 'webgl',
@@ -67,11 +84,12 @@ export async function attachRenderer(
     /* Thrown when WebGL2 is unavailable. Not a failure — the documented
        fallback, on exactly the configurations ADR-0006 named. */
     return {
-      ...dom,
+      kind: 'dom',
       reason:
         error instanceof Error
           ? `WebGL is unavailable (${error.message}), so the terminal renders in software.`
           : 'WebGL is unavailable, so the terminal renders in software.',
+      dispose: () => {},
     };
   }
 }
