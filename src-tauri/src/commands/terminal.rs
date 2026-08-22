@@ -9,6 +9,7 @@ use tokio::sync::mpsc;
 
 use crate::error::{Error, IpcError};
 use crate::ssh::registry::{Busy, Registry, SessionHandle};
+use crate::ssh::stats::Transfer;
 use crate::ssh::terminal::{pump, Input, OutputBatch, Sink};
 
 /// The event a batch of output arrives on.
@@ -98,9 +99,14 @@ pub async fn open_terminal<R: Runtime>(
     let (sender, receiver) = mpsc::channel(INPUT_QUEUE);
     registry.attach_input(handle, sender).await;
 
+    let counters = registry
+        .counters(handle)
+        .await
+        .ok_or(Error::UnknownHandle)?;
+
     let sink = WebviewSink { app, handle };
     tauri::async_runtime::spawn(async move {
-        pump(channel, sink, receiver).await;
+        pump(channel, sink, receiver, counters).await;
     });
 
     Ok(())
@@ -167,6 +173,61 @@ pub async fn resize_terminal(
         .ok_or(Error::UnknownHandle)?;
 
     Ok(())
+}
+
+/// What a session has cost so far, for the status bar.
+///
+/// Nothing here describes what was transferred, only how much, plus the time a
+/// packet takes to come back. Those are the only session numbers section 7.2
+/// allows across, and it is worth saying so where somebody would otherwise be
+/// tempted to add "last command" beside them.
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionStats {
+    #[serde(flatten)]
+    pub transfer: Transfer,
+    /// The round trip in milliseconds, or `null` when the host did not answer.
+    pub latency_ms: Option<u64>,
+}
+
+/// Measures the round trip and reads the byte counters.
+///
+/// One command rather than two: the round trip is the slow part, and a caller
+/// that wanted both would otherwise pay for a second lookup to get numbers
+/// that are free.
+///
+/// A host that does not answer the probe yields `latencyMs: null` rather than
+/// an error. The session is still open and the counters are still true; a
+/// status bar that blanked entirely because one probe was lost would be
+/// reporting something worse than what happened.
+#[tauri::command]
+pub async fn session_stats(
+    registry: State<'_, Registry>,
+    handle: SessionHandle,
+) -> Result<SessionStats, IpcError> {
+    let transfer = registry
+        .counters(handle)
+        .await
+        .ok_or(Error::UnknownHandle)?
+        .snapshot();
+
+    let latency = registry
+        .with(handle, |mut busy: Busy| async move {
+            let result = busy.connection.round_trip().await;
+            (busy, result)
+        })
+        .await
+        .ok_or(Error::UnknownHandle)?;
+
+    Ok(SessionStats {
+        transfer,
+        latency_ms: latency.ok().map(|elapsed| {
+            /* Saturating rather than wrapping: a round trip longer than 584
+            million years is not a number worth preserving exactly, but it is
+            worth not reporting as 3 ms. */
+            u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX)
+        }),
+    })
 }
 
 #[cfg(test)]

@@ -18,6 +18,7 @@ use russh::server::{
 };
 use russh::{Channel, ChannelId, MethodKind};
 
+use runic_ssh::ssh::stats::Counters;
 use runic_ssh::ssh::terminal::{pump, Input, PumpReport, Sink, MAX_BUFFERED, MIN_EMIT_INTERVAL};
 
 /// Collects batches instead of sending them to a webview.
@@ -235,7 +236,20 @@ async fn flood(bytes: u64) -> (PumpReport, u64, u64) {
     };
 
     let (_sender, receiver) = tokio::sync::mpsc::channel(16);
-    let report = pump(channel, collector, receiver).await;
+    let counters = Arc::new(Counters::default());
+    let report = pump(channel, collector, receiver, Arc::clone(&counters)).await;
+
+    /* The status bar reads the counters; every assertion below reads the
+    report. They tally the same bytes by different routes — the counter at the
+    moment of arrival, the report at the moment of emission — so a completed
+    pump must agree with itself. If it does not, one of the two is lying to
+    somebody. */
+    assert_eq!(
+        counters.snapshot().from_host,
+        report.bytes_forwarded,
+        "the counters and the report disagree about what arrived"
+    );
+
     (
         report,
         batches.load(Ordering::Relaxed),
@@ -353,7 +367,8 @@ async fn typing_reaches_the_shell_and_a_resize_reaches_the_pty() {
         largest: Arc::new(AtomicU64::new(0)),
     };
 
-    let pump = tokio::spawn(pump(channel, collector, receiver));
+    let counters = Arc::new(Counters::default());
+    let pump = tokio::spawn(pump(channel, collector, receiver, Arc::clone(&counters)));
 
     sender
         .send(Input::Keys(b"whoami\n".to_vec()))
@@ -376,6 +391,11 @@ async fn typing_reaches_the_shell_and_a_resize_reaches_the_pty() {
 
     assert_eq!(report.input_sent, 1);
     assert_eq!(report.resizes_sent, 1);
+
+    /* The status bar's "up" figure. A resize is a pty request rather than
+    something the user sent, so it must not appear here — counting it would
+    make dragging the window look like typing. */
+    assert_eq!(counters.snapshot().to_host, b"whoami\n".len() as u64);
 
     wait_until("the shell to receive the keystrokes", || async {
         observed.input.lock().await.as_slice() == b"whoami\n"
@@ -409,7 +429,12 @@ async fn a_keystroke_stays_responsive_while_the_host_is_flooding() {
         largest: Arc::new(AtomicU64::new(0)),
     };
 
-    let pump = tokio::spawn(pump(channel, collector, receiver));
+    let pump = tokio::spawn(pump(
+        channel,
+        collector,
+        receiver,
+        Arc::new(Counters::default()),
+    ));
 
     /* Let the flood get going and the buffer fill. */
     tokio::time::sleep(std::time::Duration::from_millis(200)).await;

@@ -49,6 +49,7 @@ pub fn run() -> tauri::Result<()> {
             commands::terminal::open_terminal,
             commands::terminal::send_input,
             commands::terminal::resize_terminal,
+            commands::terminal::session_stats,
         ])
         .run(tauri::generate_context!())
 }

@@ -7,7 +7,7 @@ export {
   toggleMaximizeWindow,
   windowChrome,
 } from './chrome';
-export type { WindowChrome, WindowControlsOwner } from './chrome';
+export type { CommandModifier, WindowChrome, WindowControlsOwner } from './chrome';
 export type { IpcError, IpcErrorCode } from './errors';
 export { getSettings, setLocale } from './settings';
 export {
@@ -39,5 +39,7 @@ export {
   openTerminal,
   resizeTerminal,
   sendInput,
+  sessionStats,
 } from './terminal';
+export type { SessionStats } from './terminal';
 export type { SettingsView } from './settings';

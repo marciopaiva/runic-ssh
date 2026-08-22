@@ -16,6 +16,7 @@
 //! outlive the call.
 
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use russh::client::{self, Handle};
 use russh::keys::{decode_secret_key, PrivateKeyWithHashAlg};
@@ -306,6 +307,31 @@ impl Connection {
             .map_err(|_| ConnectionError::Transport)?;
 
         Ok(channel)
+    }
+
+    /// Measures the round trip to the host.
+    ///
+    /// Sends `keepalive@openssh.com` with `want_reply` set and times the
+    /// answer. Every server replies to it — usually with REQUEST_FAILURE,
+    /// because it does not recognise the request — and a reply is all this
+    /// needs. That is the same mechanism OpenSSH's `ServerAliveInterval` uses,
+    /// for the same reason.
+    ///
+    /// Worth knowing before calling this on a timer: a request the host has to
+    /// answer is traffic, and traffic resets an idle timeout. Polling this
+    /// keeps a session alive that would otherwise have been dropped by the
+    /// server. That is usually what a user wants and never what they asked
+    /// for, so the caller decides when to stop — see `should_probe` on the
+    /// frontend side.
+    pub async fn round_trip(&mut self) -> Result<Duration, ConnectionError> {
+        let sent = Instant::now();
+
+        self.handle
+            .send_ping()
+            .await
+            .map_err(|_| ConnectionError::Transport)?;
+
+        Ok(sent.elapsed())
     }
 
     /// Closes the connection politely, so the server logs a clean disconnect

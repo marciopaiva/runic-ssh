@@ -1,11 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { JSX } from 'react';
 
 import type { SessionHandle } from '../ipc';
 import { useTerminal } from '../features/terminal/use-terminal';
+import type { TerminalSize } from '../features/terminal/use-terminal';
 
 interface TerminalViewProps {
   readonly handle: SessionHandle | null;
+  /** Reports the grid the remote pty was last told about. */
+  readonly onSize: (size: TerminalSize | null) => void;
 }
 
 /**
@@ -14,9 +17,15 @@ interface TerminalViewProps {
  * Presentational: a container to mount into and whatever the session has to
  * say about itself. Everything that moves lives in the feature slice.
  */
-export function TerminalView({ handle }: TerminalViewProps): JSX.Element {
+export function TerminalView({ handle, onSize }: TerminalViewProps): JSX.Element {
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
-  const { renderer, fallbackReason, exitStatus } = useTerminal(container, handle);
+  const { renderer, fallbackReason, exitStatus, size } = useTerminal(container, handle);
+
+  /* Reported upward rather than read downward: the status bar is a sibling,
+     and lifting the size is cheaper than teaching it to find the terminal. */
+  useEffect(() => {
+    onSize(size);
+  }, [onSize, size]);
 
   return (
     <section className="bg-surface-terminal flex h-full flex-col">
