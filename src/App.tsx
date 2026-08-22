@@ -4,6 +4,7 @@ import type { JSX } from 'react';
 import { CommandPalette } from './components/CommandPalette';
 import { HostKeyBlocked } from './components/HostKeyBlocked';
 import { HostKeyPrompt } from './components/HostKeyPrompt';
+import { SessionEditor } from './components/SessionEditor';
 import { SessionsSidebar } from './components/SessionsSidebar';
 import { StatusBar } from './components/StatusBar';
 import { TerminalView } from './components/TerminalView';
@@ -12,6 +13,8 @@ import { actionCommands, sessionCommands, usePalette } from './features/commands
 import type { CommandContext } from './features/commands';
 import { openTabs, resolveActive, tabAfter, tabAfterClosing, useChrome, windowControls } from './features/chrome';
 import { isOverridable, needsConfirmation, useConnect, useSessions } from './features/sessions';
+import { deleteSession, saveSession } from './ipc';
+import type { SessionDraft } from './ipc';
 import { useLocale } from './features/settings';
 import { useSessionStats } from './features/status';
 import type { TerminalSize } from './features/terminal/use-terminal';
@@ -32,12 +35,16 @@ const TERMINAL_PANEL = 'terminal-panel';
  * credential prompt from ADR-0008.
  */
 export function App(): JSX.Element {
-  const { sessions, setState, attach } = useSessions();
+  const { sessions, setState, attach, reload } = useSessions();
   const { chrome, maximized, act } = useChrome();
   const { i18n, chosen, choose } = useLocale();
   const [selected, setSelected] = useState<string | null>(null);
   const [active, setActive] = useState<string | null>(null);
   const [size, setSize] = useState<TerminalSize | null>(null);
+  /* `null` means closed; a string is the session being edited, and the empty
+     string is a new one. A separate boolean would let "editing nothing" and
+     "editing a session that has gone" look the same. */
+  const [editing, setEditing] = useState<string | null>(null);
 
   const tabs = useMemo(() => openTabs(sessions), [sessions]);
   /* A tab disappears when its host drops the connection, which nobody
@@ -87,6 +94,24 @@ export function App(): JSX.Element {
     [connect, sessions],
   );
 
+  const save = useCallback(
+    (draft: SessionDraft): void => {
+      void saveSession(draft)
+        .then(() => reload())
+        .finally(() => setEditing(null));
+    },
+    [reload],
+  );
+
+  const remove = useCallback(
+    (sessionId: string): void => {
+      void deleteSession(sessionId)
+        .then(() => reload())
+        .finally(() => setEditing(null));
+    },
+    [reload],
+  );
+
   const context = useMemo<CommandContext>(
     () => ({
       i18n,
@@ -96,6 +121,8 @@ export function App(): JSX.Element {
       chosenLocale: chosen,
       maximized,
       actions: {
+        newSession: () => setEditing(''),
+        editSession: setEditing,
         selectSession: activate,
         activateTab: setActive,
         closeTab,
@@ -134,7 +161,7 @@ export function App(): JSX.Element {
           sessions={sessions}
           selectedId={selected}
           onSelect={activate}
-          onAdd={palette.show}
+          onAdd={() => setEditing('')}
         />
         <main id={TERMINAL_PANEL} role="tabpanel" className="min-w-0 flex-1">
           <TerminalView handle={activeHandle} onSize={setSize} />
@@ -170,6 +197,15 @@ export function App(): JSX.Element {
             onCancel={abandon}
           />
         ))}
+
+      {editing !== null && (
+        <SessionEditor
+          session={sessions.find((live) => live.session.id === editing)?.session ?? null}
+          onSave={save}
+          onDelete={editing === '' ? null : () => remove(editing)}
+          onCancel={() => setEditing(null)}
+        />
+      )}
 
       <CommandPalette
         open={palette.open}

@@ -84,5 +84,21 @@
   "credential.submit": "Autenticar",
   "credential.cancel": "Cancelar",
   "credential.loading": "Preparando…",
-  "credential.failed": "Este pedido não é mais válido"
+  "credential.failed": "Este pedido não é mais válido",
+  "session.editor.new": "Nova sessão",
+  "session.editor.edit": "Editar sessão",
+  "session.editor.host": "Host",
+  "session.editor.port": "Porta",
+  "session.editor.user": "Usuário",
+  "session.editor.name": "Nome",
+  "session.editor.nameHint": "Deixe vazio para usar o host",
+  "session.editor.group": "Grupo",
+  "session.editor.groupHint": "Opcional. As sessões são listadas sob ele.",
+  "session.editor.invalid": "Isto não é aceito",
+  "session.editor.noSecret": "Nenhuma senha é guardada aqui. Ela é pedida na hora de conectar, em uma janela própria.",
+  "session.editor.save": "Salvar",
+  "session.editor.cancel": "Cancelar",
+  "session.editor.delete": "Excluir",
+  "command.session.new": "Nova sessão",
+  "command.session.edit": "Editar {name}"
 }

@@ -84,5 +84,21 @@
   "credential.submit": "Autenticar",
   "credential.cancel": "Cancelar",
   "credential.loading": "Preparando…",
-  "credential.failed": "Esta solicitud ya no es válida"
+  "credential.failed": "Esta solicitud ya no es válida",
+  "session.editor.new": "Nueva sesión",
+  "session.editor.edit": "Editar sesión",
+  "session.editor.host": "Host",
+  "session.editor.port": "Puerto",
+  "session.editor.user": "Usuario",
+  "session.editor.name": "Nombre",
+  "session.editor.nameHint": "Déjelo vacío para usar el host",
+  "session.editor.group": "Grupo",
+  "session.editor.groupHint": "Opcional. Las sesiones se listan bajo él.",
+  "session.editor.invalid": "Esto no se acepta",
+  "session.editor.noSecret": "Aquí no se guarda ninguna contraseña. Se le pide al conectar, en una ventana propia.",
+  "session.editor.save": "Guardar",
+  "session.editor.cancel": "Cancelar",
+  "session.editor.delete": "Eliminar",
+  "command.session.new": "Nueva sesión",
+  "command.session.edit": "Editar {name}"
 }
