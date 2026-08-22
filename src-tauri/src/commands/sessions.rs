@@ -15,7 +15,7 @@ use crate::error::{Error, IpcError};
 use crate::ssh::connection::{connect_reporting, Credential, Endpoint, OfferedKey};
 use crate::ssh::known_hosts::KnownHosts;
 use crate::ssh::pending::{PendingHostKeys, PendingId};
-use crate::ssh::registry::{Open, Registry, SessionHandle};
+use crate::ssh::registry::{Busy, Open, Registry, SessionHandle};
 use crate::ssh::trust::Trust;
 use crate::vault::{Availability, CredentialId, StoredCredential, Vault};
 
@@ -281,9 +281,9 @@ pub async fn authenticate_with_saved(
     let credential = from_stored(StoredCredential::decode(&stored)?);
 
     let outcome = registry
-        .with(handle, |mut open: Open| async move {
-            let result = open.connection.authenticate(&open.user, credential).await;
-            (open, result)
+        .with(handle, |mut busy: Busy| async move {
+            let result = busy.connection.authenticate(&busy.user, credential).await;
+            (busy, result)
         })
         .await
         .ok_or(Error::UnknownHandle)?;
@@ -364,9 +364,9 @@ pub async fn authenticate_session(
     file here would authenticate as whoever it happens to list now, which is
     not necessarily who this connection was opened as. */
     let outcome = registry
-        .with(handle, |mut open: Open| async move {
-            let result = open.connection.authenticate(&open.user, credential).await;
-            (open, result)
+        .with(handle, |mut busy: Busy| async move {
+            let result = busy.connection.authenticate(&busy.user, credential).await;
+            (busy, result)
         })
         .await
         .ok_or(Error::UnknownHandle)?;

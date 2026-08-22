@@ -8,7 +8,7 @@ use tauri::{AppHandle, Emitter, Runtime, State};
 use tokio::sync::mpsc;
 
 use crate::error::{Error, IpcError};
-use crate::ssh::registry::{Open, Registry, SessionHandle};
+use crate::ssh::registry::{Busy, Registry, SessionHandle};
 use crate::ssh::terminal::{pump, Input, OutputBatch, Sink};
 
 /// The event a batch of output arrives on.
@@ -87,9 +87,9 @@ pub async fn open_terminal<R: Runtime>(
     rows: u16,
 ) -> Result<(), IpcError> {
     let channel = registry
-        .with(handle, |mut open: Open| async move {
-            let result = open.connection.open_shell(columns, rows).await;
-            (open, result)
+        .with(handle, |mut busy: Busy| async move {
+            let result = busy.connection.open_shell(columns, rows).await;
+            (busy, result)
         })
         .await
         .ok_or(Error::UnknownHandle)?
