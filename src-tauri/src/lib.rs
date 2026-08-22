@@ -14,6 +14,7 @@
 pub mod commands;
 pub mod config;
 pub mod error;
+pub mod ssh;
 
 /// Builds and runs the application, blocking until the last window closes.
 ///
