@@ -21,13 +21,17 @@ path = "src/main.rs"
 tauri-build = { version = "2", features = [] }
 
 # Dependencies arrive with the issue that needs them, not in advance. `russh`,
-# `russh-sftp`, `keyring`, `zeroize`, `thiserror` and `serde` are all recorded
-# stack decisions but none of them has a caller yet.
+# `russh-sftp`, `keyring` and `zeroize` are recorded stack decisions with no
+# caller yet.
 [dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1"
 tauri = { version = "2", features = [] }
+thiserror = "2.0.20"
 
 [dev-dependencies]
 serde_json = "1"
+tempfile = "3.27.0"
 
 [lints.rust]
 unsafe_code = "forbid"
