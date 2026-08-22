@@ -35,7 +35,9 @@ export type IpcError =
   | { readonly code: 'missingCredential' }
   | { readonly code: 'malformedInput' }
   /** The core refuses to forward input this large. */
-  | { readonly code: 'inputTooLarge' };
+  | { readonly code: 'inputTooLarge' }
+  /** A saved session was rejected; `field` names which part. */
+  | { readonly code: 'invalidSession'; readonly field: string };
 
 export type IpcErrorCode = IpcError['code'];
 
@@ -57,6 +59,7 @@ const CODES: ReadonlySet<string> = new Set<IpcErrorCode>([
   'missingCredential',
   'malformedInput',
   'inputTooLarge',
+  'invalidSession',
 ]);
 
 /**

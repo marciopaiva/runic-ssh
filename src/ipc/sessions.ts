@@ -15,6 +15,58 @@ import { invoke } from '@tauri-apps/api/core';
  */
 export type SessionHandle = number;
 
+/** A saved session. Names a host; never holds a secret. */
+export interface Session {
+  readonly id: string;
+  readonly name: string;
+  readonly host: string;
+  readonly port: number;
+  readonly user: string;
+  readonly group: string | null;
+  /**
+   * The keychain entry holding this session's secret, if one was saved.
+   *
+   * An opaque id and nothing more: the frontend can name a credential, and can
+   * never read one. See ADR-0004.
+   */
+  readonly credentialId: string | null;
+}
+
+/**
+ * What the interface sends when saving.
+ *
+ * There is deliberately no field for a secret. The type has nowhere to put
+ * one, so a password cannot reach the session file even by mistake.
+ */
+export interface SessionDraft {
+  /** Absent when creating; present when editing the session it names. */
+  readonly id?: string;
+  readonly name: string;
+  readonly host: string;
+  readonly port: number;
+  readonly user: string;
+  readonly group?: string | null;
+}
+
+export async function listSessions(): Promise<readonly Session[]> {
+  return invoke<Session[]>('list_sessions');
+}
+
+/**
+ * Creates or replaces a session, returning what was stored.
+ *
+ * The id comes back from the core rather than being chosen here: one invented
+ * by the interface that happened to collide would silently overwrite somebody
+ * else's session.
+ */
+export async function saveSession(draft: SessionDraft): Promise<Session> {
+  return invoke<Session>('save_session', { draft });
+}
+
+export async function deleteSession(sessionId: string): Promise<void> {
+  return invoke<void>('delete_session', { sessionId });
+}
+
 export interface OpenSession {
   readonly handle: SessionHandle;
   readonly sessionId: string;
