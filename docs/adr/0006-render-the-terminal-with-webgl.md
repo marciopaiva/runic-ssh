@@ -1,6 +1,6 @@
 # ADR-0006: Render the terminal with the xterm.js WebGL addon, falling back to DOM
 
-* **Status**: Superseded by ADR-0011
+* **Status**: Accepted — challenged by ADR-0011, which is not yet decided
 * **Date**: 2026-08-22
 
 ## Context
@@ -98,8 +98,10 @@ only justified if the difference is real.
 **Measured on 2026-08-22, and the measurement did not support this decision.**
 WebGL came out between one and nine percent ahead of the DOM renderer, against
 a transport that delivers six to ten times less than either can draw. See
-`adr/0011-drop-the-webgl-renderer.md`, which supersedes this record, and
-`docs/measurements/terminal-throughput.md` for the numbers.
+`adr/0011-drop-the-webgl-renderer.md`, which proposes reversing this one, and
+`docs/measurements/terminal-throughput.md` for the numbers. That proposal is
+deferred to the first packaged build, so this decision still stands — a record
+cannot be superseded by a decision nobody has taken.
 
 **Partly done on 2026-08-22**, and the part that was done first is not the part
 this decision needed. `docs/measurements/terminal-throughput.md` records transport

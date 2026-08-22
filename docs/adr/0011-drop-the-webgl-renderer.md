@@ -2,7 +2,7 @@
 
 * **Status**: Proposed — deferred to the first packaged build
 * **Date**: 2026-08-22
-* **Supersedes**: [ADR-0006](0006-render-the-terminal-with-webgl.md)
+* **Would supersede**: [ADR-0006](0006-render-the-terminal-with-webgl.md), which stands until this is decided
 
 ## Context
 
