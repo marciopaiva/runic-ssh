@@ -11,13 +11,12 @@
 name: audit
 
 on:
+  # Deliberately unfiltered. A `paths` filter here would be cheaper, but a
+  # required check that is skipped never reports, and a pull request waiting on
+  # a report that will not come can never merge. Roughly a minute per run with
+  # the binary cached is the price of this check being enforceable at all.
   pull_request:
     branches: [main]
-    paths:
-      - 'src-tauri/Cargo.toml'
-      - 'src-tauri/Cargo.lock'
-      - 'src-tauri/.cargo/audit.toml'
-      - '.github/workflows/audit.yml'
   push:
     branches: [main]
   # A new advisory can land on a dependency nobody touched. Without this, the
