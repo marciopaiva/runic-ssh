@@ -173,6 +173,18 @@ pub async fn dismiss_credential(
     Ok(())
 }
 
+/// The URL the prompt window is opened on.
+///
+/// Split out because it was wrong and nothing noticed. `RequestId` renders as
+/// `request-N` so a log line names nothing about the session; interpolating it
+/// here produced `?request=request-0`, which the window parsed as `NaN` and
+/// reported as a prompt that no longer existed. Every credential prompt opened
+/// onto that message.
+#[must_use]
+pub fn prompt_url(request: RequestId) -> String {
+    format!("{CREDENTIAL_DOCUMENT}?request={}", request.raw())
+}
+
 /// Builds the prompt window and wires its close event to a dismissal.
 fn open_window<R: Runtime>(app: &AppHandle<R>, request: RequestId) -> Result<(), Error> {
     /* A window left over from an abandoned attempt would take the label and
@@ -224,5 +236,54 @@ fn open_window<R: Runtime>(app: &AppHandle<R>, request: RequestId) -> Result<(),
 fn close_window<R: Runtime>(app: &AppHandle<R>) {
     if let Some(window) = app.get_webview_window(CREDENTIAL_WINDOW) {
         let _ = window.destroy();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Parses the URL the way the window does: split the query, read `request`.
+    fn request_in(url: &str) -> Option<u64> {
+        url.split_once("?request=")
+            .map(|(_, value)| value)
+            .and_then(|value| value.parse().ok())
+    }
+
+    #[test]
+    fn the_window_can_read_the_request_out_of_its_own_url() {
+        let (id, _receiver) = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .expect("a runtime")
+            .block_on(async {
+                CredentialRequests::new()
+                    .open(CredentialPrompt {
+                        session_name: "web-01".to_owned(),
+                        user: "deploy".to_owned(),
+                        host: "10.0.4.31".to_owned(),
+                        port: 22,
+                        can_remember: false,
+                    })
+                    .await
+            });
+
+        assert_eq!(request_in(&prompt_url(id)), Some(id.raw()));
+    }
+
+    #[test]
+    fn the_url_carries_a_bare_number() {
+        /* The direct guard. `?request=request-0` is what shipped, and the
+        window turned it into NaN. */
+        let url = prompt_url(RequestId::default_for_test(3));
+
+        assert!(url.ends_with("?request=3"), "the URL is {url}");
+        assert!(!url.contains("request=request"), "the URL is {url}");
+    }
+
+    #[test]
+    fn the_document_is_the_prompt_and_not_the_main_window() {
+        /* ADR-0008 rests on this window loading its own document. Loading
+        index.html would put the terminal in the same context as the secret. */
+        assert!(prompt_url(RequestId::default_for_test(0)).starts_with("credential.html"));
     }
 }

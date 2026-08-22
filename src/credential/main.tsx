@@ -26,13 +26,22 @@ if (container === null) {
  * From the URL, because the core put it there when it built the window. It is
  * an opaque number: it names a request the core is holding and carries nothing
  * about the session, so having it in a URL costs nothing.
+ *
+ * Read strictly. `Number(null)` is `0` and `Number.isInteger(0)` is true, so a
+ * missing parameter would arrive here as a perfectly plausible request id —
+ * and answer whichever request happened to be first.
  */
-const request = Number(new URLSearchParams(window.location.search).get('request'));
+function requestFromUrl(): number | null {
+  const value = new URLSearchParams(window.location.search).get('request');
+  if (value === null || !/^\d+$/.test(value)) return null;
+
+  return Number(value);
+}
 
 createRoot(container).render(
   <StrictMode>
     <LocaleProvider>
-      <CredentialWindow request={Number.isInteger(request) ? request : null} />
+      <CredentialWindow request={requestFromUrl()} />
     </LocaleProvider>
   </StrictMode>,
 );
