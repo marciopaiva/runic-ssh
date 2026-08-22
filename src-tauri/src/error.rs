@@ -46,6 +46,9 @@ pub enum Error {
 
     #[error("the locale tag is not acceptable")]
     InvalidLocale { requested: String },
+
+    #[error("the SSH connection failed")]
+    Ssh(#[from] Box<crate::ssh::connection::ConnectionError>),
 }
 
 /// A failure as the webview sees it: a code, and the fields it needs to render
@@ -54,10 +57,37 @@ pub enum Error {
 #[serde(tag = "code", rename_all = "camelCase")]
 pub enum IpcError {
     ConfigDirUnavailable,
-    SettingsUnreadable { path: String },
-    SettingsMalformed { path: String },
-    SettingsUnwritable { path: String },
-    InvalidLocale { requested: String },
+    SettingsUnreadable {
+        path: String,
+    },
+    SettingsMalformed {
+        path: String,
+    },
+    SettingsUnwritable {
+        path: String,
+    },
+    InvalidLocale {
+        requested: String,
+    },
+
+    /// The host could not be reached at all.
+    HostUnreachable,
+    /// The host key is not trusted. `verdict` names which of the five outcomes
+    /// it was, so the interface can prompt, block or explain — the fingerprints
+    /// travel with it because the user has to compare them by eye.
+    HostKeyRejected {
+        verdict: &'static str,
+        offered: Option<String>,
+        stored: Vec<String>,
+    },
+    /// The private key could not be decoded, most often a wrong passphrase.
+    KeyUnreadable,
+    /// An RSA private key was offered and refused. See ADR-0010.
+    RsaKeyRefused,
+    /// The server refused the credential.
+    AuthenticationFailed,
+    /// The transport failed for a reason we do not classify further.
+    SshTransport,
 }
 
 /// Paths are shown to the user so they can find the file; the rest of the
@@ -84,6 +114,53 @@ impl From<Error> for IpcError {
                 Self::SettingsUnwritable { path: shown(&path) }
             }
             Error::InvalidLocale { requested } => Self::InvalidLocale { requested },
+            Error::Ssh(ssh) => Self::from(*ssh),
+        }
+    }
+}
+
+impl From<crate::ssh::connection::ConnectionError> for IpcError {
+    /// Maps a connection failure to its wire form.
+    ///
+    /// The `russh` error is dropped rather than described. It is text we did
+    /// not write and cannot audit, and it is the value most likely to carry
+    /// something from a server we do not trust — a banner, a path, a reason
+    /// string — straight into a toast. Rule 2.
+    fn from(error: crate::ssh::connection::ConnectionError) -> Self {
+        use crate::ssh::connection::ConnectionError as Ssh;
+        use crate::ssh::trust::Trust;
+
+        match error {
+            Ssh::Unreachable => Self::HostUnreachable,
+            Ssh::KeyUnreadable => Self::KeyUnreadable,
+            Ssh::RsaKeyRefused => Self::RsaKeyRefused,
+            Ssh::AuthenticationFailed => Self::AuthenticationFailed,
+            Ssh::Transport => Self::SshTransport,
+            Ssh::HostKeyRejected(verdict) => match *verdict {
+                Trust::Matched => Self::SshTransport,
+                Trust::Unknown { fingerprint, .. } => Self::HostKeyRejected {
+                    verdict: "unknown",
+                    offered: Some(fingerprint),
+                    stored: Vec::new(),
+                },
+                Trust::Changed {
+                    offered, stored, ..
+                } => Self::HostKeyRejected {
+                    verdict: "changed",
+                    offered: Some(offered),
+                    stored,
+                },
+                Trust::Revoked { fingerprint } => Self::HostKeyRejected {
+                    verdict: "revoked",
+                    offered: Some(fingerprint),
+                    stored: Vec::new(),
+                },
+                Trust::CertificateRequired { fingerprint } => Self::HostKeyRejected {
+                    verdict: "certificateRequired",
+                    offered: Some(fingerprint),
+                    stored: Vec::new(),
+                },
+            },
         }
     }
 }
