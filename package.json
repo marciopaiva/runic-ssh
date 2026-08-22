@@ -15,6 +15,7 @@
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.tools.json",
     "test": "vitest run",
+    "gate": "node scripts/gate.mjs",
     "tauri": "tauri"
   },
   "dependencies": {

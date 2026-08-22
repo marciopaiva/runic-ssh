@@ -167,6 +167,10 @@ This costs nothing to follow:
 * **Cap verbose commands.** Pipe installs, builds, test runs and CI logs through
   `tail`, `grep` or a summarising step. `apt-get install -qq … | tail -5`, not
   the whole transcript. When a command fails, then read the failure in full.
+* **Use `pnpm gate` for the loop, the five commands for the report.** The quiet
+  form is five lines and answers "does it pass". It is not evidence: a claim
+  that a guard fails when violated, or that a specific test proved something,
+  cites the output that showed it.
 * **Never `cat` a whole file to look at part of it.** Use `sed -n 'A,Bp'`,
   `grep -n`, or a targeted read.
 * **Do not re-read a file to confirm an edit landed.** The edit tools fail

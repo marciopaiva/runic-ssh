@@ -247,6 +247,17 @@ If a command does not exist yet because that part of the project is not
 scaffolded, say so explicitly in the report rather than skipping it silently.
 Never report work as done on the strength of code that was written but not run.
 
+Those five, in that form, are canonical. They are what CI runs, and their output
+is what a report cites when it claims something passed.
+
+`pnpm gate` runs the same five quietly, for the loop between edits, and
+re-runs the first failure verbosely. It is a check, not evidence: it tells you
+whether the gate passes and not which test proved what. A claim that something
+was verified cites the loud form.
+
+`pnpm gate rust` and `pnpm gate front` run one half, for when only one half
+changed.
+
 Rust domain modules get unit tests. The IPC layer gets at least one test per
 command covering the error path, because the error path is what the user
 actually hits.
