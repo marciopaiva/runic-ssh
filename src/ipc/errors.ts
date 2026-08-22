@@ -32,7 +32,8 @@ export type IpcError =
   | { readonly code: 'unknownSession'; readonly id: string }
   | { readonly code: 'unknownHandle' }
   | { readonly code: 'ambiguousCredential' }
-  | { readonly code: 'missingCredential' };
+  | { readonly code: 'missingCredential' }
+  | { readonly code: 'malformedInput' };
 
 export type IpcErrorCode = IpcError['code'];
 
@@ -52,6 +53,7 @@ const CODES: ReadonlySet<string> = new Set<IpcErrorCode>([
   'unknownHandle',
   'ambiguousCredential',
   'missingCredential',
+  'malformedInput',
 ]);
 
 /**

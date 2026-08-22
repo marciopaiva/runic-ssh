@@ -7,4 +7,13 @@ export {
   disconnectSession,
 } from './sessions';
 export type { OpenSession, Secret, SessionHandle } from './sessions';
+export {
+  CLOSED_EVENT,
+  OUTPUT_EVENT,
+  onClosed,
+  onOutput,
+  openTerminal,
+  resizeTerminal,
+  sendInput,
+} from './terminal';
 export type { SettingsView } from './settings';

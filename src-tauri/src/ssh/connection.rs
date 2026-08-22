@@ -216,6 +216,43 @@ impl Connection {
         }
     }
 
+    /// Opens an interactive shell with a pty of the given size.
+    ///
+    /// The pty is requested before the shell: a shell started without one has
+    /// no terminal to draw on, and programs that check for one behave as if
+    /// they were being piped.
+    pub async fn open_shell(
+        &mut self,
+        columns: u16,
+        rows: u16,
+    ) -> Result<russh::Channel<russh::client::Msg>, ConnectionError> {
+        let channel = self
+            .handle
+            .channel_open_session()
+            .await
+            .map_err(|_| ConnectionError::Transport)?;
+
+        channel
+            .request_pty(
+                true,
+                "xterm-256color",
+                u32::from(columns),
+                u32::from(rows),
+                0,
+                0,
+                &[],
+            )
+            .await
+            .map_err(|_| ConnectionError::Transport)?;
+
+        channel
+            .request_shell(true)
+            .await
+            .map_err(|_| ConnectionError::Transport)?;
+
+        Ok(channel)
+    }
+
     /// Closes the connection politely, so the server logs a clean disconnect
     /// rather than a dropped socket.
     pub async fn disconnect(self) -> Result<(), ConnectionError> {

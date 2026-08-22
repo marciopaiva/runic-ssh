@@ -40,6 +40,8 @@ pub struct Open {
     pub connection: Connection,
     pub session_id: String,
     pub user: String,
+    /// Set once a shell is running: where keystrokes go.
+    pub input: Option<tokio::sync::mpsc::Sender<crate::ssh::terminal::Input>>,
 }
 
 /// Every connection currently open.
@@ -84,6 +86,30 @@ impl Registry {
     /// politely rather than dropping the socket.
     pub async fn take(&self, handle: SessionHandle) -> Option<Open> {
         self.open.lock().await.remove(&handle)
+    }
+
+    /// Records where a session's keystrokes should be sent.
+    pub async fn attach_input(
+        &self,
+        handle: SessionHandle,
+        sender: tokio::sync::mpsc::Sender<crate::ssh::terminal::Input>,
+    ) {
+        if let Some(open) = self.open.lock().await.get_mut(&handle) {
+            open.input = Some(sender);
+        }
+    }
+
+    /// Sends a keystroke or a resize, if that session has a shell running.
+    ///
+    /// The map lock is released before awaiting the send: a full input queue
+    /// must slow down one session, not every session.
+    pub async fn send_input(
+        &self,
+        handle: SessionHandle,
+        input: crate::ssh::terminal::Input,
+    ) -> Option<()> {
+        let sender = self.open.lock().await.get(&handle)?.input.clone()?;
+        sender.send(input).await.ok()
     }
 
     pub async fn count(&self) -> usize {

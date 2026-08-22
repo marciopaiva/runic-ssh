@@ -81,6 +81,7 @@ pub async fn connect_session<R: Runtime>(
             connection,
             session_id: session.id.clone(),
             user: session.user.clone(),
+            input: None,
         })
         .await;
 

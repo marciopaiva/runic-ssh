@@ -34,6 +34,9 @@ pub fn run() -> tauri::Result<()> {
             commands::sessions::connect_session,
             commands::sessions::authenticate_session,
             commands::sessions::disconnect_session,
+            commands::terminal::open_terminal,
+            commands::terminal::send_input,
+            commands::terminal::resize_terminal,
         ])
         .run(tauri::generate_context!())
 }
