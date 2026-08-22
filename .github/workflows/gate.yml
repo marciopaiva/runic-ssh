@@ -110,6 +110,13 @@ jobs:
         working-directory: src-tauri
         run: cargo test
 
+      # Not an assertion — a measurement, printed so the numbers in
+      # docs/measurements/ come from every platform rather than from whichever
+      # machine the author happened to be sitting at. ADR-0006 asked for this.
+      - name: measure terminal throughput
+        working-directory: src-tauri
+        run: cargo test --test terminal_flood measured_throughput -- --nocapture
+
       - name: pnpm typecheck
         run: pnpm typecheck
 
