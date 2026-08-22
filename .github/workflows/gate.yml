@@ -28,7 +28,10 @@ env:
 
 jobs:
   gate:
-    name: ${{ matrix.os }}
+    # This string becomes the check name that branch protection requires, so it
+    # names the workflow too. A bare "ubuntu-latest" collides with the next
+    # workflow that runs a job on the same runner.
+    name: gate / ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       # Every platform reports. Stopping at the first failure hides whether the
