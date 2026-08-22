@@ -24,5 +24,17 @@
   "hostKey.revoked.title": "Esta chave está revogada",
   "hostKey.revoked.body": "O known_hosts marca esta chave como revogada. Ela não pode ser aceita, e não há como sobrescrever.",
   "hostKey.certificate.title": "Este host usa certificado",
-  "hostKey.certificate.body": "O known_hosts diz que {host} autentica com certificado. O Runic SSH ainda não verifica certificados, e confiar numa chave nua no lugar é exatamente a substituição contra a qual esse marcador avisa."
+  "hostKey.certificate.body": "O known_hosts diz que {host} autentica com certificado. O Runic SSH ainda não verifica certificados, e confiar numa chave nua no lugar é exatamente a substituição contra a qual esse marcador avisa.",
+  "sessions.title": "SESSÕES",
+  "sessions.filter": "Filtrar sessões",
+  "sessions.add": "Nova sessão",
+  "sessions.ungrouped": "SEM GRUPO",
+  "sessions.empty.title": "Nenhuma sessão ainda",
+  "sessions.empty.body": "Adicione um host para conectar. Nada é enviado a lugar nenhum até você fazer isso.",
+  "sessions.legend": "ESTADO",
+  "session.state.connected": "conectado",
+  "session.state.connecting": "conectando",
+  "session.state.saved": "salva, não conectada",
+  "session.state.keyMismatch": "bloqueada — chave de host alterada",
+  "session.state.unreachable": "inalcançável"
 }

@@ -32,6 +32,19 @@ export type MessageParams<K extends MessageKey> =
     : { readonly [P in Placeholders<(typeof SOURCE_CATALOG)[K]>]: string | number };
 
 /**
+ * Keys whose message has no holes.
+ *
+ * Somewhere to stand when the key is chosen at runtime: `t` cannot know which
+ * member of a union it was handed, so a dynamic key has to come from a set
+ * where the answer is the same for every member. Narrowing to this is stronger
+ * than loosening `t` would have been — a label picked at runtime now *cannot*
+ * be one that needed a parameter nobody passed.
+ */
+export type ParameterlessKey = {
+  [K in MessageKey]: Placeholders<(typeof SOURCE_CATALOG)[K]> extends never ? K : never;
+}[MessageKey];
+
+/**
  * The argument list for a key: exactly one parameter object when the message
  * has holes, and nothing at all when it does not.
  *
