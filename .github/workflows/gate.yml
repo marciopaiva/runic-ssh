@@ -1,0 +1,109 @@
+# The gate from section 8 of CLAUDE.md, run on every pull request.
+#
+# Two rules shape this file. Only GitHub-owned actions are used, each pinned to
+# a commit rather than a tag, because section 4 of docs/security-model.md names
+# a supply chain attacker as an adversary and a tag can be moved. And the five
+# commands are written out exactly as the agreement states them, so that what CI
+# enforces and what a contributor runs locally cannot drift apart.
+
+name: gate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # A failed build should not also cost a debuginfo write on every crate.
+  CARGO_INCREMENTAL: '0'
+
+jobs:
+  gate:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Every platform reports. Stopping at the first failure hides whether the
+      # break is universal or specific to one target.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Tauri needs the webview and its GTK stack to build at all on Linux.
+      # Keep this list in step with docs in the repository: a contributor who
+      # cannot build locally will look here first.
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libwebkit2gtk-4.1-dev \
+            libdbus-1-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libxdo-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            pkg-config \
+            patchelf
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      # pnpm comes from the packageManager field in package.json, so CI runs
+      # the exact version the lockfile was written with.
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Add Rust components
+        run: rustup component add rustfmt clippy
+
+      - name: Cache cargo
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            src-tauri/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      # The five commands from section 8, in the order the agreement lists them.
+      - name: cargo fmt
+        working-directory: src-tauri
+        run: cargo fmt --all -- --check
+
+      - name: cargo clippy
+        working-directory: src-tauri
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: cargo test
+        working-directory: src-tauri
+        run: cargo test
+
+      - name: pnpm typecheck
+        run: pnpm typecheck
+
+      - name: pnpm test
+        run: pnpm test
