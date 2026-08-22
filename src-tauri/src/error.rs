@@ -64,6 +64,9 @@ pub enum Error {
 
     #[error("the webview sent something malformed")]
     MalformedInput,
+
+    #[error("the input is larger than the core will forward")]
+    InputTooLarge,
 }
 
 /// A failure as the webview sees it: a code, and the fields it needs to render
@@ -113,6 +116,7 @@ pub enum IpcError {
     AmbiguousCredential,
     MissingCredential,
     MalformedInput,
+    InputTooLarge,
 }
 
 /// Paths are shown to the user so they can find the file; the rest of the
@@ -145,6 +149,7 @@ impl From<Error> for IpcError {
             Error::AmbiguousCredential => Self::AmbiguousCredential,
             Error::MissingCredential => Self::MissingCredential,
             Error::MalformedInput => Self::MalformedInput,
+            Error::InputTooLarge => Self::InputTooLarge,
         }
     }
 }
