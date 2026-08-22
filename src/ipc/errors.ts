@@ -84,7 +84,13 @@ export type IpcError =
 
 export type IpcErrorCode = IpcError['code'];
 
-const CODES: ReadonlySet<string> = new Set<IpcErrorCode>([
+/**
+ * Every code the core can send.
+ *
+ * Exported so the interface can prove it has something to say about each one:
+ * a failure nobody renders is the same as no error handling at all.
+ */
+export const CODES: ReadonlySet<IpcErrorCode> = new Set<IpcErrorCode>([
   'configDirUnavailable',
   'settingsUnreadable',
   'settingsMalformed',
@@ -129,7 +135,7 @@ export function asIpcError(rejection: unknown): IpcError | undefined {
   if (typeof rejection !== 'object' || rejection === null) return undefined;
 
   const code: unknown = (rejection as { code?: unknown }).code;
-  if (typeof code !== 'string' || !CODES.has(code)) return undefined;
+  if (typeof code !== 'string' || !CODES.has(code as IpcErrorCode)) return undefined;
 
   return rejection as IpcError;
 }
