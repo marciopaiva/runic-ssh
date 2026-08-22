@@ -36,3 +36,6 @@ pnpm-debug.log*
 
 # Claude Code local overrides (personal, never committed)
 .claude/settings.local.json
+
+# Design canvas build output (2 MB generated payload; rebuild from the .dc.html sources)
+/design/canvas/runic-ssh-interface.html

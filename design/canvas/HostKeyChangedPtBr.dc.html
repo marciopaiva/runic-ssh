@@ -1,0 +1,73 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Manrope", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #1ea7e2; text-decoration: none; }
+    a:hover { color: #5bc4f0; }
+    .mono { font-family: "JetBrains Mono", "Cascadia Mono", "SF Mono", ui-monospace, monospace; }
+    .ic { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  </style>
+</helmet>
+
+<div style="width: 940px; height: 640px; display: flex; align-items: center; justify-content: center; background: #0a0709; overflow: hidden;">
+
+  <div style="width: 640px; display: flex; flex-direction: column; background: #161014; border: 1px solid #5a2630; border-radius: 12px; box-shadow: 0 30px 70px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,95,107,0.08); color: #f3e6e8; overflow: hidden;">
+
+    <div style="height: 3px; flex: none; background: #ff5f6b;"></div>
+
+    <div style="display: flex; align-items: flex-start; gap: 14px; padding: 22px 24px 16px;">
+      <div style="width: 38px; height: 38px; flex: none; display: flex; align-items: center; justify-content: center; border-radius: 10px; background: #2b1219; border: 1px solid #5a2630; color: #ff5f6b;">
+        <svg class="ic" viewBox="0 0 16 16" style="width: 19px; height: 19px;"><path d="M8 2.4L14.6 13.6H1.4z"></path><path d="M8 6.6v3.2M8 11.6v.1"></path></svg>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 5px; flex-grow: 1;">
+        <span style="font-size: 17px; font-weight: 700; letter-spacing: -0.015em; color: #ffd8db;">Chave de host alterada — conexão bloqueada</span>
+        <span style="font-size: 13px; line-height: 1.5; color: #c9a8ad; text-wrap: pretty;">A chave apresentada por <span style="color: #ffd8db; font-weight: 600;">stg-db</span> não corresponde à salva em 14 de mar de 2026. Ou o host foi reinstalado, ou há algo entre você e ele.</span>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 10px; padding: 0 24px 18px;">
+      <div style="display: flex; flex-direction: column; gap: 7px; padding: 13px 14px; background: #12181a; border: 1px solid #234034; border-radius: 9px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <svg class="ic" viewBox="0 0 16 16" style="width: 12px; height: 12px; color: #2fb894;"><path d="M3 8.4l3.2 3.2L13 5"></path></svg>
+          <span style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.09em; color: #6d907f;">CONFIÁVEL DESDE 14 DE MAR DE 2026</span>
+        </div>
+        <span class="mono" style="font-size: 13px; font-weight: 700; color: #6fd8b4; word-break: break-all;">SHA256:9pOtVv2b+jZ0k1sQ8kAeRr8xkQXbY0aFq3tS1nGm2Lw</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 7px; padding: 13px 14px; background: #24141a; border: 1px solid #5a2630; border-radius: 9px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <svg class="ic" viewBox="0 0 16 16" style="width: 12px; height: 12px; color: #ff5f6b;"><path d="M4 4l8 8M12 4l-8 8"></path></svg>
+          <span style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.09em; color: #c07a83;">APRESENTADA AGORA · 22 DE AGO DE 2026, 09:14</span>
+        </div>
+        <span class="mono" style="font-size: 13px; font-weight: 700; color: #ff8a92; word-break: break-all;">SHA256:Kx7bR1qLm4Nz+cP0uYh6TdV9sE2gW5jXaB8oF3rQiUc</span>
+      </div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 10px; padding: 14px 24px; background: #120c10; border-top: 1px solid #3a1c23;">
+      <div style="display: flex; flex-direction: column; gap: 5px; flex-grow: 1;">
+        <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.07em; color: #8a626a;">PARA SUBSTITUIR, DIGITE O NOME DO HOST</span>
+        <div style="display: flex; align-items: center; height: 30px; width: 210px; padding: 0 10px; background: #1c1216; border: 1px solid #4a2129; border-radius: 6px;">
+          <span class="mono" style="font-size: 12px; color: #6d4a51;">stg-db</span>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; justify-content: center; height: 34px; padding: 0 16px; border-radius: 7px; border: 1px solid #4a2129; color: #6d4a51; font-size: 12.5px; font-weight: 600;">Substituir chave salva</div>
+      <div style="display: flex; align-items: center; justify-content: center; height: 34px; padding: 0 20px; border-radius: 7px; background: #e4ecf7; color: #101b28; font-size: 12.5px; font-weight: 700;">Cancelar conexão</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":940,"height":640}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

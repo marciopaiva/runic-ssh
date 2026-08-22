@@ -1,0 +1,141 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Manrope", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #1ea7e2; text-decoration: none; }
+    a:hover { color: #5bc4f0; }
+    .mono { font-family: "JetBrains Mono", "Cascadia Mono", "SF Mono", ui-monospace, monospace; }
+    .ic { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+    .kbd { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10px; padding: 1px 5px; border: 1px solid #294060; border-radius: 3px; color: #8ea1ba; }
+    .prow { display: flex; align-items: center; gap: 12px; height: 38px; padding: 0 14px; border-radius: 7px; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; position: relative; background: #0b131e; color: #e4ecf7; overflow: hidden; font-size: 13px;">
+
+  <!-- dimmed app behind -->
+  <div style="position: absolute; inset: 0; display: flex; flex-direction: column; opacity: 0.32;">
+    <div style="height: 38px; flex: none; display: flex; align-items: center; gap: 0; background: #0d1725; border-bottom: 1px solid #1d2f47;">
+      <div style="width: 44px; display: flex; align-items: center; justify-content: center;">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
+          <circle cx="9.5" cy="12" r="7" stroke="#2bb0e8" stroke-width="1.4"></circle>
+          <circle cx="14.5" cy="12" r="7" stroke="#b961e6" stroke-width="1.4"></circle>
+          <path d="M12 6.5v11M12 10l3-2.5M12 14l3 2.5M12 12l-2.6-2.2" stroke="#dbe7f5" stroke-width="1.4" stroke-linecap="round"></path>
+        </svg>
+      </div>
+      <div style="width: 168px; height: 100%; background: #0f1a29; border-top: 2px solid #1ea7e2;"></div>
+      <div style="width: 168px; height: 100%; border-right: 1px solid #1d2f47;"></div>
+    </div>
+    <div style="flex-grow: 1; display: flex;">
+      <div style="width: 264px; flex: none; background: #0f1a29; border-right: 1px solid #1d2f47;"></div>
+      <div class="mono" style="flex-grow: 1; background: #0a1119; padding: 18px; font-size: 13px; line-height: 1.62; color: #6c7f96;">
+        <div>deploy@web-01:~$ systemctl status nginx --no-pager</div>
+        <div>● nginx.service - A high performance web server and a reverse proxy server</div>
+        <div>     Active: active (running) since Thu 2026-08-20 04:12:07 UTC; 2 days ago</div>
+        <div>   Main PID: 812 (nginx)</div>
+      </div>
+    </div>
+    <div style="height: 27px; flex: none; background: #0d1725; border-top: 1px solid #1d2f47;"></div>
+  </div>
+
+  <div style="position: absolute; inset: 0; background: #050a11; opacity: 0.55;"></div>
+
+  <!-- palette -->
+  <div style="position: absolute; top: 96px; left: 50%; transform: translateX(-50%); width: 700px; display: flex; flex-direction: column; background: #101c2c; border: 1px solid #294060; border-radius: 12px; box-shadow: 0 32px 80px rgba(0,0,0,0.65); overflow: hidden;">
+
+    <div style="display: flex; align-items: center; gap: 12px; height: 54px; padding: 0 16px; border-bottom: 1px solid #1d2f47;">
+      <svg class="ic" viewBox="0 0 16 16" style="width: 17px; height: 17px; color: #56b6ea;"><circle cx="7" cy="7" r="4.2"></circle><path d="M10.2 10.2L13.5 13.5"></path></svg>
+      <span style="font-size: 15px; color: #e4ecf7;">prod</span>
+      <span style="width: 1.5px; height: 18px; background: #1ea7e2;"></span>
+      <span style="flex-grow: 1;"></span>
+      <span class="kbd">Esc</span>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 1px; padding: 8px;">
+
+      <div style="display: flex; align-items: center; height: 24px; padding: 0 14px;">
+        <span style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.09em; color: #5d7189;">SESSIONS</span>
+      </div>
+
+      <div class="prow" style="background: #17273c; box-shadow: inset 2px 0 0 #1ea7e2;">
+        <svg class="ic" viewBox="0 0 16 16" style="color: #2fb894;"><rect x="1.8" y="2.6" width="12.4" height="4.2" rx="1.2"></rect><rect x="1.8" y="9.2" width="12.4" height="4.2" rx="1.2"></rect><path d="M4.2 4.7v.01M4.2 11.3v.01"></path></svg>
+        <span style="font-size: 13px; font-weight: 600;">Connect <span style="color: #8ea1ba; font-weight: 400;">to</span> web-01</span>
+        <span class="mono" style="font-size: 11.5px; color: #8ea1ba;">10.0.4.12</span>
+        <span style="flex-grow: 1;"></span>
+        <span style="font-size: 11px; color: #5d7189;">production</span>
+        <span class="kbd">⏎</span>
+      </div>
+
+      <div class="prow" style="color: #c8d6e8;">
+        <svg class="ic" viewBox="0 0 16 16" style="color: #5d7189;"><rect x="1.8" y="2.6" width="12.4" height="4.2" rx="1.2"></rect><rect x="1.8" y="9.2" width="12.4" height="4.2" rx="1.2"></rect><path d="M4.2 4.7v.01M4.2 11.3v.01"></path></svg>
+        <span style="font-size: 13px;">Connect <span style="color: #8ea1ba;">to</span> db-01</span>
+        <span class="mono" style="font-size: 11.5px; color: #8ea1ba;">10.0.4.20</span>
+        <span style="flex-grow: 1;"></span>
+        <span style="font-size: 11px; color: #5d7189;">production</span>
+      </div>
+
+      <div class="prow" style="color: #c8d6e8;">
+        <svg class="ic" viewBox="0 0 16 16" style="color: #5d7189;"><path d="M2.5 4.5h4l1.4 1.6h5.6v6.4a1 1 0 01-1 1H3.5a1 1 0 01-1-1z"></path></svg>
+        <span style="font-size: 13px;">Open SFTP <span style="color: #8ea1ba;">on</span> web-01</span>
+        <span style="flex-grow: 1;"></span>
+        <span class="kbd">Ctrl ⇧ F</span>
+      </div>
+
+      <div style="display: flex; align-items: center; height: 24px; padding: 0 14px; margin-top: 6px;">
+        <span style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.09em; color: #5d7189;">ACTIONS</span>
+      </div>
+
+      <div class="prow" style="color: #c8d6e8;">
+        <svg class="ic" viewBox="0 0 16 16" style="color: #986fdd;"><path d="M2 8h5M9 8h5M7 5.5l2 2.5-2 2.5"></path></svg>
+        <span style="font-size: 13px;">Forward port <span class="mono" style="color: #e4ecf7;">db-01:5432</span> <span style="color: #8ea1ba;">→</span> <span class="mono" style="color: #e4ecf7;">localhost:5432</span></span>
+        <span style="flex-grow: 1;"></span>
+      </div>
+
+      <div class="prow" style="color: #c8d6e8;">
+        <svg class="ic" viewBox="0 0 16 16" style="color: #5d7189;"><path d="M4.5 7.2V5.4a3.5 3.5 0 017 0v1.8"></path><rect x="3.2" y="7.2" width="9.6" height="6" rx="1.6"></rect></svg>
+        <span style="font-size: 13px;">Review host keys for <span style="color: #e4ecf7;">production</span></span>
+        <span style="flex-grow: 1;"></span>
+        <span style="font-size: 11px; padding: 1px 7px; border-radius: 20px; background: #24141a; color: #ff8a92; font-weight: 600;">1 mismatch</span>
+      </div>
+
+      <div style="display: flex; align-items: center; height: 24px; padding: 0 14px; margin-top: 6px;">
+        <span style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.09em; color: #5d7189;">SNIPPETS</span>
+      </div>
+
+      <div class="prow" style="color: #c8d6e8;">
+        <svg class="ic" viewBox="0 0 16 16" style="color: #5d7189;"><path d="M5.5 3.5L2.5 8l3 4.5M10.5 3.5l3 4.5-3 4.5"></path></svg>
+        <span style="font-size: 13px;">Restart nginx</span>
+        <span class="mono" style="font-size: 11.5px; color: #7e93ad;">sudo systemctl restart nginx</span>
+        <span style="flex-grow: 1;"></span>
+      </div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 16px; height: 38px; padding: 0 16px; background: #0d1725; border-top: 1px solid #1d2f47; font-size: 11px; color: #8ea1ba;">
+      <div style="display: flex; align-items: center; gap: 6px;"><span class="kbd">↑↓</span><span>navigate</span></div>
+      <div style="display: flex; align-items: center; gap: 6px;"><span class="kbd">⏎</span><span>run</span></div>
+      <div style="display: flex; align-items: center; gap: 6px;"><span class="kbd">⇥</span><span>complete</span></div>
+      <span style="flex-grow: 1;"></span>
+      <div style="display: flex; align-items: center; gap: 10px; color: #5d7189;">
+        <span><span class="mono" style="color: #56b6ea;">&gt;</span> commands</span>
+        <span><span class="mono" style="color: #56b6ea;">@</span> sessions</span>
+        <span><span class="mono" style="color: #56b6ea;">:</span> snippets</span>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

@@ -1,0 +1,187 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Manrope", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #1ea7e2; text-decoration: none; }
+    a:hover { color: #5bc4f0; }
+    .mono { font-family: "JetBrains Mono", "Cascadia Mono", "SF Mono", ui-monospace, monospace; }
+    .ic { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+    .row { display: flex; align-items: center; gap: 10px; height: 28px; padding: 0 12px; border-radius: 5px; font-size: 12.5px; color: #c8d6e8; }
+    .sz { font-size: 11.5px; color: #8ea1ba; width: 72px; text-align: right; flex: none; }
+    .dt { font-size: 11.5px; color: #5d7189; width: 106px; flex: none; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #0b131e; color: #e4ecf7; overflow: hidden; font-size: 13px;">
+
+  <div style="height: 38px; flex: none; display: flex; align-items: stretch; background: #0d1725; border-bottom: 1px solid #1d2f47;">
+    <div style="width: 44px; display: flex; align-items: center; justify-content: center;">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
+        <circle cx="9.5" cy="12" r="7" stroke="#2bb0e8" stroke-width="1.4"></circle>
+        <circle cx="14.5" cy="12" r="7" stroke="#b961e6" stroke-width="1.4"></circle>
+        <path d="M12 6.5v11M12 10l3-2.5M12 14l3 2.5M12 12l-2.6-2.2" stroke="#dbe7f5" stroke-width="1.4" stroke-linecap="round"></path>
+      </svg>
+    </div>
+    <div style="display: flex; align-items: stretch;">
+      <div style="display: flex; align-items: center; gap: 8px; padding: 0 12px 0 13px; border-top: 2px solid transparent; border-right: 1px solid #1d2f47; min-width: 168px; color: #8ea1ba;">
+        <span style="width: 6px; height: 6px; border-radius: 50%; background: #2fb894; flex: none;"></span>
+        <span style="font-size: 12.5px; font-weight: 500; flex-grow: 1;">web-01</span>
+        <svg class="ic" viewBox="0 0 16 16" style="color: #3d5271; width: 12px; height: 12px;"><path d="M4 4l8 8M12 4l-8 8"></path></svg>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px; padding: 0 12px 0 13px; background: #0f1a29; border-top: 2px solid #1ea7e2; border-right: 1px solid #1d2f47; min-width: 178px;">
+        <svg class="ic" viewBox="0 0 16 16" style="color: #56b6ea; width: 13px; height: 13px;"><path d="M2.5 4.5h4l1.4 1.6h5.6v6.4a1 1 0 01-1 1H3.5a1 1 0 01-1-1z"></path></svg>
+        <span style="font-size: 12.5px; font-weight: 600; flex-grow: 1;">web-01 · SFTP</span>
+        <svg class="ic" viewBox="0 0 16 16" style="color: #5d7189; width: 12px; height: 12px;"><path d="M4 4l8 8M12 4l-8 8"></path></svg>
+      </div>
+      <div style="display: flex; align-items: center; padding: 0 12px; color: #5d7189;">
+        <svg class="ic" viewBox="0 0 16 16"><path d="M8 3.5v9M3.5 8h9"></path></svg>
+      </div>
+    </div>
+    <div style="flex-grow: 1;"></div>
+    <div style="display: flex; align-items: stretch; color: #8ea1ba;">
+      <div style="width: 46px; display: flex; align-items: center; justify-content: center;"><svg class="ic" viewBox="0 0 16 16" style="width: 11px; height: 11px;"><path d="M3 8h10"></path></svg></div>
+      <div style="width: 46px; display: flex; align-items: center; justify-content: center;"><svg class="ic" viewBox="0 0 16 16" style="width: 11px; height: 11px;"><rect x="3.5" y="3.5" width="9" height="9" rx="1"></rect></svg></div>
+      <div style="width: 46px; display: flex; align-items: center; justify-content: center;"><svg class="ic" viewBox="0 0 16 16" style="width: 11px; height: 11px;"><path d="M4 4l8 8M12 4l-8 8"></path></svg></div>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1; display: flex; align-items: stretch; min-height: 0;">
+
+    <div style="width: 56px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 0; background: #0f1a29; border-right: 1px solid #1d2f47; color: #5d7189;">
+      <div style="width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; border-radius: 7px;"><svg class="ic" viewBox="0 0 16 16" style="width: 17px; height: 17px;"><rect x="1.8" y="2.6" width="12.4" height="4.2" rx="1.2"></rect><rect x="1.8" y="9.2" width="12.4" height="4.2" rx="1.2"></rect></svg></div>
+      <div style="width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; border-radius: 7px; background: #17273c; color: #56b6ea; box-shadow: inset 2px 0 0 #1ea7e2;"><svg class="ic" viewBox="0 0 16 16" style="width: 17px; height: 17px;"><path d="M2.5 4.5h4l1.4 1.6h5.6v6.4a1 1 0 01-1 1H3.5a1 1 0 01-1-1z"></path></svg></div>
+      <div style="width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; border-radius: 7px;"><svg class="ic" viewBox="0 0 16 16" style="width: 17px; height: 17px;"><path d="M2 8h5M9 8h5M7 5.5l2 2.5-2 2.5"></path></svg></div>
+      <div style="width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; border-radius: 7px;"><svg class="ic" viewBox="0 0 16 16" style="width: 17px; height: 17px;"><path d="M3 5h10M3 8h10M3 11h6"></path></svg></div>
+    </div>
+
+    <div style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+
+      <div style="flex-grow: 1; display: flex; align-items: stretch; min-height: 0;">
+
+        <!-- LOCAL PANE -->
+        <div style="flex-grow: 1; flex-basis: 0; display: flex; flex-direction: column; min-width: 0; background: #0a1119;">
+          <div style="height: 36px; flex: none; display: flex; align-items: center; gap: 9px; padding: 0 12px; background: #0c1522; border-bottom: 1px solid #16263c;">
+            <span style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.09em; color: #5d7189;">LOCAL</span>
+            <div style="display: flex; align-items: center; gap: 5px; flex-grow: 1; min-width: 0;">
+              <span class="mono" style="font-size: 12px; color: #8ea1ba;">~/projects/</span><span class="mono" style="font-size: 12px; font-weight: 600; color: #e4ecf7;">orders-api</span>
+            </div>
+            <svg class="ic" viewBox="0 0 16 16" style="color: #8ea1ba;"><path d="M8 3v7M5 7l3 3 3-3M3 13h10"></path></svg>
+            <svg class="ic" viewBox="0 0 16 16" style="color: #8ea1ba;"><circle cx="7" cy="7" r="4.2"></circle><path d="M10.2 10.2L13.5 13.5"></path></svg>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px; height: 26px; padding: 0 12px; border-bottom: 1px solid #16263c; font-size: 10px; font-weight: 700; letter-spacing: 0.07em; color: #5d7189;">
+            <span style="flex-grow: 1;">NAME</span>
+            <span style="width: 72px; text-align: right;">SIZE</span>
+            <span style="width: 106px;">MODIFIED</span>
+          </div>
+          <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 1px; padding: 6px;">
+            <div class="row"><svg class="ic" viewBox="0 0 16 16" style="color: #7e93ad;"><path d="M2.5 4.5h4l1.4 1.6h5.6v6.4a1 1 0 01-1 1H3.5a1 1 0 01-1-1z"></path></svg><span style="flex-grow: 1;">..</span><span class="sz"></span><span class="dt"></span></div>
+            <div class="row"><svg class="ic" viewBox="0 0 16 16" style="color: #56b6ea;"><path d="M2.5 4.5h4l1.4 1.6h5.6v6.4a1 1 0 01-1 1H3.5a1 1 0 01-1-1z"></path></svg><span style="flex-grow: 1;">dist</span><span class="sz">—</span><span class="dt">22 Aug 09:02</span></div>
+            <div class="row"><svg class="ic" viewBox="0 0 16 16" style="color: #56b6ea;"><path d="M2.5 4.5h4l1.4 1.6h5.6v6.4a1 1 0 01-1 1H3.5a1 1 0 01-1-1z"></path></svg><span style="flex-grow: 1;">migrations</span><span class="sz">—</span><span class="dt">19 Aug 16:41</span></div>
+            <div class="row" style="background: #17273c; box-shadow: inset 2px 0 0 #1ea7e2;"><svg class="ic" viewBox="0 0 16 16" style="color: #8ea1ba;"><path d="M3.5 2.5h5.5l3.5 3.5v7.5h-9z"></path><path d="M9 2.5V6h3.5"></path></svg><span style="flex-grow: 1; font-weight: 600; color: #e4ecf7;">release-2.14.tar.gz</span><span class="sz" style="color: #c8d6e8;">18.2 MB</span><span class="dt">22 Aug 09:11</span></div>
+            <div class="row"><svg class="ic" viewBox="0 0 16 16" style="color: #8ea1ba;"><path d="M3.5 2.5h5.5l3.5 3.5v7.5h-9z"></path><path d="M9 2.5V6h3.5"></path></svg><span style="flex-grow: 1;">docker-compose.yml</span><span class="sz">2.1 KB</span><span class="dt">21 Aug 11:07</span></div>
+            <div class="row"><svg class="ic" viewBox="0 0 16 16" style="color: #8ea1ba;"><path d="M3.5 2.5h5.5l3.5 3.5v7.5h-9z"></path><path d="M9 2.5V6h3.5"></path></svg><span style="flex-grow: 1;">deploy.sh</span><span class="sz">1.4 KB</span><span class="dt">20 Aug 08:55</span></div>
+            <div class="row"><svg class="ic" viewBox="0 0 16 16" style="color: #8ea1ba;"><path d="M3.5 2.5h5.5l3.5 3.5v7.5h-9z"></path><path d="M9 2.5V6h3.5"></path></svg><span style="flex-grow: 1;">README.md</span><span class="sz">6.8 KB</span><span class="dt">14 Aug 19:20</span></div>
+          </div>
+        </div>
+
+        <div style="width: 5px; flex: none; background: #0d1725; border-left: 1px solid #1d2f47; border-right: 1px solid #1d2f47; display: flex; align-items: center; justify-content: center;">
+          <span style="width: 1px; height: 26px; background: #294060; border-radius: 1px;"></span>
+        </div>
+
+        <!-- REMOTE PANE -->
+        <div style="flex-grow: 1; flex-basis: 0; display: flex; flex-direction: column; min-width: 0; background: #0a1119;">
+          <div style="height: 36px; flex: none; display: flex; align-items: center; gap: 9px; padding: 0 12px; background: #0c1522; border-bottom: 1px solid #16263c;">
+            <span style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.09em; color: #2fb894;">REMOTE · WEB-01</span>
+            <div style="display: flex; align-items: center; gap: 5px; flex-grow: 1; min-width: 0;">
+              <span class="mono" style="font-size: 12px; color: #8ea1ba;">/var/www/</span><span class="mono" style="font-size: 12px; font-weight: 600; color: #e4ecf7;">orders-api</span>
+            </div>
+            <svg class="ic" viewBox="0 0 16 16" style="color: #8ea1ba;"><path d="M8 13V6M5 9l3-3 3 3M3 3h10"></path></svg>
+            <svg class="ic" viewBox="0 0 16 16" style="color: #8ea1ba;"><circle cx="7" cy="7" r="4.2"></circle><path d="M10.2 10.2L13.5 13.5"></path></svg>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px; height: 26px; padding: 0 12px; border-bottom: 1px solid #16263c; font-size: 10px; font-weight: 700; letter-spacing: 0.07em; color: #5d7189;">
+            <span style="flex-grow: 1;">NAME</span>
+            <span style="width: 72px; text-align: right;">SIZE</span>
+            <span style="width: 76px;">MODE</span>
+            <span style="width: 106px;">MODIFIED</span>
+          </div>
+          <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 1px; padding: 6px;">
+            <div class="row"><svg class="ic" viewBox="0 0 16 16" style="color: #7e93ad;"><path d="M2.5 4.5h4l1.4 1.6h5.6v6.4a1 1 0 01-1 1H3.5a1 1 0 01-1-1z"></path></svg><span style="flex-grow: 1;">..</span><span class="sz"></span><span class="mono" style="width: 76px; font-size: 11px; color: #5d7189;"></span><span class="dt"></span></div>
+            <div class="row"><svg class="ic" viewBox="0 0 16 16" style="color: #56b6ea;"><path d="M2.5 4.5h4l1.4 1.6h5.6v6.4a1 1 0 01-1 1H3.5a1 1 0 01-1-1z"></path></svg><span style="flex-grow: 1;">current</span><span class="sz">—</span><span class="mono" style="width: 76px; font-size: 11px; color: #5d7189;">drwxr-xr-x</span><span class="dt">20 Aug 08:56</span></div>
+            <div class="row"><svg class="ic" viewBox="0 0 16 16" style="color: #56b6ea;"><path d="M2.5 4.5h4l1.4 1.6h5.6v6.4a1 1 0 01-1 1H3.5a1 1 0 01-1-1z"></path></svg><span style="flex-grow: 1;">releases</span><span class="sz">—</span><span class="mono" style="width: 76px; font-size: 11px; color: #5d7189;">drwxr-xr-x</span><span class="dt">22 Aug 09:12</span></div>
+            <div class="row"><svg class="ic" viewBox="0 0 16 16" style="color: #8ea1ba;"><path d="M3.5 2.5h5.5l3.5 3.5v7.5h-9z"></path><path d="M9 2.5V6h3.5"></path></svg><span style="flex-grow: 1;">.env</span><span class="sz">1.2 KB</span><span class="mono" style="width: 76px; font-size: 11px; color: #e0a83c;">-rw-------</span><span class="dt">14 Mar 10:02</span></div>
+            <div class="row" style="opacity: 0.75;"><svg class="ic" viewBox="0 0 16 16" style="color: #56b6ea;"><path d="M2.5 4.5h4l1.4 1.6h5.6v6.4a1 1 0 01-1 1H3.5a1 1 0 01-1-1z"></path></svg><span style="flex-grow: 1;">release-2.14.tar.gz</span><span class="sz">6.4 / 18.2 MB</span><span class="mono" style="width: 76px; font-size: 11px; color: #5d7189;">-rw-r--r--</span><span class="dt" style="color: #56b6ea;">uploading…</span></div>
+            <div class="row" style="background: #1b1620;"><svg class="ic" viewBox="0 0 16 16" style="color: #e0a83c;"><path d="M8 2.8L14.2 13.2H1.8z"></path><path d="M8 6.6v3M8 11.3v.1"></path></svg><span class="mono" style="flex-grow: 1; font-size: 12px; color: #e6c98a;">invoice\u202Efdp.exe</span><span class="sz">240 KB</span><span class="mono" style="width: 76px; font-size: 11px; color: #5d7189;">-rwxr-xr-x</span><span class="dt">21 Aug 03:44</span></div>
+            <div class="row" style="height: 22px; padding-left: 40px;"><span style="font-size: 10.5px; color: #b08a3e;">Name contains hidden direction characters — shown escaped.</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TRANSFER QUEUE -->
+      <div style="height: 176px; flex: none; display: flex; flex-direction: column; background: #0c1522; border-top: 1px solid #1d2f47;">
+        <div style="height: 32px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 14px; border-bottom: 1px solid #16263c;">
+          <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; color: #c8d6e8;">TRANSFERS</span>
+          <span style="font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 20px; background: #17273c; color: #56b6ea;">1 active</span>
+          <span style="flex-grow: 1;"></span>
+          <span class="mono" style="font-size: 11px; color: #8ea1ba;">2.4 MB/s</span>
+          <span style="font-size: 11.5px; color: #5d7189;">Clear finished</span>
+        </div>
+        <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px; padding: 8px 14px;">
+          <div style="display: flex; align-items: center; gap: 12px; height: 34px;">
+            <svg class="ic" viewBox="0 0 16 16" style="color: #56b6ea;"><path d="M8 12.5v-9M5 6.5L8 3.5l3 3"></path></svg>
+            <span style="font-size: 12.5px; width: 200px; flex: none;">release-2.14.tar.gz</span>
+            <div style="flex-grow: 1; height: 5px; border-radius: 3px; background: #16263c; overflow: hidden;">
+              <div style="width: 35%; height: 5px; border-radius: 3px; background: #1ea7e2;"></div>
+            </div>
+            <span class="mono" style="font-size: 11.5px; color: #c8d6e8; width: 118px; text-align: right; flex: none;">6.4 / 18.2 MB</span>
+            <span class="mono" style="font-size: 11.5px; color: #8ea1ba; width: 56px; text-align: right; flex: none;">00:05</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 12px; height: 34px; color: #8ea1ba;">
+            <svg class="ic" viewBox="0 0 16 16" style="color: #2fb894;"><path d="M3 8.4l3.2 3.2L13 5"></path></svg>
+            <span style="font-size: 12.5px; width: 200px; flex: none;">migrations/0042_orders.sql</span>
+            <div style="flex-grow: 1; height: 5px; border-radius: 3px; background: #16263c; overflow: hidden;"><div style="width: 100%; height: 5px; border-radius: 3px; background: #2fb894;"></div></div>
+            <span class="mono" style="font-size: 11.5px; width: 118px; text-align: right; flex: none;">14.2 KB</span>
+            <span class="mono" style="font-size: 11.5px; width: 56px; text-align: right; flex: none;">done</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 12px; height: 34px; color: #8ea1ba;">
+            <svg class="ic" viewBox="0 0 16 16" style="color: #ff5f6b;"><path d="M4 4l8 8M12 4l-8 8"></path></svg>
+            <span style="font-size: 12.5px; width: 200px; flex: none;">.env</span>
+            <div style="flex-grow: 1; height: 5px; border-radius: 3px; background: #16263c; overflow: hidden;"><div style="width: 12%; height: 5px; border-radius: 3px; background: #ff5f6b;"></div></div>
+            <span style="font-size: 11.5px; color: #ff8a92; width: 118px; text-align: right; flex: none;">permission denied</span>
+            <span class="mono" style="font-size: 11.5px; width: 56px; text-align: right; flex: none;">retry</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="height: 27px; flex: none; display: flex; align-items: center; background: #0d1725; border-top: 1px solid #1d2f47; font-size: 11.5px; color: #8ea1ba;">
+    <div style="display: flex; align-items: center; gap: 7px; padding: 0 12px 0 14px;">
+      <span style="width: 6px; height: 6px; border-radius: 50%; background: #2fb894;"></span>
+      <span style="font-weight: 600; color: #c8d6e8;">SFTP over web-01</span>
+    </div>
+    <div style="padding: 0 12px;"><span class="mono">7 items</span></div>
+    <div style="padding: 0 12px;"><span class="mono">1 selected · 18.2 MB</span></div>
+    <span style="flex-grow: 1;"></span>
+    <div style="padding: 0 12px;"><span class="mono">2.4 MB/s ↑</span></div>
+    <div style="display: flex; align-items: center; gap: 7px; padding: 0 16px 0 12px; color: #c8d6e8;">
+      <span class="mono" style="padding: 1px 5px; border: 1px solid #294060; border-radius: 3px; font-size: 10px;">Ctrl ⇧ P</span>
+      <span>Commands</span>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>
