@@ -1,6 +1,6 @@
 # ADR-0006: Render the terminal with the xterm.js WebGL addon, falling back to DOM
 
-* **Status**: Proposed
+* **Status**: Accepted
 * **Date**: 2026-08-22
 
 ## Context
@@ -60,13 +60,18 @@ dependency without buying the speed that justifies one.
 
 ## Decision
 
-Option B. The WebGL addon is the renderer, and the built-in DOM renderer is the
-fallback — used when WebGL2 is unavailable at startup, and switched to if the
-context is lost while running.
+Option B, accepted on 2026-08-22. The WebGL addon is the renderer, and the
+built-in DOM renderer is the fallback — used when WebGL2 is unavailable at
+startup, and switched to if the context is lost while running.
 
 Deliberately not a three-step chain through the canvas addon: that would be a
 second dependency to buy a fallback for a fallback, against a project whose
-security model counts dependencies as attack surface.
+security model counts dependencies as attack surface. A uniform canvas-only
+renderer was also weighed and rejected: it would make speed predictable on every
+platform by giving up the speed that justifies a dependency at all.
+
+This is the project's first runtime npm dependency, and section 5 of `CLAUDE.md`
+is satisfied by this record rather than by asking again at install time.
 
 The tradeoff accepted is that "fast" is a promise we keep on Windows and macOS
 and cannot guarantee on every Linux configuration. The fallback is correct
