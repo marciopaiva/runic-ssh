@@ -33,7 +33,9 @@ export type IpcError =
   | { readonly code: 'unknownHandle' }
   | { readonly code: 'ambiguousCredential' }
   | { readonly code: 'missingCredential' }
-  | { readonly code: 'malformedInput' };
+  | { readonly code: 'malformedInput' }
+  /** The core refuses to forward input this large. */
+  | { readonly code: 'inputTooLarge' };
 
 export type IpcErrorCode = IpcError['code'];
 
@@ -54,6 +56,7 @@ const CODES: ReadonlySet<string> = new Set<IpcErrorCode>([
   'ambiguousCredential',
   'missingCredential',
   'malformedInput',
+  'inputTooLarge',
 ]);
 
 /**

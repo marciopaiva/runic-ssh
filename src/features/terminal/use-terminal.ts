@@ -69,7 +69,11 @@ export function useTerminal(
         /* Enough history to scroll back through a build, bounded so a hostile
            host cannot grow it without limit. */
         scrollback: 5000,
-        allowProposedApi: true,
+        /* Left at the default. Nothing here uses a proposed API, and neither
+           addon references one — an earlier version enabled it out of habit,
+           which is how experimental surface ends up switched on in an
+           application that never asked for it. */
+        allowProposedApi: false,
       });
 
       const fit = new FitAddon();
@@ -93,6 +97,26 @@ export function useTerminal(
       }));
 
       writeRef.current = (bytes) => terminal.write(bytes);
+
+      /* The palette follows the theme while the session is open. Reading it
+         once at construction would leave the terminal — the surface a user
+         stares at longest — as the one place that keeps the old colours after
+         a theme change, which is precisely what the token system exists to
+         avoid. */
+      const repaint = (): void => {
+        terminal.options.theme = terminalTheme();
+      };
+
+      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)');
+      systemTheme.addEventListener('change', repaint);
+
+      /* An explicit choice in settings stamps the root element, which no media
+         query reports. */
+      const themeAttribute = new MutationObserver(repaint);
+      themeAttribute.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['data-theme'],
+      });
 
       await openTerminal(handle, terminal.cols, terminal.rows);
 
@@ -123,6 +147,8 @@ export function useTerminal(
       observer.observe(container);
 
       teardown.push(
+        () => systemTheme.removeEventListener('change', repaint),
+        () => themeAttribute.disconnect(),
         () => observer.disconnect(),
         () => typed.dispose(),
         () => binary.dispose(),

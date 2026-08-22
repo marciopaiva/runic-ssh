@@ -22,6 +22,16 @@ pub const CLOSED_EVENT: &str = "terminal://closed";
 /// megabyte sit in memory instead of pushing back on whoever produced it.
 const INPUT_QUEUE: usize = 64;
 
+/// The largest single input the core will accept.
+///
+/// 32 KiB is far more than a keystroke and more than any paste a person makes
+/// by hand, and far less than something worth sending. The webview is our own
+/// code, but `docs/architecture.md` says every value crossing into the core is
+/// validated on the Rust side regardless of what the frontend claims to have
+/// checked — and #23 bounded what a *host* can push at us without bounding
+/// what the other side of the IPC can.
+pub const MAX_INPUT_BYTES: usize = 32 * 1024;
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct OutputEvent {
@@ -97,17 +107,39 @@ pub async fn open_terminal<R: Runtime>(
 }
 
 /// Sends what the user typed.
+/// Refuses input the core should never be asked to forward.
+///
+/// Separate from the command so the refusals are testable without a webview,
+/// and checked before the decode as well as after: base64 expands by a third,
+/// so a caller sending a gigabyte would otherwise have it allocated here
+/// before the length was ever looked at.
+pub fn check_input_size(encoded: &str) -> Result<Vec<u8>, Error> {
+    use base64ct::{Base64, Encoding};
+
+    if encoded.len() > MAX_INPUT_BYTES * 2 {
+        return Err(Error::InputTooLarge);
+    }
+
+    let bytes = Base64::decode_vec(encoded).map_err(|_| Error::MalformedInput)?;
+
+    if bytes.len() > MAX_INPUT_BYTES {
+        return Err(Error::InputTooLarge);
+    }
+
+    Ok(bytes)
+}
+
+/// Sends what the user typed.
+///
+/// Base64 in this direction too, for the same reason as the other: a paste can
+/// contain any byte, and a JSON string cannot.
 #[tauri::command]
 pub async fn send_input(
     registry: State<'_, Registry>,
     handle: SessionHandle,
     data: String,
 ) -> Result<(), IpcError> {
-    use base64ct::{Base64, Encoding};
-
-    /* Base64 in this direction too, for the same reason as the other: a paste
-    can contain any byte, and a JSON string cannot. */
-    let bytes = Base64::decode_vec(&data).map_err(|_| Error::MalformedInput)?;
+    let bytes = check_input_size(&data)?;
 
     registry
         .send_input(handle, Input::Keys(bytes))
@@ -135,4 +167,61 @@ pub async fn resize_terminal(
         .ok_or(Error::UnknownHandle)?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use base64ct::{Base64, Encoding};
+
+    use super::*;
+
+    #[test]
+    fn an_ordinary_keystroke_passes() {
+        let encoded = Base64::encode_string(b"ls -la\n");
+        assert_eq!(check_input_size(&encoded).expect("accepted"), b"ls -la\n");
+    }
+
+    #[test]
+    fn a_large_paste_is_still_reasonable() {
+        /* Someone pasting a certificate or a long command should not be
+        refused; the limit is for what nobody types. */
+        let paste = vec![b'x'; 16 * 1024];
+        let encoded = Base64::encode_string(&paste);
+        assert_eq!(
+            check_input_size(&encoded).expect("accepted").len(),
+            paste.len()
+        );
+    }
+
+    #[test]
+    fn something_nobody_typed_is_refused() {
+        let flood = vec![b'x'; MAX_INPUT_BYTES + 1];
+        let encoded = Base64::encode_string(&flood);
+
+        assert!(matches!(
+            check_input_size(&encoded),
+            Err(Error::InputTooLarge)
+        ));
+    }
+
+    #[test]
+    fn the_length_is_checked_before_the_decode_allocates() {
+        /* base64 expands by a third, so checking only the decoded length would
+        allocate the whole thing first. A caller sending a gigabyte should
+        cost us the length check and nothing else. */
+        let enormous = "A".repeat(MAX_INPUT_BYTES * 2 + 1);
+
+        assert!(matches!(
+            check_input_size(&enormous),
+            Err(Error::InputTooLarge)
+        ));
+    }
+
+    #[test]
+    fn malformed_base64_is_refused_rather_than_guessed() {
+        assert!(matches!(
+            check_input_size("!!!not base64!!!"),
+            Err(Error::MalformedInput)
+        ));
+    }
 }
