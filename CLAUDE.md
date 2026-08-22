@@ -17,7 +17,20 @@ them.
 Everything that lands in the repository is written in **English**: source code,
 comments, documentation, commit messages, branch names, issue and PR text.
 Conversation with the maintainer happens in Brazilian Portuguese. That split is
-deliberate and applies without exception.
+deliberate.
+
+The one exception is user-facing strings. Runic SSH ships in Brazilian
+Portuguese, English and neutral Spanish, and those translations live only in
+`src/locales/`, one flat catalog per locale. `src/locales/en.json` is the source
+of truth: a string is written there first, and the other catalogs translate it.
+No user-facing text is written anywhere else in the tree, and nothing else in
+the tree is written in another language. See
+`adr/0007-localize-in-the-frontend-from-typed-error-codes.md`.
+
+Security copy is a special case. A mistranslated host key warning is a
+vulnerability, not a typo. Strings that describe a security decision to the user
+are reviewed by a native speaker before release, and the English string stays
+normative when they disagree.
 
 ---
 
