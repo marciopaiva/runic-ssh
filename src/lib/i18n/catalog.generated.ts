@@ -132,4 +132,9 @@ export const SOURCE_CATALOG = {
   "failure.retry": "Try again",
   "failure.dismiss": "Dismiss",
   "failure.host": "Tried {user}@{host} on port {port}",
+  "sessions.actions": "Actions for {name}",
+  "session.menu.connect": "Connect",
+  "session.menu.disconnect": "Disconnect",
+  "session.menu.edit": "Edit…",
+  "session.menu.delete": "Delete",
 } as const;

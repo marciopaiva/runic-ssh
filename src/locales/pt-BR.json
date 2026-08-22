@@ -125,5 +125,10 @@
   "failure.unexpected.body": "O Runic SSH não tem resposta melhor que esta. O código abaixo nomeia a falha exatamente, e serve para um relato de bug.",
   "failure.retry": "Tentar de novo",
   "failure.dismiss": "Dispensar",
-  "failure.host": "Tentou {user}@{host} na porta {port}"
+  "failure.host": "Tentou {user}@{host} na porta {port}",
+  "sessions.actions": "Ações para {name}",
+  "session.menu.connect": "Conectar",
+  "session.menu.disconnect": "Desconectar",
+  "session.menu.edit": "Editar…",
+  "session.menu.delete": "Excluir"
 }
