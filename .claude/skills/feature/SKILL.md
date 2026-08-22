@@ -1,13 +1,14 @@
 ---
 name: feature
-description: Drive a change through the four Runic SSH phases (Analyze, Propose, Resolve, Implement). Use for any non-trivial work in this repository: a new feature, a bug whose cause is not yet known, a refactor, or a dependency change. Do not use for typos, formatting, or a change the maintainer already specified line by line.
+description: Drive a change through the five Runic SSH phases (Analyze, Propose, Resolve, Implement, Close out). Use for any non-trivial work in this repository: a new feature, a bug whose cause is not yet known, a refactor, or a dependency change. Do not use for typos, formatting, or a change the maintainer already specified line by line.
 ---
 
 # Feature pipeline
 
-Four phases, in order. Do not collapse them. The value is in stopping between
+Five phases, in order. Do not collapse them. The value is in stopping between
 Analyze and Propose, and between Propose and Implement, so the maintainer can
-redirect while redirecting is still cheap.
+redirect while redirecting is still cheap — and in Phase 5, which is what stops
+the work living only in a conversation that will not survive.
 
 The request is in `$ARGUMENTS`. If it is empty, ask what to work on and stop.
 
@@ -128,3 +129,51 @@ pnpm test
 A command that does not exist yet because that part of the tree is not
 scaffolded is reported as not run. Never present unrun code as verified, and
 never report a gate as passing when you did not watch it pass.
+
+---
+
+## Phase 5: Close out
+
+The work is not finished when it merges. It is finished when someone who was
+not here can pick it up from the repository alone.
+
+1. **Put the outcome where it survives the session.** The commit, the pull
+   request, the issue and any ADR are the record. Anything a future session
+   would need — a decision made mid-implementation, a blocker hit, a follow-up
+   the change created, an environment requirement discovered — is written into
+   one of them, not left in the conversation. If it only exists in chat, it is
+   already lost.
+2. **Say what the change created.** Work discovered on the way — a follow-up, a
+   debt, a question — becomes an issue or a line in an existing one. A
+   follow-up mentioned only in a report is a follow-up nobody does.
+3. **Offer to compact.** A merge is the point at which the conversation stops
+   being needed, because step 1 moved everything durable out of it. Offer the
+   maintainer `/compact`; it is theirs to run.
+
+Do not claim to compact anything yourself. Nothing in this repository, and no
+tool available to a session, clears the model's context — the harness does it
+automatically when the window fills, and `/compact` is a command the maintainer
+types. A skill that instructs otherwise is describing a control that does not
+exist.
+
+---
+
+## Output discipline
+
+Tokens are spent mostly on command output nobody reads, and a session that
+fills its window on build logs compacts sooner and remembers less of the work.
+This costs nothing to follow:
+
+* **Cap verbose commands.** Pipe installs, builds, test runs and CI logs through
+  `tail`, `grep` or a summarising step. `apt-get install -qq … | tail -5`, not
+  the whole transcript. When a command fails, then read the failure in full.
+* **Never `cat` a whole file to look at part of it.** Use `sed -n 'A,Bp'`,
+  `grep -n`, or a targeted read.
+* **Do not re-read a file to confirm an edit landed.** The edit tools fail
+  loudly; a successful edit needs no verification pass.
+* **Summarise machine output rather than pasting it.** A gate result is five
+  lines of pass or fail, not five command transcripts.
+
+The exception is evidence. When reporting that something works — or does not —
+the actual output is the evidence, and trimming it to look tidy is worse than
+the tokens it saves.
