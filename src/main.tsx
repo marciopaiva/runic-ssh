@@ -37,6 +37,42 @@ if (import.meta.env.DEV) {
       },
     });
 
+    /* `?benchmark=1` runs it on load and posts the result back to the dev
+       server, so the measurement can be taken by whichever machine has the
+       GPU while the terminal reading it is somewhere else entirely. */
+    if (new URLSearchParams(window.location.search).has('benchmark')) {
+      void (async () => {
+        const host = document.createElement('div');
+        host.style.position = 'fixed';
+        host.style.inset = '0';
+        host.style.zIndex = '9999';
+        document.body.append(host);
+
+        const gl = document.createElement('canvas').getContext('webgl2');
+        const info = gl?.getExtension('WEBGL_debug_renderer_info');
+        const adapter =
+          gl !== null && info != null
+            ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL))
+            : 'no WebGL2 context';
+
+        let report: string;
+        try {
+          report = formatComparison(await compareRenderers(host, 32 * 1024 * 1024));
+        } catch (error) {
+          report = `benchmark failed: ${String(error)}`;
+        } finally {
+          host.remove();
+        }
+
+        /* The adapter matters as much as the number: a software rasteriser
+           reports a real WebGL context and a meaningless comparison. */
+        await fetch('/__benchmark', {
+          method: 'POST',
+          body: `  agent    ${navigator.userAgent}\n  adapter  ${adapter}\n\n${report}`,
+        });
+      })();
+    }
+
     // eslint-disable-next-line no-console
     console.info(
       'Renderer benchmark available: await runicBenchmarkRenderers()\n' +
