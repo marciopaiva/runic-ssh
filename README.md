@@ -11,44 +11,46 @@
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey" alt="Platform">
 </p>
 
-## 🎯 Sobre o Projeto
+## 🎯 About
 
-O **Runic SSH** nasceu para ser o substituto moderno do PuTTY e de clientes pesados como o MobaXterm. Focado em desenvolvedores, DevOps e SysAdmins, ele combina a performance nativa do Rust com uma interface moderna e personalizável.
+**Runic SSH** was born to be the modern replacement for PuTTY and for heavyweight clients such as MobaXterm. Built for developers, DevOps engineers, and sysadmins, it pairs the native performance of Rust with a modern, customizable interface.
 
-### ✨ Funcionalidades Principais
-- 🚀 **Ultra-leve:** Backend em Rust (Tauri), consumindo uma fração da memória de alternativas baseadas em Electron.
-- 🔒 **Cofre Local Criptografado:** Suas chaves e senhas nunca saem da sua máquina sem sua permissão (usa DPAPI/Keychain/libsecret).
-- 🖥️ **Multiplataforma Real:** Windows, macOS e Linux com a mesma experiência fluida.
-- 📂 **SFTP Integrado:** Gerenciamento de arquivos em painel duplo, sem precisar de ferramentas externas.
-- 🪄 **Produtividade:** Split panes, command palette (`Ctrl+Shift+P`) e snippets de comandos salvos.
-- 🤖 **Assistente IA (Em breve):** Sugestão de comandos e explicação de erros diretamente no terminal.
+### ✨ Key Features
+
+- 🚀 **Ultra lightweight:** a Rust backend (Tauri) that uses a fraction of the memory required by Electron based alternatives.
+- 🔒 **Encrypted local vault:** your keys and passwords never leave your machine without your permission (backed by DPAPI, Keychain, and libsecret).
+- 🖥️ **Truly cross platform:** the same fluid experience on Windows, macOS, and Linux.
+- 📂 **Built in SFTP:** dual pane file management, with no need for external tools.
+- 🪄 **Productivity:** split panes, a command palette (`Ctrl+Shift+P`), and saved command snippets.
+- 🤖 **AI assistant (coming soon):** command suggestions and error explanations right inside the terminal.
 
 ## 🗺️ Roadmap
 
-- [ ] **v0.1.0 (MVP):** Conexão SSH básica, gestão de sessões local e terminal funcional (xterm.js).
-- [ ] **v0.2.0:** Integração SFTP (upload/download) e importação de sessões do PuTTY/OpenSSH.
-- [ ] **v0.3.0:** Port Forwarding (Túneis SSH) e temas customizáveis.
-- [ ] **v1.0.0:** Assistente IA integrado, sincronização em nuvem (opcional) e estabilidade para produção.
+- [ ] **v0.1.0 (MVP):** basic SSH connections, local session management, and a working terminal (xterm.js).
+- [ ] **v0.2.0:** SFTP integration (upload and download) plus session import from PuTTY and OpenSSH.
+- [ ] **v0.3.0:** port forwarding (SSH tunnels) and customizable themes.
+- [ ] **v1.0.0:** integrated AI assistant, optional cloud sync, and production grade stability.
 
-## 🛠️ Stack Tecnológica
+## 🛠️ Tech Stack
 
-- **Core:** Rust + Tauri 2.0
-- **Frontend:** React + TypeScript + TailwindCSS
+- **Core:** Rust and Tauri 2.0
+- **Frontend:** React, TypeScript, TailwindCSS
 - **Terminal:** xterm.js
-- **SSH/SFTP:** `russh` crate
+- **SSH/SFTP:** the `russh` crate
 
-## 🤝 Como Contribuir
+## 🤝 Contributing
 
-Contribuições são muito bem-vindas! Se você encontrou um bug ou tem uma ideia de funcionalidade:
-1. Faça um Fork do projeto.
-2. Crie uma Branch para sua feature (`git checkout -b feature/AmazingFeature`).
-3. Commit suas mudanças (`git commit -m 'Add some AmazingFeature'`).
-4. Push para a Branch (`git push origin feature/AmazingFeature`).
-5. Abra um Pull Request.
+Contributions are very welcome. If you found a bug or have an idea for a feature:
 
-## 📜 Licença
+1. Fork the project.
+2. Create a branch for your feature (`git checkout -b feature/AmazingFeature`).
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`).
+4. Push to the branch (`git push origin feature/AmazingFeature`).
+5. Open a Pull Request.
 
-Distribuído sob a licença **MIT**. Veja `LICENSE` para mais informações.
+## 📜 License
+
+Distributed under the **MIT** license. See `LICENSE` for more information.
 
 ---
-*Feito com ❤️ e Rust.*
+*Made with ❤️ and Rust.*
