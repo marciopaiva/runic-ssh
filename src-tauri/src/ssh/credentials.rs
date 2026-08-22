@@ -32,8 +32,30 @@ use crate::vault::StoredCredential;
 pub struct RequestId(u64);
 
 impl std::fmt::Display for RequestId {
+    /// Writes `request-N`, so an id in a log names nothing about the session.
+    ///
+    /// Which is right in a log and wrong everywhere a bare number is wanted.
+    /// Use [`RequestId::raw`] there — putting this in the prompt window's URL
+    /// sent `?request=request-0`, the window parsed it as `NaN`, and every
+    /// credential prompt opened straight onto "this prompt is no longer
+    /// valid".
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "request-{}", self.0)
+    }
+}
+
+impl RequestId {
+    /// The bare number, for the URL the prompt window is opened on.
+    #[must_use]
+    pub fn raw(self) -> u64 {
+        self.0
+    }
+
+    /// Builds an id without a registry. Tests only.
+    #[cfg(test)]
+    #[must_use]
+    pub fn default_for_test(value: u64) -> Self {
+        Self(value)
     }
 }
 
@@ -232,6 +254,15 @@ mod tests {
                 .await
         );
         assert_eq!(requests.count().await, 0);
+    }
+
+    #[test]
+    fn the_bare_form_is_a_number_and_the_shown_form_is_not() {
+        /* These are two different things and were used interchangeably once.
+        The shown form is for logs; the bare one is for anywhere a machine
+        reads it back. */
+        assert_eq!(RequestId(7).raw(), 7);
+        assert_eq!(format!("{}", RequestId(7)), "request-7");
     }
 
     #[test]
