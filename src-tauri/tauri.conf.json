@@ -1,0 +1,35 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Runic SSH",
+  "version": "0.1.0",
+  "identifier": "com.runicssh.app",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Runic SSH",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 880,
+        "minHeight": 560,
+        "resizable": true,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'; frame-src 'none'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [],
+    "category": "DeveloperTool",
+    "shortDescription": "SSH and SFTP client",
+    "longDescription": "A modern, fast, and secure cross-platform SSH/SFTP client."
+  }
+}
