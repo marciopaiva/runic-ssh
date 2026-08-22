@@ -3,7 +3,9 @@ import type { JSX } from 'react';
 
 import { CommandPalette } from './components/CommandPalette';
 import { HostKeyBlocked } from './components/HostKeyBlocked';
+import { ConnectionFailure } from './components/ConnectionFailure';
 import { HostKeyPrompt } from './components/HostKeyPrompt';
+import { HostKeyRefused } from './components/HostKeyRefused';
 import { SessionEditor } from './components/SessionEditor';
 import { SessionsSidebar } from './components/SessionsSidebar';
 import { StatusBar } from './components/StatusBar';
@@ -73,6 +75,18 @@ export function App(): JSX.Element {
       setState(sessionId, code === 'hostKeyDecision' ? 'keyMismatch' : 'unreachable');
     },
   });
+
+  /* Shown in the main area rather than as a toast: the user just clicked the
+     session and is looking at exactly this space, and a message that
+     disappears on its own is one that disappears before it is read. */
+  const failedSession =
+    attempt === null || attempt.stage.stage !== 'failed'
+      ? null
+      : (sessions.find((live) => live.session.id === attempt.sessionId)?.session ?? null);
+  const failed =
+    failedSession === null || attempt === null || attempt.stage.stage !== 'failed'
+      ? null
+      : { session: failedSession, code: attempt.stage.code };
 
   /* Activating a saved host is what starts a connection. An open one only
      switches, which is why the sidebar and the palette both route through
@@ -164,7 +178,16 @@ export function App(): JSX.Element {
           onAdd={() => setEditing('')}
         />
         <main id={TERMINAL_PANEL} role="tabpanel" className="min-w-0 flex-1">
-          <TerminalView handle={activeHandle} onSize={setSize} />
+          {failed === null ? (
+            <TerminalView handle={activeHandle} onSize={setSize} />
+          ) : (
+            <ConnectionFailure
+              session={failed.session}
+              code={failed.code}
+              onRetry={() => activate(failed.session.id)}
+              onDismiss={abandon}
+            />
+          )}
         </main>
       </div>
 
@@ -178,8 +201,17 @@ export function App(): JSX.Element {
       {attempt !== null &&
         attempt.stage.stage === 'deciding' &&
         attempt.decision !== null &&
-        isOverridable(attempt.decision.verdict) &&
-        (needsConfirmation(attempt.decision.verdict) ? (
+        (!isOverridable(attempt.decision.verdict) ? (
+          /* Revoked and certificate-required end in no decision, and used to
+             render nothing at all — the attempt stopped behind an empty
+             window. */
+          <HostKeyRefused
+            host={attempt.decision.host}
+            fingerprint={attempt.decision.offered}
+            reason={attempt.decision.verdict === 'revoked' ? 'revoked' : 'certificateRequired'}
+            onCancel={abandon}
+          />
+        ) : needsConfirmation(attempt.decision.verdict) ? (
           <HostKeyBlocked
             host={attempt.decision.host}
             storedFingerprints={attempt.decision.stored}
