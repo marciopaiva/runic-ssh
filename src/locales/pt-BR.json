@@ -1,6 +1,5 @@
 {
   "app.name": "Runic SSH",
-  "app.shell.idle": "shell montado · nenhuma sessão ainda",
   "language.en": "English",
   "language.pt-BR": "Português (Brasil)",
   "language.es": "Español",
@@ -36,5 +35,12 @@
   "session.state.connecting": "conectando",
   "session.state.saved": "salva, não conectada",
   "session.state.keyMismatch": "bloqueada — chave de host alterada",
-  "session.state.unreachable": "inalcançável"
+  "session.state.unreachable": "inalcançável",
+  "window.minimize": "Minimizar",
+  "window.maximize": "Maximizar",
+  "window.restore": "Restaurar",
+  "window.close": "Fechar janela",
+  "tabs.label": "Sessões abertas",
+  "tabs.close": "Fechar {name}",
+  "tabs.empty": "Nenhuma sessão aberta"
 }
