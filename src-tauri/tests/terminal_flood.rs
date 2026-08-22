@@ -47,8 +47,15 @@ struct Observed {
 
 #[derive(Clone)]
 struct FloodingServer {
-    /// Bytes to write before closing. `None` means write until disconnected.
+    /// Bytes to write before stopping.
     budget: Arc<AtomicU64>,
+    /// Whether to close the channel when the budget runs out.
+    ///
+    /// An interactive shell does not send EOF because it has nothing more to
+    /// say — it stays open until the session ends. Tests about input need that
+    /// behaviour; tests about output need the opposite, so that the pump
+    /// finishes and can be asserted on.
+    close_when_done: bool,
     observed: Observed,
 }
 
@@ -74,6 +81,7 @@ impl ServerHandler for FloodingServer {
     ) -> Result<(), Self::Error> {
         reply.accept().await;
         let budget = Arc::clone(&self.budget);
+        let close_when_done = self.close_when_done;
 
         tokio::spawn(async move {
             /* 8 KiB at a time, as fast as the window allows. */
@@ -89,7 +97,9 @@ impl ServerHandler for FloodingServer {
                 }
                 budget.fetch_sub(take as u64, Ordering::Relaxed);
             }
-            let _ = channel.eof().await;
+            if close_when_done {
+                let _ = channel.eof().await;
+            }
         });
 
         Ok(())
@@ -127,7 +137,7 @@ impl ServerHandler for FloodingServer {
     }
 }
 
-async fn flooding_server(bytes: u64) -> (u16, Observed) {
+async fn flooding_server(bytes: u64, close_when_done: bool) -> (u16, Observed) {
     let host_key =
         russh::keys::PrivateKey::random(&mut rand::rng(), russh::keys::Algorithm::Ed25519).unwrap();
 
@@ -145,6 +155,7 @@ async fn flooding_server(bytes: u64) -> (u16, Observed) {
     let observed = Observed::default();
     let mut server = FloodingServer {
         budget: Arc::new(AtomicU64::new(bytes)),
+        close_when_done,
         observed: observed.clone(),
     };
     tokio::spawn(async move {
@@ -188,8 +199,31 @@ async fn open_shell(port: u16) -> Channel<Msg> {
     handle.channel_open_session().await.expect("a channel")
 }
 
+/// Waits for something the *server* had to observe.
+///
+/// Sending returns when the bytes are on the wire, not when the far end has
+/// handled them. Asserting immediately after a send works on a fast machine
+/// and fails on a slow one — which is how the first version of these tests
+/// passed on Linux and macOS and failed on Windows.
+async fn wait_until<F, Fut>(what: &str, mut ready: F)
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = bool>,
+{
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while std::time::Instant::now() < deadline {
+        if ready().await {
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+    }
+    panic!("timed out waiting for {what}");
+}
+
 async fn flood(bytes: u64) -> (PumpReport, u64, u64) {
-    let (port, _observed) = flooding_server(bytes).await;
+    /* Closes when the budget runs out, so the pump finishes and the report can
+    be asserted on. */
+    let (port, _observed) = flooding_server(bytes, true).await;
     let channel = open_shell(port).await;
 
     let batches = Arc::new(AtomicU64::new(0));
@@ -306,7 +340,10 @@ async fn measured_throughput() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn typing_reaches_the_shell_and_a_resize_reaches_the_pty() {
-    let (port, observed) = flooding_server(0).await;
+    /* Stays open, as an interactive shell does. An earlier version let the
+    server EOF immediately, which raced the first keystroke: on Linux the
+    send won, on Windows the close did, and the test failed only there. */
+    let (port, observed) = flooding_server(0, false).await;
     let channel = open_shell(port).await;
 
     let (sender, receiver) = tokio::sync::mpsc::channel(16);
@@ -339,8 +376,15 @@ async fn typing_reaches_the_shell_and_a_resize_reaches_the_pty() {
 
     assert_eq!(report.input_sent, 1);
     assert_eq!(report.resizes_sent, 1);
-    assert_eq!(observed.input.lock().await.as_slice(), b"whoami\n");
-    assert_eq!(observed.resizes.lock().await.as_slice(), [(120, 40)]);
+
+    wait_until("the shell to receive the keystrokes", || async {
+        observed.input.lock().await.as_slice() == b"whoami\n"
+    })
+    .await;
+    wait_until("the pty to receive the resize", || async {
+        observed.resizes.lock().await.as_slice() == [(120, 40)]
+    })
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -355,7 +399,7 @@ async fn a_keystroke_stays_responsive_while_the_host_is_flooding() {
     backpressure left it passing, because the flush empties the buffer every
     16ms and the pause is never long enough to see. The bound below is what
     can actually be asserted. */
-    let (port, observed) = flooding_server(64 * 1024 * 1024).await;
+    let (port, observed) = flooding_server(64 * 1024 * 1024, false).await;
     let channel = open_shell(port).await;
 
     let (sender, receiver) = tokio::sync::mpsc::channel(16);
@@ -374,11 +418,10 @@ async fn a_keystroke_stays_responsive_while_the_host_is_flooding() {
     let sent = std::time::Instant::now();
     sender.send(Input::Keys(CTRL_C.to_vec())).await.unwrap();
 
-    let mut waited = std::time::Duration::ZERO;
-    while observed.input.lock().await.is_empty() && waited < std::time::Duration::from_secs(2) {
-        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
-        waited = sent.elapsed();
-    }
+    wait_until("the interrupt to reach the flooding server", || async {
+        !observed.input.lock().await.is_empty()
+    })
+    .await;
     let latency = sent.elapsed();
 
     assert_eq!(
