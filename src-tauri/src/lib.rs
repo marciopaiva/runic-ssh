@@ -31,6 +31,9 @@ pub fn run() -> tauri::Result<()> {
         .invoke_handler(tauri::generate_handler![
             commands::settings::get_settings,
             commands::settings::set_locale,
+            commands::sessions::list_sessions,
+            commands::sessions::save_session,
+            commands::sessions::delete_session,
             commands::sessions::connect_session,
             commands::sessions::authenticate_session,
             commands::sessions::disconnect_session,

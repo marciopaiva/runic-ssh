@@ -7,7 +7,10 @@
 use serde::Serialize;
 use tauri::{AppHandle, Manager, Runtime, State};
 
-use crate::config::sessions::{Session, SessionStore};
+use crate::config::sessions::{
+    delete_session as remove_session, save_session as store_session, Session, SessionDraft,
+    SessionStore,
+};
 use crate::error::{Error, IpcError};
 use crate::ssh::connection::{connect, Credential, Endpoint};
 use crate::ssh::known_hosts::KnownHosts;
@@ -54,6 +57,38 @@ fn known_hosts<R: Runtime>(app: &AppHandle<R>) -> Result<KnownHosts, Error> {
         Err(source) if source.kind() == std::io::ErrorKind::NotFound => Ok(KnownHosts::default()),
         Err(source) => Err(Error::SettingsUnreadable { path, source }),
     }
+}
+
+/// Every saved session, in the order they were added.
+#[tauri::command]
+pub async fn list_sessions<R: Runtime>(app: AppHandle<R>) -> Result<Vec<Session>, IpcError> {
+    let store = SessionStore::new(config_dir(&app)?);
+    Ok(store.load()?.items)
+}
+
+/// Creates a session, or replaces the one the draft names.
+///
+/// Returns what was stored, including the id the core assigned. The interface
+/// does not invent ids: one that collided would silently overwrite a session
+/// somebody else was using.
+#[tauri::command]
+pub async fn save_session<R: Runtime>(
+    app: AppHandle<R>,
+    draft: SessionDraft,
+) -> Result<Session, IpcError> {
+    let store = SessionStore::new(config_dir(&app)?);
+    Ok(store_session(&store, draft)?)
+}
+
+/// Forgets a session. Does not touch its keychain entry — see the vault.
+#[tauri::command]
+pub async fn delete_session<R: Runtime>(
+    app: AppHandle<R>,
+    session_id: String,
+) -> Result<(), IpcError> {
+    let store = SessionStore::new(config_dir(&app)?);
+    remove_session(&store, &session_id)?;
+    Ok(())
 }
 
 /// Opens a connection to a saved session and verifies its host key.

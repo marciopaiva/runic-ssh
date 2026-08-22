@@ -4,9 +4,18 @@ export { getSettings, setLocale } from './settings';
 export {
   authenticateSession,
   connectSession,
+  deleteSession,
   disconnectSession,
+  listSessions,
+  saveSession,
 } from './sessions';
-export type { OpenSession, Secret, SessionHandle } from './sessions';
+export type {
+  OpenSession,
+  Secret,
+  Session,
+  SessionDraft,
+  SessionHandle,
+} from './sessions';
 export {
   CLOSED_EVENT,
   OUTPUT_EVENT,

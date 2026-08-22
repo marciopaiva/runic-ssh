@@ -67,6 +67,9 @@ pub enum Error {
 
     #[error("the input is larger than the core will forward")]
     InputTooLarge,
+
+    #[error("the session is missing or malformed")]
+    InvalidSession { field: String },
 }
 
 /// A failure as the webview sees it: a code, and the fields it needs to render
@@ -117,6 +120,10 @@ pub enum IpcError {
     MissingCredential,
     MalformedInput,
     InputTooLarge,
+    /// A saved session was rejected; `field` names which part.
+    InvalidSession {
+        field: String,
+    },
 }
 
 /// Paths are shown to the user so they can find the file; the rest of the
@@ -150,6 +157,7 @@ impl From<Error> for IpcError {
             Error::MissingCredential => Self::MissingCredential,
             Error::MalformedInput => Self::MalformedInput,
             Error::InputTooLarge => Self::InputTooLarge,
+            Error::InvalidSession { field } => Self::InvalidSession { field },
         }
     }
 }
