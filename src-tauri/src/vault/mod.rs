@@ -17,7 +17,7 @@ use zeroize::Zeroizing;
 use crate::error::Error;
 
 /// The service name every entry is filed under.
-pub const SERVICE: &str = "com.runicssh.app";
+pub const SERVICE: &str = "com.runicssh.client";
 
 /// An opaque reference to a stored secret.
 ///
