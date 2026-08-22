@@ -8,6 +8,9 @@
  * quietly settle ADR-0006 the wrong way.
  */
 
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import { describe, expect, it } from 'vitest';
 
 import { formatComparison } from '../src/features/terminal/benchmark';
@@ -64,5 +67,28 @@ describe('reporting a comparison', () => {
     expect(report).toContain('WebGL unavailable');
     expect(report).toContain('says nothing about ADR-0006');
     expect(report).not.toContain('x the DOM renderer');
+  });
+});
+
+describe('the benchmark in a release build', () => {
+  it('is registered only behind the development flag', () => {
+    /* The harness opens a full-screen terminal and writes 32 MB through it.
+       Shipping a global that does that is not a security hole so much as an
+       embarrassment waiting for whoever finds it, so it is guarded by
+       `import.meta.env.DEV` rather than by nobody looking. */
+    const entry = readFileSync(
+      fileURLToPath(new URL('../src/main.tsx', import.meta.url)),
+      'utf8',
+    );
+
+    const registration = entry.indexOf('runicBenchmarkRenderers');
+    const guard = entry.indexOf('import.meta.env.DEV');
+
+    expect(registration).toBeGreaterThan(-1);
+    expect(guard).toBeGreaterThan(-1);
+    expect(
+      guard,
+      'the benchmark is registered before the development guard that should contain it',
+    ).toBeLessThan(registration);
   });
 });
