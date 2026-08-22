@@ -4,3 +4,4 @@
 //! without a webview or an app handle.
 
 pub mod known_hosts;
+pub mod trust;

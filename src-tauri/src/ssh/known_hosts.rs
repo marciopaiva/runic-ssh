@@ -189,6 +189,20 @@ impl KnownHosts {
         self.lines.push(Line::Entry(Box::new(entry)));
     }
 
+    /// Drops every unmarked entry for this host, port and key type.
+    ///
+    /// Marked lines are left alone: a `@revoked` entry is a statement about a
+    /// key that must outlive any replacement, and removing it while replacing
+    /// a host key would quietly un-revoke it.
+    pub fn remove_matching(&mut self, host: &str, port: u16, key_type: &str) {
+        self.lines.retain(|line| match line {
+            Line::Verbatim(_) => true,
+            Line::Entry(entry) => {
+                entry.marker.is_some() || entry.key_type != key_type || !entry.matches(host, port)
+            }
+        });
+    }
+
     /// Builds an entry for a host, written in the clear.
     pub fn entry_for(host: &str, port: u16, key_type: &str, key: Vec<u8>) -> Entry {
         let hosts_raw = canonical_host(host, port);
