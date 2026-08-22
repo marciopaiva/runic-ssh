@@ -32,6 +32,7 @@ pub fn run() -> tauri::Result<()> {
         .manage(ssh::pending::PendingHostKeys::new())
         .manage(vault::Vault::default())
         .invoke_handler(tauri::generate_handler![
+            commands::chrome::window_chrome,
             commands::settings::get_settings,
             commands::settings::set_locale,
             commands::sessions::list_sessions,

@@ -1,53 +1,54 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { JSX } from 'react';
 
 import { SessionsSidebar } from './components/SessionsSidebar';
 import { TerminalView } from './components/TerminalView';
+import { Titlebar } from './components/Titlebar';
+import { openTabs, resolveActive, tabAfterClosing, useChrome, windowControls } from './features/chrome';
 import { useSessions } from './features/sessions';
-import { useTranslator } from './features/settings';
+
+/** The element the tabs switch between. Named once, referenced from both ends. */
+const TERMINAL_PANEL = 'terminal-panel';
 
 /**
  * The application shell.
  *
- * Still mostly empty: the titlebar, sidebar and status bar each land with the
- * issue that owns them. What it does now is mount a terminal, so that the
- * streaming built behind it is something a person can look at.
+ * The titlebar is the window's own, per ADR-0005: there are no decorations to
+ * sit under on Windows and Linux, and on macOS the native traffic lights float
+ * over it. The status bar and the command palette land with the issues that
+ * own them.
  *
- * No session is open yet — connecting from the interface is the sidebar's job
- * — so the terminal mounts with no handle and waits.
+ * The tab strip is empty until something connects, which nothing in the
+ * interface does yet — a tab means an open channel, and opening one needs the
+ * credential prompt from ADR-0008.
  */
 export function App(): JSX.Element {
-  const i18n = useTranslator();
   const { sessions } = useSessions();
+  const { chrome, maximized, act } = useChrome();
   const [selected, setSelected] = useState<string | null>(null);
+  const [active, setActive] = useState<string | null>(null);
+
+  const tabs = useMemo(() => openTabs(sessions), [sessions]);
+  /* A tab disappears when its host drops the connection, which nobody
+     clicked. Resolving on render is what keeps the active tab pointing at
+     something that is still there. */
+  const activeId = resolveActive(tabs, active);
+  const activeTab = tabs.find((tab) => tab.sessionId === activeId) ?? null;
 
   return (
     <div className="flex h-full flex-col">
-      <header className="border-line-subtle bg-surface-chrome flex items-center gap-2.5 border-b px-3 py-2">
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          role="img"
-          aria-label={i18n.t('app.name')}
-        >
-          <circle cx="9.5" cy="12" r="7" className="stroke-brand-start" strokeWidth="1.4" />
-          <circle cx="14.5" cy="12" r="7" className="stroke-brand-end" strokeWidth="1.4" />
-          <path
-            d="M12 6.5v11M12 10l3-2.5M12 14l3 2.5M12 12l-2.6-2.2"
-            className="stroke-brand-rune"
-            strokeWidth="1.4"
-            strokeLinecap="round"
-          />
-        </svg>
-        <span className="text-ink text-[12.5px] font-semibold tracking-tight">
-          {i18n.t('app.name')}
-        </span>
-        <span className="text-ink-faint font-mono text-[11px]">
-          {i18n.t('app.shell.idle')}
-        </span>
-      </header>
+      <Titlebar
+        tabs={tabs}
+        activeId={activeId}
+        /* Until the core answers, the bar draws without controls. It is the
+           same height either way, so nothing below it moves. */
+        controls={chrome === null ? [] : windowControls(chrome, maximized)}
+        leadingInset={chrome?.leadingInset ?? 0}
+        panelId={TERMINAL_PANEL}
+        onSelect={setActive}
+        onClose={(sessionId) => setActive(tabAfterClosing(tabs, sessionId))}
+        onAct={act}
+      />
 
       <div className="flex min-h-0 flex-1">
         <SessionsSidebar
@@ -59,8 +60,12 @@ export function App(): JSX.Element {
                sidebar is a list, not a way to add to it. */
           }}
         />
-        <main className="min-w-0 flex-1">
-          <TerminalView handle={null} />
+        <main
+          id={TERMINAL_PANEL}
+          role="tabpanel"
+          className="min-w-0 flex-1"
+        >
+          <TerminalView handle={activeTab?.handle ?? null} />
         </main>
       </div>
     </div>

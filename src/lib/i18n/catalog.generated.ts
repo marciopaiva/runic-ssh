@@ -6,7 +6,6 @@
 
 export const SOURCE_CATALOG = {
   "app.name": "Runic SSH",
-  "app.shell.idle": "shell mounted · no session yet",
   "language.en": "English",
   "language.pt-BR": "Português (Brasil)",
   "language.es": "Español",
@@ -43,4 +42,11 @@ export const SOURCE_CATALOG = {
   "session.state.saved": "saved, not connected",
   "session.state.keyMismatch": "blocked — host key changed",
   "session.state.unreachable": "unreachable",
+  "window.minimize": "Minimize",
+  "window.maximize": "Maximize",
+  "window.restore": "Restore down",
+  "window.close": "Close window",
+  "tabs.label": "Open sessions",
+  "tabs.close": "Close {name}",
+  "tabs.empty": "No session open",
 } as const;

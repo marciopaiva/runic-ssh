@@ -9,10 +9,25 @@
 use std::collections::BTreeSet;
 
 /// Every permission the application is allowed to hold today.
+///
+/// The four `core:window` grants beyond `default` are ADR-0005 being carried
+/// out: the window is undecorated, so the minimise, maximise and close buttons
+/// are ours to draw, and a button we draw is inert without permission to act.
+/// `allow-start-dragging` is what `data-tauri-drag-region` calls — without it
+/// the titlebar is a strip the window cannot be moved by.
+///
+/// Deliberately *not* here: `allow-is-maximized` and
+/// `allow-internal-toggle-maximize`, which the interface also uses. Both are
+/// already inside `core:window:default`, and restating them would make the set
+/// look wider than it is.
 const ALLOWED: &[&str] = &[
     "core:app:default",
     "core:event:default",
     "core:webview:default",
+    "core:window:allow-close",
+    "core:window:allow-minimize",
+    "core:window:allow-start-dragging",
+    "core:window:allow-toggle-maximize",
     "core:window:default",
 ];
 

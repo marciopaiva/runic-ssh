@@ -101,25 +101,26 @@ describe('locale resolution', () => {
 
 describe('translation', () => {
   it('returns the message for the resolved locale', () => {
-    expect(createTranslator('pt-BR').t('app.shell.idle')).toBe('shell montado · nenhuma sessão ainda');
+    expect(createTranslator('pt-BR').t('tabs.empty')).toBe('Nenhuma sessão aberta');
   });
 
   it('fills placeholders', () => {
-    const fill = (message: string, params: Record<string, string>): string =>
-      message.replace(/\{(\w+)\}/g, (whole, name: string) => params[name] ?? whole);
-
-    expect(fill('Connected to {host} as {user}', { host: 'web-01', user: 'deploy' })).toBe(
-      'Connected to web-01 as deploy',
-    );
+    /* Through the translator itself. This test used to re-implement `fill`
+       and assert against its own copy, which passed whatever the translator
+       did. */
+    expect(createTranslator('en').t('tabs.close', { name: 'web-01' })).toBe('Close web-01');
+    expect(createTranslator('pt-BR').t('tabs.close', { name: 'web-01' })).toBe('Fechar web-01');
   });
 
   it('leaves an unfilled placeholder visible', () => {
-    /* Silently rendering an empty string hides the bug; showing {host} does
-       not, and the types make it hard to reach in the first place. */
-    const fill = (message: string, params: Record<string, string>): string =>
-      message.replace(/\{(\w+)\}/g, (whole, name: string) => params[name] ?? whole);
+    /* Silently rendering an empty string hides the bug; showing {name} does
+       not, and the types make it hard to reach in the first place — reaching
+       it here needs the parameter object cast away. */
+    const translator = createTranslator('en') as unknown as {
+      t: (key: string, params: Record<string, string>) => string;
+    };
 
-    expect(fill('Connected to {host}', {})).toBe('Connected to {host}');
+    expect(translator.t('tabs.close', {})).toBe('Close {name}');
   });
 });
 

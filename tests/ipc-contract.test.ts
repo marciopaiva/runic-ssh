@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { asIpcError } from '../src/ipc/errors';
-import type { CredentialStoreStatus } from '../src/ipc';
+import type { CredentialStoreStatus, WindowChrome } from '../src/ipc';
 
 const rustSource = readFileSync(
   fileURLToPath(new URL('../src-tauri/src/error.rs', import.meta.url)),
@@ -98,6 +98,33 @@ describe('shapes the frontend declares by hand', () => {
     expect(available.kind).toBe('available');
     expect(unavailable.kind).toBe('unavailable');
     expect(unavailable.kind === 'unavailable' ? unavailable.reason : null).toBe('no store');
+  });
+
+  it('accepts the window chrome the core actually sends', () => {
+    /* The titlebar reserves `leadingInset` pixels it never draws into. A
+       shape mismatch here is a strip of dead space at the leading edge, or
+       tabs drawn underneath the macOS traffic lights. */
+    const macos: WindowChrome = JSON.parse(
+      '{"controls":"system","leadingInset":78}',
+    ) as WindowChrome;
+    const undecorated: WindowChrome = JSON.parse(
+      '{"controls":"application","leadingInset":0}',
+    ) as WindowChrome;
+
+    expect(macos.controls).toBe('system');
+    expect(macos.leadingInset).toBe(78);
+    expect(undecorated.controls).toBe('application');
+    expect(undecorated.leadingInset).toBe(0);
+  });
+
+  it('has a Rust test pinning the same window chrome strings', () => {
+    const rust = readFileSync(
+      fileURLToPath(new URL('../src-tauri/src/commands/chrome.rs', import.meta.url)),
+      'utf8',
+    );
+
+    expect(rust).toContain('{"controls":"system","leadingInset":78}');
+    expect(rust).toContain('{"controls":"application","leadingInset":0}');
   });
 
   it('has a Rust test pinning the same two strings', () => {

@@ -1,12 +1,18 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The narrowest set the application runs on. A capability is a permanent grant to code that renders hostile input, so widening this needs a Phase 2 proposal and an ADR. See section 7.6 of CLAUDE.md and issue #39.",
-  "windows": ["main"],
+  "description": "The narrowest set the application runs on. A capability is a permanent grant to code that renders hostile input, so widening this is a Phase 2 proposal with an ADR (CLAUDE.md 7.6). The four window permissions are the implementation of ADR-0005: an undecorated window means the controls are ours to draw, and a control we draw cannot act on the window without them. See issue #39.",
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:app:default",
     "core:event:default",
+    "core:webview:default",
     "core:window:default",
-    "core:webview:default"
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-close",
+    "core:window:allow-start-dragging"
   ]
 }

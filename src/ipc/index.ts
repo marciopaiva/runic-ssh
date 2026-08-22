@@ -1,4 +1,13 @@
 export { asIpcError } from './errors';
+export {
+  closeWindow,
+  isWindowMaximized,
+  minimizeWindow,
+  onWindowResized,
+  toggleMaximizeWindow,
+  windowChrome,
+} from './chrome';
+export type { WindowChrome, WindowControlsOwner } from './chrome';
 export type { IpcError, IpcErrorCode } from './errors';
 export { getSettings, setLocale } from './settings';
 export {
