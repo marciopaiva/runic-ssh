@@ -318,6 +318,66 @@ async fn an_rsa_private_key_is_refused_before_it_is_used() {
     );
 }
 
+#[tokio::test]
+async fn a_round_trip_is_measured_against_the_host() {
+    /* The status bar's latency figure. The value itself cannot be asserted —
+    it is a loopback measurement on a shared CI runner — so what is asserted
+    is that the host actually answered, and answered in a time that could only
+    have come from a round trip rather than from a local return. */
+    let key = PrivateKey::random(&mut rng(), russh::keys::Algorithm::Ed25519).expect("a key");
+    let (port, host_public) = start_server(key.public_key().clone()).await;
+
+    let mut connection = connect(endpoint(port), trusting(port, &host_public))
+        .await
+        .expect("connects");
+
+    connection
+        .authenticate(
+            USER,
+            Credential::Password(Zeroizing::new(PASSWORD.to_owned())),
+        )
+        .await
+        .expect("authenticates");
+
+    let elapsed = connection.round_trip().await.expect("the host answered");
+
+    assert!(
+        elapsed < std::time::Duration::from_secs(5),
+        "a loopback round trip took {elapsed:?}, which is not a round trip"
+    );
+
+    /* Measured twice: a first call that succeeded by accident — because the
+    reply channel resolved on drop rather than on an answer — would give a
+    second call nothing to resolve against. */
+    connection
+        .round_trip()
+        .await
+        .expect("the host answered again");
+}
+
+#[tokio::test]
+async fn a_round_trip_needs_no_shell() {
+    /* The status bar starts measuring as soon as a session exists. Requiring
+    a channel would leave latency blank on exactly the sessions a user is
+    most likely to be staring at: the ones still starting up. */
+    let key = PrivateKey::random(&mut rng(), russh::keys::Algorithm::Ed25519).expect("a key");
+    let (port, host_public) = start_server(key.public_key().clone()).await;
+
+    let mut connection = connect(endpoint(port), trusting(port, &host_public))
+        .await
+        .expect("connects");
+
+    connection
+        .authenticate(
+            USER,
+            Credential::Password(Zeroizing::new(PASSWORD.to_owned())),
+        )
+        .await
+        .expect("authenticates");
+
+    assert!(connection.round_trip().await.is_ok());
+}
+
 #[test]
 fn a_credential_never_prints_itself() {
     /* Rule 2. A Debug that leaks is the usual way a secret reaches a log

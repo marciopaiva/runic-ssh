@@ -17,6 +17,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::ssh::connection::Connection;
+use crate::ssh::stats::Counters;
 
 /// An opaque reference to a live connection. Carries no secret and no address.
 #[derive(
@@ -70,6 +71,10 @@ struct Entry {
     session_id: String,
     user: String,
     input: Option<tokio::sync::mpsc::Sender<crate::ssh::terminal::Input>>,
+    /// How much has moved, shared with the pump. Created here rather than when
+    /// a shell opens, so the status bar has something to read from the moment
+    /// a handle exists rather than a hole that fills in later.
+    counters: Arc<Counters>,
 }
 
 /// Every connection currently open.
@@ -97,6 +102,7 @@ impl Registry {
                 session_id: open.session_id,
                 user: open.user,
                 input: open.input,
+                counters: Arc::new(Counters::default()),
             },
         );
         handle
@@ -170,6 +176,11 @@ impl Registry {
     ) -> Option<()> {
         let sender = self.open.lock().await.get(&handle)?.input.clone()?;
         sender.send(input).await.ok()
+    }
+
+    /// The byte counters for a session, to hand to its pump or to read.
+    pub async fn counters(&self, handle: SessionHandle) -> Option<Arc<Counters>> {
+        Some(Arc::clone(&self.open.lock().await.get(&handle)?.counters))
     }
 
     /// Which saved session a handle belongs to.

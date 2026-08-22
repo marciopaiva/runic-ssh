@@ -1,11 +1,15 @@
 import { useMemo, useState } from 'react';
 import type { JSX } from 'react';
 
+import type { TerminalSize } from './features/terminal/use-terminal';
+
 import { SessionsSidebar } from './components/SessionsSidebar';
+import { StatusBar } from './components/StatusBar';
 import { TerminalView } from './components/TerminalView';
 import { Titlebar } from './components/Titlebar';
 import { openTabs, resolveActive, tabAfterClosing, useChrome, windowControls } from './features/chrome';
 import { useSessions } from './features/sessions';
+import { useSessionStats } from './features/status';
 
 /** The element the tabs switch between. Named once, referenced from both ends. */
 const TERMINAL_PANEL = 'terminal-panel';
@@ -34,6 +38,9 @@ export function App(): JSX.Element {
      something that is still there. */
   const activeId = resolveActive(tabs, active);
   const activeTab = tabs.find((tab) => tab.sessionId === activeId) ?? null;
+  const activeHandle = activeTab?.handle ?? null;
+  const stats = useSessionStats(activeHandle);
+  const [size, setSize] = useState<TerminalSize | null>(null);
 
   return (
     <div className="flex h-full flex-col">
@@ -65,9 +72,19 @@ export function App(): JSX.Element {
           role="tabpanel"
           className="min-w-0 flex-1"
         >
-          <TerminalView handle={activeTab?.handle ?? null} />
+          <TerminalView handle={activeHandle} onSize={setSize} />
         </main>
       </div>
+
+      <StatusBar
+        kind={activeTab?.kind ?? null}
+        stats={stats}
+        size={size}
+        /* Until the core answers, the hint reads Ctrl. The bar is the same
+           height either way, and a macOS user sees the right glyph a
+           millisecond later rather than a shifted layout. */
+        modifier={chrome?.commandModifier ?? 'control'}
+      />
     </div>
   );
 }

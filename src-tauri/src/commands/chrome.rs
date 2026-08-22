@@ -27,13 +27,28 @@ pub enum Controls {
     Application,
 }
 
-/// The shape of the title area on this platform.
+/// The modifier a platform expects on an application shortcut.
+///
+/// Here rather than in a keyboard module because it is the same question this
+/// file already answers — what does this platform expect of us — and the
+/// alternative is a second command asking `cfg!(target_os = "macos")` again.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CommandModifier {
+    /// Command, on macOS.
+    Meta,
+    /// Control, everywhere else.
+    Control,
+}
+
+/// What this platform expects of us: the title area, and the primary modifier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WindowChrome {
     pub controls: Controls,
     /// Pixels to keep clear at the leading edge, for controls we do not draw.
     pub leading_inset: u16,
+    pub command_modifier: CommandModifier,
 }
 
 /// The width the macOS traffic lights occupy, plus their inset.
@@ -56,11 +71,13 @@ pub fn chrome_for(system_draws_controls: bool) -> WindowChrome {
         WindowChrome {
             controls: Controls::System,
             leading_inset: MACOS_TRAFFIC_LIGHTS,
+            command_modifier: CommandModifier::Meta,
         }
     } else {
         WindowChrome {
             controls: Controls::Application,
             leading_inset: 0,
+            command_modifier: CommandModifier::Control,
         }
     }
 }
@@ -92,18 +109,23 @@ mod tests {
         let system = serde_json::to_string(&WindowChrome {
             controls: Controls::System,
             leading_inset: 78,
+            command_modifier: CommandModifier::Meta,
         })
         .expect("serializes");
         let application = serde_json::to_string(&WindowChrome {
             controls: Controls::Application,
             leading_inset: 0,
+            command_modifier: CommandModifier::Control,
         })
         .expect("serializes");
 
-        assert_eq!(system, r#"{"controls":"system","leadingInset":78}"#);
+        assert_eq!(
+            system,
+            r#"{"controls":"system","leadingInset":78,"commandModifier":"meta"}"#
+        );
         assert_eq!(
             application,
-            r#"{"controls":"application","leadingInset":0}"#
+            r#"{"controls":"application","leadingInset":0,"commandModifier":"control"}"#
         );
     }
 
@@ -121,6 +143,14 @@ mod tests {
     #[test]
     fn an_undecorated_window_gets_controls_of_its_own() {
         assert_eq!(chrome_for(false).controls, Controls::Application);
+    }
+
+    #[test]
+    fn the_shortcut_modifier_follows_the_platform() {
+        /* A macOS user pressing Ctrl-Shift-P gets nothing, and a hint that
+        says Ctrl on a Mac is worse than no hint. */
+        assert_eq!(chrome_for(true).command_modifier, CommandModifier::Meta);
+        assert_eq!(chrome_for(false).command_modifier, CommandModifier::Control);
     }
 
     #[test]

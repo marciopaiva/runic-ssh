@@ -42,5 +42,16 @@
   "window.close": "Close window",
   "tabs.label": "Open sessions",
   "tabs.close": "Close {name}",
-  "tabs.empty": "No session open"
+  "tabs.empty": "No session open",
+  "status.state": "Connection",
+  "status.latency.good": "Latency: good",
+  "status.latency.fair": "Latency: fair",
+  "status.latency.poor": "Latency: poor",
+  "status.latency.unknown": "Latency: not measured",
+  "status.transfer": "Received {down}, sent {up}",
+  "status.size": "Terminal size",
+  "status.encoding": "Encoding",
+  "status.term": "Terminal type",
+  "status.palette": "Commands",
+  "status.idle": "No session"
 }

@@ -20,6 +20,12 @@ import { attachRenderer } from './renderer';
 import type { RendererKind } from './renderer';
 import { terminalTheme } from './theme';
 
+/** The grid the remote pty is drawing on. */
+export interface TerminalSize {
+  readonly columns: number;
+  readonly rows: number;
+}
+
 export interface TerminalState {
   /** Which renderer ended up drawing. Surfaced so settings can show it. */
   readonly renderer: RendererKind | null;
@@ -27,6 +33,13 @@ export interface TerminalState {
   readonly fallbackReason: string | null;
   /** The remote shell's exit status, once it has one. */
   readonly exitStatus: number | null;
+  /**
+   * What the pty was last told, or `null` before a terminal is mounted.
+   *
+   * Reported from the same place the resize is sent, so the status bar cannot
+   * show a size the remote end was never given.
+   */
+  readonly size: TerminalSize | null;
 }
 
 /**
@@ -44,6 +57,7 @@ export function useTerminal(
     renderer: null,
     fallbackReason: null,
     exitStatus: null,
+    size: null,
   });
 
   /* Held in a ref rather than state: writing output must not re-render. */
@@ -94,6 +108,7 @@ export function useTerminal(
         ...current,
         renderer: choice.kind,
         fallbackReason: choice.reason ?? null,
+        size: { columns: terminal.cols, rows: terminal.rows },
       }));
 
       writeRef.current = (bytes) => terminal.write(bytes);
@@ -143,6 +158,10 @@ export function useTerminal(
       const observer = new ResizeObserver(() => {
         fit.fit();
         void resizeTerminal(handle, terminal.cols, terminal.rows);
+        setState((current) => ({
+          ...current,
+          size: { columns: terminal.cols, rows: terminal.rows },
+        }));
       });
       observer.observe(container);
 

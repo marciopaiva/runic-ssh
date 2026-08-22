@@ -16,8 +16,8 @@ import type { Tab } from '../src/features/chrome/tabs';
 import type { LiveSession } from '../src/features/sessions';
 import type { Session } from '../src/ipc';
 
-const MACOS = { controls: 'system', leadingInset: 78 } as const;
-const UNDECORATED = { controls: 'application', leadingInset: 0 } as const;
+const MACOS = { controls: 'system', leadingInset: 78, commandModifier: 'meta' } as const;
+const UNDECORATED = { controls: 'application', leadingInset: 0, commandModifier: 'control' } as const;
 
 function session(id: string, name: string): Session {
   return {

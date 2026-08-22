@@ -95,3 +95,21 @@ export async function onClosed(
     onClose(event.payload.exitStatus);
   });
 }
+
+/** How much has moved, and how long the host takes to answer. */
+export interface SessionStats {
+  readonly fromHost: number;
+  readonly toHost: number;
+  /** The round trip in milliseconds, or `null` when the host did not answer. */
+  readonly latencyMs: number | null;
+}
+
+/**
+ * Measures the round trip and reads the byte counters.
+ *
+ * One call rather than two: the round trip is the slow part, and the counters
+ * are free once the session has been looked up.
+ */
+export async function sessionStats(handle: SessionHandle): Promise<SessionStats> {
+  return invoke<SessionStats>('session_stats', { handle });
+}

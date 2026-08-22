@@ -42,5 +42,16 @@
   "window.close": "Cerrar ventana",
   "tabs.label": "Sesiones abiertas",
   "tabs.close": "Cerrar {name}",
-  "tabs.empty": "Ninguna sesión abierta"
+  "tabs.empty": "Ninguna sesión abierta",
+  "status.state": "Conexión",
+  "status.latency.good": "Latencia: buena",
+  "status.latency.fair": "Latencia: aceptable",
+  "status.latency.poor": "Latencia: mala",
+  "status.latency.unknown": "Latencia: sin medir",
+  "status.transfer": "Recibido {down}, enviado {up}",
+  "status.size": "Tamaño del terminal",
+  "status.encoding": "Codificación",
+  "status.term": "Tipo de terminal",
+  "status.palette": "Comandos",
+  "status.idle": "Sin sesión"
 }

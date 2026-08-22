@@ -25,6 +25,7 @@
 //! and reaches `xterm.js` as bytes, which knows how to hold an incomplete
 //! sequence until the rest arrives.
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use base64ct::{Base64, Encoding};
@@ -32,6 +33,8 @@ use russh::client::Msg;
 use russh::{Channel, ChannelMsg};
 use tokio::sync::mpsc;
 use tokio::time::{Instant, MissedTickBehavior};
+
+use crate::ssh::stats::Counters;
 
 /// Never emit more often than this. One frame at 60Hz: emitting faster than
 /// the screen redraws costs IPC and buys nothing a user can see.
@@ -100,6 +103,7 @@ pub async fn pump<S: Sink>(
     mut channel: Channel<Msg>,
     mut sink: S,
     mut input: mpsc::Receiver<Input>,
+    counters: Arc<Counters>,
 ) -> PumpReport {
     let mut report = PumpReport::default();
     let mut buffer: Vec<u8> = Vec::with_capacity(8 * 1024);
@@ -122,10 +126,14 @@ pub async fn pump<S: Sink>(
                closes the SSH window and stops the server. */
             message = channel.wait(), if !full => {
                 match message {
-                    Some(ChannelMsg::Data { data }) => buffer.extend_from_slice(&data),
+                    Some(ChannelMsg::Data { data }) => {
+                        counters.record_from_host(data.len());
+                        buffer.extend_from_slice(&data);
+                    }
                     Some(ChannelMsg::ExtendedData { data, .. }) => {
                         /* stderr is interleaved into the same stream, which is
                            what a terminal shows anyway. */
+                        counters.record_from_host(data.len());
                         buffer.extend_from_slice(&data);
                     }
                     Some(ChannelMsg::ExitStatus { exit_status: status }) => {
@@ -144,9 +152,11 @@ pub async fn pump<S: Sink>(
             command = input.recv() => {
                 match command {
                     Some(Input::Keys(bytes)) => {
+                        let sent = bytes.len();
                         if channel.data_bytes(bytes).await.is_err() {
                             break;
                         }
+                        counters.record_to_host(sent);
                         report.input_sent += 1;
                     }
                     Some(Input::Resize { columns, rows }) => {

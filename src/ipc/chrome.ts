@@ -15,6 +15,9 @@ import type { UnlistenFn } from '@tauri-apps/api/event';
 /** Who draws the minimise, maximise and close buttons. */
 export type WindowControlsOwner = 'system' | 'application';
 
+/** The modifier this platform expects on an application shortcut. */
+export type CommandModifier = 'meta' | 'control';
+
 /**
  * The shape of the title area on this platform.
  *
@@ -26,6 +29,7 @@ export interface WindowChrome {
   readonly controls: WindowControlsOwner;
   /** Pixels to keep clear at the leading edge, for controls we do not draw. */
   readonly leadingInset: number;
+  readonly commandModifier: CommandModifier;
 }
 
 export async function windowChrome(): Promise<WindowChrome> {

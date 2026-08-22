@@ -105,16 +105,18 @@ describe('shapes the frontend declares by hand', () => {
        shape mismatch here is a strip of dead space at the leading edge, or
        tabs drawn underneath the macOS traffic lights. */
     const macos: WindowChrome = JSON.parse(
-      '{"controls":"system","leadingInset":78}',
+      '{"controls":"system","leadingInset":78,"commandModifier":"meta"}',
     ) as WindowChrome;
     const undecorated: WindowChrome = JSON.parse(
-      '{"controls":"application","leadingInset":0}',
+      '{"controls":"application","leadingInset":0,"commandModifier":"control"}',
     ) as WindowChrome;
 
     expect(macos.controls).toBe('system');
     expect(macos.leadingInset).toBe(78);
+    expect(macos.commandModifier).toBe('meta');
     expect(undecorated.controls).toBe('application');
     expect(undecorated.leadingInset).toBe(0);
+    expect(undecorated.commandModifier).toBe('control');
   });
 
   it('has a Rust test pinning the same window chrome strings', () => {
@@ -123,8 +125,12 @@ describe('shapes the frontend declares by hand', () => {
       'utf8',
     );
 
-    expect(rust).toContain('{"controls":"system","leadingInset":78}');
-    expect(rust).toContain('{"controls":"application","leadingInset":0}');
+    expect(rust).toContain(
+      '{"controls":"system","leadingInset":78,"commandModifier":"meta"}',
+    );
+    expect(rust).toContain(
+      '{"controls":"application","leadingInset":0,"commandModifier":"control"}',
+    );
   });
 
   it('has a Rust test pinning the same two strings', () => {
