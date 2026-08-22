@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.png" alt="Rune SSH" width="480">
+  <img src="assets/logo.png" alt="Runic SSH" width="480">
 </p>
 
 <p align="center">
@@ -13,7 +13,7 @@
 
 ## 🎯 Sobre o Projeto
 
-O **Rune SSH** nasceu para ser o substituto moderno do PuTTY e de clientes pesados como o MobaXterm. Focado em desenvolvedores, DevOps e SysAdmins, ele combina a performance nativa do Rust com uma interface moderna e personalizável.
+O **Runic SSH** nasceu para ser o substituto moderno do PuTTY e de clientes pesados como o MobaXterm. Focado em desenvolvedores, DevOps e SysAdmins, ele combina a performance nativa do Rust com uma interface moderna e personalizável.
 
 ### ✨ Funcionalidades Principais
 - 🚀 **Ultra-leve:** Backend em Rust (Tauri), consumindo uma fração da memória de alternativas baseadas em Electron.
