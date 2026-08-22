@@ -1,0 +1,136 @@
+/*
+ * Design tokens.
+ *
+ * This is the only file in the tree allowed to name a colour. Everything else
+ * reaches them through the Tailwind utilities generated in styles.css, which is
+ * what makes the custom themes promised for v0.3.0 a data change rather than a
+ * rewrite of every component.
+ *
+ * Values come from the interface canvas approved on 2026-08-22, which took its
+ * palette from assets/logo.png. Dark is the default and the design was composed
+ * in it; light is the same token set with the values swapped, never a second
+ * design.
+ *
+ * Every token defined here must exist in both themes. One that appears in only
+ * one renders that theme's text on the other theme's ground, and nothing warns
+ * you — tests/design-tokens.test.ts fails instead.
+ */
+
+:root {
+  /* Surfaces, from the furthest back to the closest to the reader. The
+     terminal is the deepest on purpose: it is where the eye rests. */
+  --rs-surface-base: #0b131e;
+  --rs-surface-panel: #0f1a29;
+  --rs-surface-chrome: #0d1725;
+  --rs-surface-raised: #17273c;
+  --rs-surface-overlay: #101c2c;
+  --rs-surface-terminal: #0a1119;
+  --rs-surface-input: #101d2e;
+
+  --rs-border-subtle: #1d2f47;
+  --rs-border-strong: #294060;
+
+  /* Five steps, because a session list needs to separate a connected host from
+     a saved one from a column header without reaching for colour. */
+  --rs-text-primary: #e4ecf7;
+  --rs-text-secondary: #c8d6e8;
+  --rs-text-muted: #8ea1ba;
+  --rs-text-faint: #5d7189;
+  --rs-text-disabled: #3d5271;
+
+  --rs-accent: #1ea7e2;
+  --rs-accent-bright: #56b6ea;
+  --rs-accent-soft: #133449;
+
+  /* The mark's gradient. Kept apart from the accent so that recolouring the
+     interface does not recolour the logo. */
+  --rs-brand-start: #2bb0e8;
+  --rs-brand-end: #b961e6;
+  --rs-brand-rune: #dbe7f5;
+
+  /* State is never carried by colour alone in this interface, but when colour
+     is present it comes from here. */
+  --rs-state-ok: #2fb894;
+  --rs-state-ok-soft: #131f18;
+  --rs-state-warn: #e0a83c;
+  --rs-state-warn-soft: #221b10;
+  --rs-state-danger: #ff5f6b;
+  --rs-state-danger-text: #ff8a92;
+  --rs-state-danger-soft: #24141a;
+}
+
+/* A viewer who has asked their system for light, and has not overridden it
+   inside the app. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    --rs-surface-base: #eef1f7;
+    --rs-surface-panel: #f7f9fc;
+    --rs-surface-chrome: #e6ebf3;
+    --rs-surface-raised: #e2eaf6;
+    --rs-surface-overlay: #ffffff;
+    --rs-surface-terminal: #ffffff;
+    --rs-surface-input: #ffffff;
+
+    --rs-border-subtle: #d8e0ec;
+    --rs-border-strong: #c2ccdb;
+
+    --rs-text-primary: #101b28;
+    --rs-text-secondary: #253549;
+    --rs-text-muted: #55677f;
+    --rs-text-faint: #6b7c93;
+    --rs-text-disabled: #9aa8bc;
+
+    --rs-accent: #0d7fb5;
+    --rs-accent-bright: #0f6f9e;
+    --rs-accent-soft: #d6ecf7;
+
+    --rs-brand-start: #1f9fd4;
+    --rs-brand-end: #a04fd0;
+    --rs-brand-rune: #1a2735;
+
+    --rs-state-ok: #14855f;
+    --rs-state-ok-soft: #e8f6f0;
+    --rs-state-warn: #8f6209;
+    --rs-state-warn-soft: #fbf2e0;
+    --rs-state-danger: #cf2230;
+    --rs-state-danger-text: #a3121f;
+    --rs-state-danger-soft: #fdeced;
+  }
+}
+
+/* An explicit choice in the application's own settings, which beats the system
+   in both directions. */
+:root[data-theme='light'] {
+  --rs-surface-base: #eef1f7;
+  --rs-surface-panel: #f7f9fc;
+  --rs-surface-chrome: #e6ebf3;
+  --rs-surface-raised: #e2eaf6;
+  --rs-surface-overlay: #ffffff;
+  --rs-surface-terminal: #ffffff;
+  --rs-surface-input: #ffffff;
+
+  --rs-border-subtle: #d8e0ec;
+  --rs-border-strong: #c2ccdb;
+
+  --rs-text-primary: #101b28;
+  --rs-text-secondary: #253549;
+  --rs-text-muted: #55677f;
+  --rs-text-faint: #6b7c93;
+  --rs-text-disabled: #9aa8bc;
+
+  --rs-accent: #0d7fb5;
+  --rs-accent-bright: #0f6f9e;
+  --rs-accent-soft: #d6ecf7;
+
+  --rs-brand-start: #1f9fd4;
+  --rs-brand-end: #a04fd0;
+  --rs-brand-rune: #1a2735;
+
+  --rs-state-ok: #14855f;
+  --rs-state-ok-soft: #e8f6f0;
+  --rs-state-warn: #8f6209;
+  --rs-state-warn-soft: #fbf2e0;
+  --rs-state-danger: #cf2230;
+  --rs-state-danger-text: #a3121f;
+  --rs-state-danger-soft: #fdeced;
+}
