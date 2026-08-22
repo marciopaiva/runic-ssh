@@ -1,6 +1,6 @@
 # ADR-0006: Render the terminal with the xterm.js WebGL addon, falling back to DOM
 
-* **Status**: Accepted
+* **Status**: Superseded by ADR-0011
 * **Date**: 2026-08-22
 
 ## Context
@@ -95,8 +95,14 @@ will be the least-tested unless we force it in CI.
 `cat`) on all three platforms and record the numbers, since this decision is
 only justified if the difference is real.
 
-**Partly done on 2026-08-22**, and the part that is done is not the part this
-decision needed. `docs/measurements/terminal-throughput.md` records transport
+**Measured on 2026-08-22, and the measurement did not support this decision.**
+WebGL came out between one and nine percent ahead of the DOM renderer, against
+a transport that delivers six to ten times less than either can draw. See
+`adr/0011-drop-the-webgl-renderer.md`, which supersedes this record, and
+`docs/measurements/terminal-throughput.md` for the numbers.
+
+**Partly done on 2026-08-22**, and the part that was done first is not the part
+this decision needed. `docs/measurements/terminal-throughput.md` records transport
 throughput from all three platforms — the Rust side reading a channel and
 emitting batches, which is identical under either renderer. The comparison that
 would justify this ADR, WebGL against DOM while drawing, is still unmeasured and

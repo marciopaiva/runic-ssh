@@ -1,0 +1,127 @@
+# ADR-0011: Drop the WebGL renderer and paint with the DOM one
+
+* **Status**: Proposed
+* **Date**: 2026-08-22
+* **Supersedes**: [ADR-0006](0006-render-the-terminal-with-webgl.md)
+
+## Context
+
+ADR-0006 chose the `xterm.js` WebGL addon over the built-in DOM renderer. It
+was explicit about the price: one runtime dependency, a fallback path, two sets
+of glyph-level rendering bugs, a GPU driver bug becoming our bug report, and
+the admission that "fast" is a promise kept on Windows and macOS and not
+guaranteed on every Linux configuration.
+
+It was equally explicit that the price was conditional. Its follow-up said to
+measure throughput on all three platforms "since this decision is only
+justified if the difference is real", and the ADR was accepted with that
+measurement outstanding.
+
+The measurement now exists, in
+[`docs/measurements/terminal-throughput.md`](../measurements/terminal-throughput.md).
+
+**The renderers, four runs on an RTX 5070 under Chromium 151 — the engine
+WebView2 embeds:**
+
+| | DOM | WebGL | Ratio |
+| --- | --- | --- | --- |
+| Best | 102.5 MB/s | 104.9 MB/s | 1.02x |
+| Worst | 95.9 MB/s | 102.1 MB/s | 1.09x |
+
+WebGL is between one and nine percent faster. The gap between them is smaller
+than the DOM renderer's own run-to-run variance.
+
+**And the number that actually decides it:**
+
+| | |
+| --- | --- |
+| What the transport delivers | 9.1 – 15.2 MB/s |
+| What either renderer draws | 96 – 105 MB/s |
+
+The transport is bounded by design — a 256 KiB buffer flushed at most every
+16 ms, which is what keeps a hostile host from swamping the IPC channel
+(ADR-0003's threat model, issue #23). Both renderers draw six to ten times
+faster than output can arrive.
+
+The renderer is not the bottleneck. It was never going to be.
+
+## Options considered
+
+### Option A: Keep ADR-0006
+
+The measurement is one machine, one GPU, one engine. A weak or integrated GPU
+might widen the gap, and holding the decision until more machines report is
+defensible.
+
+It is also how a dependency survives a measurement that did not justify it. The
+gap would have to widen by an order of magnitude to matter, because the
+renderer would still need to become slower than 15 MB/s before a user could
+tell — and the DOM renderer is six times above that on the machine measured.
+Keeping the addon on the possibility means keeping the dependency, the bundle,
+the fallback path and the two-renderer bug surface for a case nobody has
+observed.
+
+### Option B: Drop the WebGL addon
+
+Remove `@xterm/addon-webgl`. The DOM renderer is the only renderer, on every
+platform, with no fallback because there is nothing to fall back from.
+
+This gives up a measured one to nine percent, and gives up headroom that would
+matter if the transport bound were ever raised far above where it is. It also
+removes the ability to say "we use the fast renderer", which is a real thing to
+give up in a product whose pitch is speed — and an honest reason to name,
+because it is about how the product sounds rather than how it performs.
+
+### Option C: Keep the addon, default to DOM
+
+Ship both and let a setting choose.
+
+The worst of both: the dependency stays, the bundle stays, both rendering paths
+stay supported and testable, and a setting is added that almost nobody should
+change. Optionality has a cost, and here it buys the appearance of caution.
+
+## Decision
+
+Option B, proposed on 2026-08-22.
+
+Remove the WebGL addon. `xterm.js` paints with its DOM renderer.
+
+The reason is not that WebGL is slow. It is that the thing it accelerates is
+already six times faster than the fastest rate at which our own transport will
+ever hand it data, and ADR-0006 conditioned itself on a difference being real.
+Between one and nine percent, against a variance of six, is not the difference
+that was imagined.
+
+The tradeoff accepted is measured headroom on high-end hardware, and a claim
+about the product that can no longer be made.
+
+## Consequences
+
+**Good**: one fewer runtime dependency to track for advisories. 110 KB out of
+the bundle. One rendering path instead of two, which removes the glyph-level
+divergence ADR-0006 warned about — ligatures, emoji and box-drawing characters
+no longer render differently depending on what the machine could do. A GPU
+driver bug stops being a Runic SSH bug report. The context-loss path, the
+hardest thing here to test and the easiest to get subtly wrong, disappears
+rather than being maintained.
+
+**Good**: the promise gets simpler and truer. "The same on all three platforms"
+was the argument for `russh` in ADR-0003, and this brings rendering into line
+with it.
+
+**Bad**: a measured one to nine percent is given up. Small, and real.
+
+**Bad**: this rests on one machine. A weak integrated GPU is exactly the case
+where a software renderer might struggle and was not measured. If that turns
+out to matter, the addon comes back — and the code to bring it back is in this
+repository's history, alongside the tests that covered its fallback.
+
+**Bad**: the headroom disappears if the transport bound is ever raised. Should
+the 256 KiB ceiling or the 16 ms interval change substantially, this decision
+needs measuring again rather than assuming.
+
+**Follow-up**: record measurements from a machine with integrated graphics
+before v0.1.0 ships, since that is the case this decision is least sure about.
+The renderer benchmark stays in the tree for exactly that. Revisit if the
+transport bound changes, or if a platform reports the DOM renderer struggling
+in a way the numbers here did not predict.

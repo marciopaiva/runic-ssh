@@ -94,3 +94,51 @@ too quick to be stable on the machine at hand.
 Paste the output into this file under a heading naming the machine and its GPU.
 A measurement without that context is not reproducible, and should not be
 recorded as though it were.
+
+## Renderer comparison — Windows 11, RTX 5070
+
+Measured on 2026-08-22, four runs, 32 MB through each renderer per run.
+
+- **Adapter**: ANGLE (NVIDIA GeForce RTX 5070, Direct3D11)
+- **Engine**: Chromium 151 (Edge), the same engine WebView2 embeds
+- **Method**: page served by the WSL dev server, rendered on the Windows host so
+  the measurement runs where the GPU is
+
+| Run | DOM | WebGL | Ratio |
+| --- | --- | --- | --- |
+| 1 | 97.2 MB/s | 102.1 MB/s | 1.05x |
+| 2 | 102.5 MB/s | 103.3 MB/s | 1.01x |
+| 3 | 101.1 MB/s | 103.8 MB/s | 1.03x |
+| 4 | 95.9 MB/s | 104.9 MB/s | 1.09x |
+
+**WebGL is between 1 and 9 percent faster, on a current high-end GPU.**
+
+### What this means for ADR-0006
+
+Two numbers, side by side:
+
+| | |
+| --- | --- |
+| What the transport delivers | 9.1 – 15.2 MB/s |
+| What either renderer draws | 96 – 105 MB/s |
+
+**The renderer is not the bottleneck and never was.** Both draw six to ten times
+faster than output can arrive, and the difference between them is smaller than
+the run-to-run variance of the DOM renderer alone.
+
+ADR-0006 chose the WebGL addon over the built-in DOM renderer on the strength of
+rendering speed. It accepted, in writing, a runtime dependency, 110 KB of
+bundle, a fallback path, and the statement that "fast" could not be promised on
+every Linux configuration. This measurement says it bought between 1 and 9
+percent of a thing that was never the limit.
+
+The ADR should be superseded rather than quietly kept. That is the outcome #67
+named in advance, precisely so it would not be argued away once it arrived.
+
+### What this does not settle
+
+One machine, one GPU, one engine. A weak or integrated GPU might change the
+ratio in either direction, and this measures **bulk write throughput**, which is
+what ADR-0006 reasoned about — not smooth scrolling, not a high-DPI display, not
+many small updates. Anyone reversing this decision on a different machine should
+record their numbers here too.
