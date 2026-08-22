@@ -1,0 +1,37 @@
+@import 'tailwindcss';
+
+/* Only what the shell needs to exist. The design tokens from the approved
+   canvas — the full surface set, state colors and type scale — land in their
+   own change, so themes read from one place rather than from whichever
+   component happened to be written first. */
+@theme {
+  --color-base: #0b131e;
+  --color-panel: #101c2c;
+  --color-line: #1d2f47;
+  --color-ink: #e4ecf7;
+  --color-dim: #8ea1ba;
+  --color-accent: #1ea7e2;
+
+  --font-sans: 'Manrope', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Mono', ui-monospace, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-base);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+
+  /* The webview renders output from hosts the user does not control. Selecting
+     the chrome is never useful and makes a stray drag look like broken UI; the
+     terminal and the file panes opt back in, where selection is the point. */
+  user-select: none;
+  cursor: default;
+}
