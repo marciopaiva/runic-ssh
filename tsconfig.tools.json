@@ -1,0 +1,12 @@
+{
+  /* Build tooling and tests run under Node; the application does not. Keeping
+     them in a separate project is what stops a component from importing
+     `node:fs` and still typechecking, when at runtime it lives in a webview
+     with no filesystem at all. */
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "lib": ["ES2023"]
+  },
+  "include": ["tests", "vite.config.ts"]
+}
