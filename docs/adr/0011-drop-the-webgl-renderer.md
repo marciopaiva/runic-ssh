@@ -1,6 +1,6 @@
 # ADR-0011: Drop the WebGL renderer and paint with the DOM one
 
-* **Status**: Proposed
+* **Status**: Proposed — deferred to the first packaged build
 * **Date**: 2026-08-22
 * **Supersedes**: [ADR-0006](0006-render-the-terminal-with-webgl.md)
 
@@ -80,7 +80,25 @@ The worst of both: the dependency stays, the bundle stays, both rendering paths
 stay supported and testable, and a setting is added that almost nobody should
 change. Optionality has a cost, and here it buys the appearance of caution.
 
-## Decision
+## Deferred on 2026-08-22
+
+The maintainer chose to decide this against a packaged build rather than
+against a development server, and the reason is sound: the measurement above
+was taken in Edge, and while WebView2 embeds the same Chromium engine, a
+packaged application is not a browser tab. Two cases this record is least sure
+about — integrated graphics, and a large terminal on a high-density display —
+are also better answered on the machines people actually use than on the one
+that happened to be nearby.
+
+The cost of deferring is stated plainly, because it is not zero. The
+dependency, the 110 KB, the two rendering paths and the context-loss path all
+stay maintained until then. And the first packaged build is #40, the last issue
+in v0.1.0 — which means this decision lands at the point of least appetite for
+removing anything. That is a real risk of the deferral, not an argument
+against it, and the mitigation is that #40 carries the measurement as a
+release-blocking item rather than leaving it to be remembered.
+
+## Decision, if the measurements hold
 
 Option B, proposed on 2026-08-22.
 
