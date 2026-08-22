@@ -1,0 +1,45 @@
+# Advisories that are known, reviewed, and not actionable by us.
+#
+# The point of this list is not to silence cargo-audit. It is the opposite:
+# `cargo audit --deny warnings` in CI treats any advisory NOT listed here as a
+# failure. Seventeen tolerated warnings scrolling past on every run would make
+# the eighteenth invisible, which is exactly how a real advisory gets missed.
+#
+# Every entry below arrives through Tauri's own dependency tree. We cannot
+# remove them without Tauri moving off gtk-rs, and none is reachable from code
+# we control.
+#
+# Review this list whenever Tauri is upgraded. An entry that no longer appears
+# in `cargo audit` output should be deleted rather than left behind: a stale
+# ignore hides the advisory if that crate ever returns to the tree.
+
+[advisories]
+ignore = [
+  # The gtk-rs bindings Tauri builds its Linux webview on. Unmaintained as a
+  # set since the gtk3 generation was retired in favour of gtk4.
+  "RUSTSEC-2024-0411", # gdkwayland-sys
+  "RUSTSEC-2024-0412", # gdk
+  "RUSTSEC-2024-0413", # atk
+  "RUSTSEC-2024-0414", # gdkx11-sys
+  "RUSTSEC-2024-0415", # gtk
+  "RUSTSEC-2024-0416", # atk-sys
+  "RUSTSEC-2024-0417", # gdkx11
+  "RUSTSEC-2024-0418", # gdk-sys
+  "RUSTSEC-2024-0419", # gtk3-macros
+  "RUSTSEC-2024-0420", # gtk-sys
+
+  # Unsoundness in glib's VariantStrIter. Same gtk-rs generation; we construct
+  # no VariantStrIter anywhere.
+  "RUSTSEC-2024-0429", # glib
+
+  # Build-time only, pulled in by macro crates. Never runs in the shipped app.
+  "RUSTSEC-2024-0370", # proc-macro-error
+
+  # The unic-* family, unmaintained as of October 2025. Reached through Tauri's
+  # identifier handling at build time.
+  "RUSTSEC-2025-0075", # unic-char-range
+  "RUSTSEC-2025-0080", # unic-common
+  "RUSTSEC-2025-0081", # unic-char-property
+  "RUSTSEC-2025-0098", # unic-ucd-version
+  "RUSTSEC-2025-0100", # unic-ucd-ident
+]

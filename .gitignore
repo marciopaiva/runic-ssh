@@ -12,7 +12,9 @@ dist-ssr/
 
 # Tauri build output
 /src-tauri/WixTools/
-/src-tauri/.cargo/
+/src-tauri/.cargo/*
+# The audit ignore list is reviewed source, not build output.
+!/src-tauri/.cargo/audit.toml
 
 # Environment and secrets
 .env

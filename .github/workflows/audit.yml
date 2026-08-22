@@ -1,0 +1,72 @@
+# Checks the dependency tree against the RustSec advisory database.
+#
+# ADR-0003 accepted ownership of the SSH layer's security response when it chose
+# `russh` over the system OpenSSH binary: nobody patches this for us. That
+# decision is only honest if an advisory reaches us without someone remembering
+# to look, which is what the schedule below is for.
+#
+# Advisories are platform-independent, so this runs on Linux alone rather than
+# repeating an identical answer three times.
+
+name: audit
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src-tauri/Cargo.toml'
+      - 'src-tauri/Cargo.lock'
+      - 'src-tauri/.cargo/audit.toml'
+      - '.github/workflows/audit.yml'
+  push:
+    branches: [main]
+  # A new advisory can land on a dependency nobody touched. Without this, the
+  # tree is only checked when someone happens to open a pull request.
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: audit-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_AUDIT_VERSION: 0.22.2
+
+jobs:
+  audit:
+    name: audit / advisories
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install the pinned Rust toolchain
+        run: |
+          rustup toolchain install --no-self-update
+          rustup show active-toolchain
+
+      # cargo-audit takes about a minute to compile, and the binary only changes
+      # when the pinned version does.
+      - name: Cache cargo-audit
+        id: cache-audit
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-audit
+          key: cargo-audit-${{ runner.os }}-${{ env.CARGO_AUDIT_VERSION }}-${{ hashFiles('rust-toolchain.toml') }}
+
+      - name: Install cargo-audit
+        if: steps.cache-audit.outputs.cache-hit != 'true'
+        run: cargo install cargo-audit --locked --version ${{ env.CARGO_AUDIT_VERSION }}
+
+      # --deny warnings is what gives this teeth. Advisories we have reviewed and
+      # cannot act on are listed in src-tauri/.cargo/audit.toml; anything else,
+      # warning or vulnerability, fails here.
+      - name: cargo audit
+        working-directory: src-tauri
+        run: cargo audit --deny warnings
