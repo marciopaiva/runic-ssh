@@ -86,9 +86,9 @@ module, and map errors. Business logic belongs in `ssh/`, `sftp/`, `vault/`, or
 
 ---
 
-## 4. Workflow: Analyze, Propose, Resolve, Implement
+## 4. Workflow: Analyze, Propose, Resolve, Implement, Close out
 
-Every non-trivial task runs through four phases in order. A task is trivial
+Every non-trivial task runs through five phases in order. A task is trivial
 only if it is a typo, a formatting fix, or a change the maintainer described
 line by line. When in doubt, run the phases.
 
@@ -143,6 +143,22 @@ Close the loop before writing code.
 * Write the test alongside the code, not after the fact.
 * Run the gate in section 8 before reporting done.
 * Report what was built, what was tested, and what was deliberately left out.
+
+### Phase 5: Close out
+
+The work is finished when someone who was not there can pick it up from the
+repository alone.
+
+* Put the outcome where it survives the session: the commit, the pull request,
+  the issue, the ADR. A decision made mid-implementation, a blocker hit, an
+  environment requirement discovered — if it exists only in a conversation, it
+  is already lost.
+* Turn what the change created into work: a follow-up mentioned only in a
+  report is a follow-up nobody does.
+* A merge is where the conversation stops being needed. Offering to compact it
+  is fine; claiming to have compacted it is not — no session can clear its own
+  context, and a skill that says otherwise is describing a control that does
+  not exist.
 
 ---
 
@@ -253,7 +269,7 @@ actually hits.
 
 | Skill | Use it for |
 | --- | --- |
-| `/feature` | Any non-trivial change. Drives the four phases in section 4. |
+| `/feature` | Any non-trivial change. Drives the five phases in section 4. |
 | `/tauri-cmd` | Adding an IPC command end to end, Rust through to typed wrapper. |
 | `/adr` | Recording an architectural decision under `docs/adr/`. |
 
