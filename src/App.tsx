@@ -1,6 +1,9 @@
+import { useState } from 'react';
 import type { JSX } from 'react';
 
+import { SessionsSidebar } from './components/SessionsSidebar';
 import { TerminalView } from './components/TerminalView';
+import { useSessions } from './features/sessions';
 import { useTranslator } from './features/settings';
 
 /**
@@ -15,6 +18,8 @@ import { useTranslator } from './features/settings';
  */
 export function App(): JSX.Element {
   const i18n = useTranslator();
+  const { sessions } = useSessions();
+  const [selected, setSelected] = useState<string | null>(null);
 
   return (
     <div className="flex h-full flex-col">
@@ -44,9 +49,20 @@ export function App(): JSX.Element {
         </span>
       </header>
 
-      <main className="min-h-0 flex-1">
-        <TerminalView handle={null} />
-      </main>
+      <div className="flex min-h-0 flex-1">
+        <SessionsSidebar
+          sessions={sessions}
+          selectedId={selected}
+          onSelect={setSelected}
+          onAdd={() => {
+            /* The editor lands with the command palette; until then the
+               sidebar is a list, not a way to add to it. */
+          }}
+        />
+        <main className="min-w-0 flex-1">
+          <TerminalView handle={null} />
+        </main>
+      </div>
     </div>
   );
 }
