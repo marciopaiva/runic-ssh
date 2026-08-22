@@ -348,13 +348,13 @@ fn a_credential_never_prints_itself() {
 fn the_trust_verdict_survives_a_refusal() {
     /* The caller has to be able to tell an unknown host from a changed one:
     one prompts, the other blocks. */
-    let unknown = ConnectionError::HostKeyRejected(Trust::Unknown {
+    let unknown = ConnectionError::HostKeyRejected(Box::new(Trust::Unknown {
         fingerprint: "SHA256:x".to_owned(),
         other_types: Vec::new(),
-    });
+    }));
 
-    assert!(matches!(
-        unknown,
-        ConnectionError::HostKeyRejected(Trust::Unknown { .. })
-    ));
+    let ConnectionError::HostKeyRejected(verdict) = unknown else {
+        panic!("expected a host key rejection");
+    };
+    assert!(matches!(*verdict, Trust::Unknown { .. }));
 }

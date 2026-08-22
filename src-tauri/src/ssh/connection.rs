@@ -66,8 +66,11 @@ pub enum ConnectionError {
 
     /// The host key is not one we already trust. Carries the verdict so the
     /// caller can prompt, block, or refuse — see [`Trust`].
+    /// Boxed because `Trust::Changed` carries both fingerprints and the key
+    /// itself, and every caller of every connection call would otherwise pay
+    /// that size on the success path too.
     #[error("the host key was not accepted")]
-    HostKeyRejected(Trust),
+    HostKeyRejected(Box<Trust>),
 
     #[error("the private key could not be read")]
     KeyUnreadable,
@@ -158,10 +161,12 @@ pub async fn connect(endpoint: Endpoint, known: KnownHosts) -> Result<Connection
 
     match client::connect(config, address, checker).await {
         Ok(handle) => Ok(Connection { handle }),
-        Err(russh::Error::UnknownKey) => Err(ConnectionError::HostKeyRejected(Trust::Unknown {
-            fingerprint: String::new(),
-            other_types: Vec::new(),
-        })),
+        Err(russh::Error::UnknownKey) => {
+            Err(ConnectionError::HostKeyRejected(Box::new(Trust::Unknown {
+                fingerprint: String::new(),
+                other_types: Vec::new(),
+            })))
+        }
         Err(russh::Error::IO(_)) => Err(ConnectionError::Unreachable),
         Err(_) => Err(ConnectionError::Transport),
     }
