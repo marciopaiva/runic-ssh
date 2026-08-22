@@ -84,13 +84,12 @@ the log of the pull request that caused it.
 On a machine with a GPU, with the application running in development:
 
 ```js
-const { compareRenderers, formatComparison } =
-  await import('/src/features/terminal/index.ts');
-
-const host = document.createElement('div');
-document.body.append(host);
-console.log(formatComparison(await compareRenderers(host)));
+console.log(await runicBenchmarkRenderers());   // 32 MB through each renderer
 ```
+
+`runicBenchmarkRenderers` is registered only in a development build, so it is
+absent from anything shipped. It takes an optional size in megabytes if 32 is
+too quick to be stable on the machine at hand.
 
 Paste the output into this file under a heading naming the machine and its GPU.
 A measurement without that context is not reproducible, and should not be
