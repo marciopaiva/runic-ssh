@@ -1,0 +1,139 @@
+# Installers for the three platforms.
+#
+# Same two rules as `gate.yml`: only GitHub-owned actions, each pinned to a
+# commit rather than a tag, because section 4 of docs/security-model.md names a
+# supply chain attacker as an adversary and a tag can be moved.
+#
+# Run by hand from the Actions tab, and on a version tag. Building on every push
+# would spend twenty minutes of runner time to produce an artifact nobody asked
+# for; issue #40 is about installers somebody is going to install.
+#
+# **These builds are unsigned.** See docs/installing.md — an unsigned installer
+# is a real thing a user has to work around, and pretending otherwise in a
+# release note is how people learn to click through security warnings.
+
+name: package
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: package-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: '0'
+
+jobs:
+  package:
+    name: package / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Every platform reports. A Windows installer is still worth having when
+      # the macOS build breaks.
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: linux
+            bundles: deb,rpm,appimage
+          - os: windows-latest
+            artifact: windows
+            bundles: msi,nsis
+          - os: macos-latest
+            artifact: macos
+            bundles: dmg,app
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Keep this list in step with gate.yml and docs/installing.md: a
+      # contributor who cannot build locally will look at one of the three.
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libwebkit2gtk-4.1-dev \
+            libdbus-1-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libxdo-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            pkg-config \
+            patchelf \
+            rpm
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install the pinned Rust toolchain
+        run: |
+          rustup toolchain install --no-self-update
+          rustup show active-toolchain
+
+      - name: Cache cargo
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            src-tauri/target
+          key: package-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml', 'src-tauri/Cargo.lock') }}
+          restore-keys: package-${{ runner.os }}-
+
+      # The gate runs on every pull request, but a tag can point anywhere. An
+      # installer built from code that does not pass its own tests is worse
+      # than no installer, because somebody will install it.
+      - name: Run the gate
+        run: |
+          pnpm typecheck
+          pnpm test
+        shell: bash
+
+      - name: Build the installers
+        run: pnpm tauri build --bundles ${{ matrix.bundles }}
+
+      # productName carries a space, so every artifact does too. Renaming here
+      # rather than renaming the product: a file called "Runic SSH_0.1.0.msi"
+      # breaks naive download commands and reads as an accident.
+      - name: Collect the installers
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          find src-tauri/target/release/bundle -type f \
+            \( -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' \
+               -o -name '*.msi' -o -name '*.exe' -o -name '*.dmg' \) \
+            -print0 |
+            while IFS= read -r -d '' file; do
+              cp "$file" "artifacts/$(basename "$file" | tr ' ' '-')"
+            done
+          ls -lh artifacts
+
+      - name: Upload
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: runic-ssh-${{ matrix.artifact }}
+          path: artifacts/*
+          if-no-files-found: error
+          retention-days: 14
