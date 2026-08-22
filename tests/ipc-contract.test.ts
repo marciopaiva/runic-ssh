@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { asIpcError } from '../src/ipc/errors';
+import type { CredentialStoreStatus } from '../src/ipc';
 
 const rustSource = readFileSync(
   fileURLToPath(new URL('../src-tauri/src/error.rs', import.meta.url)),
@@ -78,5 +79,36 @@ describe('the IPC error contract', () => {
     for (const rejection of [undefined, null, 'boom', { code: 'invented' }, { message: 'x' }]) {
       expect(asIpcError(rejection)).toBeUndefined();
     }
+  });
+});
+
+describe('shapes the frontend declares by hand', () => {
+  /* The error union is checked against the Rust enum above. Everything else
+     crossing the boundary is a type someone wrote twice, and nothing compares
+     them — which is how `CredentialStoreStatus` came to describe a shape the
+     core never sent. These pin the wire form; the matching assertions are in
+     src-tauri/src/vault/mod.rs. */
+
+  it('accepts the credential store status the core actually sends', () => {
+    const available: CredentialStoreStatus = JSON.parse('{"kind":"available"}') as CredentialStoreStatus;
+    const unavailable: CredentialStoreStatus = JSON.parse(
+      '{"kind":"unavailable","reason":"no store"}',
+    ) as CredentialStoreStatus;
+
+    expect(available.kind).toBe('available');
+    expect(unavailable.kind).toBe('unavailable');
+    expect(unavailable.kind === 'unavailable' ? unavailable.reason : null).toBe('no store');
+  });
+
+  it('has a Rust test pinning the same two strings', () => {
+    /* If this file's literals change, that one has to change with them, and
+       the pair is the only thing keeping the two halves honest. */
+    const rust = readFileSync(
+      fileURLToPath(new URL('../src-tauri/src/vault/mod.rs', import.meta.url)),
+      'utf8',
+    );
+
+    expect(rust).toContain('{"kind":"available"}');
+    expect(rust).toContain('{"kind":"unavailable","reason":"no store"}');
   });
 });

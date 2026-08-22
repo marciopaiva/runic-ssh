@@ -17,6 +17,7 @@ use crate::ssh::known_hosts::KnownHosts;
 use crate::ssh::pending::{PendingHostKeys, PendingId};
 use crate::ssh::registry::{Open, Registry, SessionHandle};
 use crate::ssh::trust::Trust;
+use crate::vault::{Availability, CredentialId, StoredCredential, Vault};
 
 pub const KNOWN_HOSTS_FILE: &str = "known_hosts";
 
@@ -190,6 +191,107 @@ fn write_known_hosts(path: &std::path::Path, contents: &str) -> Result<(), Error
     })
 }
 
+/// Whether this machine can remember a credential at all.
+///
+/// Asked before offering to save one, so somebody on a machine with no secret
+/// service is told up front rather than after typing a password into a
+/// checkbox that could never have worked. ADR-0004 required a real answer here
+/// rather than an opaque failure.
+#[tauri::command]
+pub async fn credential_store_status(vault: State<'_, Vault>) -> Result<Availability, IpcError> {
+    Ok(vault.availability())
+}
+
+/// Remembers a session's secret in the OS credential store.
+///
+/// The value passes through and is gone: it is written to the keychain and
+/// dropped, never echoed back and never written anywhere else.
+#[tauri::command]
+pub async fn remember_credential<R: Runtime>(
+    app: AppHandle<R>,
+    vault: State<'_, Vault>,
+    session_id: String,
+    password: Option<String>,
+    private_key: Option<String>,
+    passphrase: Option<String>,
+) -> Result<(), IpcError> {
+    let store = SessionStore::new(config_dir(&app)?);
+    let mut sessions = store.load()?;
+
+    if sessions.find(&session_id).is_none() {
+        return Err(Error::UnknownSession { id: session_id }.into());
+    }
+
+    let secret = to_stored(password, private_key, passphrase)?.encode()?;
+    let id = CredentialId::for_session(&session_id);
+    vault.store(&id, &secret)?;
+
+    if let Some(session) = sessions
+        .items
+        .iter_mut()
+        .find(|session| session.id == session_id)
+    {
+        session.credential_id = Some(id.as_str().to_owned());
+    }
+    store.save(&sessions)?;
+
+    Ok(())
+}
+
+/// Forgets a session's saved secret.
+#[tauri::command]
+pub async fn forget_credential<R: Runtime>(
+    app: AppHandle<R>,
+    vault: State<'_, Vault>,
+    session_id: String,
+) -> Result<(), IpcError> {
+    vault.forget(&CredentialId::for_session(&session_id))?;
+
+    let store = SessionStore::new(config_dir(&app)?);
+    let mut sessions = store.load()?;
+    if let Some(session) = sessions
+        .items
+        .iter_mut()
+        .find(|session| session.id == session_id)
+    {
+        session.credential_id = None;
+    }
+    store.save(&sessions)?;
+
+    Ok(())
+}
+
+/// Authenticates using the credential saved for this session.
+///
+/// The frontend names the session and nothing else. The secret is resolved
+/// here, used, and wiped — it never crosses toward the webview, which is rule
+/// 1 and the reason the vault exists.
+#[tauri::command]
+pub async fn authenticate_with_saved(
+    registry: State<'_, Registry>,
+    vault: State<'_, Vault>,
+    handle: SessionHandle,
+) -> Result<(), IpcError> {
+    let session_id = registry
+        .session_of(handle)
+        .await
+        .ok_or(Error::UnknownHandle)?;
+
+    let stored = vault.resolve(&CredentialId::for_session(&session_id))?;
+    let credential = from_stored(StoredCredential::decode(&stored)?);
+
+    let outcome = registry
+        .with(handle, |mut open: Open| async move {
+            let result = open.connection.authenticate(&open.user, credential).await;
+            (open, result)
+        })
+        .await
+        .ok_or(Error::UnknownHandle)?;
+
+    outcome.map_err(Box::new)?;
+    Ok(())
+}
+
 /// Opens a connection to a saved session and verifies its host key.
 ///
 /// Returns before authentication: the credential is collected separately, in
@@ -284,6 +386,36 @@ pub async fn disconnect_session(
     Ok(())
 }
 
+/// Turns the three optional fields into something the keychain can hold.
+///
+/// Shares its refusals with [`build_credential`]: both are the same wire shape
+/// arriving from the webview, and both refuse rather than guess.
+pub fn to_stored(
+    password: Option<String>,
+    private_key: Option<String>,
+    passphrase: Option<String>,
+) -> Result<StoredCredential, Error> {
+    match (password, private_key) {
+        (Some(_), Some(_)) => Err(Error::AmbiguousCredential),
+        (Some(secret), None) => Ok(StoredCredential::Password { secret }),
+        (None, Some(pem)) => Ok(StoredCredential::PrivateKey { pem, passphrase }),
+        (None, None) => Err(Error::MissingCredential),
+    }
+}
+
+/// Turns what the keychain held back into something to authenticate with.
+pub fn from_stored(stored: StoredCredential) -> Credential {
+    use zeroize::Zeroizing;
+
+    match stored {
+        StoredCredential::Password { secret } => Credential::Password(Zeroizing::new(secret)),
+        StoredCredential::PrivateKey { pem, passphrase } => Credential::PrivateKey {
+            pem: Zeroizing::new(pem),
+            passphrase: passphrase.map(Zeroizing::new),
+        },
+    }
+}
+
 /// Turns the three optional fields into exactly one credential.
 ///
 /// Kept separate so the refusals are testable without a webview: the shape the
@@ -375,6 +507,62 @@ mod tests {
             b"yesterday".to_vec(),
         ));
         decide(&known, "web-01", 22, "ssh-ed25519", b"today")
+    }
+
+    #[test]
+    fn a_stored_password_comes_back_as_a_password() {
+        /* A password read back as a private key would fail authentication in a
+        way that looks like the server rejecting the user, which is the
+        worst possible place for a shape to be guessed. */
+        let stored = to_stored(Some("hunter2".to_owned()), None, None).expect("stored");
+        let encoded = stored.encode().expect("encode");
+        let decoded = StoredCredential::decode(&encoded).expect("decode");
+
+        assert!(matches!(from_stored(decoded), Credential::Password(_)));
+    }
+
+    #[test]
+    fn a_stored_key_keeps_its_passphrase() {
+        let stored = to_stored(
+            None,
+            Some("-----BEGIN-----".to_owned()),
+            Some("phrase".to_owned()),
+        )
+        .expect("stored");
+
+        let decoded = StoredCredential::decode(&stored.encode().expect("encode")).expect("decode");
+
+        assert!(matches!(
+            from_stored(decoded),
+            Credential::PrivateKey {
+                passphrase: Some(_),
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn storing_both_or_neither_is_refused_the_same_way() {
+        /* The same refusals as the inline path: the wire shape is identical,
+        and a credential that is guessed here is a credential remembered
+        wrongly forever. */
+        assert!(matches!(
+            to_stored(Some("a".to_owned()), Some("b".to_owned()), None),
+            Err(Error::AmbiguousCredential)
+        ));
+        assert!(matches!(
+            to_stored(None, None, Some("orphan".to_owned())),
+            Err(Error::MissingCredential)
+        ));
+    }
+
+    #[test]
+    fn what_is_stored_never_renders_itself() {
+        /* It is a Debug away from a log. */
+        let stored = to_stored(Some("hunter2".to_owned()), None, None).expect("stored");
+        let credential = from_stored(stored);
+
+        assert!(!format!("{credential:?}").contains("hunter2"));
     }
 
     #[test]

@@ -138,6 +138,54 @@ export async function trustHostKey(
   });
 }
 
+/** Whether this machine can remember a credential at all. */
+export type CredentialStoreStatus =
+  | { readonly kind: 'available' }
+  | { readonly kind: 'unavailable'; readonly reason: string };
+
+/**
+ * Asks before offering to save anything.
+ *
+ * Someone on a machine with no secret service should be told up front, not
+ * after typing a password into a checkbox that could never have worked.
+ */
+export async function credentialStoreStatus(): Promise<CredentialStoreStatus> {
+  return invoke<CredentialStoreStatus>('credential_store_status');
+}
+
+/** Remembers a session's secret. The value passes through and is gone. */
+export async function rememberCredential(
+  sessionId: string,
+  secret: Secret,
+): Promise<void> {
+  const payload =
+    'password' in secret
+      ? { sessionId, password: secret.password, privateKey: null, passphrase: null }
+      : {
+          sessionId,
+          password: null,
+          privateKey: secret.privateKey,
+          passphrase: secret.passphrase ?? null,
+        };
+
+  return invoke<void>('remember_credential', payload);
+}
+
+export async function forgetCredential(sessionId: string): Promise<void> {
+  return invoke<void>('forget_credential', { sessionId });
+}
+
+/**
+ * Authenticates with the credential saved for this session.
+ *
+ * Names the session and nothing else. The secret is resolved in the core, used
+ * and wiped — it never crosses toward the webview, which is rule 1 and the
+ * reason the vault exists at all.
+ */
+export async function authenticateWithSaved(handle: SessionHandle): Promise<void> {
+  return invoke<void>('authenticate_with_saved', { handle });
+}
+
 export async function disconnectSession(handle: SessionHandle): Promise<void> {
   return invoke<void>('disconnect_session', { handle });
 }

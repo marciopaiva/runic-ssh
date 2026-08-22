@@ -112,6 +112,11 @@ impl Registry {
         sender.send(input).await.ok()
     }
 
+    /// Which saved session a handle belongs to.
+    pub async fn session_of(&self, handle: SessionHandle) -> Option<String> {
+        Some(self.open.lock().await.get(&handle)?.session_id.clone())
+    }
+
     pub async fn count(&self) -> usize {
         self.open.lock().await.len()
     }

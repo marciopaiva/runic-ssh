@@ -3,6 +3,10 @@ export type { IpcError, IpcErrorCode } from './errors';
 export { getSettings, setLocale } from './settings';
 export {
   authenticateSession,
+  authenticateWithSaved,
+  credentialStoreStatus,
+  forgetCredential,
+  rememberCredential,
   connectSession,
   deleteSession,
   disconnectSession,
@@ -11,6 +15,7 @@ export {
   trustHostKey,
 } from './sessions';
 export type {
+  CredentialStoreStatus,
   OpenSession,
   Secret,
   Session,

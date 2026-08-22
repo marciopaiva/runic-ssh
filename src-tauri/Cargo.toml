@@ -30,6 +30,7 @@ tauri-build = { version = "2", features = [] }
 # See adr/0009-parse-known-hosts-ourselves.md.
 base64ct = { version = "1.8.3", features = ["alloc"] }
 hmac = "0.13.0"
+keyring = "4.1.6"
 # RSA stays enabled so we can verify an RSA host key, which is a public-key
 # operation and is not what RUSTSEC-2023-0071 attacks. Signing with an RSA
 # private key is refused in ssh::connection instead.
