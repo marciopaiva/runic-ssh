@@ -70,6 +70,21 @@ pub enum Error {
 
     #[error("the session is missing or malformed")]
     InvalidSession { field: String },
+
+    #[error("that decision is not waiting on an answer")]
+    UnknownDecision,
+
+    #[error("that key was already accepted or refused")]
+    NotAwaitingDecision,
+
+    #[error("the file marks this key as revoked")]
+    HostKeyRevoked,
+
+    #[error("this host authenticates with a certificate, not a bare key")]
+    HostKeyCertificateRequired,
+
+    #[error("the host name typed back does not match")]
+    ConfirmationMismatch,
 }
 
 /// A failure as the webview sees it: a code, and the fields it needs to render
@@ -120,6 +135,17 @@ pub enum IpcError {
     MissingCredential,
     MalformedInput,
     InputTooLarge,
+    /// A host key needs a decision. `pending` names it; `inner` says which of
+    /// the five outcomes it was and carries the fingerprints to compare.
+    HostKeyDecision {
+        pending: crate::ssh::pending::PendingId,
+        inner: Box<IpcError>,
+    },
+    UnknownDecision,
+    NotAwaitingDecision,
+    HostKeyRevoked,
+    HostKeyCertificateRequired,
+    ConfirmationMismatch,
     /// A saved session was rejected; `field` names which part.
     InvalidSession {
         field: String,
@@ -158,6 +184,11 @@ impl From<Error> for IpcError {
             Error::MalformedInput => Self::MalformedInput,
             Error::InputTooLarge => Self::InputTooLarge,
             Error::InvalidSession { field } => Self::InvalidSession { field },
+            Error::UnknownDecision => Self::UnknownDecision,
+            Error::NotAwaitingDecision => Self::NotAwaitingDecision,
+            Error::HostKeyRevoked => Self::HostKeyRevoked,
+            Error::HostKeyCertificateRequired => Self::HostKeyCertificateRequired,
+            Error::ConfirmationMismatch => Self::ConfirmationMismatch,
         }
     }
 }

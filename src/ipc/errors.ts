@@ -37,7 +37,26 @@ export type IpcError =
   /** The core refuses to forward input this large. */
   | { readonly code: 'inputTooLarge' }
   /** A saved session was rejected; `field` names which part. */
-  | { readonly code: 'invalidSession'; readonly field: string };
+  | { readonly code: 'invalidSession'; readonly field: string }
+  /**
+   * A host key needs a decision.
+   *
+   * `pending` names the refusal the core is holding; answering means sending
+   * that id back, never a host and a key. The interface can only answer a
+   * decision it was shown — it cannot describe one it would like made.
+   */
+  | {
+      readonly code: 'hostKeyDecision';
+      readonly pending: number;
+      readonly inner: IpcError;
+    }
+  | { readonly code: 'unknownDecision' }
+  | { readonly code: 'notAwaitingDecision' }
+  /** The file marks this key revoked. Not overridable, deliberately. */
+  | { readonly code: 'hostKeyRevoked' }
+  /** The host authenticates with a certificate; a bare key will not do. */
+  | { readonly code: 'hostKeyCertificateRequired' }
+  | { readonly code: 'confirmationMismatch' };
 
 export type IpcErrorCode = IpcError['code'];
 
@@ -60,6 +79,12 @@ const CODES: ReadonlySet<string> = new Set<IpcErrorCode>([
   'malformedInput',
   'inputTooLarge',
   'invalidSession',
+  'hostKeyDecision',
+  'unknownDecision',
+  'notAwaitingDecision',
+  'hostKeyRevoked',
+  'hostKeyCertificateRequired',
+  'confirmationMismatch',
 ]);
 
 /**

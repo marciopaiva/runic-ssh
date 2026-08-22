@@ -8,10 +8,10 @@
  * this approach for.
  */
 
-import en from '../../locales/en.json';
+import { SOURCE_CATALOG } from './catalog.generated';
 
 /** Every key that exists. Referencing anything else does not compile. */
-export type MessageKey = keyof typeof en;
+export type MessageKey = keyof typeof SOURCE_CATALOG;
 
 /**
  * The placeholder names inside a message, read out of the string literal.
@@ -27,9 +27,22 @@ export type Placeholders<S extends string> =
 
 /** The parameters a given key requires: none at all when it has no holes. */
 export type MessageParams<K extends MessageKey> =
-  Placeholders<(typeof en)[K]> extends never
+  Placeholders<(typeof SOURCE_CATALOG)[K]> extends never
     ? Record<string, never>
-    : { readonly [P in Placeholders<(typeof en)[K]>]: string | number };
+    : { readonly [P in Placeholders<(typeof SOURCE_CATALOG)[K]>]: string | number };
+
+/**
+ * The argument list for a key: exactly one parameter object when the message
+ * has holes, and nothing at all when it does not.
+ *
+ * A tuple rather than an optional parameter, because optional would let a
+ * message with holes be called without filling them — which renders `{host}`
+ * to a user and is the failure this typing exists to prevent.
+ */
+export type MessageArgs<K extends MessageKey> =
+  Placeholders<(typeof SOURCE_CATALOG)[K]> extends never
+    ? []
+    : [params: MessageParams<K>];
 
 /**
  * A complete catalogue.
@@ -39,4 +52,4 @@ export type MessageParams<K extends MessageKey> =
  */
 export type Catalog = { readonly [K in MessageKey]: string };
 
-export { en as sourceCatalog };
+export { SOURCE_CATALOG as sourceCatalog };

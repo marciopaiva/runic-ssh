@@ -12,9 +12,11 @@ use crate::config::sessions::{
     SessionStore,
 };
 use crate::error::{Error, IpcError};
-use crate::ssh::connection::{connect, Credential, Endpoint};
+use crate::ssh::connection::{connect_reporting, Credential, Endpoint, OfferedKey};
 use crate::ssh::known_hosts::KnownHosts;
+use crate::ssh::pending::{PendingHostKeys, PendingId};
 use crate::ssh::registry::{Open, Registry, SessionHandle};
+use crate::ssh::trust::Trust;
 
 pub const KNOWN_HOSTS_FILE: &str = "known_hosts";
 
@@ -91,6 +93,103 @@ pub async fn delete_session<R: Runtime>(
     Ok(())
 }
 
+/// Accepts a host key the user was shown, and writes it to `known_hosts`.
+///
+/// Takes the id of a refusal this core produced, not a host and a key. The
+/// frontend cannot describe a key it wants trusted — it can only answer one it
+/// was shown, which is what keeps rule 3's "deliberate override" from becoming
+/// a boolean a future caller passes `true` to.
+#[tauri::command]
+pub async fn trust_host_key<R: Runtime>(
+    app: AppHandle<R>,
+    pending: State<'_, PendingHostKeys>,
+    pending_id: PendingId,
+    // For a changed key, the host name typed back. Ignored otherwise.
+    confirmation: Option<String>,
+) -> Result<(), IpcError> {
+    let offered = pending
+        .take(pending_id)
+        .await
+        .ok_or(Error::UnknownDecision)?;
+
+    check_acceptance(&offered, confirmation.as_deref())?;
+
+    let path = config_dir(&app)?.join(KNOWN_HOSTS_FILE);
+    let text = std::fs::read_to_string(&path).unwrap_or_default();
+    let mut known = KnownHosts::parse(&text);
+
+    if matches!(offered.verdict, Trust::Changed { .. }) {
+        known.remove_matching(&offered.host, offered.port, &offered.key_type);
+    }
+
+    known.add(KnownHosts::entry_for(
+        &offered.host,
+        offered.port,
+        &offered.key_type,
+        offered.key.clone(),
+    ));
+
+    write_known_hosts(&path, &known.to_file())?;
+    Ok(())
+}
+
+/// Decides whether an offered key may be accepted at all.
+///
+/// Separate from the command so every refusal is reachable without a webview,
+/// which matters more here than anywhere else in this file: these five
+/// branches are rule 3.
+pub fn check_acceptance(offered: &OfferedKey, confirmation: Option<&str>) -> Result<(), Error> {
+    match &offered.verdict {
+        // Nothing to do, and nothing that should have asked.
+        Trust::Matched => Err(Error::NotAwaitingDecision),
+
+        // The file says this key must never be accepted. An override here would
+        // make the marker mean nothing — ADR-0009.
+        Trust::Revoked { .. } => Err(Error::HostKeyRevoked),
+
+        // The host authenticates with a certificate. Trusting a bare key
+        // instead is precisely the substitution the marker warns about.
+        Trust::CertificateRequired { .. } => Err(Error::HostKeyCertificateRequired),
+
+        Trust::Unknown { .. } => Ok(()),
+
+        Trust::Changed { .. } => {
+            // Typed back, and checked *here*. Enforced only in the interface it
+            // would be decoration: the core is what writes the file.
+            if confirmation.unwrap_or_default().trim() == offered.host {
+                Ok(())
+            } else {
+                Err(Error::ConfirmationMismatch)
+            }
+        }
+    }
+}
+
+/// Writes `known_hosts` through a temporary file, as the settings store does.
+///
+/// A truncated `known_hosts` is worse than a missing one: a host whose entry
+/// was half-written reads as *unknown* rather than *changed*, which prompts
+/// where it should block.
+fn write_known_hosts(path: &std::path::Path, contents: &str) -> Result<(), Error> {
+    let directory = path.parent().ok_or(Error::ConfigDirUnavailable)?;
+
+    std::fs::create_dir_all(directory).map_err(|source| Error::SettingsUnwritable {
+        path: directory.to_path_buf(),
+        source,
+    })?;
+
+    let temporary = directory.join("known_hosts.tmp");
+    std::fs::write(&temporary, contents).map_err(|source| Error::SettingsUnwritable {
+        path: temporary.clone(),
+        source,
+    })?;
+
+    std::fs::rename(&temporary, path).map_err(|source| Error::SettingsUnwritable {
+        path: path.to_path_buf(),
+        source,
+    })
+}
+
 /// Opens a connection to a saved session and verifies its host key.
 ///
 /// Returns before authentication: the credential is collected separately, in
@@ -100,6 +199,7 @@ pub async fn delete_session<R: Runtime>(
 pub async fn connect_session<R: Runtime>(
     app: AppHandle<R>,
     registry: State<'_, Registry>,
+    pending: State<'_, PendingHostKeys>,
     session_id: String,
 ) -> Result<OpenSession, IpcError> {
     let session = saved_session(&app, &session_id)?;
@@ -109,7 +209,23 @@ pub async fn connect_session<R: Runtime>(
         host: session.host.clone(),
         port: session.port,
     };
-    let connection = connect(endpoint, known).await.map_err(Box::new)?;
+
+    let connection = match connect_reporting(endpoint, known).await {
+        Ok(connection) => connection,
+        Err((error, offered)) => {
+            /* A refusal has to survive the round trip to the interface. What
+            was offered is kept here, and the webview gets an id for it —
+            never the decision, and never the key. */
+            if let Some(offered) = offered {
+                let id = pending.remember(offered).await;
+                return Err(IpcError::HostKeyDecision {
+                    pending: id,
+                    inner: Box::new(IpcError::from(Box::new(error))),
+                });
+            }
+            return Err(IpcError::from(Box::new(error)));
+        }
+    };
 
     let handle = registry
         .insert(Open {
@@ -194,6 +310,8 @@ pub fn build_credential(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ssh::known_hosts::KnownHosts;
+    use crate::ssh::trust::decide;
 
     #[test]
     fn a_password_becomes_a_password_credential() {
@@ -235,6 +353,92 @@ mod tests {
         assert!(matches!(
             build_credential(None, None, Some("orphan".to_owned())),
             Err(Error::MissingCredential)
+        ));
+    }
+
+    fn offered(verdict: Trust) -> OfferedKey {
+        OfferedKey {
+            host: "web-01".to_owned(),
+            port: 22,
+            key_type: "ssh-ed25519".to_owned(),
+            key: b"the key the server offered".to_vec(),
+            verdict,
+        }
+    }
+
+    fn a_real_change() -> Trust {
+        let mut known = KnownHosts::default();
+        known.add(KnownHosts::entry_for(
+            "web-01",
+            22,
+            "ssh-ed25519",
+            b"yesterday".to_vec(),
+        ));
+        decide(&known, "web-01", 22, "ssh-ed25519", b"today")
+    }
+
+    #[test]
+    fn an_unknown_host_may_be_accepted() {
+        let unknown = Trust::Unknown {
+            fingerprint: "SHA256:x".to_owned(),
+            other_types: Vec::new(),
+        };
+        assert!(check_acceptance(&offered(unknown), None).is_ok());
+    }
+
+    #[test]
+    fn a_changed_key_needs_the_host_name_typed_back() {
+        let change = offered(a_real_change());
+
+        assert!(matches!(
+            check_acceptance(&change, None),
+            Err(Error::ConfirmationMismatch)
+        ));
+        assert!(matches!(
+            check_acceptance(&change, Some("")),
+            Err(Error::ConfirmationMismatch)
+        ));
+        assert!(matches!(
+            check_acceptance(&change, Some("web-02")),
+            Err(Error::ConfirmationMismatch)
+        ));
+        assert!(check_acceptance(&change, Some("  web-01  ")).is_ok());
+    }
+
+    #[test]
+    fn a_revoked_key_can_never_be_accepted() {
+        /* Not "needs a stronger confirmation" — cannot. An override would make
+        the marker mean nothing, and the marker exists to override
+        acceptance. */
+        let revoked = offered(Trust::Revoked {
+            fingerprint: "SHA256:x".to_owned(),
+        });
+
+        for typed in [None, Some("web-01"), Some("yes I am sure")] {
+            assert!(matches!(
+                check_acceptance(&revoked, typed),
+                Err(Error::HostKeyRevoked)
+            ));
+        }
+    }
+
+    #[test]
+    fn a_certificate_host_cannot_have_a_bare_key_trusted_instead() {
+        let certificate = offered(Trust::CertificateRequired {
+            fingerprint: "SHA256:x".to_owned(),
+        });
+
+        assert!(matches!(
+            check_acceptance(&certificate, Some("web-01")),
+            Err(Error::HostKeyCertificateRequired)
+        ));
+    }
+
+    #[test]
+    fn a_key_that_already_matched_is_not_a_decision() {
+        assert!(matches!(
+            check_acceptance(&offered(Trust::Matched), None),
+            Err(Error::NotAwaitingDecision)
         ));
     }
 }

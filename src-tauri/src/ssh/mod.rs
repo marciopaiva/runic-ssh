@@ -5,6 +5,7 @@
 
 pub mod connection;
 pub mod known_hosts;
+pub mod pending;
 pub mod registry;
 pub mod terminal;
 pub mod trust;
