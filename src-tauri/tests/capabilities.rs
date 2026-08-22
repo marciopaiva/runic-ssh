@@ -32,9 +32,32 @@ const ALLOWED: &[&str] = &[
 ];
 
 fn capability() -> serde_json::Value {
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/capabilities/default.json");
-    let text = std::fs::read_to_string(path).expect("capabilities/default.json is missing");
-    serde_json::from_str(&text).expect("capabilities/default.json is not valid JSON")
+    named("default.json")
+}
+
+fn named(file: &str) -> serde_json::Value {
+    let path = format!("{}/capabilities/{file}", env!("CARGO_MANIFEST_DIR"));
+    let text = std::fs::read_to_string(&path).unwrap_or_else(|_| panic!("{path} is missing"));
+    serde_json::from_str(&text).unwrap_or_else(|_| panic!("{path} is not valid JSON"))
+}
+
+/// Every capability file in the crate, so a new one cannot appear unreviewed.
+fn every_capability() -> Vec<(String, serde_json::Value)> {
+    let directory = concat!(env!("CARGO_MANIFEST_DIR"), "/capabilities");
+
+    let mut found: Vec<_> = std::fs::read_dir(directory)
+        .expect("the capabilities directory is missing")
+        .filter_map(Result::ok)
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .filter(|name| name.ends_with(".json"))
+        .map(|name| {
+            let value = named(&name);
+            (name, value)
+        })
+        .collect();
+
+    found.sort_by(|a, b| a.0.cmp(&b.0));
+    found
 }
 
 fn permissions(value: &serde_json::Value) -> BTreeSet<String> {
@@ -68,6 +91,52 @@ fn permission_set_matches_the_reviewed_list() {
         removed.is_empty(),
         "capability narrowed: {removed:?}. That is welcome — drop it from ALLOWED too."
     );
+}
+
+#[test]
+fn every_capability_is_one_of_the_two_reviewed() {
+    /* A third capability file grants something to a window nobody looked at.
+    Adding one is fine; adding one without this test failing is not. */
+    let names: Vec<_> = every_capability()
+        .into_iter()
+        .map(|(name, _)| name)
+        .collect();
+
+    assert_eq!(names, vec!["credential.json", "default.json"]);
+}
+
+#[test]
+fn the_credential_window_is_granted_nothing() {
+    /* ADR-0008: this is the window a secret is typed into. It invokes the
+    application's own commands, which the ACL does not gate, and it needs
+    nothing at all from the core plugins. The shortest list is the point, and
+    an addition here deserves the same scrutiny as one to `default`. */
+    let credential = named("credential.json");
+
+    assert!(
+        permissions(&credential).is_empty(),
+        "the credential window was granted a permission: {:?}",
+        permissions(&credential)
+    );
+}
+
+#[test]
+fn each_capability_names_the_one_window_it_is_for() {
+    for (name, value) in every_capability() {
+        let windows: Vec<_> = value["windows"]
+            .as_array()
+            .unwrap_or_else(|| panic!("{name} is not scoped to any window"))
+            .iter()
+            .filter_map(|w| w.as_str())
+            .collect();
+
+        assert_eq!(
+            windows.len(),
+            1,
+            "{name} is scoped to more than one window, so a grant reaches a \
+             window it was not reviewed for"
+        );
+    }
 }
 
 #[test]

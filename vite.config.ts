@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url';
+
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
@@ -29,6 +31,16 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     target: 'es2022',
+    rollupOptions: {
+      // Two documents, two bundles. ADR-0008 says the credential prompt never
+      // renders a byte a remote host chose; a separate entry point is what
+      // makes that a fact about the build rather than a promise about which
+      // component happens to be mounted.
+      input: {
+        main: fileURLToPath(new URL('./index.html', import.meta.url)),
+        credential: fileURLToPath(new URL('./credential.html', import.meta.url)),
+      },
+    },
     // A release build ships no source map: it would hand anyone who opens the
     // bundle a readable map of the IPC surface.
     sourcemap: false,

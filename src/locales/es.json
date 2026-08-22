@@ -71,5 +71,18 @@
   "command.window.restore": "Restaurar ventana",
   "command.window.close": "Cerrar ventana",
   "command.language.use": "Idioma: {name}",
-  "command.language.system": "Idioma: seguir el sistema"
+  "command.language.system": "Idioma: seguir el sistema",
+  "credential.title": "Autenticación requerida",
+  "credential.subject": "{name} — {user}@{host}",
+  "credential.method": "Método de autenticación",
+  "credential.method.password": "Contraseña",
+  "credential.method.key": "Clave privada",
+  "credential.password": "Contraseña",
+  "credential.privateKey": "Clave privada",
+  "credential.passphrase": "Frase de paso (déjela vacía si la clave no tiene)",
+  "credential.remember": "Guardar en el llavero del sistema",
+  "credential.submit": "Autenticar",
+  "credential.cancel": "Cancelar",
+  "credential.loading": "Preparando…",
+  "credential.failed": "Esta solicitud ya no es válida"
 }

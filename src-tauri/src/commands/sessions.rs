@@ -41,7 +41,7 @@ fn config_dir<R: Runtime>(app: &AppHandle<R>) -> Result<std::path::PathBuf, Erro
         .map_err(|_| Error::ConfigDirUnavailable)
 }
 
-fn saved_session<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<Session, Error> {
+pub fn saved_session<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<Session, Error> {
     let store = SessionStore::new(config_dir(app)?);
     store
         .load()?
@@ -60,6 +60,62 @@ fn known_hosts<R: Runtime>(app: &AppHandle<R>) -> Result<KnownHosts, Error> {
         Err(source) if source.kind() == std::io::ErrorKind::NotFound => Ok(KnownHosts::default()),
         Err(source) => Err(Error::SettingsUnreadable { path, source }),
     }
+}
+
+/// What the host key screens need to render.
+///
+/// Read by id rather than carried on the error: the prompt wants the key type
+/// and the port as well as the fingerprint, and four more fields on an error
+/// variant to serve one screen is the wrong place for them.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HostKeyDecisionView {
+    pub host: String,
+    pub port: u16,
+    pub key_type: String,
+    pub verdict: String,
+    /// The fingerprint the host offered.
+    pub offered: String,
+    /// The fingerprints already trusted for this host, if any.
+    pub stored: Vec<String>,
+}
+
+/// Describes a host key decision the core is holding.
+#[tauri::command]
+pub async fn host_key_decision(
+    pending: State<'_, PendingHostKeys>,
+    pending_id: PendingId,
+) -> Result<HostKeyDecisionView, IpcError> {
+    let offered = pending
+        .describe(pending_id)
+        .await
+        .ok_or(Error::UnknownDecision)?;
+
+    let (verdict, fingerprint, stored) = match &offered.verdict {
+        Trust::Unknown { fingerprint, .. } => ("unknown", fingerprint.clone(), Vec::new()),
+        Trust::Changed {
+            offered: shown,
+            stored,
+            ..
+        } => ("changed", shown.clone(), stored.clone()),
+        Trust::Revoked { fingerprint } => ("revoked", fingerprint.clone(), Vec::new()),
+        Trust::CertificateRequired { fingerprint } => {
+            ("certificateRequired", fingerprint.clone(), Vec::new())
+        }
+        /* A matched key is never held for a decision, so reaching this means
+        the registry and the verdict disagree. Refusing beats rendering a
+        prompt for a host that was already trusted. */
+        Trust::Matched => return Err(Error::NotAwaitingDecision.into()),
+    };
+
+    Ok(HostKeyDecisionView {
+        host: offered.host,
+        port: offered.port,
+        key_type: offered.key_type,
+        verdict: verdict.to_owned(),
+        offered: fingerprint,
+        stored,
+    })
 }
 
 /// Every saved session, in the order they were added.
@@ -215,16 +271,39 @@ pub async fn remember_credential<R: Runtime>(
     private_key: Option<String>,
     passphrase: Option<String>,
 ) -> Result<(), IpcError> {
-    let store = SessionStore::new(config_dir(&app)?);
-    let mut sessions = store.load()?;
-
-    if sessions.find(&session_id).is_none() {
+    /* Checked before anything is written: a keychain entry for a session that
+    does not exist is a secret nobody can reach and nobody knows to delete. */
+    if SessionStore::new(config_dir(&app)?)
+        .load()?
+        .find(&session_id)
+        .is_none()
+    {
         return Err(Error::UnknownSession { id: session_id }.into());
     }
 
     let secret = to_stored(password, private_key, passphrase)?.encode()?;
-    let id = CredentialId::for_session(&session_id);
-    vault.store(&id, &secret)?;
+    persist_credential(&app, &vault, &session_id, &secret)?;
+
+    Ok(())
+}
+
+/// Writes a secret to the keychain and points the saved session at it.
+///
+/// Both halves or neither: a keychain entry no session references is a secret
+/// nobody can reach and nobody knows to delete, and a session pointing at an
+/// entry that was never written fails at connect time with a missing
+/// credential the user never chose to remove.
+pub fn persist_credential<R: Runtime>(
+    app: &AppHandle<R>,
+    vault: &Vault,
+    session_id: &str,
+    secret: &zeroize::Zeroizing<String>,
+) -> Result<(), Error> {
+    let store = SessionStore::new(config_dir(app)?);
+    let mut sessions = store.load()?;
+
+    let id = CredentialId::for_session(session_id);
+    vault.store(&id, secret)?;
 
     if let Some(session) = sessions
         .items

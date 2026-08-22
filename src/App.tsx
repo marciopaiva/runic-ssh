@@ -2,6 +2,8 @@ import { useCallback, useMemo, useState } from 'react';
 import type { JSX } from 'react';
 
 import { CommandPalette } from './components/CommandPalette';
+import { HostKeyBlocked } from './components/HostKeyBlocked';
+import { HostKeyPrompt } from './components/HostKeyPrompt';
 import { SessionsSidebar } from './components/SessionsSidebar';
 import { StatusBar } from './components/StatusBar';
 import { TerminalView } from './components/TerminalView';
@@ -9,7 +11,7 @@ import { Titlebar } from './components/Titlebar';
 import { actionCommands, sessionCommands, usePalette } from './features/commands';
 import type { CommandContext } from './features/commands';
 import { openTabs, resolveActive, tabAfter, tabAfterClosing, useChrome, windowControls } from './features/chrome';
-import { useSessions } from './features/sessions';
+import { isOverridable, needsConfirmation, useConnect, useSessions } from './features/sessions';
 import { useLocale } from './features/settings';
 import { useSessionStats } from './features/status';
 import type { TerminalSize } from './features/terminal/use-terminal';
@@ -30,7 +32,7 @@ const TERMINAL_PANEL = 'terminal-panel';
  * credential prompt from ADR-0008.
  */
 export function App(): JSX.Element {
-  const { sessions } = useSessions();
+  const { sessions, setState, attach } = useSessions();
   const { chrome, maximized, act } = useChrome();
   const { i18n, chosen, choose } = useLocale();
   const [selected, setSelected] = useState<string | null>(null);
@@ -51,6 +53,40 @@ export function App(): JSX.Element {
     [tabs],
   );
 
+  const { attempt, connect, trust, abandon } = useConnect({
+    onConnecting: (sessionId) => setState(sessionId, 'connecting'),
+    onOpened: (sessionId, handle) => {
+      attach(sessionId, handle);
+      setState(sessionId, 'connected');
+      setActive(sessionId);
+    },
+    onFailed: (sessionId, code) => {
+      /* A changed key is not the same as an unreachable host, and the sidebar
+         marker says which. Collapsing them would hide the one that matters. */
+      setState(sessionId, code === 'hostKeyDecision' ? 'keyMismatch' : 'unreachable');
+    },
+  });
+
+  /* Activating a saved host is what starts a connection. An open one only
+     switches, which is why the sidebar and the palette both route through
+     here rather than each deciding for themselves. */
+  const activate = useCallback(
+    (sessionId: string): void => {
+      setSelected(sessionId);
+
+      const live = sessions.find((entry) => entry.session.id === sessionId);
+      if (live === undefined) return;
+
+      if (live.handle !== null) {
+        setActive(sessionId);
+        return;
+      }
+
+      void connect(sessionId, live.session.credentialId);
+    },
+    [connect, sessions],
+  );
+
   const context = useMemo<CommandContext>(
     () => ({
       i18n,
@@ -60,7 +96,7 @@ export function App(): JSX.Element {
       chosenLocale: chosen,
       maximized,
       actions: {
-        selectSession: setSelected,
+        selectSession: activate,
         activateTab: setActive,
         closeTab,
         moveTab: (step) => setActive(tabAfter(tabs, activeId, step)),
@@ -68,7 +104,7 @@ export function App(): JSX.Element {
         chooseLocale: (locale) => void choose(locale),
       },
     }),
-    [i18n, sessions, tabs, activeId, chosen, maximized, act, choose, closeTab],
+    [i18n, sessions, tabs, activeId, chosen, maximized, act, choose, closeTab, activate],
   );
 
   const sources = useMemo(
@@ -97,7 +133,7 @@ export function App(): JSX.Element {
         <SessionsSidebar
           sessions={sessions}
           selectedId={selected}
-          onSelect={setSelected}
+          onSelect={activate}
           onAdd={palette.show}
         />
         <main id={TERMINAL_PANEL} role="tabpanel" className="min-w-0 flex-1">
@@ -111,6 +147,29 @@ export function App(): JSX.Element {
         size={size}
         modifier={chrome?.commandModifier ?? 'control'}
       />
+
+      {attempt !== null &&
+        attempt.stage.stage === 'deciding' &&
+        attempt.decision !== null &&
+        isOverridable(attempt.decision.verdict) &&
+        (needsConfirmation(attempt.decision.verdict) ? (
+          <HostKeyBlocked
+            host={attempt.decision.host}
+            storedFingerprints={attempt.decision.stored}
+            offeredFingerprint={attempt.decision.offered}
+            onReplace={(confirmation) => void trust(confirmation)}
+            onCancel={abandon}
+          />
+        ) : (
+          <HostKeyPrompt
+            host={attempt.decision.host}
+            port={attempt.decision.port}
+            keyType={attempt.decision.keyType}
+            fingerprint={attempt.decision.offered}
+            onTrust={() => void trust()}
+            onCancel={abandon}
+          />
+        ))}
 
       <CommandPalette
         open={palette.open}

@@ -49,6 +49,16 @@ impl PendingHostKeys {
         id
     }
 
+    /// Reads a decision without answering it.
+    ///
+    /// The prompt needs more than the error carried: the key type and the port
+    /// as well as the fingerprint. Sending those through the error would put
+    /// four fields on a variant to serve one screen; reading them back by id is
+    /// the same shape the credential prompt uses.
+    pub async fn describe(&self, id: PendingId) -> Option<OfferedKey> {
+        self.waiting.lock().await.get(&id).cloned()
+    }
+
     /// Takes a decision out. Answering twice reaches nothing the second time,
     /// which is what stops a stale window writing a key over a newer one.
     pub async fn take(&self, id: PendingId) -> Option<OfferedKey> {
@@ -94,6 +104,21 @@ mod tests {
     async fn an_invented_id_reaches_nothing() {
         let pending = PendingHostKeys::new();
         assert!(pending.take(PendingId(999)).await.is_none());
+        assert!(pending.describe(PendingId(999)).await.is_none());
+    }
+
+    #[tokio::test]
+    async fn reading_a_decision_does_not_answer_it() {
+        /* The prompt reads it to render, and the user answers afterwards. A
+        read that consumed the decision would leave the answer with nothing
+        to write. */
+        let pending = PendingHostKeys::new();
+        let id = pending.remember(offered()).await;
+
+        assert!(pending.describe(id).await.is_some());
+        assert!(pending.describe(id).await.is_some());
+        assert!(pending.take(id).await.is_some());
+        assert!(pending.describe(id).await.is_none());
     }
 
     #[test]

@@ -6,6 +6,7 @@
 //! a webview or an app handle.
 
 pub mod chrome;
+pub mod credential;
 pub mod sessions;
 pub mod settings;
 pub mod terminal;

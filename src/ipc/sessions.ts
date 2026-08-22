@@ -189,3 +189,25 @@ export async function authenticateWithSaved(handle: SessionHandle): Promise<void
 export async function disconnectSession(handle: SessionHandle): Promise<void> {
   return invoke<void>('disconnect_session', { handle });
 }
+
+/** What the host key screens need to render. */
+export interface HostKeyDecisionView {
+  readonly host: string;
+  readonly port: number;
+  readonly keyType: string;
+  readonly verdict: 'unknown' | 'changed' | 'revoked' | 'certificateRequired';
+  /** The fingerprint the host offered. */
+  readonly offered: string;
+  /** The fingerprints already trusted for this host, if any. */
+  readonly stored: readonly string[];
+}
+
+/**
+ * Describes a host key decision the core is holding.
+ *
+ * Read by id rather than carried on the error: the prompt wants the key type
+ * and the port as well as the fingerprint.
+ */
+export async function hostKeyDecision(pendingId: number): Promise<HostKeyDecisionView> {
+  return invoke<HostKeyDecisionView>('host_key_decision', { pendingId });
+}
