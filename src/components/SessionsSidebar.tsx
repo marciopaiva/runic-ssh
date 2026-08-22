@@ -11,6 +11,8 @@ interface SessionsSidebarProps {
   readonly selectedId: string | null;
   readonly onSelect: (sessionId: string) => void;
   readonly onAdd: () => void;
+  /** Opens the row's menu at a point on screen. */
+  readonly onMenu: (sessionId: string, at: { readonly x: number; readonly y: number }) => void;
 }
 
 /**
@@ -24,6 +26,7 @@ export function SessionsSidebar({
   selectedId,
   onSelect,
   onAdd,
+  onMenu,
 }: SessionsSidebarProps): JSX.Element {
   const i18n = useTranslator();
   const groups = groupSessions(sessions);
@@ -80,15 +83,26 @@ export function SessionsSidebar({
                   const selected = session.id === selectedId;
 
                   return (
-                    <li key={session.id}>
+                    <li
+                      key={session.id}
+                      className={`group relative flex items-center rounded ${
+                        selected
+                          ? 'bg-surface-raised shadow-[inset_2px_0_0_var(--color-accent)]'
+                          : 'hover:bg-surface-raised/50'
+                      }`}
+                      /* Right-click is the convention. The button beside it is
+                         what somebody finds without knowing the convention. */
+                      onContextMenu={(event) => {
+                        event.preventDefault();
+                        onMenu(session.id, { x: event.clientX, y: event.clientY });
+                      }}
+                    >
                       <button
                         type="button"
                         onClick={() => onSelect(session.id)}
                         aria-current={selected ? 'true' : undefined}
-                        className={`flex h-7 w-full items-center gap-2.5 rounded px-2 text-left ${
-                          selected
-                            ? 'bg-surface-raised text-ink shadow-[inset_2px_0_0_var(--color-accent)]'
-                            : 'text-ink-secondary hover:bg-surface-raised/50'
+                        className={`flex h-7 min-w-0 flex-1 items-center gap-2.5 px-2 text-left ${
+                          selected ? 'text-ink' : 'text-ink-secondary'
                         }`}
                       >
                         <SessionMarker kind={kind} />
@@ -96,6 +110,27 @@ export function SessionsSidebar({
                         <span className="text-ink-faint ml-auto shrink-0 font-mono text-[10.5px]">
                           {session.host}
                         </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        aria-label={i18n.t('sessions.actions', { name: session.name })}
+                        title={i18n.t('sessions.actions', { name: session.name })}
+                        onClick={(event) => {
+                          const box = event.currentTarget.getBoundingClientRect();
+                          onMenu(session.id, { x: box.right - 4, y: box.bottom + 2 });
+                        }}
+                        /* Hidden until the row is hovered or the button is
+                           focused, so the list stays quiet — but never hidden
+                           from the keyboard, which is how a hover-only
+                           affordance becomes unreachable. */
+                        className="text-ink-faint hover:text-ink mr-1 flex h-5 w-5 shrink-0 items-center justify-center rounded opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                      >
+                        <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" aria-hidden="true">
+                          <circle cx="8" cy="3.5" r="1.2" fill="currentColor" />
+                          <circle cx="8" cy="8" r="1.2" fill="currentColor" />
+                          <circle cx="8" cy="12.5" r="1.2" fill="currentColor" />
+                        </svg>
                       </button>
                     </li>
                   );

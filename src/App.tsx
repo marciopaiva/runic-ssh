@@ -7,6 +7,7 @@ import { ConnectionFailure } from './components/ConnectionFailure';
 import { HostKeyPrompt } from './components/HostKeyPrompt';
 import { HostKeyRefused } from './components/HostKeyRefused';
 import { SessionEditor } from './components/SessionEditor';
+import { SessionMenu } from './components/SessionMenu';
 import { SessionsSidebar } from './components/SessionsSidebar';
 import { StatusBar } from './components/StatusBar';
 import { TerminalView } from './components/TerminalView';
@@ -15,7 +16,8 @@ import { actionCommands, sessionCommands, usePalette } from './features/commands
 import type { CommandContext } from './features/commands';
 import { openTabs, resolveActive, tabAfter, tabAfterClosing, useChrome, windowControls } from './features/chrome';
 import { isOverridable, needsConfirmation, useConnect, useSessions } from './features/sessions';
-import { deleteSession, saveSession } from './ipc';
+import type { SessionAction } from './features/sessions';
+import { deleteSession, disconnectSession, saveSession } from './ipc';
 import type { SessionDraft } from './ipc';
 import { useLocale } from './features/settings';
 import { useSessionStats } from './features/status';
@@ -47,6 +49,11 @@ export function App(): JSX.Element {
      string is a new one. A separate boolean would let "editing nothing" and
      "editing a session that has gone" look the same. */
   const [editing, setEditing] = useState<string | null>(null);
+  /* Which row's menu is open, and where it was opened from. */
+  const [menu, setMenu] = useState<{
+    readonly sessionId: string;
+    readonly at: { readonly x: number; readonly y: number };
+  } | null>(null);
 
   const tabs = useMemo(() => openTabs(sessions), [sessions]);
   /* A tab disappears when its host drops the connection, which nobody
@@ -126,6 +133,37 @@ export function App(): JSX.Element {
     [reload],
   );
 
+  const chooseFromMenu = useCallback(
+    (action: SessionAction): void => {
+      const open = menu;
+      setMenu(null);
+      if (open === null) return;
+
+      const live = sessions.find((entry) => entry.session.id === open.sessionId);
+
+      switch (action) {
+        case 'connect':
+          activate(open.sessionId);
+          return;
+        case 'disconnect':
+          if (live?.handle != null) {
+            void disconnectSession(live.handle).finally(() => {
+              attach(open.sessionId, null);
+              setState(open.sessionId, 'saved');
+            });
+          }
+          return;
+        case 'edit':
+          setEditing(open.sessionId);
+          return;
+        case 'delete':
+          remove(open.sessionId);
+          return;
+      }
+    },
+    [menu, sessions, activate, attach, setState, remove],
+  );
+
   const context = useMemo<CommandContext>(
     () => ({
       i18n,
@@ -176,6 +214,7 @@ export function App(): JSX.Element {
           selectedId={selected}
           onSelect={activate}
           onAdd={() => setEditing('')}
+          onMenu={(sessionId, at) => setMenu({ sessionId, at })}
         />
         <main id={TERMINAL_PANEL} role="tabpanel" className="min-w-0 flex-1">
           {failed === null ? (
@@ -229,6 +268,21 @@ export function App(): JSX.Element {
             onCancel={abandon}
           />
         ))}
+
+      {menu !== null &&
+        (() => {
+          const live = sessions.find((entry) => entry.session.id === menu.sessionId);
+          if (live === undefined) return null;
+
+          return (
+            <SessionMenu
+              live={live}
+              at={menu.at}
+              onChoose={chooseFromMenu}
+              onDismiss={() => setMenu(null)}
+            />
+          );
+        })()}
 
       {editing !== null && (
         <SessionEditor

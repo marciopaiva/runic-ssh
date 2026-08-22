@@ -21,3 +21,5 @@ export { EMPTY_DRAFT, LIMITS, invalidFields, parsePort, suggestName } from './dr
 export type { DraftField, DraftValues } from './draft';
 export { MAPPED_FAILURES, describeFailure } from './failure';
 export type { Failure } from './failure';
+export { menuPosition, sessionMenu } from './menu';
+export type { MenuItem, SessionAction } from './menu';
