@@ -38,9 +38,13 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/format-file.sh\"",
+            "command": "python3",
             "timeout": 30,
-            "statusMessage": "Formatting"
+            "statusMessage": "Formatting",
+            "args": [
+              "-c",
+              "import sys, json, os, subprocess\nraw = sys.stdin.read()\ntry:\n    payload = json.loads(raw)\nexcept Exception:\n    sys.exit(0)\npath = (payload.get('tool_response') or {}).get('filePath') \\\n    or (payload.get('tool_input') or {}).get('file_path') or ''\nif not path:\n    sys.exit(0)\n# Walk up from the edited file to find the repo that owns it, so the hook\n# resolves correctly no matter where the session was started.\ncurrent = os.path.abspath(path)\nwhile True:\n    parent = os.path.dirname(current)\n    if parent == current:\n        break\n    current = parent\n    script = os.path.join(current, '.claude', 'hooks', 'format-file.sh')\n    if os.access(script, os.X_OK):\n        subprocess.run([script], input=raw, text=True, timeout=25)\n        break\n"
+            ]
           }
         ]
       }
