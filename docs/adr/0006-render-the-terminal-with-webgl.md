@@ -93,7 +93,15 @@ will be the least-tested unless we force it in CI.
 
 **Follow-up**: before v0.1.0, measure throughput under a flood (`yes`, a large
 `cat`) on all three platforms and record the numbers, since this decision is
-only justified if the difference is real. Force the DOM fallback in at least one
+only justified if the difference is real.
+
+**Partly done on 2026-08-22**, and the part that is done is not the part this
+decision needed. `docs/measurements/terminal-throughput.md` records transport
+throughput from all three platforms — the Rust side reading a channel and
+emitting batches, which is identical under either renderer. The comparison that
+would justify this ADR, WebGL against DOM while drawing, is still unmeasured and
+needs a browser harness nobody has proposed yet. Until then this decision rests
+on the two renderers' reputations rather than on anything observed here. Force the DOM fallback in at least one
 CI job so it does not rot. Decide the event batching interval for terminal
 output in the streaming slice — batching is what protects the IPC channel, and
 no renderer saves us from a hostile host sending one byte at a time. Revisit if
