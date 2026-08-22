@@ -49,6 +49,18 @@ pub enum Error {
 
     #[error("the SSH connection failed")]
     Ssh(#[from] Box<crate::ssh::connection::ConnectionError>),
+
+    #[error("no saved session has that id")]
+    UnknownSession { id: String },
+
+    #[error("that connection is not open")]
+    UnknownHandle,
+
+    #[error("both a password and a private key were sent")]
+    AmbiguousCredential,
+
+    #[error("no credential was sent")]
+    MissingCredential,
 }
 
 /// A failure as the webview sees it: a code, and the fields it needs to render
@@ -88,6 +100,15 @@ pub enum IpcError {
     AuthenticationFailed,
     /// The transport failed for a reason we do not classify further.
     SshTransport,
+    /// The session id does not name anything saved.
+    UnknownSession {
+        id: String,
+    },
+    /// The handle does not name an open connection.
+    UnknownHandle,
+    /// The webview sent both a password and a key, or neither.
+    AmbiguousCredential,
+    MissingCredential,
 }
 
 /// Paths are shown to the user so they can find the file; the rest of the
@@ -115,7 +136,17 @@ impl From<Error> for IpcError {
             }
             Error::InvalidLocale { requested } => Self::InvalidLocale { requested },
             Error::Ssh(ssh) => Self::from(*ssh),
+            Error::UnknownSession { id } => Self::UnknownSession { id },
+            Error::UnknownHandle => Self::UnknownHandle,
+            Error::AmbiguousCredential => Self::AmbiguousCredential,
+            Error::MissingCredential => Self::MissingCredential,
         }
+    }
+}
+
+impl From<Box<crate::ssh::connection::ConnectionError>> for IpcError {
+    fn from(error: Box<crate::ssh::connection::ConnectionError>) -> Self {
+        Self::from(*error)
     }
 }
 

@@ -13,6 +13,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::Error;
 
+pub mod sessions;
+
 pub const SETTINGS_FILE: &str = "settings.json";
 
 /// Everything the application remembers between launches.
