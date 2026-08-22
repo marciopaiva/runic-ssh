@@ -111,8 +111,12 @@ jobs:
           pnpm test
         shell: bash
 
+      # The quotes are load-bearing. On Windows this step runs under pwsh,
+      # where a bare `msi,nsis` is an *array literal* — PowerShell splits it and
+      # hands the CLI a single argument reading "msi nsis", which it rejects.
+      # Quoting keeps it one string, and clap splits it on the comma itself.
       - name: Build the installers
-        run: pnpm tauri build --bundles ${{ matrix.bundles }}
+        run: pnpm tauri build --bundles "${{ matrix.bundles }}"
 
       # productName carries a space, so every artifact does too. Renaming here
       # rather than renaming the product: a file called "Runic SSH_0.1.0.msi"
