@@ -1,17 +1,51 @@
 @import 'tailwindcss';
+@import './styles/tokens.css';
 
-/* Only what the shell needs to exist. The design tokens from the approved
-   canvas — the full surface set, state colors and type scale — land in their
-   own change, so themes read from one place rather than from whichever
-   component happened to be written first. */
-@theme {
-  --color-base: #0b131e;
-  --color-panel: #101c2c;
-  --color-line: #1d2f47;
-  --color-ink: #e4ecf7;
-  --color-dim: #8ea1ba;
-  --color-accent: #1ea7e2;
+/*
+ * The bridge from tokens to utilities.
+ *
+ * `inline` matters here: it makes Tailwind emit `var(--rs-…)` into the utility
+ * itself rather than resolving the value at build time, which is what lets a
+ * theme change at runtime without rebuilding the stylesheet.
+ */
+@theme inline {
+  --color-surface-base: var(--rs-surface-base);
+  --color-surface-panel: var(--rs-surface-panel);
+  --color-surface-chrome: var(--rs-surface-chrome);
+  --color-surface-raised: var(--rs-surface-raised);
+  --color-surface-overlay: var(--rs-surface-overlay);
+  --color-surface-terminal: var(--rs-surface-terminal);
+  --color-surface-input: var(--rs-surface-input);
 
+  --color-line-subtle: var(--rs-border-subtle);
+  --color-line-strong: var(--rs-border-strong);
+
+  --color-ink: var(--rs-text-primary);
+  --color-ink-secondary: var(--rs-text-secondary);
+  --color-ink-muted: var(--rs-text-muted);
+  --color-ink-faint: var(--rs-text-faint);
+  --color-ink-disabled: var(--rs-text-disabled);
+
+  --color-accent: var(--rs-accent);
+  --color-accent-bright: var(--rs-accent-bright);
+  --color-accent-soft: var(--rs-accent-soft);
+
+  --color-brand-start: var(--rs-brand-start);
+  --color-brand-end: var(--rs-brand-end);
+  --color-brand-rune: var(--rs-brand-rune);
+
+  --color-ok: var(--rs-state-ok);
+  --color-ok-soft: var(--rs-state-ok-soft);
+  --color-warn: var(--rs-state-warn);
+  --color-warn-soft: var(--rs-state-warn-soft);
+  --color-danger: var(--rs-state-danger);
+  --color-danger-text: var(--rs-state-danger-text);
+  --color-danger-soft: var(--rs-state-danger-soft);
+
+  /* The faces are named but not yet bundled, so both fall back until they are.
+     Fetching them from a font host at runtime is not an option: the CSP admits
+     no external origin, and rule 5 of the security model rules out a network
+     call to a host the user did not configure. */
   --font-sans: 'Manrope', 'Segoe UI', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Cascadia Mono', ui-monospace, monospace;
 }
@@ -24,7 +58,7 @@ body,
 
 body {
   margin: 0;
-  background: var(--color-base);
+  background: var(--color-surface-base);
   color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
@@ -34,4 +68,22 @@ body {
      terminal and the file panes opt back in, where selection is the point. */
   user-select: none;
   cursor: default;
+}
+
+/* Keyboard focus has to stay visible: this is an application people drive
+   without a mouse, and the accent is the one colour that reads on every
+   surface in both themes. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
