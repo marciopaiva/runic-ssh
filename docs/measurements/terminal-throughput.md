@@ -49,11 +49,25 @@ channel and emitting batches. It is the same on both renderers. The comparison
 that would justify ADR-0006 — WebGL against DOM, drawing — remains **entirely
 unmeasured**.
 
-Measuring it needs a real browser driving `xterm.js`, which means
-`@vitest/browser` or Playwright and a dependency this project has not agreed
-to. That is its own proposal with its own cost, and until someone makes it,
-ADR-0006 rests on the reputation of the two renderers rather than on anything
-observed here.
+The harness for it now exists in the application itself —
+`src/features/terminal/benchmark.ts`, reachable from the console during
+development. It forces each renderer in turn, writes a known volume, and times
+to the last write callback rather than to the last call, because `write` is
+asynchronous and stopping the clock earlier would measure how fast work can be
+queued rather than how fast it is drawn.
+
+An earlier version of this document said the measurement needed
+`@vitest/browser` or Playwright. It does not, and that framing would have bought
+a dependency to measure a synthetic page rather than the product.
+
+It deliberately does **not** run in CI. GitHub's hosted runners have no GPU, so
+a comparison there would measure the DOM renderer against the DOM renderer and
+report a ratio of 1.00 — which looks like a finding and is nothing at all. The
+harness refuses to present that as an answer, and a test asserts the refusal.
+
+Running it needs a machine with a working GPU. Until someone does, ADR-0006
+rests on the reputation of the two renderers rather than on anything observed.
+Tracked in #67.
 
 ## Reproducing
 
@@ -64,3 +78,20 @@ cargo test --test terminal_flood measured_throughput -- --nocapture
 
 The same command runs in CI on all three platforms, so a regression shows up in
 the log of the pull request that caused it.
+
+## Measuring the renderers
+
+On a machine with a GPU, with the application running in development:
+
+```js
+const { compareRenderers, formatComparison } =
+  await import('/src/features/terminal/index.ts');
+
+const host = document.createElement('div');
+document.body.append(host);
+console.log(formatComparison(await compareRenderers(host)));
+```
+
+Paste the output into this file under a heading naming the machine and its GPU.
+A measurement without that context is not reproducible, and should not be
+recorded as though it were.

@@ -33,6 +33,15 @@ export interface WebglLike {
 
 export type WebglLoader = () => Promise<{ new (): WebglLike }>;
 
+/**
+ * Forces a renderer instead of taking whichever one the machine offers.
+ *
+ * Exists so the two can be compared on the same machine, back to back. It is
+ * not a user setting: taking the slower renderer on purpose is only ever
+ * useful to someone measuring.
+ */
+export type RendererPreference = RendererKind | 'auto';
+
 export interface RendererChoice {
   readonly kind: RendererKind;
   /** Why the fallback was taken, when it was. Shown in settings, not hidden. */
@@ -57,7 +66,16 @@ export async function attachRenderer(
   terminal: Pick<Terminal, 'loadAddon'>,
   onFallback?: (reason: string) => void,
   load: WebglLoader = loadWebgl,
+  preference: RendererPreference = 'auto',
 ): Promise<RendererChoice> {
+  if (preference === 'dom') {
+    return {
+      kind: 'dom',
+      reason: 'The DOM renderer was selected deliberately.',
+      dispose: () => {},
+    };
+  }
+
   try {
     const WebglAddon = await load();
     const addon = new WebglAddon();
