@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The narrowest set the application runs on. A capability is a permanent grant to code that renders hostile input, so widening this needs a Phase 2 proposal and an ADR. See section 7.6 of CLAUDE.md and issue #39.",
+  "windows": ["main"],
+  "permissions": [
+    "core:app:default",
+    "core:event:default",
+    "core:window:default",
+    "core:webview:default"
+  ]
+}

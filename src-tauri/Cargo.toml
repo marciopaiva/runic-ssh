@@ -1,0 +1,37 @@
+[package]
+name = "runic-ssh"
+version = "0.1.0"
+description = "A modern, fast, and secure cross-platform SSH/SFTP client"
+authors = ["Marcio Paiva Barbosa"]
+license = "MIT"
+repository = "https://github.com/marciopaiva/runic-ssh"
+edition = "2021"
+
+# The library carries everything; the binary is a launcher. Keeping `run` in the
+# library is what lets integration tests reach the core without the binary.
+[lib]
+name = "runic_ssh"
+path = "src/lib.rs"
+
+[[bin]]
+name = "runic-ssh"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+# Dependencies arrive with the issue that needs them, not in advance. `russh`,
+# `russh-sftp`, `keyring`, `zeroize`, `thiserror` and `serde` are all recorded
+# stack decisions but none of them has a caller yet.
+[dependencies]
+tauri = { version = "2", features = [] }
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true
