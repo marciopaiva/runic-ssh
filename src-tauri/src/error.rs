@@ -61,6 +61,9 @@ pub enum Error {
 
     #[error("no credential was sent")]
     MissingCredential,
+
+    #[error("the webview sent something malformed")]
+    MalformedInput,
 }
 
 /// A failure as the webview sees it: a code, and the fields it needs to render
@@ -109,6 +112,7 @@ pub enum IpcError {
     /// The webview sent both a password and a key, or neither.
     AmbiguousCredential,
     MissingCredential,
+    MalformedInput,
 }
 
 /// Paths are shown to the user so they can find the file; the rest of the
@@ -140,6 +144,7 @@ impl From<Error> for IpcError {
             Error::UnknownHandle => Self::UnknownHandle,
             Error::AmbiguousCredential => Self::AmbiguousCredential,
             Error::MissingCredential => Self::MissingCredential,
+            Error::MalformedInput => Self::MalformedInput,
         }
     }
 }
