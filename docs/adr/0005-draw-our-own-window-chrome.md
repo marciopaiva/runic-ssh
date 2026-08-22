@@ -1,6 +1,6 @@
 # ADR-0005: Draw our own window chrome, keeping native controls on macOS
 
-* **Status**: Proposed
+* **Status**: Accepted
 * **Date**: 2026-08-22
 
 ## Context
@@ -69,7 +69,7 @@ feel most strongly — traffic lights on macOS — is met by the platform itself
 
 ## Decision
 
-Option C.
+Option C. Accepted on 2026-08-22.
 
 The deciding factor is that the two platforms differ in what the user considers
 non-negotiable. On Windows the strong expectation is Snap Layouts, which we can
