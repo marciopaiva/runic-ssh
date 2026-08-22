@@ -1,0 +1,38 @@
+# Rust
+/src-tauri/target/
+/src-tauri/gen/
+**/*.rs.bk
+
+# Node
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.tsbuildinfo
+
+# Tauri build output
+/src-tauri/WixTools/
+/src-tauri/.cargo/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+!assets/**/*.key
+
+# Editors and OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Claude Code local overrides (personal, never committed)
+.claude/settings.local.json

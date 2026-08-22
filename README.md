@@ -38,6 +38,13 @@
 - **Terminal:** xterm.js
 - **SSH/SFTP:** the `russh` crate
 
+## 📚 Documentation
+
+- [Architecture](docs/architecture.md): how the Rust core and the webview fit together
+- [Security model](docs/security-model.md): threat model and the rules that follow from it
+- [Decision records](docs/adr/): why the stack looks the way it does
+- [CLAUDE.md](CLAUDE.md): working agreement for contributors and AI assistants
+
 ## 🤝 Contributing
 
 Contributions are very welcome. If you found a bug or have an idea for a feature:

@@ -1,0 +1,248 @@
+# Runic SSH: Working Agreement
+
+Runic SSH is a cross-platform SSH/SFTP client. The backend is Rust running
+inside Tauri 2.0; the frontend is React with TypeScript. This file is the
+contract for any Claude session working in this repository. Read it before
+touching code.
+
+The project is at the scaffolding stage: `README.md`, licensing, docs, and this
+agreement exist; the application source tree does not yet. Treat the layout
+below as the target, and create directories only when a task actually needs
+them.
+
+---
+
+## 1. Language
+
+Everything that lands in the repository is written in **English**: source code,
+comments, documentation, commit messages, branch names, issue and PR text.
+Conversation with the maintainer happens in Brazilian Portuguese. That split is
+deliberate and applies without exception.
+
+---
+
+## 2. Stack
+
+| Layer | Choice | Notes |
+| --- | --- | --- |
+| Shell | Tauri 2.0 | Native webview, no bundled Chromium |
+| Backend | Rust (edition 2021) | All privileged work lives here |
+| SSH/SFTP | `russh` + `russh-sftp` | Pure Rust, no OpenSSH process spawning |
+| Terminal | `xterm.js` | Rendered in the webview |
+| Frontend | React + TypeScript + TailwindCSS | Strict mode, no `any` |
+| Secrets | `keyring` crate | DPAPI on Windows, Keychain on macOS, libsecret on Linux |
+| Build | `pnpm` + `cargo` | `pnpm tauri dev` for the dev loop |
+
+Do not introduce a new runtime dependency without going through the Propose
+phase in section 4. Adding a crate or an npm package is an architectural
+decision in a project whose entire pitch is being small and auditable.
+
+---
+
+## 3. Target layout
+
+```
+runic-ssh/
+├── CLAUDE.md              This agreement
+├── README.md              Public-facing description
+├── assets/                Logo and static brand assets
+├── docs/
+│   ├── architecture.md    How the pieces fit together
+│   ├── security-model.md  Threat model and non-negotiable rules
+│   └── adr/               Architecture Decision Records
+├── src/                   React frontend
+│   ├── components/        Presentational components
+│   ├── features/          Feature slices (sessions, terminal, sftp, vault)
+│   ├── ipc/               Typed wrappers over Tauri commands
+│   └── lib/               Framework-free helpers
+└── src-tauri/
+    ├── Cargo.toml
+    ├── tauri.conf.json
+    └── src/
+        ├── main.rs        Entry point, wires the command handlers
+        ├── commands/      One module per IPC surface, thin
+        ├── ssh/           Connection, auth, channels, port forwarding
+        ├── sftp/          File transfer and directory listing
+        ├── vault/         Credential storage on top of `keyring`
+        └── config/        Session persistence and app settings
+```
+
+The `commands/` modules stay thin. They validate input, call into a domain
+module, and map errors. Business logic belongs in `ssh/`, `sftp/`, `vault/`, or
+`config/`, where it can be tested without a running webview.
+
+---
+
+## 4. Workflow: Analyze, Propose, Resolve, Implement
+
+Every non-trivial task runs through four phases in order. A task is trivial
+only if it is a typo, a formatting fix, or a change the maintainer described
+line by line. When in doubt, run the phases.
+
+The `/feature` skill drives this pipeline end to end. Use it rather than
+improvising the sequence.
+
+### Phase 1: Analyze
+
+Understand the ground before proposing anything.
+
+* Read the code that the change touches, plus its callers and its tests. Do not
+  reason from file names.
+* State what already exists, what is missing, and what constrains the solution
+  (platform differences, the security rules in section 7, existing ADRs).
+* List every open question and every assumption you are making.
+* Produce no code and no file edits in this phase.
+
+Output: a short written analysis. Findings only, no solution yet.
+
+### Phase 2: Propose
+
+Give the maintainer a real choice.
+
+* Present two or three viable approaches. One option is not a proposal.
+* For each: how it works, what it costs, what it forecloses.
+* Recommend one and say why. A recommendation is required; a survey is not a
+  proposal.
+* Name the blast radius: files touched, IPC surface changed, dependencies added,
+  migration needed for existing stored sessions.
+
+Anything architectural also gets an ADR under `docs/adr/` via the `/adr` skill.
+Architectural means: a new dependency, a change to the IPC contract, a change
+to how credentials are stored or transmitted, or a decision that would be
+expensive to reverse.
+
+### Phase 3: Resolve
+
+Close the loop before writing code.
+
+* Wait for the maintainer to pick an option when the choice is architectural,
+  touches security, or is hard to reverse. Otherwise take the recommendation and
+  say plainly that you are doing so.
+* Answer or explicitly park every open question from Phase 1. A parked question
+  gets a stated assumption.
+* Write the implementation plan: ordered steps, the tests that will prove it
+  works, and the rollback story.
+
+### Phase 4: Implement
+
+* Follow the plan. If reality contradicts it, stop and return to Phase 2 rather
+  than improvising a different design mid-edit.
+* Write the test alongside the code, not after the fact.
+* Run the gate in section 8 before reporting done.
+* Report what was built, what was tested, and what was deliberately left out.
+
+---
+
+## 5. When to stop and ask
+
+Stop and ask the maintainer before:
+
+* changing anything in `vault/` or how credentials move across the IPC boundary;
+* changing host key verification behavior;
+* adding a runtime dependency;
+* changing the IPC contract in a way that breaks an existing frontend caller;
+* changing the on-disk format of stored sessions without a migration;
+* any network call to a host the user did not configure.
+
+Proceed without asking for: implementing an approved plan, adding tests,
+refactoring inside a module without changing its public surface, fixing a bug
+whose cause you have demonstrated, documentation.
+
+---
+
+## 6. Coding standards
+
+### Rust
+
+* `#![forbid(unsafe_code)]` at the crate root. If a task appears to need
+  `unsafe`, that is a Phase 2 proposal, not a local decision.
+* Errors are typed with `thiserror` per module and surfaced across IPC as a
+  serializable enum. Never `unwrap()` or `expect()` on anything reachable from a
+  command handler or from network input. Tests may unwrap.
+* Anything touching the network or the filesystem is `async` on the Tokio
+  runtime Tauri already provides. Never block the IPC thread.
+* Public items carry doc comments explaining why, not what.
+* `cargo fmt` and `cargo clippy --all-targets -- -D warnings` both pass.
+
+### TypeScript
+
+* `strict: true`. No `any`, no non-null assertion to silence the compiler.
+* Every Tauri command gets a typed wrapper in `src/ipc/`. Components never call
+  `invoke` directly, so the IPC surface stays greppable in one directory.
+* Components stay presentational. State and effects live in the feature slice.
+* No secret ever enters React state, `localStorage`, or a component prop.
+
+---
+
+## 7. Security rules
+
+These are non-negotiable. A change that breaks one of them does not ship, even
+if the maintainer asked for it in passing; raise it instead.
+
+1. **Credentials never cross the IPC boundary in plaintext toward the
+   frontend.** The frontend references a credential by opaque id. The Rust side
+   resolves the id against the OS keychain at the moment of use.
+2. **Nothing secret is ever logged.** No passwords, no passphrases, no private
+   keys, no session tokens, not at any log level, not in a panic message, not in
+   an error returned to the frontend. Redact before the value can reach a
+   formatter.
+3. **Host keys are verified.** Unknown host keys prompt the user; changed host
+   keys block the connection and require an explicit, deliberate override.
+   Never verify-none, never a silent trust-on-first-use.
+4. **Private key material is zeroized after use** (`zeroize`), and never written
+   to a temporary file.
+5. **No telemetry, no crash reporting, no auto-update ping** without an explicit
+   opt-in that defaults to off.
+6. `tauri.conf.json` capabilities stay minimal. Widening a capability is a Phase
+   2 proposal with an ADR.
+
+See `docs/security-model.md` for the threat model these rules come from.
+
+---
+
+## 8. Testing and the pre-report gate
+
+Before reporting a task complete, run and pass:
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test
+pnpm typecheck
+pnpm test
+```
+
+If a command does not exist yet because that part of the project is not
+scaffolded, say so explicitly in the report rather than skipping it silently.
+Never report work as done on the strength of code that was written but not run.
+
+Rust domain modules get unit tests. The IPC layer gets at least one test per
+command covering the error path, because the error path is what the user
+actually hits.
+
+---
+
+## 9. Commits
+
+* Conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`,
+  `chore:`. Subject in the imperative, under 72 characters.
+* Body explains why the change was made when the subject is not self-evident.
+* **No AI attribution of any kind.** No `Co-Authored-By: Claude`, no session
+  trailer, no generated-with footer, in commits or in PR descriptions.
+* One logical change per commit. Do not bundle a refactor with a feature.
+* Never commit to `main` without being asked. Branch as
+  `feat/<short-slug>` or `fix/<short-slug>`.
+* Never `git push --force` to a shared branch without explicit approval.
+
+---
+
+## 10. Project skills
+
+| Skill | Use it for |
+| --- | --- |
+| `/feature` | Any non-trivial change. Drives the four phases in section 4. |
+| `/tauri-cmd` | Adding an IPC command end to end, Rust through to typed wrapper. |
+| `/adr` | Recording an architectural decision under `docs/adr/`. |
+
+Skills live in `.claude/skills/`. Extend them when a workflow repeats often
+enough to be worth encoding.
