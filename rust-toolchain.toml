@@ -1,0 +1,11 @@
+# The toolchain is pinned so that CI and every contributor compile with the same
+# rustc. Without this the version comes from whatever the runner image happens
+# to ship, which changes on its own and turns a green build into a red one for
+# reasons nobody changed.
+#
+# Bumping this is a deliberate act: raise the version, run the gate, and treat a
+# new clippy lint as work rather than as noise to silence.
+[toolchain]
+channel = "1.95.0"
+components = ["rustfmt", "clippy"]
+profile = "minimal"
