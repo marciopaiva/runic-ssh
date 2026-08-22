@@ -19,9 +19,11 @@ comments, documentation, commit messages, branch names, issue and PR text.
 Conversation with the maintainer happens in Brazilian Portuguese. That split is
 deliberate.
 
-The one exception is user-facing strings. Runic SSH ships in Brazilian
+The one exception is user-facing strings. Runic SSH is translated into Brazilian
 Portuguese, English and neutral Spanish, and those translations live only in
-`src/locales/`, one flat catalog per locale. `src/locales/en.json` is the source
+`src/locales/`, one flat catalog per locale. Spanish is complete in the tree but
+not offered in the language selector until its security copy has been reviewed
+by a native speaker; see `adr/0007-…` and issue #4. `src/locales/en.json` is the source
 of truth: a string is written there first, and the other catalogs translate it.
 No user-facing text is written anywhere else in the tree, and nothing else in
 the tree is written in another language. See

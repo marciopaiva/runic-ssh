@@ -47,7 +47,7 @@ the decisions behind it in [`docs/adr/`](docs/adr/).
 - **Terminal:** xterm.js, WebGL renderer with a DOM fallback ([ADR-0006](docs/adr/0006-render-the-terminal-with-webgl.md))
 - **SSH/SFTP:** the `russh` crate, in process, no OpenSSH binary ([ADR-0003](docs/adr/0003-use-russh-instead-of-openssh.md))
 - **Secrets:** the OS keychain, referenced by opaque id ([ADR-0004](docs/adr/0004-store-credentials-in-the-os-keychain.md))
-- **Languages:** English, Brazilian Portuguese, and Spanish from the first release ([ADR-0007](docs/adr/0007-localize-in-the-frontend-from-typed-error-codes.md))
+- **Languages:** English and Brazilian Portuguese at v0.1.0; Spanish is translated and waiting on a native review of its security copy ([ADR-0007](docs/adr/0007-localize-in-the-frontend-from-typed-error-codes.md))
 
 ## 🧑‍💻 Building it
 
