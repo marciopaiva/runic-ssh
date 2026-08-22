@@ -17,3 +17,5 @@ export {
 } from './connect';
 export type { ConnectStage, HeldDecision, HostKeyVerdict } from './connect';
 export { useConnect } from './use-connect';
+export { EMPTY_DRAFT, LIMITS, invalidFields, parsePort, suggestName } from './draft';
+export type { DraftField, DraftValues } from './draft';

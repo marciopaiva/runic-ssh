@@ -40,6 +40,8 @@ function actions(): CommandActions & { readonly calls: string[] } {
   const calls: string[] = [];
   return {
     calls,
+    newSession: () => calls.push('new'),
+    editSession: (id) => calls.push(`edit:${id}`),
     selectSession: (id) => calls.push(`select:${id}`),
     activateTab: (id) => calls.push(`activate:${id}`),
     closeTab: (id) => calls.push(`close:${id}`),
@@ -228,13 +230,37 @@ describe('the shortcut', () => {
 });
 
 describe('what the palette offers', () => {
+  it('offers a way to add a host even with nothing saved', () => {
+    /* An SSH client whose palette lists no way to add a host is one nobody
+       can use. That shipped once — the "+" opened the palette, and the
+       palette had nothing to open. */
+    const act = actions();
+    const commands = sessionCommands(context({ actions: act }));
+
+    const add = commands.find((entry) => entry.id === 'session:new');
+    expect(add).toBeDefined();
+
+    add?.run();
+    expect(act.calls).toEqual(['new']);
+  });
+
   it('reaches every saved host', () => {
     const commands = sessionCommands(
       context({ sessions: [live(session('a', 'web-01', '10.0.4.31'))] }),
     );
 
-    expect(commands).toHaveLength(1);
-    expect(commands[0]?.keywords).toContain('10.0.4.31');
+    const reach = commands.find((entry) => entry.id === 'session:a');
+    expect(reach?.keywords).toContain('10.0.4.31');
+  });
+
+  it('offers a way to edit every saved host', () => {
+    const act = actions();
+    const commands = sessionCommands(
+      context({ sessions: [live(session('a', 'web-01', 'h1'))], actions: act }),
+    );
+
+    commands.find((entry) => entry.id === 'session:edit:a')?.run();
+    expect(act.calls).toEqual(['edit:a']);
   });
 
   it('switches to an open session and selects a closed one', () => {
@@ -247,8 +273,8 @@ describe('what the palette offers', () => {
       }),
     );
 
-    commands[0]?.run();
-    commands[1]?.run();
+    commands.find((entry) => entry.id === 'session:a')?.run();
+    commands.find((entry) => entry.id === 'session:b')?.run();
 
     expect(act.calls).toEqual(['activate:a', 'select:b']);
   });
