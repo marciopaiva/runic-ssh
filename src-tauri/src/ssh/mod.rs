@@ -4,6 +4,7 @@
 //! without a webview or an app handle.
 
 pub mod connection;
+pub mod credentials;
 pub mod known_hosts;
 pub mod pending;
 pub mod registry;

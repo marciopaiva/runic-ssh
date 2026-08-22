@@ -71,5 +71,18 @@
   "command.window.restore": "Restore window",
   "command.window.close": "Close window",
   "command.language.use": "Language: {name}",
-  "command.language.system": "Language: follow the system"
+  "command.language.system": "Language: follow the system",
+  "credential.title": "Authentication required",
+  "credential.subject": "{name} — {user}@{host}",
+  "credential.method": "Authentication method",
+  "credential.method.password": "Password",
+  "credential.method.key": "Private key",
+  "credential.password": "Password",
+  "credential.privateKey": "Private key",
+  "credential.passphrase": "Passphrase (leave empty if the key has none)",
+  "credential.remember": "Remember this in the system keychain",
+  "credential.submit": "Authenticate",
+  "credential.cancel": "Cancel",
+  "credential.loading": "Preparing…",
+  "credential.failed": "This prompt is no longer valid"
 }

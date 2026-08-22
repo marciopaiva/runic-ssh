@@ -30,6 +30,7 @@ pub fn run() -> tauri::Result<()> {
     tauri::Builder::default()
         .manage(ssh::registry::Registry::new())
         .manage(ssh::pending::PendingHostKeys::new())
+        .manage(ssh::credentials::CredentialRequests::new())
         .manage(vault::Vault::default())
         .invoke_handler(tauri::generate_handler![
             commands::chrome::window_chrome,
@@ -40,12 +41,17 @@ pub fn run() -> tauri::Result<()> {
             commands::sessions::delete_session,
             commands::sessions::connect_session,
             commands::sessions::trust_host_key,
+            commands::sessions::host_key_decision,
             commands::sessions::credential_store_status,
             commands::sessions::remember_credential,
             commands::sessions::forget_credential,
             commands::sessions::authenticate_with_saved,
             commands::sessions::authenticate_session,
             commands::sessions::disconnect_session,
+            commands::credential::authenticate_interactively,
+            commands::credential::credential_prompt,
+            commands::credential::submit_credential,
+            commands::credential::dismiss_credential,
             commands::terminal::open_terminal,
             commands::terminal::send_input,
             commands::terminal::resize_terminal,

@@ -11,7 +11,10 @@ import type { JSX, ReactNode } from 'react';
 
 import { createTranslator, DEFAULT_LOCALE } from '../../lib/i18n';
 import type { Translator } from '../../lib/i18n';
-import { getSettings, setLocale as persistLocale } from '../../ipc';
+/* From the module rather than the barrel: this provider is mounted in the
+   credential window too, and the barrel would drag the terminal wrappers in
+   with it. See tests/credential-window.test.ts. */
+import { getSettings, setLocale as persistLocale } from '../../ipc/settings';
 
 import { detectLocale, systemPreferences } from './detect-locale';
 

@@ -1,5 +1,12 @@
 export { asIpcError } from './errors';
 export {
+  authenticateInteractively,
+  credentialPrompt,
+  dismissCredential,
+  submitCredential,
+} from './credential';
+export type { CredentialPrompt } from './credential';
+export {
   closeWindow,
   isWindowMaximized,
   minimizeWindow,
@@ -22,9 +29,11 @@ export {
   listSessions,
   saveSession,
   trustHostKey,
+  hostKeyDecision,
 } from './sessions';
 export type {
   CredentialStoreStatus,
+  HostKeyDecisionView,
   OpenSession,
   Secret,
   Session,

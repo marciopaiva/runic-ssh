@@ -7,3 +7,13 @@ export type {
   MarkerShape,
   SessionGroup,
 } from './state';
+export {
+  heldDecision,
+  isOverridable,
+  needsConfirmation,
+  shouldPromptAfterSaved,
+  shouldTrySaved,
+  wasCancelled,
+} from './connect';
+export type { ConnectStage, HeldDecision, HostKeyVerdict } from './connect';
+export { useConnect } from './use-connect';

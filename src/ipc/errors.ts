@@ -69,7 +69,18 @@ export type IpcError =
   | { readonly code: 'keychainReadFailed'; readonly reason: string }
   | { readonly code: 'keychainWriteFailed'; readonly reason: string }
   /** Distinct from an unavailable store: ask the user rather than explain. */
-  | { readonly code: 'noSavedCredential' };
+  | { readonly code: 'noSavedCredential' }
+  /** The request id does not name a prompt that is still open. */
+  | { readonly code: 'unknownRequest' }
+  /**
+   * The user closed or cancelled the credential prompt.
+   *
+   * The connection attempt fails and is never retried on its own — ADR-0008.
+   * The interface reports it as a cancellation, not as a failure.
+   */
+  | { readonly code: 'credentialDismissed' }
+  /** The prompt window could not be opened, so nobody could have answered. */
+  | { readonly code: 'promptUnavailable' };
 
 export type IpcErrorCode = IpcError['code'];
 
@@ -102,6 +113,9 @@ const CODES: ReadonlySet<string> = new Set<IpcErrorCode>([
   'keychainReadFailed',
   'keychainWriteFailed',
   'noSavedCredential',
+  'unknownRequest',
+  'credentialDismissed',
+  'promptUnavailable',
 ]);
 
 /**
