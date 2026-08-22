@@ -12,6 +12,7 @@
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
 use tokio::sync::Mutex;
 
@@ -44,6 +45,33 @@ pub struct Open {
     pub input: Option<tokio::sync::mpsc::Sender<crate::ssh::terminal::Input>>,
 }
 
+/// A session handed to an operation that needs the connection to itself.
+///
+/// Deliberately not the whole [`Open`]. An operation has no business changing
+/// where keystrokes go, and handing it the field only to write it back is how
+/// an `attach_input` that happened meanwhile gets quietly undone.
+pub struct Busy {
+    pub connection: Connection,
+    /// Whose session this is.
+    pub user: String,
+}
+
+/// One session, as the registry holds it.
+///
+/// The connection is behind its own lock rather than being removed from the
+/// map. Taking it out was simpler and wrong: while it was out, the handle
+/// resolved to nothing, so a keystroke sent during authentication or a latency
+/// probe was answered with "unknown session" and dropped. Everything that does
+/// not need the connection — the name, the input channel — is readable
+/// throughout.
+struct Entry {
+    /// `None` once the session has been taken to be closed.
+    connection: Arc<Mutex<Option<Connection>>>,
+    session_id: String,
+    user: String,
+    input: Option<tokio::sync::mpsc::Sender<crate::ssh::terminal::Input>>,
+}
+
 /// Every connection currently open.
 ///
 /// Deliberately not `Debug`: a registry that can print itself is one `dbg!`
@@ -51,7 +79,7 @@ pub struct Open {
 #[derive(Default)]
 pub struct Registry {
     next: AtomicU64,
-    open: Mutex<HashMap<SessionHandle, Open>>,
+    open: Mutex<HashMap<SessionHandle, Entry>>,
 }
 
 impl Registry {
@@ -62,30 +90,62 @@ impl Registry {
     /// Takes ownership of a connection and returns its handle.
     pub async fn insert(&self, open: Open) -> SessionHandle {
         let handle = SessionHandle(self.next.fetch_add(1, Ordering::Relaxed));
-        self.open.lock().await.insert(handle, open);
+        self.open.lock().await.insert(
+            handle,
+            Entry {
+                connection: Arc::new(Mutex::new(Some(open.connection))),
+                session_id: open.session_id,
+                user: open.user,
+                input: open.input,
+            },
+        );
         handle
     }
 
-    /// Runs an operation against a live connection.
+    /// Runs an operation that needs the connection to itself.
     ///
-    /// Takes the connection out for the duration rather than holding the map
-    /// locked: authentication talks to the network, and a slow server must not
-    /// block every other session.
+    /// The map lock is released before the operation starts, so a slow server
+    /// blocks neither the other sessions nor the rest of this one. Only another
+    /// exclusive operation on the same session waits.
+    ///
+    /// Returns `None` if the handle is unknown, or if the session was closed
+    /// while this call was waiting its turn.
     pub async fn with<F, Fut, T>(&self, handle: SessionHandle, operation: F) -> Option<T>
     where
-        F: FnOnce(Open) -> Fut,
-        Fut: std::future::Future<Output = (Open, T)>,
+        F: FnOnce(Busy) -> Fut,
+        Fut: std::future::Future<Output = (Busy, T)>,
     {
-        let open = self.open.lock().await.remove(&handle)?;
-        let (open, result) = operation(open).await;
-        self.open.lock().await.insert(handle, open);
+        let (slot, user) = {
+            let map = self.open.lock().await;
+            let entry = map.get(&handle)?;
+            (Arc::clone(&entry.connection), entry.user.clone())
+        };
+
+        let mut held = slot.lock().await;
+        let connection = held.take()?;
+
+        let (busy, result) = operation(Busy { connection, user }).await;
+        *held = Some(busy.connection);
+
         Some(result)
     }
 
     /// Removes a connection, handing it back so the caller can close it
     /// politely rather than dropping the socket.
+    ///
+    /// Waits for an operation already in flight rather than yanking the socket
+    /// out from under it. Disconnecting during authentication used to report
+    /// success and leave the session running.
     pub async fn take(&self, handle: SessionHandle) -> Option<Open> {
-        self.open.lock().await.remove(&handle)
+        let entry = self.open.lock().await.remove(&handle)?;
+        let connection = entry.connection.lock().await.take()?;
+
+        Some(Open {
+            connection,
+            session_id: entry.session_id,
+            user: entry.user,
+            input: entry.input,
+        })
     }
 
     /// Records where a session's keystrokes should be sent.
@@ -94,8 +154,8 @@ impl Registry {
         handle: SessionHandle,
         sender: tokio::sync::mpsc::Sender<crate::ssh::terminal::Input>,
     ) {
-        if let Some(open) = self.open.lock().await.get_mut(&handle) {
-            open.input = Some(sender);
+        if let Some(entry) = self.open.lock().await.get_mut(&handle) {
+            entry.input = Some(sender);
         }
     }
 
