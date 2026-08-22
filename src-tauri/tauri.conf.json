@@ -4,6 +4,8 @@
   "version": "0.1.0",
   "identifier": "com.runicssh.app",
   "build": {
+    "beforeDevCommand": "pnpm dev",
+    "beforeBuildCommand": "pnpm build",
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420"
   },
