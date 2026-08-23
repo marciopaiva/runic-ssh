@@ -1,37 +1,45 @@
 import type { JSX, KeyboardEvent } from 'react';
 
-import { focusAfter } from '../features/chrome';
+import { focusAfter, sameFocus } from '../features/chrome';
 import type { Focus, Tab, WindowAction, WindowControl } from '../features/chrome';
+import type { EditorTarget } from '../features/sessions';
 import { useTranslator } from '../features/settings';
 
 import { SessionMarker } from './SessionMarker';
 import { WindowControls } from './WindowControls';
 
 interface TitlebarProps {
+  /** Everything on the strip, in the order it is drawn. */
+  readonly entries: readonly Focus[];
+  /** The open sessions, for a session tab's name and connection marker. */
   readonly tabs: readonly Tab[];
-  /** Which tab is showing, sessions and settings alike. */
+  /** Which tab is showing, whatever kind it is. */
   readonly focus: Focus | null;
-  /** Whether the settings tab is on the strip at all. */
-  readonly settingsOpen: boolean;
-  /** Whether the settings tab holds work that has never been saved. */
-  readonly settingsDirty: boolean;
+  /** One per open host form: what its tab says, and whether it is unsaved. */
+  readonly editorTabs: readonly {
+    readonly target: EditorTarget;
+    readonly title: string;
+    readonly dirty: boolean;
+  }[];
   readonly controls: readonly WindowControl[];
   /** Space to keep clear at the leading edge for controls the system draws. */
   readonly leadingInset: number;
   /** The element the tabs switch between, for screen readers. */
   readonly panelId: string;
   readonly onFocus: (focus: Focus) => void;
-  readonly onClose: (sessionId: string) => void;
-  readonly onCloseSettings: () => void;
+  /** Closing any tab, whichever kind. The shell knows what each one means. */
+  readonly onClose: (focus: Focus) => void;
   readonly onAct: (action: WindowAction) => void;
 }
 
-const tabId = (sessionId: string): string => `session-tab-${sessionId}`;
-const SETTINGS_TAB_ID = 'settings-tab';
-
 /** The DOM id of whichever tab a focus points at, for moving focus by keyboard. */
 function elementId(focus: Focus): string {
-  return focus.kind === 'settings' ? SETTINGS_TAB_ID : tabId(focus.sessionId);
+  if (focus.kind === 'settings') return 'settings-tab';
+  if (focus.kind === 'editor') {
+    return focus.target.kind === 'new' ? 'editor-tab-new' : `editor-tab-${focus.target.sessionId}`;
+  }
+
+  return `session-tab-${focus.sessionId}`;
 }
 
 /**
@@ -49,21 +57,18 @@ function elementId(focus: Focus): string {
  * to be marked by hand.
  */
 export function Titlebar({
+  entries,
   tabs,
   focus,
-  settingsOpen,
-  settingsDirty,
+  editorTabs,
   controls,
   leadingInset,
   panelId,
   onFocus,
   onClose,
-  onCloseSettings,
   onAct,
 }: TitlebarProps): JSX.Element {
   const i18n = useTranslator();
-  const activeId = focus?.kind === 'session' ? focus.sessionId : null;
-  const settingsActive = focus?.kind === 'settings';
 
   /* Automatic activation, which is what a tab strip is expected to do: the
      arrow key both moves and switches. Focus follows, or the next arrow press
@@ -77,7 +82,7 @@ export function Titlebar({
     const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : null;
     if (step === null) return;
 
-    const next = focusAfter(tabs, settingsOpen, focus, step);
+    const next = focusAfter(entries, focus, step);
     if (next === null) return;
 
     event.preventDefault();
@@ -114,7 +119,7 @@ export function Titlebar({
         </span>
       </div>
 
-      {tabs.length === 0 && !settingsOpen ? (
+      {entries.length === 0 ? (
         <span className="text-ink-faint self-center text-[11.5px]">{i18n.t('tabs.empty')}</span>
       ) : (
         <div
@@ -124,40 +129,98 @@ export function Titlebar({
           onKeyDown={onKeyDown}
           className="flex min-w-0 items-stretch gap-0.5 overflow-x-auto"
         >
-          {tabs.map((tab) => {
-            const active = tab.sessionId === activeId;
+          {entries.map((entry) => {
+            const active = sameFocus(entry, focus);
+            const id = elementId(entry);
+
+            const tab = entry.kind === 'session'
+              ? (tabs.find((candidate) => candidate.sessionId === entry.sessionId) ?? null)
+              : null;
+
+            const editor = entry.kind === 'editor'
+              ? (editorTabs.find((candidate) =>
+                  sameFocus({ kind: 'editor', target: candidate.target }, entry),
+                ) ?? null)
+              : null;
+
+            const title =
+              entry.kind === 'session'
+                ? (tab?.title ?? '')
+                : entry.kind === 'editor'
+                  ? (editor?.title ?? '')
+                  : i18n.t('tabs.settings');
+
+            const closeLabel =
+              editor?.dirty === true
+                ? i18n.t('tabs.editor.unsaved')
+                : i18n.t('tabs.close', { name: title });
 
             return (
               <div
-                key={tab.sessionId}
+                key={id}
                 role="presentation"
-                className={`flex min-w-0 items-center gap-1.5 self-center rounded px-2 ${
+                className={`flex min-w-0 shrink-0 items-center gap-1.5 self-center rounded px-2 ${
                   active ? 'bg-surface-raised' : 'hover:bg-surface-raised/50'
                 }`}
               >
                 <button
                   type="button"
                   role="tab"
-                  id={tabId(tab.sessionId)}
+                  id={id}
                   aria-selected={active}
                   aria-controls={panelId}
                   /* Roving tabindex: one stop for the whole strip, and the
                      arrow keys move within it. */
                   tabIndex={active ? 0 : -1}
-                  onClick={() => onFocus({ kind: 'session', sessionId: tab.sessionId })}
+                  onClick={() => onFocus(entry)}
                   className={`flex h-6 min-w-0 items-center gap-2 text-[12px] ${
                     active ? 'text-ink' : 'text-ink-secondary'
                   }`}
                 >
-                  <SessionMarker kind={tab.kind} />
-                  <span className="max-w-[180px] truncate">{tab.title}</span>
+                  {entry.kind === 'session' && tab !== null && <SessionMarker kind={tab.kind} />}
+
+                  {entry.kind === 'editor' && (
+                    <svg viewBox="0 0 16 16" className="h-3 w-3 shrink-0" fill="none" aria-hidden="true">
+                      <path
+                        d="M11.2 2.4l2.4 2.4-7.4 7.4-3 .6.6-3z"
+                        stroke="currentColor"
+                        strokeWidth="1.3"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  )}
+
+                  {entry.kind === 'settings' && (
+                    <svg viewBox="0 0 16 16" className="h-3 w-3 shrink-0" fill="none" aria-hidden="true">
+                      <circle cx="8" cy="8" r="2.4" stroke="currentColor" strokeWidth="1.3" />
+                      <path
+                        d="M8 1.4v1.8M8 12.8v1.8M14.6 8h-1.8M3.2 8H1.4M12.7 3.3l-1.3 1.3M4.6 11.4l-1.3 1.3M12.7 12.7l-1.3-1.3M4.6 4.6L3.3 3.3"
+                        stroke="currentColor"
+                        strokeWidth="1.3"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  )}
+
+                  <span className="max-w-[180px] truncate">{title}</span>
+
+                  {editor?.dirty === true && (
+                    /* A dot rather than an asterisk in the label: the label is
+                       translated and an asterisk glued to it reads as part of
+                       the word in some of them. The name is on the button for
+                       anybody who is not looking at it. */
+                    <span
+                      aria-hidden="true"
+                      className="bg-accent inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+                    />
+                  )}
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => onClose(tab.sessionId)}
-                  aria-label={i18n.t('tabs.close', { name: tab.title })}
-                  title={i18n.t('tabs.close', { name: tab.title })}
+                  onClick={() => onClose(entry)}
+                  aria-label={closeLabel}
+                  title={closeLabel}
                   className="text-ink-faint hover:text-ink flex h-4 w-4 shrink-0 items-center justify-center rounded"
                 >
                   <svg viewBox="0 0 10 10" className="h-2 w-2" fill="none" aria-hidden="true">
@@ -167,65 +230,6 @@ export function Titlebar({
               </div>
             );
           })}
-
-          {settingsOpen && (
-            /* Always last. Session tabs keep the sidebar's order at the front,
-               so opening or closing settings never shifts one sideways under
-               the pointer. */
-            <div
-              role="presentation"
-              className={`flex shrink-0 items-center gap-1.5 self-center rounded px-2 ${
-                settingsActive ? 'bg-surface-raised' : 'hover:bg-surface-raised/50'
-              }`}
-            >
-              <button
-                type="button"
-                role="tab"
-                id={SETTINGS_TAB_ID}
-                aria-selected={settingsActive}
-                aria-controls={panelId}
-                tabIndex={settingsActive ? 0 : -1}
-                onClick={() => onFocus({ kind: 'settings' })}
-                className={`flex h-6 items-center gap-2 text-[12px] ${
-                  settingsActive ? 'text-ink' : 'text-ink-secondary'
-                }`}
-              >
-                <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" aria-hidden="true">
-                  <circle cx="8" cy="8" r="2.4" stroke="currentColor" strokeWidth="1.3" />
-                  <path
-                    d="M8 1.4v1.8M8 12.8v1.8M14.6 8h-1.8M3.2 8H1.4M12.7 3.3l-1.3 1.3M4.6 11.4l-1.3 1.3M12.7 12.7l-1.3-1.3M4.6 4.6L3.3 3.3"
-                    stroke="currentColor"
-                    strokeWidth="1.3"
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <span>{i18n.t('tabs.settings')}</span>
-
-                {settingsDirty && (
-                  /* A dot rather than an asterisk in the label: the label is
-                     translated and an asterisk glued to it reads as part of
-                     the word in some of them. The name is on the button for
-                     anybody who is not looking at it. */
-                  <span
-                    aria-hidden="true"
-                    className="bg-accent inline-block h-1.5 w-1.5 shrink-0 rounded-full"
-                  />
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={onCloseSettings}
-                aria-label={i18n.t(settingsDirty ? 'tabs.settings.unsaved' : 'tabs.settings.close')}
-                title={i18n.t(settingsDirty ? 'tabs.settings.unsaved' : 'tabs.settings.close')}
-                className="text-ink-faint hover:text-ink flex h-4 w-4 shrink-0 items-center justify-center rounded"
-              >
-                <svg viewBox="0 0 10 10" className="h-2 w-2" fill="none" aria-hidden="true">
-                  <path d="M0.5 0.5l9 9M9.5 0.5l-9 9" stroke="currentColor" strokeWidth="1.4" />
-                </svg>
-              </button>
-            </div>
-          )}
         </div>
       )}
 

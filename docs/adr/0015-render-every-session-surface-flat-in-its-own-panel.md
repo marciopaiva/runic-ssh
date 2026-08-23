@@ -1,6 +1,6 @@
 # ADR-0015: Render every session surface flat in its own panel
 
-* **Status**: Accepted
+* **Status**: Accepted; the two-box rule amended by ADR-0017
 * **Date**: 2026-08-23
 
 ## Context

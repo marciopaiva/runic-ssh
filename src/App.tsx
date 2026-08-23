@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { JSX } from 'react';
 
 import { CommandPalette } from './components/CommandPalette';
@@ -9,6 +9,7 @@ import { ConnectionFailure } from './components/ConnectionFailure';
 import { HostKeyPrompt } from './components/HostKeyPrompt';
 import { HostKeyRefused } from './components/HostKeyRefused';
 import { SessionMenu } from './components/SessionMenu';
+import { SessionEditorPanel } from './components/SessionEditorPanel';
 import { SessionsSidebar } from './components/SessionsSidebar';
 import { SettingsPanel } from './components/SettingsPanel';
 import { StatusBar } from './components/StatusBar';
@@ -16,13 +17,31 @@ import { TerminalView } from './components/TerminalView';
 import { Titlebar } from './components/Titlebar';
 import { actionCommands, sessionCommands, usePalette } from './features/commands';
 import type { CommandContext } from './features/commands';
-import { focusAfter, focusedSession, openTabs, resolveFocus, tabAfterClosing, useChrome, windowControls } from './features/chrome';
+import { focusAfter, focusAfterClosing, focusedSession, openTabs, resolveFocus, sameFocus, stripEntries, useChrome, windowControls } from './features/chrome';
 import type { Focus } from './features/chrome';
-import { isInProgress, isOverridable, needsConfirmation, stateAfterFailure, useConnect, useSessionEditor, useSessions } from './features/sessions';
-import type { SessionAction } from './features/sessions';
-import type { SettingsSection } from './components/SettingsPanel';
+import {
+  editorDirty,
+  editorKey,
+  findEditor,
+  invalidFields,
+  isInProgress,
+  isOverridable,
+  needsConfirmation,
+  parsePort,
+  settled,
+  stateAfterFailure,
+  suggestName,
+  targetSession,
+  typedInto,
+  updateEditor,
+  useConnect,
+  useSessions,
+  withEditor,
+  withoutEditor,
+} from './features/sessions';
+import type { DraftValues, EditorTarget, OpenEditor, SessionAction } from './features/sessions';
 import { deleteSession, disconnectSession, saveSession } from './ipc';
-import type { SessionDraft } from './ipc';
+import type { Session, SessionDraft } from './ipc';
 import { useLocale } from './features/settings';
 import { useSessionStats } from './features/status';
 import { mountedTerminals } from './features/terminal';
@@ -51,9 +70,20 @@ export function App(): JSX.Element {
   /* What the strip is pointing at. A union rather than a session id with a
      reserved value for settings — see `features/chrome/focus.ts`. */
   const [focus, setFocus] = useState<Focus | null>(null);
+  /* `closeFocus` runs before the handlers below and has to read the current
+     forms. A ref rather than reordering the component: the handlers depend on
+     `save` and `remove`, which depend on `reload`, and hoisting all of it to
+     satisfy one call would be the worse trade. */
+  const editorsRef = useRef<readonly OpenEditor[]>([]);
+  const savedRef = useRef<readonly Session[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /* Every host form that is open, in the order they were opened. One per host
+     rather than one slot: the unsaved question then belongs to a host and not
+     to a shared form, which is the shape #96 recorded and parked. The strip
+     carries each target rather than a reserved id, so `{kind:'new'}` never has
+     to pretend to be a session. */
+  const [editors, setEditors] = useState<readonly OpenEditor[]>([]);
   const [size, setSize] = useState<TerminalSize | null>(null);
-  const [section, setSection] = useState<SettingsSection>('sessions');
   /* Which row's menu is open, and where it was opened from. */
   const [menu, setMenu] = useState<{
     readonly sessionId: string;
@@ -83,7 +113,12 @@ export function App(): JSX.Element {
   /* A tab disappears when its host drops the connection, which nobody
      clicked. Resolving on render is what keeps the active tab pointing at
      something that is still there. */
-  const resolvedFocus = resolveFocus(tabs, settingsOpen, focus);
+  const editing = useMemo(() => editors.map((editor) => editor.target), [editors]);
+  const entries = useMemo(
+    () => stripEntries(tabs, editing, settingsOpen),
+    [tabs, editing, settingsOpen],
+  );
+  const resolvedFocus = resolveFocus(entries, focus);
   const activeId = focusedSession(resolvedFocus);
   const activeTab = tabs.find((tab) => tab.sessionId === activeId) ?? null;
   const activeHandle = activeTab?.handle ?? null;
@@ -106,23 +141,47 @@ export function App(): JSX.Element {
     [sessions, attach, setState],
   );
 
-  const closeTab = useCallback(
-    (sessionId: string) => {
-      const next = tabAfterClosing(tabs, sessionId);
-      /* Falling through to settings rather than to nothing: closing the last
-         terminal with settings open used to leave the panel blank beside a
-         tab that was still on the bar. */
-      setFocus(next === null ? null : { kind: 'session', sessionId: next });
+  /* Closing any tab, whichever kind it is. One handler because the strip is
+     one ring: the titlebar should not have to know that a session disconnects,
+     an editor may have unsaved work, and settings just goes away. */
+  const closeFocus = useCallback(
+    (target: Focus): void => {
+      if (target.kind === 'editor') {
+        const open = findEditor(editorsRef.current, target.target);
+        if (open === null) return;
+
+        /* Unsaved work is answered for on the tab it is on. With a form per
+           host, the question is finally about the host you are closing rather
+           than about whichever form the one slot happened to hold. */
+        if (editorDirty(open)) {
+          setEditors((current) =>
+            updateEditor(current, target.target, (editor) => ({ ...editor, discarding: true })),
+          );
+          setFocus(target);
+          return;
+        }
+
+        setFocus(focusAfterClosing(entries, target));
+        setEditors((current) => withoutEditor(current, target.target));
+        return;
+      }
+
+      setFocus(focusAfterClosing(entries, target));
+
+      if (target.kind === 'settings') {
+        setSettingsOpen(false);
+        return;
+      }
 
       /* The part that was missing entirely. This moved the focus and stopped,
          so the X on a tab disconnected nothing, and the tab did not even go
          away — it is derived from the live session, which was still open. A
          control that looks like it did nothing is indistinguishable from one
          that is not wired up. */
-      if (attentionId === sessionId) abandon();
-      disconnect(sessionId);
+      if (attentionId === target.sessionId) abandon();
+      disconnect(target.sessionId);
     },
-    [tabs, attentionId, abandon, disconnect],
+    [entries, attentionId, abandon, disconnect],
   );
 
   const openSettings = useCallback((): void => {
@@ -265,22 +324,111 @@ export function App(): JSX.Element {
 
   const saved = useMemo(() => sessions.map((live) => live.session), [sessions]);
 
-  const editor = useSessionEditor(saved, {
-    onSave: save,
-    onDelete: remove,
-    onCloseSettings: () => setSettingsOpen(false),
-  });
+  /* What each form's tab says and whether it is holding unsaved work. The
+     host's own name while it has one: a tab called "New session" that went on
+     saying it after the host was saved would be lying about its contents. */
+  const editorTabs = useMemo(
+    () =>
+      editors.map((editor) => ({
+        target: editor.target,
+        title:
+          editor.target.kind === 'new'
+            ? i18n.t('tabs.editor.new')
+            : (targetSession(editor.target, saved)?.name ?? i18n.t('tabs.editor.new')),
+        dirty: editorDirty(editor),
+      })),
+    [editors, saved, i18n],
+  );
 
-  /* Opening the form is what puts the tab on the strip: the sidebar's `+` and
-     the row menu's Edit both land here rather than each knowing about tabs. */
-  const editInSettings = useCallback(
-    (target: Parameters<typeof editor.open>[0]): void => {
-      setSettingsOpen(true);
-      setSection('sessions');
-      setFocus({ kind: 'settings' });
-      editor.open(target);
+  editorsRef.current = editors;
+  savedRef.current = saved;
+
+  const changeIn = useCallback((target: EditorTarget, field: keyof DraftValues, value: string): void => {
+    setEditors((current) => updateEditor(current, target, (editor) => typedInto(editor, field, value)));
+  }, []);
+
+  const submitIn = useCallback(
+    (target: EditorTarget): void => {
+      const open = findEditor(editorsRef.current, target);
+      if (open === null) return;
+
+      /* Named after the host if it was left blank, which is what somebody
+         would type if the form insisted. */
+      const filled = suggestName(open.values);
+      const problems = invalidFields(filled);
+
+      if (problems.length > 0) {
+        setEditors((current) =>
+          updateEditor(current, target, (editor) => ({ ...editor, values: filled, wrong: problems })),
+        );
+        return;
+      }
+
+      const port = parsePort(filled.port);
+      if (port === null) return;
+
+      const existing = targetSession(target, saved);
+
+      void save({
+        ...(existing === null ? {} : { id: existing.id }),
+        name: filled.name.trim(),
+        host: filled.host.trim(),
+        port,
+        user: filled.user.trim(),
+        group: filled.group.trim() === '' ? null : filled.group.trim(),
+      }).then((stored) => {
+        /* Saving a host that did not exist closes the tab it was created on.
+           The alternative is a tab that goes on saying "New session" while
+           holding one already on disk — the tab lying about its own contents —
+           and what somebody wants next is almost always to connect to it.
+           Editing a host that already existed leaves the tab open, because
+           there the name on it stays true. */
+        if (target.kind === 'new') {
+          setFocus(focusAfterClosing(entries, { kind: 'editor', target }));
+          setEditors((current) => withoutEditor(current, target));
+          return;
+        }
+
+        setEditors((current) => updateEditor(current, target, () => settled(stored)));
+      });
     },
-    [editor],
+    [saved, save, entries],
+  );
+
+  const removeIn = useCallback(
+    (target: EditorTarget): void => {
+      if (target.kind === 'new') return;
+
+      remove(target.sessionId);
+      setFocus(focusAfterClosing(entries, { kind: 'editor', target }));
+      setEditors((current) => withoutEditor(current, target));
+    },
+    [remove, entries],
+  );
+
+  const discardIn = useCallback(
+    (target: EditorTarget, confirmed: boolean): void => {
+      if (!confirmed) {
+        setEditors((current) =>
+          updateEditor(current, target, (editor) => ({ ...editor, discarding: false })),
+        );
+        return;
+      }
+
+      setFocus(focusAfterClosing(entries, { kind: 'editor', target }));
+      setEditors((current) => withoutEditor(current, target));
+    },
+    [entries],
+  );
+
+  /* Opening the form is what puts its tab on the strip: the sidebar's `+` and
+     the row menu's Edit both land here rather than each knowing about tabs. */
+  const openEditor = useCallback(
+    (target: EditorTarget): void => {
+      setEditors((current) => withEditor(current, target, savedRef.current));
+      setFocus({ kind: 'editor', target });
+    },
+    [],
   );
 
   const chooseFromMenu = useCallback(
@@ -297,14 +445,14 @@ export function App(): JSX.Element {
           disconnect(open.sessionId);
           return;
         case 'edit':
-          editInSettings({ kind: 'existing', sessionId: open.sessionId });
+          openEditor({ kind: 'existing', sessionId: open.sessionId });
           return;
         case 'delete':
           remove(open.sessionId);
           return;
       }
     },
-    [menu, activate, disconnect, editInSettings, remove],
+    [menu, activate, disconnect, openEditor, remove],
   );
 
   const context = useMemo<CommandContext>(
@@ -317,19 +465,19 @@ export function App(): JSX.Element {
       maximized,
       nativeDecorations,
       actions: {
-        newSession: () => editInSettings({ kind: 'new' }),
-        editSession: (sessionId: string) => editInSettings({ kind: 'existing', sessionId }),
+        newSession: () => openEditor({ kind: 'new' }),
+        editSession: (sessionId: string) => openEditor({ kind: 'existing', sessionId }),
         selectSession: activate,
         activateTab: (sessionId: string) => setFocus({ kind: 'session', sessionId }),
-        closeTab,
-        moveTab: (step) => setFocus(focusAfter(tabs, settingsOpen, resolvedFocus, step)),
+        closeTab: (sessionId: string) => closeFocus({ kind: 'session', sessionId }),
+        moveTab: (step) => setFocus(focusAfter(entries, resolvedFocus, step)),
         window: act,
         chooseLocale: (locale) => void choose(locale),
         useNativeDecorations,
         openSettings,
       },
     }),
-    [i18n, sessions, tabs, activeId, chosen, maximized, nativeDecorations, act, choose, closeTab, activate, useNativeDecorations, openSettings, settingsOpen, resolvedFocus],
+    [i18n, sessions, tabs, activeId, chosen, maximized, nativeDecorations, act, choose, closeFocus, activate, useNativeDecorations, openSettings, settingsOpen, resolvedFocus],
   );
 
   const sources = useMemo(
@@ -342,20 +490,19 @@ export function App(): JSX.Element {
   return (
     <div className="flex h-full flex-col">
       <Titlebar
+        entries={entries}
         tabs={tabs}
         focus={resolvedFocus}
-        settingsOpen={settingsOpen}
-        settingsDirty={editor.dirty}
+        editorTabs={editorTabs}
         /* Until the core answers, the bar draws without controls. It is the
            same height either way, so nothing below it moves. */
         controls={chrome === null ? [] : windowControls(chrome, maximized)}
         leadingInset={chrome?.leadingInset ?? 0}
         panelId={TERMINAL_PANEL}
         onFocus={setFocus}
-        onClose={closeTab}
-        /* Through the editor rather than straight to the state: closing is
-           one of the three things that can throw an unsaved form away. */
-        onCloseSettings={editor.requestClose}
+        /* One handler for the whole strip. Closing an editor goes through the
+           hook, because that is one of the ways unsaved work gets thrown out. */
+        onClose={closeFocus}
         onAct={act}
       />
 
@@ -364,7 +511,7 @@ export function App(): JSX.Element {
           sessions={sessions}
           selectedId={selected}
           onSelect={activate}
-          onAdd={() => editInSettings({ kind: 'new' })}
+          onAdd={() => openEditor({ kind: 'new' })}
           onMenu={(sessionId, at) => setMenu({ sessionId, at })}
         />
         {/* `relative` is what the terminals are positioned against. They are
@@ -393,11 +540,46 @@ export function App(): JSX.Element {
           {/* Nothing open at all. A blank panel beside a blank tab strip is
               indistinguishable from a window that failed to paint, and it is
               the first thing a new user meets. */}
-          {tabs.length === 0 && !settingsOpen && attemptSurface === null && (
+          {entries.length === 0 && attemptSurface === null && (
             <div className="absolute inset-0">
               <EmptyPanel modifier={chrome?.commandModifier ?? 'control'} />
             </div>
           )}
+
+          {editors.map((open) => {
+            const mine: Focus = { kind: 'editor', target: open.target };
+            const showing = sameFocus(resolvedFocus, mine);
+
+            return (
+              /* One panel per open form, all mounted, only the focused one
+                 visible — the same trick the terminals use. A half-typed host
+                 survives a glance at a session and is still there on the way
+                 back, and now so does the *other* half-typed host. */
+              <div
+                key={editorKey(open.target)}
+                className={`absolute inset-0 overflow-y-auto ${
+                  showing ? '' : 'invisible pointer-events-none'
+                }`}
+                aria-hidden={showing ? undefined : true}
+              >
+                <SessionEditorPanel
+                  title={
+                    editorTabs.find((candidate) => sameFocus({ kind: 'editor', target: candidate.target }, mine))
+                      ?.title ?? ''
+                  }
+                  isNew={open.target.kind === 'new'}
+                  values={open.values}
+                  wrong={open.wrong}
+                  discarding={open.discarding}
+                  onChange={(field, value) => changeIn(open.target, field, value)}
+                  onSubmit={() => submitIn(open.target)}
+                  onDelete={() => removeIn(open.target)}
+                  onConfirmDiscard={() => discardIn(open.target, true)}
+                  onCancelDiscard={() => discardIn(open.target, false)}
+                />
+              </div>
+            );
+          })}
 
           {settingsOpen && (
             /* Mounted for as long as the tab is on the strip, and hidden the
@@ -410,28 +592,6 @@ export function App(): JSX.Element {
               aria-hidden={resolvedFocus?.kind === 'settings' ? undefined : true}
             >
               <SettingsPanel
-                section={section}
-                onSection={setSection}
-                sessionsSettings={{
-                  sessions: saved,
-                  editingId:
-                    editor.target === null
-                      ? null
-                      : editor.target.kind === 'new'
-                        ? 'new'
-                        : editor.target.sessionId,
-                  values: editor.values,
-                  wrong: editor.wrong,
-                  dirty: editor.dirty,
-                  discarding: editor.discarding,
-                  onEdit: (sessionId) => editor.open({ kind: 'existing', sessionId }),
-                  onNew: () => editor.open({ kind: 'new' }),
-                  onChange: editor.change,
-                  onSubmit: editor.submit,
-                  onDelete: editor.remove,
-                  onConfirmDiscard: editor.confirmDiscard,
-                  onCancelDiscard: editor.cancelDiscard,
-                }}
                 chosenLocale={chosen}
                 onChooseLocale={(locale) => void choose(locale)}
                 nativeDecorations={nativeDecorations}
