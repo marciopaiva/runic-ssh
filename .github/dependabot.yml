@@ -1,0 +1,45 @@
+# Watches the pinned action SHAs, and nothing else.
+#
+# Section 4 of docs/security-model.md names a supply chain attacker as an
+# adversary, and the three workflows answer it the same way: only GitHub-owned
+# actions, each pinned to a commit rather than a tag, because a tag can be
+# moved under us.
+#
+# Pinning trades staleness for integrity, and nothing was watching the other
+# half of that trade. A fixed vulnerability in an action never reached us, and
+# the version comment beside each SHA was free to become a lie. Dependabot
+# understands SHA-pinned actions and rewrites the SHA and the comment together,
+# which is the whole reason it is the right tool here.
+#
+# **Actions only, deliberately.** An action is code that runs with access to
+# this repository and to CI secrets, referenced by a pointer somebody else can
+# move — which is why it is pinned by commit when no other dependency is.
+# Cargo and npm dependencies are pinned by lockfile and cannot move underneath
+# us, and the Rust tree is already checked against the advisory database daily
+# by audit.yml. The npm half has no such watch; that gap is issue #92 rather
+# than an ecosystem bolted on here, because "should we take a dependency
+# upgrade" is a different question from "did the code we pinned move".
+#
+# A pull request from this bot is not a rubber stamp. It is a change to the one
+# control the security model leans on hardest, and it gets read like one.
+
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: America/Sao_Paulo
+    # One pull request per action. There are five, they move a few times a
+    # year, and each one deserves its own changelog read — grouping would
+    # produce a single "bump 5 actions" PR that is reviewed as one decision
+    # when it is five.
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: ci
+    labels:
+      - 'area: build'
+      - security
