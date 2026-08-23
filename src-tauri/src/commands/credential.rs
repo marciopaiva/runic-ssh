@@ -191,7 +191,12 @@ fn open_window<R: Runtime>(app: &AppHandle<R>, request: RequestId) -> Result<(),
     make this one fail to build. */
     close_window(app);
 
-    let url = format!("{CREDENTIAL_DOCUMENT}?request={request}");
+    /* Through `prompt_url`, and never built here. The last attempt at this
+    bug added that helper, gave it three tests, and left this line interpolating
+    the `Display` form — so the tests passed and every prompt still opened on
+    `?request=request-0`. One construction site is the fix; the second one was
+    the bug. */
+    let url = prompt_url(request);
 
     let window = WebviewWindowBuilder::new(app, CREDENTIAL_WINDOW, WebviewUrl::App(url.into()))
         .title("Runic SSH")
