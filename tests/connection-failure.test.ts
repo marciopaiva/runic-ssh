@@ -9,7 +9,11 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { MAPPED_FAILURES, describeFailure } from '../src/features/sessions/failure';
+import {
+  MAPPED_FAILURES,
+  describeFailure,
+  stateAfterFailure,
+} from '../src/features/sessions/failure';
 import { CODES } from '../src/ipc/errors';
 import { createTranslator } from '../src/lib/i18n';
 
@@ -78,6 +82,50 @@ describe('describing a failure', () => {
         expect(i18n.t(failure.title).length).toBeGreaterThan(3);
         expect(i18n.t(failure.body).length).toBeGreaterThan(20);
       }
+    }
+  });
+});
+
+describe('what the marker becomes after a failure', () => {
+  /* Found by cancelling the credential window and reading the whole screen at
+     once: the panel said "Cancelled" and the status bar said "Unreachable",
+     about the same session, at the same moment. Only one of them could be
+     true, and the host was up the entire time. */
+
+  it('marks a host that did not answer as unreachable', () => {
+    expect(stateAfterFailure('hostUnreachable')).toBe('unreachable');
+  });
+
+  it('marks a broken SSH conversation as unreachable', () => {
+    /* The host answered and the transport failed. Still the host, still worth
+       saying it is not usable right now. */
+    expect(stateAfterFailure('sshTransport')).toBe('unreachable');
+  });
+
+  it('marks a changed key as a key mismatch, not as unreachable', () => {
+    /* The one that must never be collapsed into the others: a host that is
+       down and a host whose key changed look nothing alike to a user, and only
+       one of them is a security event. */
+    expect(stateAfterFailure('hostKeyDecision')).toBe('keyMismatch');
+  });
+
+  it('says nothing about the host when the user closed the prompt', () => {
+    expect(stateAfterFailure('credentialDismissed')).toBe('saved');
+  });
+
+  it('says nothing about the host when the failure was ours', () => {
+    /* An RSA key we refuse and a keychain that did not answer are both this
+       side of the wire. Crossing out the host would be a claim about a machine
+       that was never asked anything. */
+    expect(stateAfterFailure('rsaKeyRefused')).toBe('saved');
+    expect(stateAfterFailure('keychainUnavailable')).toBe('saved');
+  });
+
+  it('never invents a state outside the five that exist', () => {
+    const allowed = new Set(['connected', 'connecting', 'saved', 'keyMismatch', 'unreachable']);
+
+    for (const code of CODES) {
+      expect(allowed.has(stateAfterFailure(code)), code).toBe(true);
     }
   });
 });

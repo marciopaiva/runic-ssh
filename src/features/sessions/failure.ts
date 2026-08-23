@@ -12,6 +12,7 @@
  */
 
 import type { IpcErrorCode } from '../../ipc';
+import type { ConnectionKind } from './state';
 import type { ParameterlessKey } from '../../lib/i18n';
 
 export interface Failure {
@@ -112,3 +113,24 @@ export function describeFailure(code: IpcErrorCode): Failure {
 export const MAPPED_FAILURES: readonly Failure[] = Object.values(FAILURES).filter(
   (failure): failure is Failure => failure !== undefined,
 );
+
+/**
+ * What the sidebar marker becomes after an attempt fails.
+ *
+ * Only a failure that says something about *reaching the host* is allowed to
+ * mark it unreachable. Everything else leaves the host as a plain stored one,
+ * because nothing was learned about it: a closed credential window, a refused
+ * RSA key, a keychain that did not answer — none of those are the host's
+ * doing, and a crossed-out marker beside a host that is up and fine is a lie
+ * the user has to disprove by trying again.
+ *
+ * Found by cancelling the credential prompt and reading the status bar: it
+ * said "Cancelled" in the panel and "Unreachable" on the floor, about the same
+ * session, at the same moment.
+ */
+export function stateAfterFailure(code: IpcErrorCode): ConnectionKind {
+  if (code === 'hostKeyDecision') return 'keyMismatch';
+  if (code === 'hostUnreachable' || code === 'sshTransport') return 'unreachable';
+
+  return 'saved';
+}
