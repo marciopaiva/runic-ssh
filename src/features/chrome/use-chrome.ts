@@ -10,7 +10,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import {
-  asIpcError,
   closeWindow,
   isWindowMaximized,
   minimizeWindow,
@@ -20,7 +19,19 @@ import {
 } from '../../ipc';
 import type { WindowChrome } from '../../ipc';
 
+import { actOnWindow } from './refusal';
+import type { WindowControls } from './refusal';
+
 import type { WindowAction } from './controls';
+
+/* The wrappers, bound once. `actOnWindow` takes them as an argument so a test
+   can hand it a control that refuses — which is the only way to reach that
+   path, since a real window cannot be made to refuse on demand. */
+const CONTROLS: WindowControls = {
+  minimize: minimizeWindow,
+  toggleMaximize: toggleMaximizeWindow,
+  close: closeWindow,
+};
 
 interface ChromeState {
   /** `null` until the core has answered. */
@@ -79,24 +90,7 @@ export function useChrome(): ChromeState {
   const [refused, setRefused] = useState<string | null>(null);
 
   const act = useCallback((action: WindowAction): void => {
-    /* Cleared first. A refusal that outlives the press that caused it is a
-       red bar the window keeps for the rest of its life. */
-    setRefused(null);
-
-    const done =
-      action === 'minimize'
-        ? minimizeWindow()
-        : action === 'close'
-          ? closeWindow()
-          : toggleMaximizeWindow();
-
-    /* Reported rather than swallowed. `void closeWindow()` discarded the
-       rejection, so a control that could not act looked exactly like one that
-       was not wired up — which is how a window nobody could close went
-       unnoticed. */
-    void done.catch((rejection: unknown) => {
-      setRefused(asIpcError(rejection)?.code ?? String(rejection).slice(0, 120));
-    });
+    void actOnWindow(action, CONTROLS, setRefused);
   }, []);
 
   return { chrome, maximized, act, refused };

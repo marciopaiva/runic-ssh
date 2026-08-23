@@ -106,9 +106,10 @@ the whole problem it exists for.
 **Good**: `capabilities/default.json` drops three permissions, so the only
 `core:window` grants left are `default` and `allow-start-dragging`, the latter
 being what Tauri's own drag-region script calls. A control that cannot act now
-says so, under `windowActionRefused`, instead of looking unwired. ADR-0008's
-claim about the credential window holds against the main webview rather than
-only against the ACL.
+says so, under `windowActionRefused`, instead of looking unwired — and that
+line is now run by a test rather than argued for, on both sides of the IPC
+boundary. ADR-0008's claim about the credential window holds against the main
+webview rather than only against the ACL.
 
 **Bad**: no window can act on another, so a future "close all windows" or a
 parent closing its child needs a new command and a fresh argument for why that
@@ -119,14 +120,20 @@ itself ungated, so any document, credential prompt included, can act on
 *itself*; that is harmless today because closing the prompt answers its request
 as dismissed, but it is not a property the ACL is enforcing.
 
-**Bad, specifically**: two things rest on nothing but care. The guard is a test
-that reads source text, so it holds only while someone keeps it — deleting it is
-easier than the edit it prevents, and deleting it fails nothing. And the refusal
-path has never been seen: no way was found to make `window_action` fail on
-demand, so the code that reports a refusal is covered by reading only, which is
-the same standard of evidence that let the broken close button ship.
+**Bad, specifically**: the guard is a test that reads source text, so it holds
+only while someone keeps it. Deleting it is easier than the edit it prevents,
+and deleting it fails nothing. A permission would have been enforced by the
+platform; this is enforced by the repository agreeing with itself.
 
-**Follow-up**: find a way to exercise the refusal path, since it is the half of
-this change that is still only argued for. Revisit the decision itself if Tauri
-ever gates application commands per window, which would move the guarantee from
-a test of ours into the platform and make a label worth having again.
+**Bad, specifically**: reaching the refusal path at all cost a seam. Neither
+half of it can be made to fail from outside — Tauri's `MockRuntime` returns `Ok`
+from `minimize`, `maximize` and `unmaximize` unconditionally, and a real window
+refuses only in states a test cannot arrange. So `window_action` delegates to
+`act_on` behind a `WindowControl` trait, and the frontend's dispatcher moved out
+of the hook into `features/chrome/refusal.ts`. Both are indirection bought
+purely to make a failure reachable, and someone reading either will wonder why
+it is not simply inline.
+
+**Follow-up**: revisit the decision if Tauri ever gates application commands per
+window, which would move the guarantee from a test of ours into the platform and
+make a label worth having again.
