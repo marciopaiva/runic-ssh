@@ -75,6 +75,43 @@ DISPLAY=:99 GDK_BACKEND=x11 pnpm tauri dev
 `import -window <id>` screenshots it and `xdotool` drives it, both with
 `DISPLAY=:99`. Nothing touches the desktop the developer is using.
 
+## Verifying the capability set
+
+`capabilities/default.json` names one command per line (ADR-0013), and three of
+those lines have no caller in this repository — they are invoked by scripts
+Tauri injects into the page. No test here covers them, so after a Tauri upgrade
+or an edit to that file, drive the five checks below.
+
+| Grant | What proves it survived |
+| --- | --- |
+| `core:window:allow-start-dragging` | dragging the title bar moves the window |
+| `core:window:allow-internal-toggle-maximize` | double-clicking the title bar maximises and restores |
+| `core:window:allow-is-maximized` | the middle control switches between the maximise and restore glyphs |
+| `core:event:allow-listen` | a connected terminal shows output from the host |
+| `core:webview:allow-internal-toggle-devtools` | Ctrl+Shift+I opens the inspector |
+
+**Two of them cannot be driven by `xdotool`.** The double click and the hotkey
+never reach their handlers under synthetic input, on Xvfb or on WSLg. That is
+not the ACL: granting all 45 commands the four `default` sets used to carry
+fails in exactly the same way. Check those two by hand on a real desktop, and
+do not read a synthetic failure as a missing permission — the control run is
+what tells the two apart.
+
+The other three do work under `xdotool`, on the display described above:
+
+```sh
+W=$(DISPLAY=:99 xdotool search --name "Runic SSH" | head -1)
+DISPLAY=:99 xdotool getwindowgeometry $W          # before
+DISPLAY=:99 xdotool mousemove 700 68 mousedown 1
+DISPLAY=:99 xdotool mousemove 800 240 mouseup 1   # window should have moved
+```
+
+A wrong permission *name* needs none of this. Tauri's build script validates
+every identifier, so a typo or an upstream rename fails `cargo build` with
+`Permission ... not found, expected one of ...`. What the checks above cover is
+the other half: a permission that is spelled correctly and is no longer the one
+the script calls.
+
 ## Why a container rather than a public test server
 
 Three public servers were checked on 2026-08-22:
