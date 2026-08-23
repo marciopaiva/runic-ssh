@@ -17,10 +17,25 @@ export interface Tab {
   readonly handle: number | null;
 }
 
-/** The sessions that have earned a tab, in the order the sidebar lists them. */
-export function openTabs(sessions: readonly LiveSession[]): readonly Tab[] {
+/**
+ * The sessions that have earned a tab, in the order the sidebar lists them.
+ *
+ * `attentionId` is the session an unresolved connection attempt names — one
+ * waiting on a host key decision, on the credential window, or sitting on a
+ * failure nobody has dismissed. It keeps its tab even with no handle, because
+ * ADR-0015 renders those surfaces inside the session's own panel and a session
+ * with no tab has no panel to render them in. Before it, failing dropped the
+ * tab and took away the only place the failure could have been shown.
+ */
+export function openTabs(
+  sessions: readonly LiveSession[],
+  attentionId: string | null,
+): readonly Tab[] {
   return sessions
-    .filter((live) => live.handle !== null || live.kind === 'connecting')
+    .filter(
+      (live) =>
+        live.handle !== null || live.kind === 'connecting' || live.session.id === attentionId,
+    )
     .map((live) => ({
       sessionId: live.session.id,
       title: live.session.name,
