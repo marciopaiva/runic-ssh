@@ -44,6 +44,33 @@ either** — see [`docs/installing.md`](docs/installing.md).
 Work is tracked in [issues](https://github.com/marciopaiva/runic-ssh/issues) and
 the decisions behind it in [`docs/adr/`](docs/adr/).
 
+## ⬇️ Downloads
+
+Installers for all three platforms are attached to each
+[release](https://github.com/marciopaiva/runic-ssh/releases), with a
+`SHA256SUMS` covering every file.
+
+| | |
+| --- | --- |
+| Windows | `.msi` (WiX) or `.exe` (NSIS) |
+| macOS | `.dmg`, Apple Silicon only |
+| Linux | `.deb`, `.rpm`, `.AppImage` |
+
+**Nothing here is code-signed.** Windows shows SmartScreen, macOS says the
+application is damaged, and neither is a malfunction — they are what an
+operating system says about a binary whose author it cannot verify.
+[`docs/installing.md`](docs/installing.md) has the exact commands for each
+platform, and the reason this project would rather explain the warning than
+teach you to click through it.
+
+That page also tracks **which packages a human has actually installed**, which
+is not the same list as the one the build produces. Check it before assuming a
+platform has been exercised.
+
+```sh
+sha256sum -c SHA256SUMS --ignore-missing   # before installing anything
+```
+
 ## 🛠️ Tech Stack
 
 - **Core:** Rust and Tauri 2.0

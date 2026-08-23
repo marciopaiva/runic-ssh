@@ -8,6 +8,10 @@
 # would spend twenty minutes of runner time to produce an artifact nobody asked
 # for; issue #40 is about installers somebody is going to install.
 #
+# A tag also publishes a GitHub Release. That is the only mechanism here that
+# hands a binary to someone who is not signed in, so it is the one job that
+# holds `contents: write`, and it holds it alone.
+#
 # **These builds are unsigned.** See docs/installing.md — an unsigned installer
 # is a real thing a user has to work around, and pretending otherwise in a
 # release note is how people learn to click through security warnings.
@@ -147,3 +151,69 @@ jobs:
           path: artifacts/*
           if-no-files-found: error
           retention-days: 14
+
+  # Only on a tag. A `workflow_dispatch` build stays behind the Actions tab,
+  # where reaching it takes an account and a deliberate click — which is the
+  # right amount of friction for an unsigned binary nobody has installed yet.
+  release:
+    name: release
+    needs: package
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+
+    # The only elevated permission in this file, on the only job that needs it.
+    # The three build jobs stay at the workflow-level `contents: read`, so a
+    # compromised build step cannot publish.
+    permissions:
+      contents: write
+
+    steps:
+      - name: Collect every platform's artifact
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          path: artifacts
+
+      # Each platform wrote its own SHA256SUMS beside its own installers. They
+      # concatenate into one file for the release, and then it is *checked* —
+      # a hash that only ever gets written proves nothing about the bytes a
+      # person downloads, and this is the step where they moved.
+      - name: Assemble and verify
+        run: |
+          mkdir -p release
+          find artifacts -type f ! -name SHA256SUMS -exec cp {} release/ \;
+          cat artifacts/*/SHA256SUMS > release/SHA256SUMS
+          ( cd release && sha256sum -c SHA256SUMS )
+          ls -lh release
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Short on purpose, and a pointer rather than a second copy. Which
+          # platforms have actually been installed changes between releases,
+          # and docs/installing.md is where that is tracked; duplicating it
+          # here would create a version of the truth that ages in private.
+          notes=$(cat <<'EOF'
+          **These installers are not code-signed.** Windows will show SmartScreen
+          and macOS will call the app damaged. Neither is a malfunction and both
+          are described, with the exact commands, in
+          [`docs/installing.md`](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/docs/installing.md).
+
+          That page also carries the table of **which platforms anyone has
+          actually installed**, as opposed to which ones the build produced.
+          Read it before assuming a package has been run by a human.
+
+          `SHA256SUMS` covers every file attached here, and the hashes were
+          checked against the bytes after they left the build machines:
+
+          ```sh
+          sha256sum -c SHA256SUMS --ignore-missing
+          ```
+          EOF
+          )
+          gh release create "${{ github.ref_name }}" release/* \
+            --repo "${{ github.repository }}" \
+            --title "${{ github.ref_name }}" \
+            --notes "$notes" \
+            --prerelease \
+            --verify-tag
