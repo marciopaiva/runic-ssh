@@ -7,7 +7,7 @@
 
 Runic SSH ships in Brazilian Portuguese, English and Spanish from the first
 release. No source tree exists yet, so this is being decided before the first
-user-visible string is written — which is the only moment it can be decided
+user-visible string is written, which is the only moment it can be decided
 without a migration, because it shapes the error type that every IPC command
 returns.
 
@@ -20,7 +20,7 @@ owns failures: a refused authentication, an unreachable host, a keychain with no
 secret service behind it. `docs/architecture.md` already says errors are typed
 with `thiserror` per module and surfaced across IPC as a serializable enum, and
 ADR-0004 requires the Linux no-secret-service case to "degrade to prompting per
-connection with a clear explanation" — an explanation that is user-facing text,
+connection with a clear explanation", and an explanation is user-facing text,
 and therefore translatable text, originating in the core.
 
 **What renders that text.** The webview already carries `Intl`:
@@ -72,7 +72,7 @@ sentences: `HostKeyMismatch { host, expected_fp, offered_fp }`,
 the code to a message in the active locale and interpolates the parameters.
 
 The core never formats a sentence, which also means it never formats a value
-into one — the redaction rule in `security-model.md` becomes structural, since
+into one. The redaction rule in `security-model.md` becomes structural, since
 a variant carries only fields we deliberately declared. Adding Spanish touches
 no Rust. The frontend can branch on the code to choose an action, not just a
 message.
@@ -83,7 +83,7 @@ languages, and an unmapped code must fail loudly rather than render blank.
 ### Option C: `react-i18next`, or `react-intl` with ICU messages
 
 The ecosystem standards. Interpolation, plurals, namespaces, lazy loading,
-locale detection plugins, and — for `react-intl` — full ICU message syntax with
+locale detection plugins, and, for `react-intl`, full ICU message syntax with
 nested select and gender, which matters for languages that inflect.
 
 The cost is roughly 40 KB of runtime for the parts we would use, a large API
@@ -114,7 +114,7 @@ small typed catalog built on `Intl`.
 Option B beats A because it is the only shape in which the security rule is
 structural rather than a habit: a core that never builds a sentence cannot
 interpolate a secret into one. Option D beats C on the project's own stated
-terms — the features we would actually use are key lookup and plural selection,
+terms: the features we would actually use are key lookup and plural selection,
 and `Intl.PluralRules` already does the second. The compile-time guarantee that
 a missing translation breaks the build, rather than rendering a raw key to a
 user, is something neither library offers by default and is worth more here
@@ -132,7 +132,7 @@ the moment translation is done by someone who is not a contributor.
 **Good**: no runtime dependency for localization. Adding a fourth language is a
 JSON file and a line in the locale registry, with no Rust change and no IPC
 change. A missing or misspelled key fails the build. Error codes let the UI
-choose an action, not just a sentence — the "review host key" path in the
+choose an action, not just a sentence. The "review host key" path in the
 sidebar comes from the code, not from parsed text. Dates, byte counts and
 durations format correctly per locale for free, including the `pt-BR` decimal
 comma that would otherwise be reported as a bug.
@@ -141,7 +141,7 @@ comma that would otherwise be reported as a bug.
 translation drifted from the English source once both exist. No ICU `select`
 means an awkward string somewhere will have to be rewritten rather than
 inflected. Every new error variant is now a three-language chore, and the one
-that gets skipped is the rarely-hit path — which is exactly the path
+that gets skipped is the rarely-hit path, which is exactly the path
 `CLAUDE.md` section 8 says gets tested, because it is what the user actually
 hits. Approximately 120 lines of i18n machinery is 120 lines of code that a
 library would have maintained for us, and if the catalog grows past a few
@@ -156,7 +156,7 @@ they disagree.
 
 **Bad, for the approved design**: Portuguese and Spanish run roughly 15 to 30
 percent longer than English. The layout approved on 2026-08-22 has tight places
-— the tab strip, the status bar, the buttons in the host key dialog — that were
+the tab strip, the status bar and the buttons in the host key dialog, that were
 composed against English text and will need to be re-checked against the
 longest of the three languages, not the shortest.
 
@@ -168,7 +168,7 @@ out `src/locales/` and to require native-speaker review of security copy.
 says the client ships in three languages from the first release; that is no
 longer true, and the reason is the review requirement this same decision
 created. No native Spanish speaker is on the project, and a mistranslated host
-key warning is a vulnerability rather than a typo — so shipping the language
+key warning is a vulnerability rather than a typo, so shipping the language
 unreviewed would mean shipping a security control in a language nobody here can
 check.
 

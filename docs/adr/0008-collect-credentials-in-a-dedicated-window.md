@@ -53,12 +53,12 @@ the letter of the rule and loses the reason the rule exists.
 A second Tauri window whose document mounts the prompt and nothing else. No
 terminal, no SFTP listing, no session event is ever routed to it, so it never
 renders a byte that came from a remote host. On submit the value goes straight
-to the core, and the window is destroyed — which discards the document, its DOM
+to the core, and the window is destroyed, which discards the document, its DOM
 and its heap, deterministically, rather than waiting for a collector.
 
 The cost is plumbing: a second window to create and address, a request the core
 issues and correlates by opaque id, and a lifecycle to get right in the cases
-where it is easy to get wrong — the user closing the window, a second prompt
+where it is easy to get wrong: the user closing the window, a second prompt
 arriving while the first is open, the session being cancelled while the prompt
 is up.
 
@@ -74,7 +74,7 @@ choice of `russh` over the OpenSSH binary was made specifically so that
 platforms would not diverge. Linux has no standard credential dialog, so that
 third implementation is ours to invent. And it puts an operating-system dialog
 in the middle of an application with custom window chrome and an approved visual
-identity — the interface is the reason this product exists, and this is the one
+identity. The interface is the reason this product exists, and this is the one
 option that takes the most security-critical moment in the application and makes
 it look like it belongs to someone else.
 
@@ -88,7 +88,7 @@ destroyed immediately afterwards. The core wraps it in a `Zeroizing` buffer on
 arrival, uses it, and drops it.
 
 Option B beats A because the reason the webview is untrusted is that it renders
-hostile output, and a window that renders none is not the same threat surface —
+hostile output, and a window that renders none is not the same threat surface.
 the separation is structural rather than a promise about which code runs where.
 It beats C because the security difference between them is smaller than it looks
 once the prompt window renders nothing remote, while the cost difference is not:
@@ -109,7 +109,7 @@ critical screen in the application can carry the fingerprint, the host name and
 the reason for the prompt in the product's own voice. One implementation covers
 all three platforms.
 
-**Bad**: a second window is a lifecycle, and lifecycles are where bugs live —
+**Bad**: a second window is a lifecycle, and lifecycles are where bugs live.
 the window closed without submitting, two prompts racing, a prompt outliving the
 session that asked for it, a window that fails to open at all leaving a
 connection hanging on a reply that will never come. Each of those is a path that
@@ -125,7 +125,7 @@ running inside the prompt window.
 without focus, which is a usability failure that reads as the application
 hanging. This needs explicit handling rather than trusting the default.
 
-**Follow-up**: define the request protocol — the core issues an opaque request
+**Follow-up**: define the request protocol. The core issues an opaque request
 id, the window replies with that id and the secret, and an unmatched or repeated
 id is refused. Decide what happens when the prompt window is dismissed: the
 connection attempt fails with a typed error, it does not retry silently. Cover

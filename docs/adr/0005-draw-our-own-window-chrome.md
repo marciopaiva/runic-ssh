@@ -13,7 +13,7 @@ every screen.
 
 Tauri exposes the choice as `decorations` in `tauri.conf.json`, plus
 `data-tauri-drag-region` for marking draggable areas. Turning decorations off
-hands us the whole title area — and with it, everything the OS was doing there.
+hands us the whole title area, and with it everything the OS was doing there.
 
 What the OS does there differs per platform, and this is the part that decides
 the ADR:
@@ -23,7 +23,7 @@ the ADR:
   no snap flyout unless we answer the hit test ourselves.
 * **macOS** places the traffic lights at a fixed inset and users expect them
   there, along with double-click-to-zoom on the title area. The platform offers
-  a middle path — an overlay titlebar that keeps the native buttons over our
+  a middle path: an overlay titlebar that keeps the native buttons over our
   content.
 * **Linux** has no single answer. Client-side decorations are the GNOME norm and
   server-side decorations the KDE one; resize borders and window shadows behave
@@ -65,7 +65,7 @@ them and our tab strip flows behind them with a left inset.
 
 Two code paths for the chrome, and a macOS-specific inset that has to track
 Apple's button placement. In exchange the platform-native expectation that users
-feel most strongly — traffic lights on macOS — is met by the platform itself.
+feel most strongly, the traffic lights on macOS, is met by the platform itself.
 
 ## Decision
 
@@ -89,7 +89,7 @@ correct traffic lights without us drawing them. Theme tokens reach the window
 chrome, so a custom theme colors the whole window rather than stopping at an
 OS-drawn bar.
 
-**Bad**: window management edge cases become our bugs — Snap Layouts, double
+**Bad**: window management edge cases become our bugs. Snap Layouts, double
 click to maximize, `Alt+Space`, drag-to-unmaximize, resize borders under
 Wayland. The test matrix for a decorative surface triples. A Linux compositor
 that handles undecorated windows badly leaves the user with a window they cannot
@@ -111,9 +111,9 @@ command in the palette and a `nativeDecorations` line in `settings.json`,
 default off, applied to the live window and stored for the next launch.
 
 Two things it taught, both recorded where the code is rather than only here.
-The title area turned out to have three arrangements and not two — a natively
+The title area turned out to have three arrangements and not two. A natively
 decorated window and a macOS overlay window both let the system draw the
-controls, and only one of them has anything floating over our bar — so the
+controls, and only one of them has anything floating over our bar, so the
 `bool` that described it became `TitleArea`, and the frontend is told which
 arrangement it is in rather than inferring it from a pair of fields that happen
 to coincide. And the setting is deliberately ignored on macOS: honouring it

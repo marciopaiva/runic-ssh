@@ -15,7 +15,7 @@ ADR-0003 chose `russh` over the OpenSSH binary and accepted the consequence in
 writing: "we must track `russh` advisories actively rather than relying on the
 OS to patch", and "treat a `russh` advisory as release-blocking". This is the
 first real test of that sentence, and the audit added in #9 caught it on the
-same day the dependency landed — which is the control working as designed.
+same day the dependency landed, which is the control working as designed.
 
 What matters for the decision is which operations the attack reaches. Marvin is
 a timing attack on the holder of a **private** key:
@@ -35,7 +35,7 @@ The crate leaves the tree, `cargo audit` is clean with no exceptions at all, and
 the security posture needs no explanation.
 
 It also means refusing to connect to any server whose host key is RSA. That is
-still common on machines nobody has updated — which is precisely the population
+still common on machines nobody has updated, which is precisely the population
 this product's audience administers. "Does not connect" is a worse answer than
 "connects, with a documented limitation", and a tool that cannot reach the old
 servers loses the users it was built for.
@@ -59,7 +59,8 @@ says why, so the exposed operation is never performed.
 The cost is real and lands on users: someone whose only key is `~/.ssh/id_rsa`
 cannot authenticate with it and must generate an Ed25519 or ECDSA key. For a
 client aimed at people who administer machines, that is an inconvenience rather
-than a blocker — but it is an inconvenience we are imposing, not one they chose.
+than a blocker, but it is an inconvenience we are imposing rather than one they
+chose.
 
 ## Decision
 
@@ -67,7 +68,7 @@ Option C, accepted on 2026-08-22.
 
 `russh` keeps its default features. `ssh::connection` refuses a private key
 whose algorithm is RSA, before any signing happens. The advisory is listed in
-`src-tauri/.cargo/audit.toml` with this reasoning attached — not as "risk
+`src-tauri/.cargo/audit.toml` with this reasoning attached, not as "risk
 accepted", but as "the reachable path is removed".
 
 The tradeoff accepted is that the vulnerable code remains linked into the
@@ -94,7 +95,7 @@ the only thing standing between a future refactor and a quiet regression.
 **Bad**: `ssh-rsa` host keys are also weak for other reasons, and continuing to
 accept them is a separate question this ADR does not answer.
 
-**Follow-up**: revisit when the `rsa` crate ships a fix — at which point both
+**Follow-up**: revisit when the `rsa` crate ships a fix, at which point both
 the refusal and the `audit.toml` entry come out together, and neither should be
 removed without the other. Until then, treat the entry as expiring: if it is
 still there when RSA support is next discussed, that is a signal, not a

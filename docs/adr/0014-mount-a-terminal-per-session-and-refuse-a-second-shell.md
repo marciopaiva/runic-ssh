@@ -20,7 +20,7 @@ Two independent decisions produced it, neither wrong on its own:
   `pump` keeps running against a channel nobody reads.
 
 Measured against the test fixture, four round trips between two tabs left nine
-shells and nine ptys alive for two sessions — one more per switch. It stops
+shells and nine ptys alive for two sessions, one more per switch. It stops
 when the server refuses, and OpenSSH's default `MaxSessions` is 10, so a
 session becomes unable to open a shell after roughly ten tab switches.
 
@@ -30,7 +30,7 @@ a defect rather than a polish item.
 Relevant to the choice: `docs/architecture.md` says every value crossing into
 the core is validated on the Rust side regardless of what the frontend claims
 to have checked. And `Registry::Entry` already carries `input: Option<Sender>`,
-set when a shell attaches — the fact needed to answer the question was already
+set when a shell attaches, so the fact needed to answer the question was already
 in the map, only never consulted.
 
 ## Options considered
@@ -66,7 +66,7 @@ Both. Accepted on 2026-08-23.
 They repair different things, which is why neither alone was enough. Option A
 fixes what the user experiences. Option B makes "one shell per handle" a
 property of the core rather than a consequence of how the webview happens to be
-written today — the frontend is our own code, but that is exactly the
+written today. The frontend is our own code, but that is exactly the
 assumption `architecture.md` refuses to build on.
 
 Inactive terminals are hidden with `visibility: hidden` rather than
@@ -95,7 +95,7 @@ ten switches. A `ConnectionFailure` no longer destroys the terminal of whatever
 session happened to be active.
 
 **Bad**: every connected session holds a live xterm instance and its
-scrollback buffer — bounded by `scrollback: 5000` per session, but no longer
+scrollback buffer, bounded by `scrollback: 5000` per session but no longer
 one buffer at a time. Hidden terminals still run their `ResizeObserver` and
 still receive output, so a noisy background session costs work while nobody is
 looking at it. The rate bound in `pump` is what keeps that affordable, and it
@@ -113,6 +113,6 @@ surface that belongs to a session renders inside that session's panel, and a
 session keeps its tab for as long as it has an unresolved attempt, so there is
 no longer a whole main area for a failure to cover. Whether
 output from an abandoned shell could reach a live terminal was never
-established — with this change no shell is abandoned, so the question is moot
+established. With this change no shell is abandoned, so the question is moot
 for the path that created it, but the two pumps emitting on one handle was
 never proven impossible by any other route.
