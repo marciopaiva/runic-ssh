@@ -13,10 +13,18 @@ checksum you have compared against the workflow run that produced it.
 
 ## Where the builds come from
 
-The `package` workflow builds all three platforms. Run it from the Actions tab,
-or push a `v*` tag. Artifacts are attached to the run and expire after 14 days.
-Each platform's artifact carries a `SHA256SUMS` file, which is what the
-comparisons below are against.
+There are two, and they are not equivalent.
+
+**A release** — attached to a `v*` tag, listed under
+[Releases](https://github.com/marciopaiva/runic-ssh/releases). Permanent, no
+account needed, one `SHA256SUMS` covering all three platforms. This is what a
+download link should point at.
+
+**A workflow run** — `package` from the Actions tab, on any branch. Artifacts
+expire after 14 days and reaching them takes a signed-in account, which is the
+right amount of friction for a build nobody has tried. Each platform's artifact
+carries its own `SHA256SUMS`; the release concatenates the three and re-checks
+them against the bytes after they leave the build machines.
 
 Nothing is built on an ordinary push. Twenty minutes of runner time for an
 artifact nobody asked for is worth avoiding.
