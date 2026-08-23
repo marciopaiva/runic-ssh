@@ -26,6 +26,13 @@ pub const SETTINGS_FILE: &str = "settings.json";
 pub struct Settings {
     /// The locale the user chose, or `None` to follow the operating system.
     pub locale: Option<String>,
+    /// Whether to let the window manager draw the title bar.
+    ///
+    /// ADR-0005 turned decorations off so the tab strip could occupy the title
+    /// area, and named this the escape hatch for a window manager it did not
+    /// anticipate — one that leaves an undecorated window impossible to resize
+    /// or move. Off by default, because the drawn chrome is the design.
+    pub native_decorations: bool,
 }
 
 /// Reads and writes [`Settings`] under a directory the caller owns.
@@ -138,6 +145,20 @@ pub fn apply_locale(store: &SettingsStore, locale: Option<String>) -> Result<Set
     Ok(settings)
 }
 
+/// Stores whether the window manager should draw the title bar.
+///
+/// Separate from [`apply_locale`] rather than a general setter, so the two
+/// settings that exist cannot be written by one call that takes a whole
+/// `Settings` — which is how a locale gets reset by a caller that only meant
+/// to change the chrome.
+pub fn apply_native_decorations(store: &SettingsStore, native: bool) -> Result<Settings, Error> {
+    let mut settings = store.load()?;
+    settings.native_decorations = native;
+    store.save(&settings)?;
+
+    Ok(settings)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -158,6 +179,7 @@ mod tests {
         let (store, _dir) = store();
         let settings = Settings {
             locale: Some("pt-BR".to_owned()),
+            native_decorations: true,
         };
 
         store.save(&settings).expect("save");
@@ -254,6 +276,7 @@ mod tests {
         conversation the security model asks for. */
         let json = serde_json::to_string(&Settings {
             locale: Some("en".to_owned()),
+            native_decorations: false,
         })
         .expect("serialize");
 
@@ -263,5 +286,60 @@ mod tests {
                 "settings.json must not carry {forbidden}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod decoration_tests {
+    use super::*;
+
+    fn store() -> (SettingsStore, tempfile::TempDir) {
+        let dir = tempfile::tempdir().expect("temp dir");
+        (SettingsStore::new(dir.path()), dir)
+    }
+
+    #[test]
+    fn the_drawn_chrome_is_the_default() {
+        /* ADR-0005 chose the drawn title bar and this is the escape hatch from
+        it, not a preference with two equal sides. A default of `true` would
+        quietly undo the decision for every user who never opens a setting. */
+        assert!(!Settings::default().native_decorations);
+    }
+
+    #[test]
+    fn a_settings_file_written_before_this_field_existed_still_loads() {
+        /* The forward-compatible half is already tested; this is the backward
+        one. Every shipped settings.json predates this field, so a load that
+        needed it would fail on launch for everyone who has ever run the app. */
+        let (store, _dir) = store();
+        fs::write(store.path(), r#"{"locale":"pt-BR"}"#).expect("write");
+
+        let settings = store.load().expect("an older file must still load");
+        assert_eq!(settings.locale.as_deref(), Some("pt-BR"));
+        assert!(!settings.native_decorations);
+    }
+
+    #[test]
+    fn setting_the_chrome_leaves_the_locale_alone() {
+        /* Two settings in one file, written by two different commands. The
+        failure this guards is silent: the user's language reverts, and the
+        only clue is that it happened when they touched an unrelated toggle. */
+        let (store, _dir) = store();
+        apply_locale(&store, Some("es".to_owned())).expect("locale");
+
+        let settings = apply_native_decorations(&store, true).expect("decorations");
+        assert!(settings.native_decorations);
+        assert_eq!(settings.locale.as_deref(), Some("es"));
+
+        assert_eq!(store.load().expect("reload"), settings, "not persisted");
+    }
+
+    #[test]
+    fn the_hatch_closes_again() {
+        let (store, _dir) = store();
+        apply_native_decorations(&store, true).expect("on");
+
+        let settings = apply_native_decorations(&store, false).expect("off");
+        assert!(!settings.native_decorations);
     }
 }
