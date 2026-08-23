@@ -35,7 +35,7 @@ are reviewed by a native speaker **before the translation is presented as
 reviewed**, and the English string stays normative when they disagree.
 
 That is deliberately not "before release". Pre-1.0, with no users to ask, it
-blocked shipping on a reviewer who did not exist — which is a way of never
+blocked shipping on a reviewer who did not exist, which is a way of never
 shipping rather than a way of being careful. What the rule is actually
 protecting is the claim: nobody says these strings have been checked until
 somebody has checked them, and a locale nobody has reviewed is offered with that
@@ -45,9 +45,28 @@ this basis (ADR-0007, #4).
 A pass by a model is not that review, and not only because it lacks
 accountability: it will have written some of the strings it is checking, and it
 cannot tell whether a warning lands as urgent to somebody at two in the morning
-in their own language. It is worth doing anyway — one such pass found four real
-defects in the host key screens (#101, #38) — and it changes what a reviewer
+in their own language. It is worth doing anyway. One such pass found four real
+defects in the host key screens (#101, #38), and it changes what a reviewer
 starts from, not whether one is needed.
+
+### How the prose is written
+
+Everything written here is read by a person: the README, the decision records,
+the commit messages, the documentation. Write it the way you would write to a
+colleague who is competent and busy.
+
+Use ordinary punctuation. A full stop, a colon, a semicolon or a pair of
+brackets will do the work, and one of them is almost always the right mark. The
+long dash is not a general purpose connector, and reaching for it every second
+sentence is the clearest tell that nobody chose the punctuation at all.
+
+Say the thing once, in the order it happened, with the subject in front of the
+verb. Prefer the short word. If a sentence needs a dash to hold it together, it
+usually needs to be two sentences.
+
+None of this is about formality. It is about the text sounding like it was
+written on purpose, which is the same standard the rest of this file asks of the
+code.
 
 ---
 
@@ -168,12 +187,12 @@ repository alone.
 
 * Put the outcome where it survives the session: the commit, the pull request,
   the issue, the ADR. A decision made mid-implementation, a blocker hit, an
-  environment requirement discovered — if it exists only in a conversation, it
+  environment requirement discovered. If it exists only in a conversation, it
   is already lost.
 * Turn what the change created into work: a follow-up mentioned only in a
   report is a follow-up nobody does.
 * A merge is where the conversation stops being needed. Offering to compact it
-  is fine; claiming to have compacted it is not — no session can clear its own
+  is fine; claiming to have compacted it is not. No session can clear its own
   context, and a skill that says otherwise is describing a control that does
   not exist.
 

@@ -27,7 +27,7 @@ Verified on Windows 11 on 2026-08-23, from nothing installed to a working
 | pnpm | 11.22.0, via `corepack enable && corepack prepare pnpm@11.22.0 --activate` |
 | MSVC | Visual Studio Build Tools, workload `Microsoft.VisualStudio.Workload.VCTools` |
 | Windows SDK | installed with that workload |
-| **NASM** | **required — see below** |
+| **NASM** | **required, see below** |
 | WebView2 | ships with Windows 11; needed to *run*, not to build |
 
 Only the Build Tools need administrator rights. Rust, Node, pnpm and NASM all
@@ -36,7 +36,7 @@ install into the user profile.
 ### NASM is required, and the error does not say so usefully
 
 `aws-lc-sys` assembles its own routines on Windows and needs the Netwide
-Assembler. It is not a dependency this project declares — it arrives underneath,
+Assembler. It is not a dependency this project declares. It arrives underneath,
 and the build fails like this:
 
 ```
@@ -53,7 +53,7 @@ says is not for production. The missing tool is the problem; the variable only
 hides it.
 
 CI does not hit this because the GitHub `windows-latest` image ships NASM. That
-is convenient and it is not a guarantee — if that image ever drops it, the
+is convenient and it is not a guarantee. If that image ever drops it, the
 Windows job fails with the message above and nothing in this repository will
 explain why. Adding an explicit install step to `package.yml` is the obvious
 insurance and has a cost worth weighing first: the workflow deliberately runs

@@ -7,7 +7,7 @@ from it by `generate-logo-variants.mjs`, and the application icons by
 ## Screenshots
 
 `screenshot-*.png` are in the README. They are captures of the **packaged
-application** connected to a real SSH server — not the design canvas, and not a
+application** connected to a real SSH server, not the design canvas and not a
 mockup. A mockup in a README is a promise the product has not made.
 
 Each screen has a `-dark` and a `-light` file, and the pair **must be the same
@@ -18,8 +18,8 @@ and a mismatch shifts the page when a reader's theme changes.
 
 A screenshot is a promise about what somebody sees when they open the
 application. The navigation model changed four times in the four days before
-these were taken. Regenerate them whenever the main window's layout changes —
-the sidebar, the tab strip, the status bar, or the host key screen — and treat a
+these were taken. Regenerate them whenever the main window's layout changes:
+the sidebar, the tab strip, the status bar, or the host key screen. Treat a
 README showing a window that no longer exists as a bug rather than as
 untidiness.
 
@@ -35,7 +35,7 @@ env -u WAYLAND_DISPLAY DISPLAY=:99 GDK_BACKEND=x11 \
   GTK_THEME=Adwaita:dark runic-ssh                                     # dark
 ```
 
-`env -u WAYLAND_DISPLAY` is load-bearing under WSL — see `docs/testing.md`.
+`env -u WAYLAND_DISPLAY` is load-bearing under WSL. See `docs/testing.md`.
 
 The fleet is staged to match the design canvas, so the artboards and the
 screenshots show the same invented hosts: `web-01` and `db-01` under
