@@ -203,6 +203,10 @@ jobs:
           actually installed**, as opposed to which ones the build produced.
           Read it before assuming a package has been run by a human.
 
+          [`CHANGELOG.md`](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/CHANGELOG.md)
+          has what this release adds and — the part worth reading — what it
+          still does not do.
+
           `SHA256SUMS` covers every file attached here, and the hashes were
           checked against the bytes after they left the build machines:
 
