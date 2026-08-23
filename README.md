@@ -32,10 +32,14 @@
 
 ## 🚦 Status
 
-**Pre-alpha. Not usable yet** — there is no SSH connection to speak of. What
-exists is the foundation everything else is built on: the Tauri shell, the
-React frontend, the design system, and a build gate that runs on all three
-platforms.
+**Pre-alpha, and it connects.** On 2026-08-23 a packaged build installed from
+the `.deb` verified an unknown host key against its real fingerprint, prompted
+for a password in its own window, opened a shell on an OpenSSH server and ran a
+command in it.
+
+Not there yet: SFTP, port forwarding, and a signed installer of any kind. The
+Windows and macOS packages build on every run and **no one has installed
+either** — see [`docs/installing.md`](docs/installing.md).
 
 Work is tracked in [issues](https://github.com/marciopaiva/runic-ssh/issues) and
 the decisions behind it in [`docs/adr/`](docs/adr/).
