@@ -49,12 +49,16 @@ channel and emitting batches. It is the same on both renderers. The comparison
 that would justify ADR-0006 — WebGL against DOM, drawing — remains **entirely
 unmeasured**.
 
-The harness for it now exists in the application itself —
+The harness that answered it lived in the application itself —
 `src/features/terminal/benchmark.ts`, reachable from the console during
-development. It forces each renderer in turn, writes a known volume, and times
+development. It forced each renderer in turn, wrote a known volume, and timed
 to the last write callback rather than to the last call, because `write` is
-asynchronous and stopping the clock earlier would measure how fast work can be
-queued rather than how fast it is drawn.
+asynchronous and stopping the clock earlier would have measured how fast work
+can be queued rather than how fast it is drawn.
+
+**It is no longer in the tree.** It compared two renderers, and ADR-0011 left
+one. Both it and the addon come back together, from the commit that removed
+them, if the gaps at the end of this document ever need closing.
 
 An earlier version of this document said the measurement needed
 `@vitest/browser` or Playwright. It does not, and that framing would have bought
@@ -65,9 +69,8 @@ a comparison there would measure the DOM renderer against the DOM renderer and
 report a ratio of 1.00 — which looks like a finding and is nothing at all. The
 harness refuses to present that as an answer, and a test asserts the refusal.
 
-Running it needs a machine with a working GPU. Until someone does, ADR-0006
-rests on the reputation of the two renderers rather than on anything observed.
-Tracked in #67.
+Running it needed a machine with a working GPU. Two now have, and the results
+are below.
 
 ## Reproducing
 
@@ -81,19 +84,13 @@ the log of the pull request that caused it.
 
 ## Measuring the renderers
 
-On a machine with a GPU, with the application running in development:
+The two sections below are the whole record, and the harness that produced them
+was removed with the addon it existed to judge — see ADR-0011. Reproducing
+either means reverting that commit first.
 
-```js
-console.log(await runicBenchmarkRenderers());   // 32 MB through each renderer
-```
-
-`runicBenchmarkRenderers` is registered only in a development build, so it is
-absent from anything shipped. It takes an optional size in megabytes if 32 is
-too quick to be stable on the machine at hand.
-
-Paste the output into this file under a heading naming the machine and its GPU.
-A measurement without that context is not reproducible, and should not be
-recorded as though it were.
+A measurement without the machine, the engine and the graphics path named is
+not reproducible and should not be recorded as though it were. Both sections
+name all three, and the second one names what it could not reach.
 
 ## Renderer comparison — Windows 11, RTX 5070
 
@@ -142,3 +139,58 @@ ratio in either direction, and this measures **bulk write throughput**, which is
 what ADR-0006 reasoned about — not smooth scrolling, not a high-DPI display, not
 many small updates. Anyone reversing this decision on a different machine should
 record their numbers here too.
+
+## Renderer comparison — Linux, WebKitGTK, software rasteriser
+
+Measured on 2026-08-23, in the application's own webview rather than in a
+browser tab. That distinction is the whole reason ADR-0011 was deferred: the
+numbers above were taken in Edge, and a packaged application is not a tab.
+
+- **Engine**: WebKitGTK (reports itself as AppleWebKit 605.1.15)
+- **Machine**: WSL2 on Windows 11, RTX 5070 present and unreachable — see below
+- **Method**: `?benchmark=1`, 32 MB through each renderer, result posted back to
+  the dev server by `vite-benchmark-plugin.ts`
+
+| Display | Window | DOM | WebGL | Ratio |
+| --- | --- | --- | --- | --- |
+| Xvfb 1600×1000 | 1440×900 | 92.8 MB/s | 68.7 MB/s | 0.74x |
+| WSLg, X11 backend | 1440×900 | 88.2 MB/s | 71.6 MB/s | 0.81x |
+| WSLg, Wayland backend | 1440×900 | 108.8 MB/s | 80.2 MB/s | 0.74x |
+| Xvfb 3840×2160 | 3800×2100 | 94.1 MB/s | 67.1 MB/s | 0.71x |
+
+**WebGL is 19 to 29 percent slower than the DOM renderer here.** The fourth row
+is the case ADR-0011 asked for by name — a large terminal on a high-density
+display, where more glyphs per batch is where GPU acceleration would have the
+most chance to show. It is the worst of the four.
+
+### These are software numbers, and the reason is worth knowing
+
+The card is an RTX 5070, and `glxinfo` reaches it: `GALLIUM_DRIVER=d3d12`
+reports `D3D12 (NVIDIA GeForce RTX 5070)` on both displays. WebKitGTK still does
+not, because `glxinfo` goes through GLX and the webview goes through EGL, and
+every EGL path available here fails to find a device:
+
+| Attempt | Failure on stderr |
+| --- | --- |
+| Xvfb, X11 | `libEGL warning: DRI3 error: Could not get DRI3 device` |
+| WSLg, X11 | the same |
+| WSLg, Wayland | `libEGL warning: egl: failed to create dri2 screen` |
+
+So all four rows are a **software rasteriser**. That is the floor, not the
+integrated-graphics case, and harsher than any GPU a user would actually have.
+It is recorded as the floor deliberately: weak graphics is the configuration
+ADR-0011 said it was least sure about, and the one where keeping the addon could
+still have been justified.
+
+**A hardware measurement under WebKitGTK remains unmeasured**, and so does
+macOS under WKWebView on any hardware at all.
+
+### The adapter string cannot be trusted here
+
+`src/main.tsx` records `UNMASKED_RENDERER_WEBGL` beside the numbers, reasoning
+that "a software rasteriser reports a real WebGL context and a meaningless
+comparison". In WebKitGTK that check does not work. Every run above reported
+the adapter as **`Apple GPU`** — on an NVIDIA card, on Linux. WebKit returns a
+fixed string to resist fingerprinting, so it says nothing about the machine.
+
+Read the EGL warnings on stderr instead. They are what told these runs apart.
