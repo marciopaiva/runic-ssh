@@ -21,6 +21,7 @@ import { deleteSession, disconnectSession, saveSession } from './ipc';
 import type { SessionDraft } from './ipc';
 import { useLocale } from './features/settings';
 import { useSessionStats } from './features/status';
+import { mountedTerminals } from './features/terminal';
 import type { TerminalSize } from './features/terminal/use-terminal';
 
 /** The element the tabs switch between. Named once, referenced from both ends. */
@@ -63,6 +64,8 @@ export function App(): JSX.Element {
   const activeTab = tabs.find((tab) => tab.sessionId === activeId) ?? null;
   const activeHandle = activeTab?.handle ?? null;
   const stats = useSessionStats(activeHandle);
+  /* One terminal per open session, kept mounted across tab switches. */
+  const mounted = useMemo(() => mountedTerminals(tabs), [tabs]);
 
   const closeTab = useCallback(
     (sessionId: string) => setActive(tabAfterClosing(tabs, sessionId)),
@@ -218,16 +221,36 @@ export function App(): JSX.Element {
           onAdd={() => setEditing('')}
           onMenu={(sessionId, at) => setMenu({ sessionId, at })}
         />
-        <main id={TERMINAL_PANEL} role="tabpanel" className="min-w-0 flex-1">
-          {failed === null ? (
-            <TerminalView handle={activeHandle} onSize={setSize} />
-          ) : (
-            <ConnectionFailure
-              session={failed.session}
-              code={failed.code}
-              onRetry={() => activate(failed.session.id)}
-              onDismiss={abandon}
+        {/* `relative` is what the terminals are positioned against. They are
+            stacked rather than swapped: one per session, only the active one
+            visible, so switching tabs neither destroys an xterm nor makes the
+            core open a second shell to replace it — ADR-0014. */}
+        <main
+          id={TERMINAL_PANEL}
+          role="tabpanel"
+          className="bg-surface-terminal relative min-w-0 flex-1"
+        >
+          {mounted.map((terminal) => (
+            <TerminalView
+              key={terminal.sessionId}
+              handle={terminal.handle}
+              visible={terminal.sessionId === activeId}
+              onSize={setSize}
             />
+          ))}
+
+          {failed !== null && (
+            /* Positioned, and after the terminals in document order, so it
+               paints over them. In normal flow it would be painted under
+               every absolutely positioned sibling and never be seen. */
+            <div className="absolute inset-0">
+              <ConnectionFailure
+                session={failed.session}
+                code={failed.code}
+                onRetry={() => activate(failed.session.id)}
+                onDismiss={abandon}
+              />
+            </div>
           )}
         </main>
       </div>
