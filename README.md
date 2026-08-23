@@ -7,7 +7,8 @@
 </p>
 
 <p align="center">
-  <strong>A modern, fast, and secure cross-platform SSH/SFTP client built with Rust and Tauri.</strong>
+  <strong>An open-source SSH client for people who live in a terminal.</strong><br>
+  <sub>Rust and Tauri. Small, auditable, and built to be handed over.</sub>
 </p>
 
 <p align="center">
@@ -17,35 +18,46 @@
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey" alt="Platform">
 </p>
 
-## 🎯 About
+## 🎯 Why this exists
 
-**Runic SSH** was born to be the modern replacement for PuTTY and for heavyweight clients such as MobaXterm. Built for developers, DevOps engineers, and sysadmins, it pairs the native performance of Rust with a modern, customizable interface.
+Connecting to a server is something a sysadmin does fifty times a day, and the
+tools for it are either twenty years old or expensive. The good parts of the
+expensive ones — a session manager that is pleasant to use, SFTP beside the
+terminal, tunnels that are not a command line argument — are not hard problems.
+They are just behind a licence.
 
-### ✨ Key Features
+**Runic SSH is an attempt to put those in something free, small enough to audit,
+and owned by the people who use it.** It is built for the sysadmins, DevOps
+engineers and developers who need a tool that is mature where it matters and can
+grow where the community needs it to.
 
-- 🚀 **Ultra lightweight:** a Rust backend (Tauri) that uses a fraction of the memory required by Electron based alternatives.
-- 🔒 **Encrypted local vault:** your keys and passwords never leave your machine without your permission (backed by DPAPI, Keychain, and libsecret).
-- 🖥️ **Truly cross platform:** the same fluid experience on Windows, macOS, and Linux.
-- 📂 **Built in SFTP:** dual pane file management, with no need for external tools.
-- 🪄 **Productivity:** split panes, a command palette (`Ctrl+Shift+P`), and saved command snippets.
-- 🤖 **AI assistant (coming soon):** command suggestions and error explanations right inside the terminal.
+It is also built to be handed over. Every architectural decision has a record
+saying what was chosen, what it cost, and what it rules out; the working
+agreement is written down; the checks that gate a change are five commands
+anyone can run. That scaffolding exists so somebody who did not write this can
+still change it — see **Contributing**, below.
 
-## 🚦 Status
+## ✅ What works today
 
-**Pre-alpha, and it connects.** On 2026-08-23 a packaged build installed from
-the `.deb` verified an unknown host key against its real fingerprint, prompted
-for a password in its own window, opened a shell on an OpenSSH server and ran a
-command in it.
+- **SSH sessions** with the host key actually verified. An unknown key prompts
+  with its fingerprint and will not arm the trust button until you confirm you
+  checked it somewhere else; a changed key blocks and wants the host name typed
+  back; `@revoked` and `@cert-authority` refuse with no override.
+- **Credentials collected in a window of their own**, resolved against the OS
+  keychain at the moment of use, never crossing toward the interface in plain
+  text. Password or private key, saving optional.
+- **A terminal per session** (xterm.js), kept alive across tab switches, with
+  scrollback and a status bar carrying latency and bytes moved.
+- **Saved hosts**, grouped, each edited on its own tab.
+- **A command palette** on `Ctrl+Shift+P`.
+- **Light and dark**, from one token set, following the system.
+- **English and Brazilian Portuguese.** Spanish is translated and held back
+  until a native speaker reviews its security copy.
 
-On the same day the Windows installer was built on a Windows 11 machine and
-run through the same path, from an installer nobody had ever run to a shell.
-
-Not there yet: SFTP, port forwarding, and a signed installer of any kind. The
-macOS package builds on every run and **no one has installed it** — see
-[`docs/installing.md`](docs/installing.md).
-
-Work is tracked in [issues](https://github.com/marciopaiva/runic-ssh/issues) and
-the decisions behind it in [`docs/adr/`](docs/adr/).
+Not yet: **SFTP**, **port forwarding**, snippets, split panes, and a signed
+installer of any kind. Those are the roadmap further down, not this
+list — a features section describing software that does not exist is the kind of
+thing this project would rather not do.
 
 ## 📸 What it looks like
 
@@ -69,6 +81,22 @@ exists to prevent, so it is not one click away.
   <source media="(prefers-color-scheme: light)" srcset="assets/screenshot-hostkey-light.png">
   <img src="assets/screenshot-hostkey-dark.png" alt="The unknown host key screen, showing the host, key type and SHA256 fingerprint, with the trust button disabled until an out-of-band verification checkbox is ticked" width="880">
 </picture>
+
+## 🚦 Status
+
+**Pre-alpha, and it connects.** v0.1.0 shipped on 2026-08-23. On Linux and on
+Windows 11 a packaged build was installed and driven end to end: it verified an
+unknown host key against its real fingerprint, asked for a password in its own
+window, opened a shell and ran commands in it.
+
+**macOS has never been opened by anyone.** The `.dmg` builds on every run and
+that is all anyone can say about it. `docs/installing.md` tracks which packages
+a human has actually installed, per platform, which is not the same list as the
+one CI produces — and nobody has yet installed a file that came out of a
+release, on any platform.
+
+Work is tracked in [issues](https://github.com/marciopaiva/runic-ssh/issues) and
+the decisions behind it in [`docs/adr/`](docs/adr/).
 
 ## ⬇️ Downloads
 
@@ -102,7 +130,7 @@ sha256sum -c SHA256SUMS --ignore-missing   # before installing anything
 - **Core:** Rust and Tauri 2.0
 - **Frontend:** React, TypeScript, TailwindCSS
 - **Terminal:** xterm.js, DOM renderer, no GPU path ([ADR-0011](docs/adr/0011-drop-the-webgl-renderer.md))
-- **SSH/SFTP:** the `russh` crate, in process, no OpenSSH binary ([ADR-0003](docs/adr/0003-use-russh-instead-of-openssh.md))
+- **SSH:** the `russh` crate, in process, no OpenSSH binary ([ADR-0003](docs/adr/0003-use-russh-instead-of-openssh.md)). `russh-sftp` is the plan for v0.2.0 and is not wired up yet
 - **Secrets:** the OS keychain, referenced by opaque id ([ADR-0004](docs/adr/0004-store-credentials-in-the-os-keychain.md))
 - **Languages:** English and Brazilian Portuguese at v0.1.0; Spanish is translated and waiting on a native review of its security copy ([ADR-0007](docs/adr/0007-localize-in-the-frontend-from-typed-error-codes.md))
 
@@ -143,10 +171,15 @@ pnpm test
 
 ## 🗺️ Roadmap
 
-- [ ] **v0.1.0 (MVP):** basic SSH connections, local session management, and a working terminal (xterm.js).
+- [x] **v0.1.0 (MVP):** SSH connections with host key verification, saved sessions, and a working terminal — [released 2026-08-23](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.1.0).
 - [ ] **v0.2.0:** SFTP integration (upload and download) plus session import from PuTTY and OpenSSH.
 - [ ] **v0.3.0:** port forwarding (SSH tunnels) and customizable themes.
-- [ ] **v1.0.0:** integrated AI assistant, optional cloud sync, and production grade stability.
+- [ ] **v1.0.0:** production grade stability, and a signed installer on every platform.
+
+The versions after v0.1.0 are a direction, not a promise. If you need something
+that is not on this list, [open an issue](https://github.com/marciopaiva/runic-ssh/issues/new)
+— what a tool like this should do next is better decided by the people running
+it fifty times a day than by whoever wrote the roadmap.
 
 ## 📚 Documentation
 
@@ -158,8 +191,32 @@ pnpm test
 
 ## 🤝 Contributing
 
-Contributions are very welcome. Read
-[CLAUDE.md](CLAUDE.md) first — it is the working agreement, and it is short.
+Contributions are very welcome, and the repository is arranged on the assumption
+that whoever writes the next change did not write the last one.
+
+**Every decision has a record.** `docs/adr/` says what was chosen, what it cost,
+and what it forecloses — including the ones that were later reversed, because
+the record of a reversal is what stops it being made again. If you wonder why
+the terminal has no GPU path, or why RSA private keys are refused, the answer is
+a file rather than an archaeology expedition through the log.
+
+**The process is written down.** [CLAUDE.md](CLAUDE.md) is the working
+agreement: how a change moves from analysis to a proposal to code, when to stop
+and ask, and the five commands that gate it. It is short, and it is the contract
+— read it before the code.
+
+**The repetitive parts are encoded.** `.claude/skills/` holds the workflows this
+project runs often: `/feature` drives a change through its phases, `/adr` writes
+a decision record, `/tauri-cmd` adds an IPC command end to end. They are plain
+markdown and describe the steps whether or not you use an assistant to follow
+them.
+
+That last part is deliberate. This project is built with AI assistance and says
+so here rather than in its commit messages, where
+[CLAUDE.md](CLAUDE.md) forbids it: what matters in a history is what changed and
+why, not what typed it. The scaffolding is there so that a contribution — yours,
+or one you worked out with an assistant — can meet the same bar without anyone
+having to explain the bar first.
 
 1. Fork the project and branch as `feat/<short-slug>` or `fix/<short-slug>`.
 2. Write the test alongside the code, not after it.
