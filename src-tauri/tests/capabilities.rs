@@ -10,8 +10,24 @@ use std::collections::BTreeSet;
 
 /// Every permission the application is allowed to hold today.
 ///
-/// `allow-start-dragging` is what Tauri's own drag-region script calls, so an
-/// undecorated window cannot be moved without it.
+/// One line per command, and no plugin `default` set. ADR-0013: a `default` set
+/// is every command a plugin exposes, not the minimum it needs, and taking four
+/// of them granted this window 45 commands to reach five.
+///
+/// Three of these are called by scripts Tauri injects into the page, so they
+/// have no caller anywhere in this repository and `grep` will not find one.
+/// This comment is the only place that records what they are for:
+///
+/// * `allow-start-dragging` and `allow-internal-toggle-maximize` are what
+///   `drag.js` calls on a drag and on a double click. ADR-0005 made the title
+///   bar ours, so without the second one a double click on it stops maximising.
+/// * `allow-internal-toggle-devtools` is what `toggle-devtools.js` calls on
+///   Ctrl+Shift+I. The command behind it is compiled out of a release build, so
+///   this grant is inert once packaged and exists for the dev loop only.
+///
+/// `allow-is-maximized` is ours, from `ipc/chrome.ts`. `allow-listen` and
+/// `allow-unlisten` are ours too; `allow-emit` is deliberately absent, because
+/// events run one way here — the core emits and the webview listens.
 ///
 /// Deliberately *not* here, and worth reading twice: minimise, maximise and
 /// close. ADR-0005 made those controls ours to draw, and ADR-0012 has them act
@@ -20,17 +36,14 @@ use std::collections::BTreeSet;
 /// They were granted once, and the grant bought a button that failed silently
 /// when anything went wrong. `window_action_cannot_name_a_window` below is what
 /// keeps that swap honest.
-///
-/// Also not here: `allow-is-maximized` and `allow-internal-toggle-maximize`,
-/// which the interface uses and `core:window:default` already includes.
 const ALLOWED: &[&str] = &[
-    "core:app:default",
-    "core:event:default",
-    "core:webview:default",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:webview:allow-internal-toggle-devtools",
+    "core:window:allow-internal-toggle-maximize",
+    "core:window:allow-is-maximized",
     "core:window:allow-start-dragging",
-    "core:window:default",
 ];
-
 fn capability() -> serde_json::Value {
     named("default.json")
 }
@@ -199,6 +212,25 @@ fn window_action_cannot_name_a_window() {
         "window_action looks a window up by label. ADR-0012: it may act on the \
          window that called it and no other."
     );
+}
+
+#[test]
+fn no_plugin_default_set_is_granted() {
+    /* ADR-0013, and the edit that would undo it quietly.
+
+    `core:window:default` reads like a minimum and is 28 commands; the four sets
+    this file used to hold were 45, against five the application calls. Swapping
+    a line below back to its plugin's `default` set would leave every other test
+    here passing — the list would still be short, still be reviewed, still name
+    a reason each. Only this test can see the difference. */
+    for permission in permissions(&capability()) {
+        assert!(
+            !permission.ends_with(":default"),
+            "{permission} is a plugin default set, which grants every command \
+             that plugin exposes rather than the ones this application calls. \
+             ADR-0013: name each command instead."
+        );
+    }
 }
 
 #[test]
