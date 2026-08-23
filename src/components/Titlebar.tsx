@@ -13,6 +13,8 @@ interface TitlebarProps {
   readonly focus: Focus | null;
   /** Whether the settings tab is on the strip at all. */
   readonly settingsOpen: boolean;
+  /** Whether the settings tab holds work that has never been saved. */
+  readonly settingsDirty: boolean;
   readonly controls: readonly WindowControl[];
   /** Space to keep clear at the leading edge for controls the system draws. */
   readonly leadingInset: number;
@@ -50,6 +52,7 @@ export function Titlebar({
   tabs,
   focus,
   settingsOpen,
+  settingsDirty,
   controls,
   leadingInset,
   panelId,
@@ -197,13 +200,24 @@ export function Titlebar({
                   />
                 </svg>
                 <span>{i18n.t('tabs.settings')}</span>
+
+                {settingsDirty && (
+                  /* A dot rather than an asterisk in the label: the label is
+                     translated and an asterisk glued to it reads as part of
+                     the word in some of them. The name is on the button for
+                     anybody who is not looking at it. */
+                  <span
+                    aria-hidden="true"
+                    className="bg-accent inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+                  />
+                )}
               </button>
 
               <button
                 type="button"
                 onClick={onCloseSettings}
-                aria-label={i18n.t('tabs.settings.close')}
-                title={i18n.t('tabs.settings.close')}
+                aria-label={i18n.t(settingsDirty ? 'tabs.settings.unsaved' : 'tabs.settings.close')}
+                title={i18n.t(settingsDirty ? 'tabs.settings.unsaved' : 'tabs.settings.close')}
                 className="text-ink-faint hover:text-ink flex h-4 w-4 shrink-0 items-center justify-center rounded"
               >
                 <svg viewBox="0 0 10 10" className="h-2 w-2" fill="none" aria-hidden="true">

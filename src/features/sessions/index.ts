@@ -23,3 +23,7 @@ export { MAPPED_FAILURES, describeFailure } from './failure';
 export type { Failure } from './failure';
 export { menuPosition, sessionMenu } from './menu';
 export type { MenuItem, SessionAction } from './menu';
+export { differs, editorValues, isDirty, targetSession } from './editor';
+export type { EditorTarget } from './editor';
+export { useSessionEditor } from './use-editor';
+export type { SessionEditorState } from './use-editor';
