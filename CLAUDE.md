@@ -31,8 +31,23 @@ the tree is written in another language. See
 
 Security copy is a special case. A mistranslated host key warning is a
 vulnerability, not a typo. Strings that describe a security decision to the user
-are reviewed by a native speaker before release, and the English string stays
-normative when they disagree.
+are reviewed by a native speaker **before the translation is presented as
+reviewed**, and the English string stays normative when they disagree.
+
+That is deliberately not "before release". Pre-1.0, with no users to ask, it
+blocked shipping on a reviewer who did not exist — which is a way of never
+shipping rather than a way of being careful. What the rule is actually
+protecting is the claim: nobody says these strings have been checked until
+somebody has checked them, and a locale nobody has reviewed is offered with that
+known rather than hidden. Spanish is already held out of the selector on exactly
+this basis (ADR-0007, #4).
+
+A pass by a model is not that review, and not only because it lacks
+accountability: it will have written some of the strings it is checking, and it
+cannot tell whether a warning lands as urgent to somebody at two in the morning
+in their own language. It is worth doing anyway — one such pass found four real
+defects in the host key screens (#101, #38) — and it changes what a reviewer
+starts from, not whether one is needed.
 
 ---
 
