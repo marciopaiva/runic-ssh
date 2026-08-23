@@ -60,10 +60,35 @@ impl std::fmt::Debug for Credential {
     }
 }
 
+/// How long a connection may take to reach an open, authenticated-ready state.
+///
+/// russh sets no timeout of any kind: `client::Config::default()` leaves
+/// `inactivity_timeout` at `None`, and the TCP connect inherits the kernel's,
+/// which on Linux is roughly two minutes of SYN retries. Worse, a host that
+/// completes the TCP handshake and then stalls mid-protocol waits **forever** —
+/// there is no retry budget to run out.
+///
+/// Twenty seconds covers a slow link and a busy server with room to spare, and
+/// is far inside the point where a person decides the application has hung.
+/// Deliberately not applied to the session once it is open: this is a client
+/// people leave connected and idle for hours, and an inactivity timeout there
+/// would close the terminal they walked away from.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
+
 #[derive(Debug, thiserror::Error)]
 pub enum ConnectionError {
     #[error("the host could not be reached")]
     Unreachable,
+
+    /// The host did not finish connecting inside [`CONNECT_TIMEOUT`].
+    ///
+    /// Distinct from [`Unreachable`](Self::Unreachable) because the two are not
+    /// the same event and must not read as if they were: nothing answering at a
+    /// port is a host that is down or a port that is wrong, while a timeout is
+    /// most often a host that answered and then stopped talking — a firewall
+    /// swallowing the reply, or a server too loaded to finish the handshake.
+    #[error("the host did not answer in time")]
+    TimedOut,
 
     /// The host key is not one we already trust. Carries the verdict so the
     /// caller can prompt, block, or refuse — see [`Trust`].
@@ -189,6 +214,23 @@ pub async fn connect(endpoint: Endpoint, known: KnownHosts) -> Result<Connection
         .map_err(|(error, _)| error)
 }
 
+/// [`connect`], with the timeout named by the caller.
+///
+/// Exists so the timeout can be *tested* rather than trusted. A test that
+/// proves a stalled handshake gives up has to wait for it, and waiting
+/// [`CONNECT_TIMEOUT`] would put twenty seconds on every CI run — so the
+/// duration is a parameter here and a constant at the one call site that
+/// matters.
+pub async fn connect_within(
+    endpoint: Endpoint,
+    known: KnownHosts,
+    timeout: Duration,
+) -> Result<Connection, ConnectionError> {
+    connect_reporting_within(endpoint, known, timeout)
+        .await
+        .map_err(|(error, _)| error)
+}
+
 /// Connects, and on a host key refusal hands back what was offered.
 ///
 /// The caller needs the key itself, not only the verdict: accepting it later
@@ -197,6 +239,16 @@ pub async fn connect(endpoint: Endpoint, known: KnownHosts) -> Result<Connection
 pub async fn connect_reporting(
     endpoint: Endpoint,
     known: KnownHosts,
+) -> Result<Connection, (ConnectionError, Option<OfferedKey>)> {
+    connect_reporting_within(endpoint, known, CONNECT_TIMEOUT).await
+}
+
+/// [`connect_reporting`], with the timeout named by the caller. See
+/// [`connect_within`] for why that is a parameter at all.
+pub async fn connect_reporting_within(
+    endpoint: Endpoint,
+    known: KnownHosts,
+    timeout: Duration,
 ) -> Result<Connection, (ConnectionError, Option<OfferedKey>)> {
     let config = Arc::new(client::Config::default());
     let address = (endpoint.host.clone(), endpoint.port);
@@ -210,9 +262,15 @@ pub async fn connect_reporting(
 
     let taken = || offered.lock().ok().and_then(|mut slot| slot.take());
 
-    match client::connect(config, address, checker).await {
-        Ok(handle) => Ok(Connection { handle }),
-        Err(russh::Error::UnknownKey) => {
+    let attempt = tokio::time::timeout(timeout, client::connect(config, address, checker));
+
+    match attempt.await {
+        /* The timeout fires and the future is dropped, which closes the socket
+        with it. Nothing is left running for the two minutes the kernel would
+        otherwise spend, and nothing is left half-negotiated on the server. */
+        Err(_elapsed) => Err((ConnectionError::TimedOut, taken())),
+        Ok(Ok(handle)) => Ok(Connection { handle }),
+        Ok(Err(russh::Error::UnknownKey)) => {
             let seen = taken();
             let verdict = seen.as_ref().map_or(
                 Trust::Unknown {
@@ -223,8 +281,8 @@ pub async fn connect_reporting(
             );
             Err((ConnectionError::HostKeyRejected(Box::new(verdict)), seen))
         }
-        Err(russh::Error::IO(_)) => Err((ConnectionError::Unreachable, None)),
-        Err(_) => Err((ConnectionError::Transport, taken())),
+        Ok(Err(russh::Error::IO(_))) => Err((ConnectionError::Unreachable, None)),
+        Ok(Err(_)) => Err((ConnectionError::Transport, taken())),
     }
 }
 

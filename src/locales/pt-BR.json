@@ -54,6 +54,8 @@
   "failure.revoked.body": "Esta conexão foi recusada e não pode ser aceita. Nada foi enviado ao host.",
   "failure.rsaRefused.body": "Um ataque de temporização sobre assinatura RSA não tem versão corrigida disponível, então o Runic SSH não assina com uma. Uma chave Ed25519 ou ECDSA funciona. Veja a ADR-0010.",
   "failure.rsaRefused.title": "Chaves privadas RSA são recusadas",
+  "failure.timeout.body": "Ou alguma coisa respondeu nesse endereço, ou nada respondeu, e a conexão nunca terminou. Um firewall que descarta a resposta e um servidor ocupado demais para concluir o handshake parecem a mesma coisa daqui.",
+  "failure.timeout.title": "O host não respondeu a tempo",
   "failure.transport.body": "O host respondeu e a conversa SSH não se completou. Ele pode ter derrubado a conexão, ou estar rodando algo que não é um servidor SSH.",
   "failure.transport.title": "A conexão falhou",
   "failure.unexpected.body": "O Runic SSH não tem resposta melhor que esta. O código abaixo nomeia a falha exatamente, e serve para um relato de bug.",

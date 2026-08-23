@@ -146,6 +146,10 @@ pub enum IpcError {
 
     /// The host could not be reached at all.
     HostUnreachable,
+    /// The host did not finish connecting inside the client's own timeout.
+    /// Separate from `HostUnreachable` because the host usually *did* answer:
+    /// see `ssh::connection::CONNECT_TIMEOUT` and ADR-0016.
+    ConnectTimedOut,
     /// The host key is not trusted. `verdict` names which of the five outcomes
     /// it was, so the interface can prompt, block or explain — the fingerprints
     /// travel with it because the user has to compare them by eye.
@@ -286,6 +290,7 @@ impl From<crate::ssh::connection::ConnectionError> for IpcError {
 
         match error {
             Ssh::Unreachable => Self::HostUnreachable,
+            Ssh::TimedOut => Self::ConnectTimedOut,
             Ssh::KeyUnreadable => Self::KeyUnreadable,
             Ssh::RsaKeyRefused => Self::RsaKeyRefused,
             Ssh::AuthenticationFailed => Self::AuthenticationFailed,

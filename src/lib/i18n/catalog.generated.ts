@@ -60,6 +60,8 @@ export const SOURCE_CATALOG = {
   "failure.revoked.body": "This connection was refused and cannot be accepted. Nothing was sent to the host.",
   "failure.rsaRefused.body": "A timing attack on RSA signing has no fixed version available, so Runic SSH will not sign with one. An Ed25519 or ECDSA key works. See ADR-0010.",
   "failure.rsaRefused.title": "RSA private keys are refused",
+  "failure.timeout.body": "Something answered at that address, or nothing did, and the connection never finished. A firewall that drops the reply and a server too busy to complete the handshake both look like this.",
+  "failure.timeout.title": "The host did not answer in time",
   "failure.transport.body": "The host answered, and the SSH conversation did not finish. It may have dropped the connection, or be running something that is not an SSH server.",
   "failure.transport.title": "The connection failed",
   "failure.unexpected.body": "Runic SSH does not have a better answer than this. The code below names the failure exactly, and belongs in a bug report.",
