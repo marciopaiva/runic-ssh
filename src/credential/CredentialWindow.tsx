@@ -63,8 +63,11 @@ export function CredentialWindow({ request }: { readonly request: number | null 
     if (prompt !== null) first.current?.focus();
   }, [prompt, method]);
 
+  /* Always calls, even with no request. The window's error state is reached
+     when it could not find one, and that is the state where this button is the
+     only thing left. The core closes the window either way. */
   const cancel = (): void => {
-    if (request !== null) void dismissCredential(request);
+    void dismissCredential(request);
   };
 
   useEffect(() => {

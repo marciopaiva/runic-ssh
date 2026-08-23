@@ -163,13 +163,26 @@ pub async fn submit_credential(
     }
 }
 
-/// The user cancelled.
+/// The user cancelled, or the window has nothing it can do.
+///
+/// The request is optional, and the window is closed either way. That is not a
+/// convenience: the prompt reaches its error state precisely when it could not
+/// find its request, and a Cancel button that needs a request to work is inert
+/// in the one state where it is the only thing left. Shipped exactly that once
+/// — a window whose only button did nothing.
 #[tauri::command]
-pub async fn dismiss_credential(
+pub async fn dismiss_credential<R: Runtime>(
+    app: AppHandle<R>,
     requests: State<'_, CredentialRequests>,
-    request: RequestId,
+    request: Option<RequestId>,
 ) -> Result<(), IpcError> {
-    requests.answer(request, Answer::Dismissed).await;
+    if let Some(request) = request {
+        requests.answer(request, Answer::Dismissed).await;
+    }
+
+    /* Closed by the core rather than by the window, so the window needs no
+    permission to close itself and its capability can stay empty. */
+    close_window(&app);
     Ok(())
 }
 
