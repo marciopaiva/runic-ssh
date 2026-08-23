@@ -124,4 +124,30 @@ describe('the credential window', () => {
 
     expect(config).toContain('credential.html');
   });
+
+  it('never renders a rejection from the call that carried the secret', () => {
+    /* CLAUDE.md 7.2, in the one place it is easiest to break by accident. A
+       rejection that did not come from the core — the bridge failing, serde
+       refusing to read an argument — is exactly the kind that quotes what it
+       could not read, and the argument here is the password. Stringifying it
+       would put the secret on the screen and in the DOM.
+
+       The fetch above it may stringify: that call carries a request id. This
+       checks only the handler that follows `submitCredential`. */
+    const source = readFileSync(resolve(root, 'src/credential/CredentialWindow.tsx'), 'utf8');
+    const start = source.indexOf('submitCredential(');
+
+    expect(start, 'the submit call moved or was renamed').toBeGreaterThan(-1);
+
+    const handler = source
+      .slice(start, source.indexOf('.finally(', start))
+      /* Comments out, or this matches the one explaining why the code does
+         not do it. */
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/.*$/gm, '');
+
+    expect(handler.length, 'the catch handler could not be located').toBeGreaterThan(0);
+    expect(handler).not.toMatch(/String\s*\(\s*rejection/);
+    expect(handler).not.toMatch(/JSON\.stringify/);
+  });
 });
