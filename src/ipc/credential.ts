@@ -58,6 +58,13 @@ export async function submitCredential(
   });
 }
 
-export async function dismissCredential(request: number): Promise<void> {
+/**
+ * Cancels, and closes the window.
+ *
+ * The request is optional because the window's error state is reached exactly
+ * when it could not find its request — and a Cancel that needs one is inert in
+ * the only state where it is the last thing left.
+ */
+export async function dismissCredential(request: number | null): Promise<void> {
   return invoke<void>('dismiss_credential', { request });
 }
