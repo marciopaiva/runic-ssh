@@ -80,7 +80,14 @@ export type IpcError =
    */
   | { readonly code: 'credentialDismissed' }
   /** The prompt window could not be opened, so nobody could have answered. */
-  | { readonly code: 'promptUnavailable' };
+  | { readonly code: 'promptUnavailable' }
+  /**
+   * A window control we drew could not do what it was asked.
+   *
+   * Reported rather than dropped: a control that fails silently is
+   * indistinguishable from one that was never wired up.
+   */
+  | { readonly code: 'windowActionRefused' };
 
 export type IpcErrorCode = IpcError['code'];
 
@@ -122,6 +129,7 @@ export const CODES: ReadonlySet<IpcErrorCode> = new Set<IpcErrorCode>([
   'unknownRequest',
   'credentialDismissed',
   'promptUnavailable',
+  'windowActionRefused',
 ]);
 
 /**

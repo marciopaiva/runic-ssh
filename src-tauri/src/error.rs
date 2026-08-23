@@ -113,6 +113,13 @@ pub enum Error {
     /// cannot arrive looks like the application has hung.
     #[error("the credential prompt could not be opened")]
     PromptUnavailable,
+
+    /// A window control we drew could not do what it was asked. Reported
+    /// rather than dropped: a control that fails silently is indistinguishable
+    /// from one that was never wired up, which is how a window nobody could
+    /// close went unnoticed.
+    #[error("the window refused the action")]
+    WindowActionRefused,
 }
 
 /// A failure as the webview sees it: a code, and the fields it needs to render
@@ -193,6 +200,8 @@ pub enum IpcError {
     CredentialDismissed,
     /// The prompt window could not be opened at all.
     PromptUnavailable,
+    /// A window control we drew could not do what it was asked.
+    WindowActionRefused,
     /// A saved session was rejected; `field` names which part.
     InvalidSession {
         field: String,
@@ -243,6 +252,7 @@ impl From<Error> for IpcError {
             Error::UnknownRequest => Self::UnknownRequest,
             Error::CredentialDismissed => Self::CredentialDismissed,
             Error::PromptUnavailable => Self::PromptUnavailable,
+            Error::WindowActionRefused => Self::WindowActionRefused,
         }
     }
 }

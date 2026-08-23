@@ -36,16 +36,34 @@ export async function windowChrome(): Promise<WindowChrome> {
   return invoke<WindowChrome>('window_chrome');
 }
 
+/**
+ * Acts on this window.
+ *
+ * Through a command of ours rather than through `@tauri-apps/api/window`. The
+ * capability gets narrower — the webview no longer needs a permanent grant to
+ * minimise, maximise or close — and a control that cannot be refused cannot
+ * fail silently, which is what these did: the rejection was swallowed and the
+ * button simply appeared not to work.
+ *
+ * Which window is not sent. The core acts on the one that called, so this
+ * cannot name another: a label here would let the document that renders a
+ * host's output close the credential prompt, which is the reach ADR-0008 keeps
+ * away from it. The literals below are pinned in commands/chrome.rs.
+ */
+async function act(request: 'minimize' | 'toggleMaximize' | 'close'): Promise<void> {
+  return invoke<void>('window_action', { request });
+}
+
 export async function minimizeWindow(): Promise<void> {
-  await getCurrentWindow().minimize();
+  return act('minimize');
 }
 
 export async function toggleMaximizeWindow(): Promise<void> {
-  await getCurrentWindow().toggleMaximize();
+  return act('toggleMaximize');
 }
 
 export async function closeWindow(): Promise<void> {
-  await getCurrentWindow().close();
+  return act('close');
 }
 
 export async function isWindowMaximized(): Promise<boolean> {

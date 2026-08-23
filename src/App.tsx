@@ -40,7 +40,7 @@ const TERMINAL_PANEL = 'terminal-panel';
  */
 export function App(): JSX.Element {
   const { sessions, setState, attach, reload } = useSessions();
-  const { chrome, maximized, act } = useChrome();
+  const { chrome, maximized, act, refused } = useChrome();
   const { i18n, chosen, choose } = useLocale();
   const [selected, setSelected] = useState<string | null>(null);
   const [active, setActive] = useState<string | null>(null);
@@ -229,6 +229,17 @@ export function App(): JSX.Element {
           )}
         </main>
       </div>
+
+      {refused !== null && (
+        /* A window control that could not act used to look exactly like one
+           that was not wired up. */
+        <p
+          role="alert"
+          className="bg-danger-soft text-danger-text border-line-subtle shrink-0 border-t px-3 py-1 text-center font-mono text-[11px]"
+        >
+          {refused}
+        </p>
+      )}
 
       <StatusBar
         kind={activeTab?.kind ?? null}
