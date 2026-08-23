@@ -1,35 +1,304 @@
 {
   "pages": [
-    { "id": "page-1", "name": "Interface" },
-    { "id": "page-2", "name": "Idiomas" }
+    {
+      "id": "page-1",
+      "name": "Interface"
+    },
+    {
+      "id": "page-2",
+      "name": "Idiomas"
+    }
   ],
   "artboards": [
-    { "file": "Main.dc.html", "page": "page-1", "x": 0, "y": 0, "w": 1440, "h": 900, "title": "Main window — dark" },
-    { "file": "MainLight.dc.html", "page": "page-1", "x": 1560, "y": 0, "w": 1440, "h": 900, "title": "Main window — light" },
-    { "file": "Sftp.dc.html", "page": "page-1", "x": 0, "y": 1020, "w": 1440, "h": 900, "title": "SFTP dual pane" },
-    { "file": "Palette.dc.html", "page": "page-1", "x": 1560, "y": 1020, "w": 1440, "h": 900, "title": "Command palette" },
-    { "file": "Appearance.dc.html", "page": "page-1", "x": 0, "y": 2040, "w": 1440, "h": 900, "title": "Settings — appearance & tokens" },
-    { "file": "Sidebar.dc.html", "page": "page-1", "x": 1560, "y": 2040, "w": 480, "h": 900, "title": "Sessions sidebar" },
-    { "file": "HostKey.dc.html", "page": "page-1", "x": 0, "y": 3060, "w": 940, "h": 640, "title": "Host key — unknown (en)" },
-    { "file": "HostKeyChanged.dc.html", "page": "page-1", "x": 1060, "y": 3060, "w": 940, "h": 640, "title": "Host key — changed (en)" },
-
-    { "file": "MainPtBr.dc.html", "page": "page-2", "x": 0, "y": 0, "w": 1440, "h": 900, "title": "Main window — pt-BR" },
-    { "file": "MainEs.dc.html", "page": "page-2", "x": 1560, "y": 0, "w": 1440, "h": 900, "title": "Main window — es" },
-    { "file": "HostKeyPtBr.dc.html", "page": "page-2", "x": 0, "y": 1020, "w": 940, "h": 640, "title": "Host key unknown — pt-BR" },
-    { "file": "HostKeyEs.dc.html", "page": "page-2", "x": 1060, "y": 1020, "w": 940, "h": 640, "title": "Host key unknown — es" },
-    { "file": "HostKeyChangedPtBr.dc.html", "page": "page-2", "x": 2120, "y": 1020, "w": 940, "h": 640, "title": "Host key changed — pt-BR" },
-    { "file": "HostKeyChangedEs.dc.html", "page": "page-2", "x": 3180, "y": 1020, "w": 940, "h": 640, "title": "Host key changed — es" }
+    {
+      "file": "Main.dc.html",
+      "page": "page-1",
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 900,
+      "title": "Main window — dark"
+    },
+    {
+      "file": "MainLight.dc.html",
+      "page": "page-1",
+      "x": 1560,
+      "y": 0,
+      "w": 1440,
+      "h": 900,
+      "title": "Main window — light"
+    },
+    {
+      "file": "Sftp.dc.html",
+      "page": "page-1",
+      "x": 0,
+      "y": 1020,
+      "w": 1440,
+      "h": 900,
+      "title": "SFTP dual pane"
+    },
+    {
+      "file": "Palette.dc.html",
+      "page": "page-1",
+      "x": 1560,
+      "y": 1020,
+      "w": 1440,
+      "h": 900,
+      "title": "Command palette"
+    },
+    {
+      "file": "Appearance.dc.html",
+      "page": "page-1",
+      "x": 0,
+      "y": 2040,
+      "w": 1440,
+      "h": 900,
+      "title": "Settings — appearance & tokens"
+    },
+    {
+      "file": "Sidebar.dc.html",
+      "page": "page-1",
+      "x": 1560,
+      "y": 2040,
+      "w": 480,
+      "h": 900,
+      "title": "Sessions sidebar"
+    },
+    {
+      "file": "HostKey.dc.html",
+      "page": "page-1",
+      "x": 0,
+      "y": 3060,
+      "w": 940,
+      "h": 640,
+      "title": "Host key — unknown (en)"
+    },
+    {
+      "file": "HostKeyChanged.dc.html",
+      "page": "page-1",
+      "x": 1060,
+      "y": 3060,
+      "w": 940,
+      "h": 640,
+      "title": "Host key — changed (en)"
+    },
+    {
+      "file": "MainPtBr.dc.html",
+      "page": "page-2",
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 900,
+      "title": "Main window — pt-BR"
+    },
+    {
+      "file": "MainEs.dc.html",
+      "page": "page-2",
+      "x": 1560,
+      "y": 0,
+      "w": 1440,
+      "h": 900,
+      "title": "Main window — es"
+    },
+    {
+      "file": "HostKeyPtBr.dc.html",
+      "page": "page-2",
+      "x": 0,
+      "y": 1020,
+      "w": 940,
+      "h": 640,
+      "title": "Host key unknown — pt-BR"
+    },
+    {
+      "file": "HostKeyEs.dc.html",
+      "page": "page-2",
+      "x": 1060,
+      "y": 1020,
+      "w": 940,
+      "h": 640,
+      "title": "Host key unknown — es"
+    },
+    {
+      "file": "HostKeyChangedPtBr.dc.html",
+      "page": "page-2",
+      "x": 2120,
+      "y": 1020,
+      "w": 940,
+      "h": 640,
+      "title": "Host key changed — pt-BR"
+    },
+    {
+      "file": "HostKeyChangedEs.dc.html",
+      "page": "page-2",
+      "x": 3180,
+      "y": 1020,
+      "w": 940,
+      "h": 640,
+      "title": "Host key changed — es"
+    },
+    {
+      "file": "Failure.dc.html",
+      "page": "page-1",
+      "x": 0,
+      "y": 4080,
+      "w": 1440,
+      "h": 900,
+      "title": "Connection failure — in the session panel"
+    },
+    {
+      "file": "HostKeyRefused.dc.html",
+      "page": "page-1",
+      "x": 1560,
+      "y": 4080,
+      "w": 1440,
+      "h": 900,
+      "title": "Host key refused — revoked"
+    },
+    {
+      "file": "SettingsSessions.dc.html",
+      "page": "page-1",
+      "x": 0,
+      "y": 5100,
+      "w": 1440,
+      "h": 900,
+      "title": "Settings — sessions"
+    },
+    {
+      "file": "Credential.dc.html",
+      "page": "page-1",
+      "x": 1560,
+      "y": 5100,
+      "w": 1000,
+      "h": 640,
+      "title": "Credential window — both methods"
+    },
+    {
+      "file": "States.dc.html",
+      "page": "page-1",
+      "x": 0,
+      "y": 6120,
+      "w": 1440,
+      "h": 1840,
+      "title": "Connecting, and nothing open"
+    },
+    {
+      "file": "Markers.dc.html",
+      "page": "page-1",
+      "x": 1560,
+      "y": 6120,
+      "w": 560,
+      "h": 420,
+      "title": "Connection state markers"
+    }
   ],
   "annotations": [
-    { "id": "brief", "page": "page-1", "x": 0, "y": -210, "w": 620, "text": "Runic SSH — visual direction\n\nWindows Terminal / VS Code density: custom titlebar carrying the session tabs, sessions sidebar always visible, status bar on the floor.\n\nPalette is lifted from assets/logo.png: navy base, cyan #1ea7e2 to violet #b961e6 for accent and brand. Type is Manrope for UI, JetBrains Mono for the terminal." },
-    { "id": "theme-note", "page": "page-1", "x": 1560, "y": -210, "w": 520, "text": "Light is the same token set with the values swapped, not a second design. Every surface, border and terminal color resolves from the table on the Settings artboard — that is what makes the v0.3 custom-theme promise cheap instead of a rewrite." },
-    { "id": "sidebar-note", "page": "page-1", "x": 2100, "y": 2040, "w": 340, "text": "Connection state is carried by one 6px dot in a fixed position, never by color alone: connected fills it, connecting outlines it amber, saved leaves it hollow, and a key mismatch replaces it with a warning glyph." },
-    { "id": "hostkey-note", "page": "page-1", "x": 2080, "y": 3060, "w": 360, "text": "Security rule 3 made visual.\n\nUnknown key: trusting is gated behind an out-of-band verification checkbox, so the primary button starts inert.\n\nChanged key: the safe action is the only filled button. The override is a low-contrast outline that stays dead until the host name is typed." },
-
-    { "id": "l10n-brief", "page": "page-2", "x": 0, "y": -230, "w": 640, "text": "Longest-language check — pt-BR and neutral es against the same layout\n\nThe screens on the Interface page were composed against English. These are the same artboards with the catalog swapped, at identical sizes, to find what breaks before any component is written. Terminal output stays English on purpose: remote text is never translated." },
-    { "id": "l10n-findings", "page": "page-2", "x": 3120, "y": -230, "w": 460, "text": "What the check found\n\nOne real break: the unknown-key footer put three buttons and the known_hosts note in one row, leaving about 24px of slack in pt-BR. The note moved above the buttons — in English too, since the layout is one layout.\n\nEverything else held. STAGING to HOMOLOGAÇÃO grows 55% and still fits the 264px sidebar; IMPRESSÃO DIGITAL SHA256 grows 47% and still fits its card." },
-    { "id": "l10n-intl", "page": "page-2", "x": 0, "y": 1780, "w": 520, "text": "2,4 MB in the status bar is not a translated string — it comes from Intl.NumberFormat reading the active locale. Both pt-BR and es use the decimal comma. This is the class of bug that gets reported as 'the numbers are wrong' when a project hardcodes English formatting." },
-    { "id": "l10n-security", "page": "page-2", "x": 2120, "y": 1780, "w": 520, "text": "These two dialogs are the security copy that CLAUDE.md section 1 now requires a native speaker to review before release. Nobody has been named for Spanish yet — that is the open thread from ADR-0007, and it blocks release, not implementation." }
+    {
+      "id": "brief",
+      "page": "page-1",
+      "x": 0,
+      "y": -210,
+      "w": 620,
+      "text": "Runic SSH — visual direction\n\nWindows Terminal / VS Code density: custom titlebar carrying the session tabs, sessions sidebar always visible, status bar on the floor.\n\nPalette is lifted from assets/logo.png: navy base, cyan #1ea7e2 to violet #b961e6 for accent and brand. Type is Manrope for UI, JetBrains Mono for the terminal."
+    },
+    {
+      "id": "theme-note",
+      "page": "page-1",
+      "x": 1560,
+      "y": -210,
+      "w": 520,
+      "text": "Light is the same token set with the values swapped, not a second design. Every surface, border and terminal color resolves from the table on the Settings artboard — that is what makes the v0.3 custom-theme promise cheap instead of a rewrite."
+    },
+    {
+      "id": "sidebar-note",
+      "page": "page-1",
+      "x": 2100,
+      "y": 2040,
+      "w": 340,
+      "text": "Connection state is carried by one 6px dot in a fixed position, never by colour alone: connected fills it, connecting outlines it amber with a halo, saved leaves it hollow, a key mismatch replaces it with a warning triangle, and unreachable replaces it with a slashed circle. The Markers artboard is the specimen sheet — five states, drawn once."
+    },
+    {
+      "id": "hostkey-note",
+      "page": "page-1",
+      "x": 2080,
+      "y": 3060,
+      "w": 360,
+      "text": "Security rule 3 made visual.\n\nUnknown key: trusting is gated behind an out-of-band verification checkbox, so the primary button starts inert.\n\nChanged key: the safe action is the only filled button. The override is a low-contrast outline that stays dead until the host name is typed."
+    },
+    {
+      "id": "l10n-brief",
+      "page": "page-2",
+      "x": 0,
+      "y": -230,
+      "w": 640,
+      "text": "Longest-language check — pt-BR and neutral es against the same layout\n\nThe screens on the Interface page were composed against English. These are the same artboards with the catalog swapped, at identical sizes, to find what breaks before any component is written. Terminal output stays English on purpose: remote text is never translated."
+    },
+    {
+      "id": "l10n-findings",
+      "page": "page-2",
+      "x": 3120,
+      "y": -230,
+      "w": 460,
+      "text": "What the check found\n\nOne real break: the unknown-key footer put three buttons and the known_hosts note in one row, leaving about 24px of slack in pt-BR. The note moved above the buttons — in English too, since the layout is one layout.\n\nEverything else held. STAGING to HOMOLOGAÇÃO grows 55% and still fits the 264px sidebar; IMPRESSÃO DIGITAL SHA256 grows 47% and still fits its card."
+    },
+    {
+      "id": "l10n-intl",
+      "page": "page-2",
+      "x": 0,
+      "y": 1780,
+      "w": 520,
+      "text": "2,4 MB in the status bar is not a translated string — it comes from Intl.NumberFormat reading the active locale. Both pt-BR and es use the decimal comma. This is the class of bug that gets reported as 'the numbers are wrong' when a project hardcodes English formatting."
+    },
+    {
+      "id": "l10n-security",
+      "page": "page-2",
+      "x": 2120,
+      "y": 1780,
+      "w": 520,
+      "text": "These two dialogs are the security copy that CLAUDE.md section 1 now requires a native speaker to review before release. Nobody has been named for Spanish yet — that is the open thread from ADR-0007, and it blocks release, not implementation."
+    },
+    {
+      "id": "failure-note",
+      "page": "page-1",
+      "x": 2100,
+      "y": 4080,
+      "w": 360,
+      "text": "Two variants, one frame. Twelve failures share this surface; four of them are not retryable — an RSA key we refuse, a revoked host key, a certificate-required host, and an unknown session — and those drop the Try again button rather than offering a press that cannot work.\n\nUnreachable is drawn cool, not red. A host being down is not a security event; a changed key is."
+    },
+    {
+      "id": "refused-note",
+      "page": "page-1",
+      "x": 3120,
+      "y": 4080,
+      "w": 360,
+      "text": "Revoked and certificate-required end in no decision at all. There is one button and it cancels — offering an override would defeat the only purpose the marker has.\n\nCertificate-required swaps the title and the sentence; everything else on this artboard holds."
+    },
+    {
+      "id": "credential-note",
+      "page": "page-1",
+      "x": 2620,
+      "y": 5100,
+      "w": 360,
+      "text": "The only surface outside the main window, and not for looks: rule 1 of section 7 keeps secrets out of the document that renders terminal output, so a modal inside the webview would be exactly as forbidden as an inline panel.\n\nIt gets the application's chrome anyway. Raw GTK next to this palette reads as a phishing prompt, which is the opposite of what a password field should read as."
+    },
+    {
+      "id": "states-note",
+      "page": "page-1",
+      "x": 1560,
+      "y": 7000,
+      "w": 380,
+      "text": "Connecting had no drawing and therefore no design: the built application showed an empty panel and one word in the status bar for as long as the TCP stack took to give up.\n\nThe surface names the host, says what has and has not been sent yet, and offers Cancel — an affordance the implementation does not have at all today."
+    },
+    {
+      "id": "markers-note",
+      "page": "page-1",
+      "x": 2180,
+      "y": 6120,
+      "w": 340,
+      "text": "Drawn because the sidebar annotation specified four states and the code has five. `unreachable` existed only as a choice somebody made while implementing, which is how a design system stops being one."
+    }
   ],
-  "launch": { "view": "canvas", "page": "page-2" }
+  "launch": {
+    "view": "canvas",
+    "page": "page-2"
+  }
 }
