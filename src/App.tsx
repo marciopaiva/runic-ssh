@@ -374,7 +374,12 @@ export function App(): JSX.Element {
         <main
           id={TERMINAL_PANEL}
           role="tabpanel"
-          className="bg-surface-terminal relative min-w-0 flex-1"
+          /* `overflow-hidden` is not tidying. xterm sizes its screen to a whole
+             number of rows, and the remainder — up to one cell height — is
+             painted past the bottom of this box and over the status bar, which
+             is where the bar appeared to be cut off. Clipping here bounds the
+             terminal to its panel whatever the fit arithmetic rounds to. */
+          className="bg-surface-terminal relative min-w-0 flex-1 overflow-hidden"
         >
           {mounted.map((terminal) => (
             <TerminalView
