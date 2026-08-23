@@ -30,6 +30,51 @@ podman run -d --name runic-test-sshd -p 2222:2222 runic-test-sshd
 cargo test --test against_openssh -- --ignored --nocapture
 ```
 
+## Driving the application against it
+
+The same container is the only way to reach the credential prompt by hand. The
+prompt opens from `authenticate_interactively`, which runs after a connection is
+open and the server has asked for a credential — so no amount of clicking gets
+there without a server that asks.
+
+Save a session against it, connect, accept the host key, and the prompt window
+opens. That path found a bug three passing tests did not: `prompt_url` was
+correct and tested, and `open_window` built the URL a second time and got it
+wrong, so every prompt opened onto "this prompt is no longer valid".
+
+Two things about the container matter when driving it rather than testing it:
+
+* **Host keys change every time it is recreated**, which is the point (see
+  below) and a nuisance here — a recreated container makes a saved session hit
+  the changed-key block instead of the prompt. Publish it on a second port
+  rather than clearing `known_hosts`; a port with no entry takes the
+  unknown-key path, and the entry you already trust stays valid.
+* **The fingerprint is worth checking by eye**, since this is the one screen
+  where the application's own computation is the thing under test:
+
+  ```sh
+  ssh-keyscan -p 2222 -t ed25519 127.0.0.1 | ssh-keygen -lf -
+  ```
+
+### On WSL2
+
+WSLg runs Xwayland without a window manager, so there is no keyboard focus for
+anything to be delivered to: `xdotool` clicks land, and typing goes nowhere.
+Minimising also does nothing, because the compositor does not iconify — which is
+indistinguishable from a broken button and will send you chasing one.
+
+Run the application on a display of its own instead, with a window manager on
+it, and both work:
+
+```sh
+Xvfb :99 -screen 0 1600x1000x24 -nolisten tcp &
+DISPLAY=:99 openbox &
+DISPLAY=:99 GDK_BACKEND=x11 pnpm tauri dev
+```
+
+`import -window <id>` screenshots it and `xdotool` drives it, both with
+`DISPLAY=:99`. Nothing touches the desktop the developer is using.
+
 ## Why a container rather than a public test server
 
 Three public servers were checked on 2026-08-22:
