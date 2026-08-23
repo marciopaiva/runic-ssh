@@ -2,6 +2,8 @@ import { useCallback, useMemo, useState } from 'react';
 import type { JSX } from 'react';
 
 import { CommandPalette } from './components/CommandPalette';
+import { ConnectingSurface } from './components/ConnectingSurface';
+import { EmptyPanel } from './components/EmptyPanel';
 import { HostKeyBlocked } from './components/HostKeyBlocked';
 import { ConnectionFailure } from './components/ConnectionFailure';
 import { HostKeyPrompt } from './components/HostKeyPrompt';
@@ -16,7 +18,7 @@ import { actionCommands, sessionCommands, usePalette } from './features/commands
 import type { CommandContext } from './features/commands';
 import { focusAfter, focusedSession, openTabs, resolveFocus, tabAfterClosing, useChrome, windowControls } from './features/chrome';
 import type { Focus } from './features/chrome';
-import { isOverridable, needsConfirmation, useConnect, useSessionEditor, useSessions } from './features/sessions';
+import { isInProgress, isOverridable, needsConfirmation, useConnect, useSessionEditor, useSessions } from './features/sessions';
 import type { SessionAction } from './features/sessions';
 import type { SettingsSection } from './components/SettingsPanel';
 import { deleteSession, disconnectSession, saveSession } from './ipc';
@@ -70,6 +72,9 @@ export function App(): JSX.Element {
          marker says which. Collapsing them would hide the one that matters. */
       setState(sessionId, code === 'hostKeyDecision' ? 'keyMismatch' : 'unreachable');
     },
+    /* Back to a plain stored host. Nothing was learned about it — the attempt
+       was let go, not answered — so anything else would be a claim. */
+    onAbandoned: (sessionId) => setState(sessionId, 'saved'),
   });
 
   /* The session an unresolved attempt names. It keeps its tab so that the
@@ -175,6 +180,22 @@ export function App(): JSX.Element {
           keyType={decision.keyType}
           fingerprint={decision.offered}
           onTrust={() => void trust()}
+          onCancel={abandon}
+        />
+      );
+    }
+
+    /* Only reached while the attempt is still running. A cancel here bumps the
+       generation in `useConnect`, so the answer that eventually arrives is
+       dropped rather than reopening this panel. */
+    if (isInProgress(attempt.stage)) {
+      const live = sessions.find((entry) => entry.session.id === attempt.sessionId);
+      if (live === undefined) return null;
+
+      return (
+        <ConnectingSurface
+          session={live.session}
+          stage={attempt.stage.stage === 'authenticating' ? 'authenticating' : 'connecting'}
           onCancel={abandon}
         />
       );
@@ -338,6 +359,15 @@ export function App(): JSX.Element {
               onSize={setSize}
             />
           ))}
+
+          {/* Nothing open at all. A blank panel beside a blank tab strip is
+              indistinguishable from a window that failed to paint, and it is
+              the first thing a new user meets. */}
+          {tabs.length === 0 && !settingsOpen && attemptSurface === null && (
+            <div className="absolute inset-0">
+              <EmptyPanel modifier={chrome?.commandModifier ?? 'control'} />
+            </div>
+          )}
 
           {settingsOpen && (
             /* Mounted for as long as the tab is on the strip, and hidden the

@@ -45,6 +45,20 @@ export function HostKeyRefused({
       title={i18n.t(revoked ? 'hostKey.revoked.title' : 'hostKey.certificate.title')}
       tone="danger"
       alert
+      icon={
+        <svg viewBox="0 0 16 16" className="h-[19px] w-[19px]" fill="none" aria-hidden="true">
+          <path
+            d="M8 1.8l5.4 2.2v3.6c0 3.2-2.2 5.6-5.4 6.6-3.2-1-5.4-3.4-5.4-6.6V4z"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinejoin="round"
+          />
+          <path d="M4.6 4.6l6.8 6.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+      }
+      /* Said out loud because it is the one thing the user wants to know and
+         cannot see: the attempt stopped at the key, before any credential. */
+      note={i18n.t('hostKey.refused.note')}
       body={
         revoked ? i18n.t('hostKey.revoked.body') : i18n.t('hostKey.certificate.body', { host })
       }

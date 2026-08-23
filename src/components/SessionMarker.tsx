@@ -47,9 +47,13 @@ export function SessionMarker({ kind }: { readonly kind: ConnectionKind }): JSX.
         </svg>
       )}
 
+      {/* A slashed circle, not a bare cross. Every tab and every row already
+          carries a close X, and a state marker shaped like the button beside
+          it is a state marker nobody reads. */}
       {state.shape === 'crossed' && (
         <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" aria-hidden="true">
-          <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          <circle cx="8" cy="8" r="5.6" stroke="currentColor" strokeWidth="1.5" />
+          <path d="M5.6 5.6l4.8 4.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
       )}
     </span>

@@ -42,6 +42,17 @@ export function ConnectionFailure({
       titleId="connection-failure-title"
       title={i18n.t(failure.title)}
       alert
+      /* One icon for twelve failures, on purpose: the message names the cause,
+         and a different glyph per code would be twelve things to learn for no
+         information the sentence does not already carry. Cool rather than red —
+         a host being down is not a security event, and `state.ts` draws the
+         marker the same way for the same reason. */
+      icon={
+        <svg viewBox="0 0 16 16" className="h-[19px] w-[19px]" fill="none" aria-hidden="true">
+          <circle cx="8" cy="8" r="5.8" stroke="currentColor" strokeWidth="1.5" />
+          <path d="M5.4 5.4l5.2 5.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+      }
       body={i18n.t(failure.body)}
       note={
         <span className="font-mono">
