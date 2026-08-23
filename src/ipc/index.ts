@@ -13,6 +13,7 @@ export {
   onWindowResized,
   toggleMaximizeWindow,
   windowChrome,
+  setNativeDecorations,
 } from './chrome';
 export type { CommandModifier, WindowChrome, WindowControlsOwner } from './chrome';
 export type { IpcError, IpcErrorCode } from './errors';

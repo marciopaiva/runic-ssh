@@ -76,6 +76,8 @@ export const SOURCE_CATALOG = {
   "command.window.maximize": "Maximize window",
   "command.window.restore": "Restore window",
   "command.window.close": "Close window",
+  "command.window.nativeDecorations": "Use the system title bar",
+  "command.window.drawnDecorations": "Use the app's title bar",
   "command.language.use": "Language: {name}",
   "command.language.system": "Language: follow the system",
   "credential.title": "Authentication required",

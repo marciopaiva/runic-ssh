@@ -10,6 +10,8 @@ import { invoke } from '@tauri-apps/api/core';
 export interface SettingsView {
   /** The locale the user chose, or `null` to follow the operating system. */
   readonly locale: string | null;
+  /** Whether the window manager draws the title bar (ADR-0005's escape hatch). */
+  readonly nativeDecorations: boolean;
 }
 
 export async function getSettings(): Promise<SettingsView> {

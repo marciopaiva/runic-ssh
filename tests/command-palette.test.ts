@@ -48,6 +48,7 @@ function actions(): CommandActions & { readonly calls: string[] } {
     moveTab: (step) => calls.push(`move:${step}`),
     window: (action) => calls.push(`window:${action}`),
     chooseLocale: (locale) => calls.push(`locale:${locale ?? 'system'}`),
+    useNativeDecorations: (native) => calls.push(`decorations:${native}`),
   };
 }
 
@@ -58,6 +59,7 @@ function context(overrides: Partial<CommandContext> = {}): CommandContext {
     tabs: [],
     activeId: null,
     chosenLocale: null,
+    nativeDecorations: false,
     maximized: false,
     actions: actions(),
     ...overrides,
@@ -333,5 +335,78 @@ describe('what the palette offers', () => {
     );
 
     expect(titles).toContain('Minimizar janela');
+  });
+});
+
+describe('the window decoration hatch', () => {
+  it('offers the system title bar while the app is drawing its own', () => {
+    /* ADR-0005 turned decorations off and named this the escape hatch for a
+       window manager that leaves an undecorated window impossible to resize.
+       The palette is the only way to reach it — there is no settings panel —
+       and it opens from the keyboard, which matters when the window itself
+       cannot be moved. */
+    const entry = actionCommands(context({ nativeDecorations: false })).find(
+      (command) => command.id === 'chrome:decorations',
+    );
+
+    expect(entry?.title).toBe('Use the system title bar');
+  });
+
+  it('offers the way back once the system is drawing it', () => {
+    /* A one-way door would strand a user who tried it and preferred the
+       design, with no way back except editing settings.json by hand. */
+    const entry = actionCommands(context({ nativeDecorations: true })).find(
+      (command) => command.id === 'chrome:decorations',
+    );
+
+    expect(entry?.title).toBe("Use the app's title bar");
+  });
+
+  it('asks for the opposite of what is in force', () => {
+    const called = actions();
+
+    actionCommands(context({ nativeDecorations: false, actions: called }))
+      .find((command) => command.id === 'chrome:decorations')
+      ?.run();
+    actionCommands(context({ nativeDecorations: true, actions: called }))
+      .find((command) => command.id === 'chrome:decorations')
+      ?.run();
+
+    expect(called.calls).toEqual(['decorations:true', 'decorations:false']);
+  });
+
+  it('is findable by what a stuck user would type, in three languages', () => {
+    /* Someone reaching for this is describing a symptom, not our vocabulary.
+       The keywords carry the Portuguese and Spanish words because the palette
+       matches on them and a translated title alone would not be found by a
+       user typing the English word, or the reverse. */
+    const entry = actionCommands(context()).find(
+      (command) => command.id === 'chrome:decorations',
+    );
+
+    for (const word of ['decorations', 'titlebar', 'decoracoes', 'decoraciones', 'barra']) {
+      expect(entry?.keywords).toContain(word);
+    }
+  });
+});
+
+describe('what a palette row can hold', () => {
+  it('keeps every detail short enough not to swallow its own title', () => {
+    /* Found by driving the app, not by reading. `detail` is drawn `shrink-0`
+       next to a title that is `truncate`, so a long detail does not wrap or
+       clip itself — it takes the row and truncates the title to nothing. The
+       first version of the decorations command shipped a sentence there and
+       rendered as a row with no title at all.
+
+       The bound is deliberately generous. This is not a style rule; it is the
+       point past which a row stops showing what it does. */
+    const rows = [
+      ...actionCommands(context()),
+      ...sessionCommands(context({ sessions: [live(session('a', 'alpha', 'host-a'))] })),
+    ];
+
+    for (const row of rows) {
+      expect(row.detail?.length ?? 0).toBeLessThanOrEqual(24);
+    }
   });
 });
