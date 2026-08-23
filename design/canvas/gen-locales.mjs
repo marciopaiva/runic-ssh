@@ -44,7 +44,7 @@ const hkPt = [
   ['>I verified this fingerprint out of band<', '>Verifiquei esta impressão digital por outro canal<'],
   ['>From the provider console, a configuration repository, or someone who runs the host.<',
    '>No console do provedor, num repositório de configuração, ou com quem administra o host.<'],
-  ['>Saved to <span class="mono">known_hosts</span>', '>Salvo em <span class="mono">known_hosts</span>'],
+  ['>Saved to <span class="mono">known_hosts</span>', '>Será salva em <span class="mono">known_hosts</span>'],
   ['>Cancel<', '>Cancelar<'],
   ['>Connect once<', '>Conectar uma vez<'],
   ['>Trust and connect<', '>Confiar e conectar<'],
