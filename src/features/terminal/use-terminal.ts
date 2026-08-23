@@ -16,8 +16,6 @@ import {
 } from '../../ipc';
 import type { SessionHandle } from '../../ipc';
 
-import { attachRenderer } from './renderer';
-import type { RendererKind } from './renderer';
 import { terminalTheme } from './theme';
 
 /** The grid the remote pty is drawing on. */
@@ -27,10 +25,6 @@ export interface TerminalSize {
 }
 
 export interface TerminalState {
-  /** Which renderer ended up drawing. Surfaced so settings can show it. */
-  readonly renderer: RendererKind | null;
-  /** Why the fallback was taken, if it was. */
-  readonly fallbackReason: string | null;
   /** The remote shell's exit status, once it has one. */
   readonly exitStatus: number | null;
   /**
@@ -54,8 +48,6 @@ export function useTerminal(
   handle: SessionHandle | null,
 ): TerminalState {
   const [state, setState] = useState<TerminalState>({
-    renderer: null,
-    fallbackReason: null,
     exitStatus: null,
     size: null,
   });
@@ -94,11 +86,7 @@ export function useTerminal(
       terminal.loadAddon(fit);
       terminal.open(container);
 
-      const choice = await attachRenderer(terminal, (reason) => {
-        setState((current) => ({ ...current, renderer: 'dom', fallbackReason: reason }));
-      });
       if (disposed) {
-        choice.dispose();
         terminal.dispose();
         return;
       }
@@ -106,8 +94,6 @@ export function useTerminal(
       fit.fit();
       setState((current) => ({
         ...current,
-        renderer: choice.kind,
-        fallbackReason: choice.reason ?? null,
         size: { columns: terminal.cols, rows: terminal.rows },
       }));
 
@@ -173,7 +159,6 @@ export function useTerminal(
         () => binary.dispose(),
         stopOutput,
         stopClosed,
-        () => choice.dispose(),
         () => terminal.dispose(),
       );
     };
