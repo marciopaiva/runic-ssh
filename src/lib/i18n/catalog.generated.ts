@@ -166,6 +166,8 @@ export const SOURCE_CATALOG = {
   "status.term": "Terminal type",
   "status.transfer": "Received {down}, sent {up}",
   "tabs.close": "Close {name}",
+  "tabs.editor.new": "New session",
+  "tabs.editor.unsaved": "Close the editor — it has unsaved changes",
   "tabs.empty": "No session open",
   "tabs.label": "Open sessions",
   "tabs.settings": "Settings",

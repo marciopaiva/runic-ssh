@@ -160,6 +160,8 @@
   "status.term": "Tipo de terminal",
   "status.transfer": "Recibido {down}, enviado {up}",
   "tabs.close": "Cerrar {name}",
+  "tabs.editor.new": "Nueva sesión",
+  "tabs.editor.unsaved": "Cerrar el editor — hay cambios sin guardar",
   "tabs.empty": "Ninguna sesión abierta",
   "tabs.label": "Sesiones abiertas",
   "tabs.settings": "Configuración",

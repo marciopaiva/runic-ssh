@@ -25,6 +25,17 @@ export type { Failure } from './failure';
 export { menuPosition, sessionMenu } from './menu';
 export type { MenuItem, SessionAction } from './menu';
 export { differs, editorValues, isDirty, targetSession } from './editor';
+export {
+  anyDirty,
+  blankEditor,
+  editorDirty,
+  editorKey,
+  findEditor,
+  settled,
+  typedInto,
+  updateEditor,
+  withEditor,
+  withoutEditor,
+} from './editors';
+export type { OpenEditor } from './editors';
 export type { EditorTarget } from './editor';
-export { useSessionEditor } from './use-editor';
-export type { SessionEditorState } from './use-editor';
