@@ -87,6 +87,15 @@ pub async fn open_terminal<R: Runtime>(
     columns: u16,
     rows: u16,
 ) -> Result<(), IpcError> {
+    /* The webview is our own code, and `docs/architecture.md` validates on this
+    side regardless of what it claims to have checked. Without this, a second
+    call opened a second shell and abandoned the first: it kept running, held a
+    pty, and counted against the server's MaxSessions, so a session stopped
+    being able to open a shell at all after about ten of them (#94). */
+    if registry.has_shell(handle).await {
+        return Err(Error::TerminalAlreadyOpen.into());
+    }
+
     let channel = registry
         .with(handle, |mut busy: Busy| async move {
             let result = busy.connection.open_shell(columns, rows).await;
