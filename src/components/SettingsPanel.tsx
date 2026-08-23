@@ -238,9 +238,12 @@ function SessionsSection({ settings }: { readonly settings: SessionsSettings }):
           <button
             type="button"
             onClick={onNew}
-            className="border-line-subtle text-ink-secondary hover:text-ink mb-1 rounded border border-dashed px-2 py-1.5 text-left text-[12px]"
+            className="border-line-subtle text-ink-secondary hover:text-ink mb-1.5 flex items-center justify-center gap-1.5 rounded-md border border-dashed py-2 text-[12px] font-semibold"
           >
-            + {i18n.t('settings.sessions.new')}
+            <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" aria-hidden="true">
+              <path d="M8 3.5v9M3.5 8h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+            {i18n.t('settings.sessions.new')}
           </button>
 
           {sessions.length === 0 ? (
@@ -254,9 +257,12 @@ function SessionsSection({ settings }: { readonly settings: SessionsSettings }):
                 type="button"
                 aria-current={session.id === editingId ? 'true' : undefined}
                 onClick={() => onEdit(session.id)}
-                className={`flex flex-col rounded px-2 py-1.5 text-left ${
+                /* The same inset accent bar the sidebar uses for the row it is
+                   on. A background tint alone reads as hover on a list this
+                   dense, and the form beside it belongs to exactly one row. */
+                className={`flex flex-col rounded-md px-2.5 py-2 text-left ${
                   session.id === editingId
-                    ? 'bg-surface-raised text-ink'
+                    ? 'bg-surface-raised text-ink shadow-[inset_2px_0_0_var(--color-accent)]'
                     : 'text-ink-secondary hover:text-ink'
                 }`}
               >

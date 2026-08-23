@@ -12,6 +12,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   heldDecision,
+  isInProgress,
   isOverridable,
   needsConfirmation,
   shouldPromptAfterSaved,
@@ -117,5 +118,38 @@ describe('a dismissed prompt', () => {
 
   it('is not confused with the host refusing the credential', () => {
     expect(wasCancelled('authenticationFailed')).toBe(false);
+  });
+});
+
+describe('what counts as still working', () => {
+  /* The connecting surface keys off this. Before it there was no surface at
+     all: the panel stayed empty and the status bar carried one word, for the
+     two minutes the TCP stack takes to give up on a host that does not answer
+     — and forever if the transport connects and the handshake stalls, because
+     `client::Config::default()` sets no timeout of any kind. */
+
+  it('is working while it reaches the host', () => {
+    expect(isInProgress({ stage: 'connecting' })).toBe(true);
+  });
+
+  it('is working while the credential window is open', () => {
+    expect(isInProgress({ stage: 'authenticating' })).toBe(true);
+  });
+
+  it('is not working while a host key is held', () => {
+    /* A spinner over the trust prompt would say the application is busy when
+       it is waiting on the user — and the prompt is the surface that must be
+       on screen, not covered by one. */
+    expect(
+      isInProgress({ stage: 'deciding', decision: { pending: 1, verdict: 'unknown' } }),
+    ).toBe(false);
+  });
+
+  it('is not working once it has failed', () => {
+    expect(isInProgress({ stage: 'failed', code: 'hostUnreachable' })).toBe(false);
+  });
+
+  it('is not working before anything started', () => {
+    expect(isInProgress({ stage: 'idle' })).toBe(false);
   });
 });

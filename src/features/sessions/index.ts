@@ -9,6 +9,7 @@ export type {
 } from './state';
 export {
   heldDecision,
+  isInProgress,
   isOverridable,
   needsConfirmation,
   shouldPromptAfterSaved,

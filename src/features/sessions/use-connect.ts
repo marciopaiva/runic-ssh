@@ -11,7 +11,7 @@
  * because that reads as the application having hung rather than as an error.
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import {
   asIpcError,
@@ -46,22 +46,59 @@ interface Wiring {
   readonly onOpened: (sessionId: string, handle: SessionHandle) => void;
   readonly onConnecting: (sessionId: string) => void;
   readonly onFailed: (sessionId: string, code: IpcErrorCode) => void;
+  /**
+   * Called when an attempt is let go without an answer.
+   *
+   * The session has to stop saying `connecting`, and only the caller knows
+   * what it was before. Without this the marker keeps its amber halo and
+   * `openTabs` keeps handing it a tab, so cancelling looked like nothing
+   * happened — found by cancelling a connection to a host that swallows the
+   * SYN, where the state is visible for the two minutes it takes to fail.
+   */
+  readonly onAbandoned: (sessionId: string) => void;
 }
 
 export function useConnect(wiring: Wiring): ConnectState {
   const [attempt, setAttempt] = useState<Attempt | null>(null);
-  const { onOpened, onConnecting, onFailed } = wiring;
+  /* Which attempt the answers still belong to.
+   *
+   * Nothing here can cancel an `await` that is already in flight — the core has
+   * no abort for a connect, and a TCP connect to a host that does not answer
+   * runs for about two minutes whatever the interface does. What abandoning
+   * *can* guarantee is that the answer, when it finally arrives, is thrown away
+   * instead of reopening a panel the user closed, or marking a session failed
+   * that they already walked away from.
+   *
+   * A connection that opens after being abandoned is closed rather than kept:
+   * it has no tab, so nothing could ever reach it, and leaving it open holds a
+   * channel on the server that nobody can see. */
+  const generation = useRef(0);
+  const { onOpened, onConnecting, onFailed, onAbandoned } = wiring;
+
+  const current = useCallback((mine: number): boolean => generation.current === mine, []);
 
   const fail = useCallback(
-    (sessionId: string, code: IpcErrorCode): void => {
+    (sessionId: string, code: IpcErrorCode, mine: number): void => {
+      if (!current(mine)) return;
+
       setAttempt({ sessionId, stage: { stage: 'failed', code }, decision: null });
       onFailed(sessionId, code);
     },
-    [onFailed],
+    [onFailed, current],
   );
 
   const authenticate = useCallback(
-    async (sessionId: string, handle: SessionHandle, credentialId: string | null): Promise<void> => {
+    async (
+      sessionId: string,
+      handle: SessionHandle,
+      credentialId: string | null,
+      mine: number,
+    ): Promise<void> => {
+      if (!current(mine)) {
+        void disconnectSession(handle);
+        return;
+      }
+
       setAttempt({ sessionId, stage: { stage: 'authenticating' }, decision: null });
 
       /* A saved credential is tried first and silently. Prompting for a
@@ -70,6 +107,10 @@ export function useConnect(wiring: Wiring): ConnectState {
       if (shouldTrySaved(credentialId)) {
         try {
           await authenticateWithSaved(handle);
+          if (!current(mine)) {
+            void disconnectSession(handle);
+            return;
+          }
           setAttempt(null);
           onOpened(sessionId, handle);
           return;
@@ -79,7 +120,7 @@ export function useConnect(wiring: Wiring): ConnectState {
             /* The connection is open and unusable. Closing it is the only
                way not to leave a socket nobody can reach. */
             void disconnectSession(handle);
-            fail(sessionId, code);
+            fail(sessionId, code, mine);
             return;
           }
         }
@@ -87,18 +128,25 @@ export function useConnect(wiring: Wiring): ConnectState {
 
       try {
         await authenticateInteractively(handle);
+        if (!current(mine)) {
+          void disconnectSession(handle);
+          return;
+        }
         setAttempt(null);
         onOpened(sessionId, handle);
       } catch (rejection) {
         void disconnectSession(handle);
-        fail(sessionId, asIpcError(rejection)?.code ?? 'sshTransport');
+        fail(sessionId, asIpcError(rejection)?.code ?? 'sshTransport', mine);
       }
     },
-    [fail, onOpened],
+    [fail, onOpened, current],
   );
 
   const attemptConnect = useCallback(
     async (sessionId: string, credentialId: string | null): Promise<void> => {
+      generation.current += 1;
+      const mine = generation.current;
+
       setAttempt({ sessionId, stage: { stage: 'connecting' }, decision: null });
       onConnecting(sessionId);
 
@@ -110,27 +158,26 @@ export function useConnect(wiring: Wiring): ConnectState {
         const held = error === null ? null : heldDecision(error);
 
         if (held === null) {
-          fail(sessionId, error?.code ?? 'sshTransport');
+          fail(sessionId, error?.code ?? 'sshTransport', mine);
           return;
         }
 
         /* The refusal is read back by id rather than from the error: the
            screens want the key type and the port too. */
         try {
-          setAttempt({
-            sessionId,
-            stage: { stage: 'deciding', decision: held },
-            decision: await readDecision(held.pending),
-          });
+          const decision = await readDecision(held.pending);
+          if (!current(mine)) return;
+
+          setAttempt({ sessionId, stage: { stage: 'deciding', decision: held }, decision });
         } catch {
-          fail(sessionId, 'unknownDecision');
+          fail(sessionId, 'unknownDecision', mine);
         }
         return;
       }
 
-      await authenticate(sessionId, opened.handle, credentialId);
+      await authenticate(sessionId, opened.handle, credentialId, mine);
     },
-    [authenticate, fail, onConnecting],
+    [authenticate, fail, onConnecting, current],
   );
 
   const connect = useCallback(
@@ -149,7 +196,7 @@ export function useConnect(wiring: Wiring): ConnectState {
       try {
         await trustHostKey(pending, confirmation);
       } catch (rejection) {
-        fail(sessionId, asIpcError(rejection)?.code ?? 'unknownDecision');
+        fail(sessionId, asIpcError(rejection)?.code ?? 'unknownDecision', generation.current);
         return;
       }
 
@@ -161,7 +208,13 @@ export function useConnect(wiring: Wiring): ConnectState {
     [attempt, attemptConnect, fail],
   );
 
-  const abandon = useCallback((): void => setAttempt(null), []);
+  /* Bumping the generation is what makes this a cancel rather than a hide: any
+     answer still in flight now belongs to nobody and is dropped on arrival. */
+  const abandon = useCallback((): void => {
+    generation.current += 1;
+    setAttempt(null);
+    if (attempt !== null) onAbandoned(attempt.sessionId);
+  }, [attempt, onAbandoned]);
 
   return { attempt, connect, trust, abandon };
 }

@@ -20,6 +20,18 @@ export type ConnectStage =
   | { readonly stage: 'authenticating' }
   | { readonly stage: 'failed'; readonly code: IpcErrorCode };
 
+/**
+ * Whether an attempt is still working, and should say so on screen.
+ *
+ * `deciding` is deliberately excluded: a held host key is not progress, it is a
+ * question, and showing a spinner over it would say the application is busy
+ * when it is in fact waiting on the user. `failed` is excluded for the same
+ * reason in reverse — it is an answer, not a wait.
+ */
+export function isInProgress(stage: ConnectStage): boolean {
+  return stage.stage === 'connecting' || stage.stage === 'authenticating';
+}
+
 /** Which host key screen a refusal calls for. */
 export type HostKeyVerdict = 'unknown' | 'changed' | 'revoked' | 'certificateRequired';
 
