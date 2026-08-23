@@ -47,6 +47,29 @@ macOS package builds on every run and **no one has installed it** — see
 Work is tracked in [issues](https://github.com/marciopaiva/runic-ssh/issues) and
 the decisions behind it in [`docs/adr/`](docs/adr/).
 
+## 📸 What it looks like
+
+Both captures are of the packaged application connected to a real SSH server —
+not mockups, and not the design canvas. The hosts are invented; the fingerprint,
+the shell and the output are not.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-main-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="assets/screenshot-main-light.png">
+  <img src="assets/screenshot-main-dark.png" alt="Runic SSH with a connected session: saved hosts grouped in the sidebar, a terminal, and a status bar" width="880">
+</picture>
+
+**An unknown host key.** The primary button starts inert and stays that way
+until you confirm you checked the fingerprint somewhere other than the
+connection asking to be trusted. Clicking through is the failure this screen
+exists to prevent, so it is not one click away.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-hostkey-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="assets/screenshot-hostkey-light.png">
+  <img src="assets/screenshot-hostkey-dark.png" alt="The unknown host key screen, showing the host, key type and SHA256 fingerprint, with the trust button disabled until an out-of-band verification checkbox is ticked" width="880">
+</picture>
+
 ## ⬇️ Downloads
 
 Installers for all three platforms are attached to each
