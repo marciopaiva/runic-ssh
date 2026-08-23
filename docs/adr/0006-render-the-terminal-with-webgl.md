@@ -1,6 +1,6 @@
 # ADR-0006: Render the terminal with the xterm.js WebGL addon, falling back to DOM
 
-* **Status**: Accepted — challenged by ADR-0011, which is not yet decided
+* **Status**: Superseded by [ADR-0011](0011-drop-the-webgl-renderer.md) on 2026-08-23
 * **Date**: 2026-08-22
 
 ## Context
