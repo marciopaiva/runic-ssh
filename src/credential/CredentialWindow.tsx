@@ -52,7 +52,13 @@ export function CredentialWindow({ request }: { readonly request: number | null 
     void credentialPrompt(request)
       .then(setPrompt)
       .catch((rejection: unknown) => {
-        setFailure(asIpcError(rejection)?.code ?? 'unknownRequest');
+        /* The real rejection, not a guess at it. An earlier version fell back
+           to 'unknownRequest' for anything it could not parse, which meant
+           every failure in here read as the same one and hid what was
+           actually wrong. Safe to render here, and only here: this call
+           carries a request id and nothing else. The submit below is the
+           opposite case. */
+        setFailure(asIpcError(rejection)?.code ?? String(rejection).slice(0, 200));
       });
   }, [request]);
 
@@ -100,7 +106,13 @@ export function CredentialWindow({ request }: { readonly request: number | null 
     void submitCredential(request, secret, remember)
       .catch((rejection: unknown) => {
         setBusy(false);
-        setFailure(asIpcError(rejection)?.code ?? 'unknownRequest');
+        /* Deliberately not `String(rejection)`, which is what the failure
+           above does. The arguments of *this* call are the secret, and a
+           rejection that did not come from the core — a bridge or
+           deserialization failure — is the kind that quotes what it could not
+           read. Rendering it would put the password on the screen and in the
+           DOM. CLAUDE.md 7.2: redact before the value can reach a formatter. */
+        setFailure(asIpcError(rejection)?.code ?? 'submitFailed');
       })
       .finally(() => {
         /* Whatever happened, the fields do not stay filled. The window is
