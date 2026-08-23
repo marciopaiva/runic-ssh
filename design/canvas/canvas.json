@@ -168,9 +168,9 @@
       "page": "page-1",
       "x": 1560,
       "y": 5100,
-      "w": 1000,
-      "h": 640,
-      "title": "Credential window — both methods"
+      "w": 1040,
+      "h": 560,
+      "title": "Credential window — password and private key"
     },
     {
       "file": "States.dc.html",
@@ -278,7 +278,7 @@
       "x": 2620,
       "y": 5100,
       "w": 360,
-      "text": "The only surface outside the main window, and not for looks: rule 1 of section 7 keeps secrets out of the document that renders terminal output, so a modal inside the webview would be exactly as forbidden as an inline panel.\n\nIt gets the application's chrome anyway. Raw GTK next to this palette reads as a phishing prompt, which is the opposite of what a password field should read as."
+      "text": "Drawn from src/credential/CredentialWindow.tsx at its real size — inner_size(440, 340), not resizable. The first version of this artboard was drawn from a screenshot and got two things wrong: it offered a key *path* where the component takes pasted key material, and it omitted the keychain checkbox entirely.\n\nThe window manager draws the title bar. credential.rs keeps decorations(true) on this window alone, and the reason is not aesthetic: a prompt whose script fails to load and has no OS close button is a connection that can never be cancelled — the hang ADR-0008 calls the worst failure of this design. The seam is drawn here rather than hidden.\n\nIt is the only surface outside the main window, because rule 1 of section 7 keeps secrets out of the document that renders terminal output. A modal inside the webview would be exactly as forbidden as an inline panel.\n\nFinding: at 340px the private key box shows about two and a half lines. It scrolls, and nobody reads a pasted key — but if that turns out to be uncomfortable, the fix is a taller window for the key method, not a smaller font."
     },
     {
       "id": "states-note",
