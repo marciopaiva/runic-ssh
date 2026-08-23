@@ -1,0 +1,256 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Manrope", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #1ea7e2; text-decoration: none; }
+    a:hover { color: #5bc4f0; }
+    .mono { font-family: "JetBrains Mono", "Cascadia Mono", "SF Mono", ui-monospace, monospace; }
+    .ic { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #0b131e; color: #e4ecf7; overflow: hidden; font-size: 13px;">
+
+  <!-- ============ TITLEBAR ============ -->
+  <div style="height: 38px; flex: none; display: flex; align-items: stretch; background: #0d1725; border-bottom: 1px solid #1d2f47;">
+
+    <div style="width: 44px; display: flex; align-items: center; justify-content: center;">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
+        <circle cx="9.5" cy="12" r="7" stroke="#2bb0e8" stroke-width="1.4"></circle>
+        <circle cx="14.5" cy="12" r="7" stroke="#b961e6" stroke-width="1.4"></circle>
+        <path d="M12 6.5v11M12 10l3-2.5M12 14l3 2.5M12 12l-2.6-2.2" stroke="#dbe7f5" stroke-width="1.4" stroke-linecap="round"></path>
+      </svg>
+    </div>
+
+    <div style="display: flex; align-items: stretch; gap: 0;">
+      <div style="display: flex; align-items: center; gap: 8px; padding: 0 12px 0 13px; border-top: 2px solid transparent; border-right: 1px solid #1d2f47; min-width: 168px; color: #8ea1ba;">
+        <span style="width: 6px; height: 6px; border-radius: 50%; background: #2fb894; flex: none;"></span>
+        <span style="font-size: 12.5px; font-weight: 500; flex-grow: 1;">web-01</span>
+        <svg class="ic" viewBox="0 0 16 16" style="color: #3d5271; width: 12px; height: 12px;"><path d="M4 4l8 8M12 4l-8 8"></path></svg>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px; padding: 0 12px 0 13px; background: #0f1a29; border-top: 2px solid {{accent}}; border-right: 1px solid #1d2f47; min-width: 140px;">
+        <svg class="ic" viewBox="0 0 16 16" style="color: #8ea1ba;"><circle cx="8" cy="8" r="2.2"></circle><path d="M8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6M3.6 3.6l1.15 1.15M11.25 11.25l1.15 1.15M12.4 3.6l-1.15 1.15M4.75 11.25L3.6 12.4"></path></svg>
+        <span style="font-size: 12.5px; font-weight: 600; letter-spacing: -0.01em; flex-grow: 1;">Settings</span>
+        <svg class="ic" viewBox="0 0 16 16" style="color: #5d7189; width: 12px; height: 12px;"><path d="M4 4l8 8M12 4l-8 8"></path></svg>
+      </div>
+      <div style="display: flex; align-items: center; padding: 0 12px; color: #5d7189;">
+        <svg class="ic" viewBox="0 0 16 16"><path d="M8 3.5v9M3.5 8h9"></path></svg>
+      </div>
+    </div>
+
+    <div style="flex-grow: 1;"></div>
+
+    <div style="display: flex; align-items: stretch; color: #8ea1ba;">
+      <div style="width: 46px; display: flex; align-items: center; justify-content: center;"><svg class="ic" viewBox="0 0 16 16" style="width: 11px; height: 11px;"><path d="M3 8h10"></path></svg></div>
+      <div style="width: 46px; display: flex; align-items: center; justify-content: center;"><svg class="ic" viewBox="0 0 16 16" style="width: 11px; height: 11px;"><rect x="3.5" y="3.5" width="9" height="9" rx="1"></rect></svg></div>
+      <div style="width: 46px; display: flex; align-items: center; justify-content: center;"><svg class="ic" viewBox="0 0 16 16" style="width: 11px; height: 11px;"><path d="M4 4l8 8M12 4l-8 8"></path></svg></div>
+    </div>
+  </div>
+  <div style="flex-grow: 1; display: flex; align-items: stretch; min-height: 0;">
+    <!-- ---------- SIDEBAR ---------- -->
+    <div style="width: 264px; flex: none; display: flex; flex-direction: column; background: #0f1a29; border-right: 1px solid #1d2f47;">
+
+      <div style="padding: 14px 14px 10px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: #5d7189;">SESSIONS</span>
+          <div style="display: flex; gap: 10px; color: #8ea1ba;">
+            <svg class="ic" viewBox="0 0 16 16"><path d="M8 3.5v9M3.5 8h9"></path></svg>
+            <svg class="ic" viewBox="0 0 16 16"><path d="M3 5h10M3 8h10M3 11h6"></path></svg>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; background: #101d2e; border: 1px solid #1d2f47; border-radius: 6px;">
+          <svg class="ic" viewBox="0 0 16 16" style="color: #5d7189; width: 13px; height: 13px;"><circle cx="7" cy="7" r="4.2"></circle><path d="M10.2 10.2L13.5 13.5"></path></svg>
+          <span style="font-size: 12.5px; color: #5d7189;">Search hosts</span>
+        </div>
+      </div>
+
+      <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px; padding: 2px 8px 8px; overflow: hidden;">
+        <div style="display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 6px; margin-top: 8px; color: #8ea1ba;">
+          <svg class="ic" viewBox="0 0 16 16" style="width: 12px; height: 12px;"><path d="M5 4l4 4-4 4" transform="rotate(90 8 8)"></path></svg>
+          <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em;">PRODUCTION</span>
+          <span style="flex-grow: 1;"></span>
+          <span class="mono" style="font-size: 10px; color: #3d5271;">3</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 9px; height: 28px; padding: 0 8px 0 20px; border-radius: 5px; color: #b4c4d8;">
+          <span style="width: 6px; height: 6px; border-radius: 50%; background: #2fb894; flex: none;"></span>
+          <span style="font-size: 12.5px;">web-01</span>
+          <span style="flex-grow: 1;"></span>
+          <span class="mono" style="font-size: 10.5px; color: #5d7189;">10.0.4.12</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 9px; height: 28px; padding: 0 8px 0 20px; border-radius: 5px; color: #b4c4d8;">
+          <span style="width: 6px; height: 6px; border-radius: 50%; border: 1.5px solid #3d5271; flex: none;"></span>
+          <span style="font-size: 12.5px;">web-02</span>
+          <span style="flex-grow: 1;"></span>
+          <span class="mono" style="font-size: 10.5px; color: #5d7189;">10.0.4.13</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 9px; height: 28px; padding: 0 8px 0 20px; border-radius: 5px; color: #b4c4d8;">
+          <span style="width: 6px; height: 6px; border-radius: 50%; border: 1.5px solid #3d5271; flex: none;"></span>
+          <span style="font-size: 12.5px;">db-01</span>
+          <span style="flex-grow: 1;"></span>
+          <span class="mono" style="font-size: 10.5px; color: #5d7189;">10.0.4.20</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 6px; margin-top: 8px; color: #8ea1ba;">
+          <svg class="ic" viewBox="0 0 16 16" style="width: 12px; height: 12px;"><path d="M5 4l4 4-4 4" transform="rotate(90 8 8)"></path></svg>
+          <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em;">STAGING</span>
+          <span style="flex-grow: 1;"></span>
+          <span class="mono" style="font-size: 10px; color: #3d5271;">2</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 9px; height: 28px; padding: 0 8px 0 20px; border-radius: 5px; color: #b4c4d8;">
+          <span style="width: 6px; height: 6px; border-radius: 50%; border: 1.5px solid #3d5271; flex: none;"></span>
+          <span style="font-size: 12.5px;">stg-app</span>
+          <span style="flex-grow: 1;"></span>
+          <span class="mono" style="font-size: 10.5px; color: #5d7189;">10.9.1.4</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 9px; height: 28px; padding: 0 8px 0 20px; border-radius: 5px; color: #b4c4d8;">
+          <span style="width: 6px; height: 6px; border-radius: 50%; border: 1.5px solid #3d5271; flex: none;"></span>
+          <span style="font-size: 12.5px;">stg-db</span>
+          <span style="flex-grow: 1;"></span>
+          <span class="mono" style="font-size: 10.5px; color: #5d7189;">10.9.1.9</span>
+        </div>
+      </div>
+
+      <div style="height: 40px; flex: none; display: flex; align-items: center; gap: 14px; padding: 0 14px; border-top: 1px solid #1d2f47; color: #8ea1ba;">
+        <svg class="ic" viewBox="0 0 16 16"><path d="M8 10.5V3.5M5 6.5L8 3.5l3 3M3 12.5h10"></path></svg>
+        <svg class="ic" viewBox="0 0 16 16"><rect x="2.5" y="4" width="11" height="8.5" rx="1.5"></rect><path d="M2.5 6.5h11"></path></svg>
+        <svg class="ic" viewBox="0 0 16 16" style="color: #8ea1ba;"><circle cx="8" cy="8" r="2.2"></circle><path d="M8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6M3.6 3.6l1.15 1.15M11.25 11.25l1.15 1.15M12.4 3.6l-1.15 1.15M4.75 11.25L3.6 12.4"></path></svg>
+        <span style="flex-grow: 1;"></span>
+        <span class="mono" style="font-size: 10px; color: #3d5271;">v0.1.0</span>
+      </div>
+    </div>
+    <div style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0; background: #0b131e;">
+      <div style="flex-grow: 1; display: flex; align-items: stretch; min-height: 0;">
+
+        <div style="width: 184px; flex: none; display: flex; flex-direction: column; gap: 3px; padding: 16px 10px; background: #0f1a29; border-right: 1px solid #1d2f47;">
+          <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: #5d7189; padding: 0 10px 8px;">SETTINGS</span>
+        <div style="display: flex; align-items: center; gap: 9px; height: 30px; padding: 0 10px; border-radius: 6px; background: #17273c; box-shadow: inset 2px 0 0 {{accent}};">
+          <span style="font-size: 12.5px; font-weight: 600; color: #e4ecf7;">Sessions</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 9px; height: 30px; padding: 0 10px; border-radius: 6px; ">
+          <span style="font-size: 12.5px; font-weight: 500; color: #8ea1ba;">Appearance</span>
+        </div>
+        </div>
+
+        <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 18px; padding: 26px 30px; min-width: 0;">
+          <div style="display: flex; flex-direction: column; gap: 5px;">
+            <span style="font-size: 15px; font-weight: 700; letter-spacing: -0.015em;">Sessions</span>
+            <span style="font-size: 12.5px; color: #93a7bf;">Saved hosts. No password is kept here — it is asked for at the moment of connecting.</span>
+          </div>
+
+          <div style="display: flex; gap: 26px; align-items: flex-start;">
+
+            <div style="width: 218px; flex: none; display: flex; flex-direction: column; gap: 4px;">
+              <div style="display: flex; align-items: center; justify-content: center; gap: 7px; height: 32px; margin-bottom: 6px; border: 1px dashed #294060; border-radius: 7px; color: #8ea1ba;">
+                <svg class="ic" viewBox="0 0 16 16" style="width: 12px; height: 12px;"><path d="M8 3.5v9M3.5 8h9"></path></svg>
+                <span style="font-size: 12px; font-weight: 600;">New session</span>
+              </div>
+            <div style="display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 6px; ">
+              <span style="font-size: 12.5px; font-weight: 500; color: #b4c4d8;">web-01</span>
+              <span class="mono" style="font-size: 10.5px; color: #5d7189;">deploy@10.0.4.12:22</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 6px; ">
+              <span style="font-size: 12.5px; font-weight: 500; color: #b4c4d8;">web-02</span>
+              <span class="mono" style="font-size: 10.5px; color: #5d7189;">deploy@10.0.4.13:22</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 6px; ">
+              <span style="font-size: 12.5px; font-weight: 500; color: #b4c4d8;">db-01</span>
+              <span class="mono" style="font-size: 10.5px; color: #5d7189;">deploy@10.0.4.20:22</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 6px; background: #17273c; box-shadow: inset 2px 0 0 {{accent}};">
+              <span style="font-size: 12.5px; font-weight: 600; color: #e4ecf7;">stg-app</span>
+              <span class="mono" style="font-size: 10.5px; color: #5d7189;">deploy@10.9.1.4:22</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 6px; ">
+              <span style="font-size: 12.5px; font-weight: 500; color: #b4c4d8;">stg-db</span>
+              <span class="mono" style="font-size: 10.5px; color: #5d7189;">deploy@10.9.1.9:22</span>
+            </div>
+            </div>
+
+            <div style="flex-grow: 1; max-width: 440px; display: flex; flex-direction: column; gap: 14px;">
+              <span style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.09em; color: #5d7189;">EDIT SESSION</span>
+
+          <div style="display: flex; flex-direction: column; gap: 6px; ">
+            <span style="font-size: 11px; color: #8ea1ba;">Host</span>
+            <div style="display: flex; align-items: center; height: 33px; padding: 0 11px; background: #0a1119; border-radius: 6px; border: 1px solid {{accent}}; box-shadow: 0 0 0 3px {{accentGlow}};"><span class="mono" style="font-size: 12.5px; color: #c8d6e8;">stg-app.internal</span></div>
+            
+          </div>
+          <div style="display: flex; gap: 14px;">
+          <div style="display: flex; flex-direction: column; gap: 6px; flex-grow: 1;">
+            <span style="font-size: 11px; color: #8ea1ba;">User</span>
+            <div style="display: flex; align-items: center; height: 33px; padding: 0 11px; background: #0a1119; border-radius: 6px; border: 1px solid #294060;"><span class="mono" style="font-size: 12.5px; color: #c8d6e8;">deploy</span></div>
+            
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px; width: 96px; flex: none;">
+            <span style="font-size: 11px; color: #8ea1ba;">Port</span>
+            <div style="display: flex; align-items: center; height: 33px; padding: 0 11px; background: #0a1119; border-radius: 6px; border: 1px solid #294060;"><span class="mono" style="font-size: 12.5px; color: #c8d6e8;">22</span></div>
+            
+          </div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px; ">
+            <span style="font-size: 11px; color: #8ea1ba;">Name</span>
+            <div style="display: flex; align-items: center; height: 33px; padding: 0 11px; background: #0a1119; border-radius: 6px; border: 1px solid #294060;"><span class="mono" style="font-size: 12.5px; color: #c8d6e8;">stg-app</span></div>
+            <span style="font-size: 11px; color: #5d7189;">Leave empty to use the host</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px; ">
+            <span style="font-size: 11px; color: #8ea1ba;">Group</span>
+            <div style="display: flex; align-items: center; height: 33px; padding: 0 11px; background: #0a1119; border-radius: 6px; border: 1px solid #294060;"><span class="mono" style="font-size: 12.5px; color: #c8d6e8;">STAGING</span></div>
+            <span style="font-size: 11px; color: #5d7189;">Optional. Sessions are listed under it.</span>
+          </div>
+
+              <span style="font-size: 11.5px; line-height: 1.5; color: #5d7189;">No password is kept here. It is asked for at the moment of connecting, in a window of its own.</span>
+
+              <div style="display: flex; align-items: center; gap: 10px; padding-top: 4px;">
+                <div style="display: flex; align-items: center; height: 34px; padding: 0 12px; border-radius: 7px; color: #ff5f6b; font-size: 12.5px; font-weight: 600;">Delete</div>
+                <span style="flex-grow: 1;"></span>
+                <div style="display: flex; align-items: center; justify-content: center; height: 34px; padding: 0 16px; border-radius: 7px; background: {{accent}}; color: #06121c; font-size: 12.5px; font-weight: 700;">Save</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- ============ STATUS BAR ============ -->
+  <div style="height: 27px; flex: none; display: flex; align-items: center; gap: 0; background: #0d1725; border-top: 1px solid #1d2f47; font-size: 11.5px; color: #8ea1ba;">
+    <div style="display: flex; align-items: center; gap: 7px; padding: 0 12px 0 14px;">
+      <span style="width: 6px; height: 6px; border-radius: 50%; background: #2fb894; flex: none;"></span>
+      <span style="font-weight: 600; color: #c8d6e8;">Connected</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 6px; padding: 0 12px;">
+      <svg class="ic" viewBox="0 0 16 16" style="width: 12px; height: 12px;"><path d="M5 3.5v9M2.5 10l2.5 2.5L7.5 10M11 12.5v-9M8.5 6L11 3.5 13.5 6"></path></svg>
+      <span class="mono">0 B / 0 B</span>
+    </div>
+    <span style="flex-grow: 1;"></span>
+    <div style="padding: 0 12px;"><span class="mono">UTF-8</span></div>
+    <div style="padding: 0 12px;"><span class="mono">xterm-256color</span></div>
+    <div style="padding: 0 12px;"><span class="mono">98 × 34</span></div>
+    <div style="display: flex; align-items: center; gap: 7px; padding: 0 16px 0 12px; color: #c8d6e8;">
+      <span class="mono" style="padding: 1px 5px; border: 1px solid #294060; border-radius: 3px; font-size: 10px;">Ctrl ⇧ P</span>
+      <span>Commands</span>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"accent":{"editor":"color","default":"#1ea7e2","options":["#1ea7e2","#986fdd","#2fb894","#e0a83c"],"section":"Theme"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const accent = this.props.accent ?? '#1ea7e2';
+    const m = /^#([0-9a-f]{6})$/i.exec(accent.trim());
+    const glow = m
+      ? 'rgba(' + parseInt(m[1].slice(0, 2), 16) + ',' + parseInt(m[1].slice(2, 4), 16) + ',' + parseInt(m[1].slice(4, 6), 16) + ',0.18)'
+      : 'rgba(30,167,226,0.18)';
+    return { accent: accent, accentGlow: glow };
+  }
+}
+</script>
+</body>
+</html>
