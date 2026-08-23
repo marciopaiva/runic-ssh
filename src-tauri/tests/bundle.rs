@@ -84,3 +84,45 @@ fn the_bundle_still_ships_the_icons_windows_needs_to_build() {
         );
     }
 }
+
+#[test]
+fn the_version_is_the_same_in_all_three_places() {
+    /* `package.json`, `Cargo.toml` and `tauri.conf.json` each carry a version,
+    and only the last one names the installer. They drift silently: nothing
+    reads two of them together, so a bumped `Cargo.toml` and a forgotten
+    `tauri.conf.json` produce a build that calls itself the old version, in the
+    filename a user downloads and in the entry `apt` and Windows record. */
+    let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+
+    let cargo =
+        std::fs::read_to_string(manifest.join("Cargo.toml")).expect("Cargo.toml is missing");
+    let cargo_version = cargo
+        .lines()
+        .find_map(|line| line.strip_prefix("version = "))
+        .expect("Cargo.toml has no version")
+        .trim()
+        .trim_matches('"');
+
+    let package =
+        std::fs::read_to_string(manifest.join("../package.json")).expect("package.json is missing");
+    let package: serde_json::Value =
+        serde_json::from_str(&package).expect("package.json is not valid JSON");
+    let package_version = package["version"]
+        .as_str()
+        .expect("package.json has no version");
+
+    let config = config();
+    let bundle_version = config["version"]
+        .as_str()
+        .expect("tauri.conf.json has no version");
+
+    assert_eq!(
+        cargo_version, bundle_version,
+        "Cargo.toml and tauri.conf.json disagree about the version; the second \
+         one is what the installer is named after"
+    );
+    assert_eq!(
+        package_version, bundle_version,
+        "package.json and tauri.conf.json disagree about the version"
+    );
+}
