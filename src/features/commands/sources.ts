@@ -33,6 +33,8 @@ export interface CommandActions {
   readonly chooseLocale: (locale: string | null) => void;
   /** Hands the title bar to the window manager, or takes it back. */
   readonly useNativeDecorations: (native: boolean) => void;
+  /** Puts the settings tab on the strip and focuses it. */
+  readonly openSettings: () => void;
 }
 
 export interface CommandContext {
@@ -159,6 +161,17 @@ export function actionCommands(context: CommandContext): readonly Command[] {
       run: () => actions.window(action),
     });
   }
+
+  /* The way in that does not need the palette to be discovered first: this
+     command is what the tab is for, and the tab is what the settings are for.
+     Everything below it here is reachable from inside that tab too. */
+  commands.push({
+    id: 'settings:open',
+    section: 'actions',
+    title: i18n.t('command.settings.open'),
+    keywords: ['settings', 'preferences', 'configuracoes', 'preferencias', 'ajustes', 'idioma'],
+    run: actions.openSettings,
+  });
 
   for (const locale of offeredLocales()) {
     /* The language already in use is not a command. Running it would be a

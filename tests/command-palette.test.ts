@@ -46,6 +46,7 @@ function actions(): CommandActions & { readonly calls: string[] } {
     activateTab: (id) => calls.push(`activate:${id}`),
     closeTab: (id) => calls.push(`close:${id}`),
     moveTab: (step) => calls.push(`move:${step}`),
+    openSettings: () => calls.push('settings'),
     window: (action) => calls.push(`window:${action}`),
     chooseLocale: (locale) => calls.push(`locale:${locale ?? 'system'}`),
     useNativeDecorations: (native) => calls.push(`decorations:${native}`),
@@ -279,6 +280,22 @@ describe('what the palette offers', () => {
     commands.find((entry) => entry.id === 'session:b')?.run();
 
     expect(act.calls).toEqual(['activate:a', 'select:b']);
+  });
+
+  it('always offers a way into the settings', () => {
+    /* The palette is how the settings tab is reached before it exists, and
+       until this landed the language could only be changed from here at all.
+       Unconditional on purpose: nothing about it depends on a session. */
+    const entry = actionCommands(context()).find((command) => command.id === 'settings:open');
+
+    expect(entry).toBeDefined();
+
+    const acted = actions();
+    actionCommands(context({ actions: acted }))
+      .find((command) => command.id === 'settings:open')
+      ?.run();
+
+    expect(acted.calls).toEqual(['settings']);
   });
 
   it('offers no tab commands with no tab open', () => {

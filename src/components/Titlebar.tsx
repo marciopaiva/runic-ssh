@@ -1,7 +1,7 @@
 import type { JSX, KeyboardEvent } from 'react';
 
-import { tabAfter } from '../features/chrome';
-import type { Tab, WindowAction, WindowControl } from '../features/chrome';
+import { focusAfter } from '../features/chrome';
+import type { Focus, Tab, WindowAction, WindowControl } from '../features/chrome';
 import { useTranslator } from '../features/settings';
 
 import { SessionMarker } from './SessionMarker';
@@ -9,18 +9,28 @@ import { WindowControls } from './WindowControls';
 
 interface TitlebarProps {
   readonly tabs: readonly Tab[];
-  readonly activeId: string | null;
+  /** Which tab is showing, sessions and settings alike. */
+  readonly focus: Focus | null;
+  /** Whether the settings tab is on the strip at all. */
+  readonly settingsOpen: boolean;
   readonly controls: readonly WindowControl[];
   /** Space to keep clear at the leading edge for controls the system draws. */
   readonly leadingInset: number;
   /** The element the tabs switch between, for screen readers. */
   readonly panelId: string;
-  readonly onSelect: (sessionId: string) => void;
+  readonly onFocus: (focus: Focus) => void;
   readonly onClose: (sessionId: string) => void;
+  readonly onCloseSettings: () => void;
   readonly onAct: (action: WindowAction) => void;
 }
 
 const tabId = (sessionId: string): string => `session-tab-${sessionId}`;
+const SETTINGS_TAB_ID = 'settings-tab';
+
+/** The DOM id of whichever tab a focus points at, for moving focus by keyboard. */
+function elementId(focus: Focus): string {
+  return focus.kind === 'settings' ? SETTINGS_TAB_ID : tabId(focus.sessionId);
+}
 
 /**
  * The window's own titlebar.
@@ -38,29 +48,38 @@ const tabId = (sessionId: string): string => `session-tab-${sessionId}`;
  */
 export function Titlebar({
   tabs,
-  activeId,
+  focus,
+  settingsOpen,
   controls,
   leadingInset,
   panelId,
-  onSelect,
+  onFocus,
   onClose,
+  onCloseSettings,
   onAct,
 }: TitlebarProps): JSX.Element {
   const i18n = useTranslator();
+  const activeId = focus?.kind === 'session' ? focus.sessionId : null;
+  const settingsActive = focus?.kind === 'settings';
 
   /* Automatic activation, which is what a tab strip is expected to do: the
      arrow key both moves and switches. Focus follows, or the next arrow press
-     would start over from wherever focus was left behind. */
+     would start over from wherever focus was left behind.
+
+     The ring includes the settings tab, which is why this asks `focusAfter`
+     rather than `tabAfter`: a tab the mouse can reach and the keyboard cannot
+     is exactly the gap ADR-0005 took on when it took the chrome away from the
+     platform. */
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
     const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : null;
     if (step === null) return;
 
-    const next = tabAfter(tabs, activeId, step);
+    const next = focusAfter(tabs, settingsOpen, focus, step);
     if (next === null) return;
 
     event.preventDefault();
-    onSelect(next);
-    queueMicrotask(() => document.getElementById(tabId(next))?.focus());
+    onFocus(next);
+    queueMicrotask(() => document.getElementById(elementId(next))?.focus());
   };
 
   return (
@@ -92,7 +111,7 @@ export function Titlebar({
         </span>
       </div>
 
-      {tabs.length === 0 ? (
+      {tabs.length === 0 && !settingsOpen ? (
         <span className="text-ink-faint self-center text-[11.5px]">{i18n.t('tabs.empty')}</span>
       ) : (
         <div
@@ -122,7 +141,7 @@ export function Titlebar({
                   /* Roving tabindex: one stop for the whole strip, and the
                      arrow keys move within it. */
                   tabIndex={active ? 0 : -1}
-                  onClick={() => onSelect(tab.sessionId)}
+                  onClick={() => onFocus({ kind: 'session', sessionId: tab.sessionId })}
                   className={`flex h-6 min-w-0 items-center gap-2 text-[12px] ${
                     active ? 'text-ink' : 'text-ink-secondary'
                   }`}
@@ -145,6 +164,54 @@ export function Titlebar({
               </div>
             );
           })}
+
+          {settingsOpen && (
+            /* Always last. Session tabs keep the sidebar's order at the front,
+               so opening or closing settings never shifts one sideways under
+               the pointer. */
+            <div
+              role="presentation"
+              className={`flex shrink-0 items-center gap-1.5 self-center rounded px-2 ${
+                settingsActive ? 'bg-surface-raised' : 'hover:bg-surface-raised/50'
+              }`}
+            >
+              <button
+                type="button"
+                role="tab"
+                id={SETTINGS_TAB_ID}
+                aria-selected={settingsActive}
+                aria-controls={panelId}
+                tabIndex={settingsActive ? 0 : -1}
+                onClick={() => onFocus({ kind: 'settings' })}
+                className={`flex h-6 items-center gap-2 text-[12px] ${
+                  settingsActive ? 'text-ink' : 'text-ink-secondary'
+                }`}
+              >
+                <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" aria-hidden="true">
+                  <circle cx="8" cy="8" r="2.4" stroke="currentColor" strokeWidth="1.3" />
+                  <path
+                    d="M8 1.4v1.8M8 12.8v1.8M14.6 8h-1.8M3.2 8H1.4M12.7 3.3l-1.3 1.3M4.6 11.4l-1.3 1.3M12.7 12.7l-1.3-1.3M4.6 4.6L3.3 3.3"
+                    stroke="currentColor"
+                    strokeWidth="1.3"
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <span>{i18n.t('tabs.settings')}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onCloseSettings}
+                aria-label={i18n.t('tabs.settings.close')}
+                title={i18n.t('tabs.settings.close')}
+                className="text-ink-faint hover:text-ink flex h-4 w-4 shrink-0 items-center justify-center rounded"
+              >
+                <svg viewBox="0 0 10 10" className="h-2 w-2" fill="none" aria-hidden="true">
+                  <path d="M0.5 0.5l9 9M9.5 0.5l-9 9" stroke="currentColor" strokeWidth="1.4" />
+                </svg>
+              </button>
+            </div>
+          )}
         </div>
       )}
 
