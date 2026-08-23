@@ -34,7 +34,13 @@ function uses(): readonly Use[] {
   for (const file of readdirSync(WORKFLOWS).filter((name) => name.endsWith('.yml'))) {
     const text = readFileSync(`${WORKFLOWS}/${file}`, 'utf8');
 
-    text.split('\n').forEach((line, index) => {
+    /* Split on either ending. A Windows checkout leaves `\r` at the end of
+       every line, JavaScript's `.` does not match `\r`, and so `$` never
+       reaches the end of the string and the regex below matches nothing at
+       all. That is not hypothetical: this file shipped splitting on `\n` and
+       went green on Linux and macOS while finding zero actions on Windows,
+       where every other assertion here passed vacuously over an empty list. */
+    text.split(/\r?\n/).forEach((line, index) => {
       const match = /^\s*uses:\s*(\S+?)@(\S+)\s*(?:#\s*(.*))?$/.exec(line);
       if (match === null) return;
 
@@ -120,5 +126,29 @@ describe('the actions the workflows run', () => {
     );
 
     expect(dependabot).toContain('package-ecosystem: github-actions');
+  });
+});
+
+describe('the parser itself', () => {
+  it('reads a workflow checked out with Windows line endings', () => {
+    /* The bug this file shipped with, pinned so it cannot come back. A
+       Windows runner checks out CRLF, and the first version split on `\n`
+       alone — leaving `\r` on every line, which `.` does not match, so `$`
+       never reached the end and nothing matched. The suite went green on two
+       platforms while guarding nothing on the third.
+
+       Asserted here rather than left to CI because the failure only appears
+       on the one platform a developer is least likely to be running. */
+    const line = '      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1';
+    const pattern = /^\s*uses:\s*(\S+?)@(\S+)\s*(?:#\s*(.*))?$/;
+
+    for (const [ending, text] of [
+      ['LF', `${line}\n`],
+      ['CRLF', `${line}\r\n`],
+    ] as const) {
+      const matched = text.split(/\r?\n/).filter((each) => pattern.test(each));
+
+      expect(matched, `${ending} produced no match`).toHaveLength(1);
+    }
   });
 });
