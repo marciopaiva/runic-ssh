@@ -69,8 +69,15 @@ it, and both work:
 ```sh
 Xvfb :99 -screen 0 1600x1000x24 -nolisten tcp &
 DISPLAY=:99 openbox &
-DISPLAY=:99 GDK_BACKEND=x11 pnpm tauri dev
+env -u WAYLAND_DISPLAY DISPLAY=:99 GDK_BACKEND=x11 pnpm tauri dev
 ```
+
+`env -u WAYLAND_DISPLAY` is load-bearing, not tidying. WSL sets
+`WAYLAND_DISPLAY=wayland-0` in every shell, and with it set the window opens on
+the WSLg compositor and ignores `DISPLAY` entirely: the process starts, no
+window is ever mapped on `:99`, and **nothing is printed**. It is
+indistinguishable from a build that failed to launch, and the only way to see
+what happened is to read `/proc/<pid>/environ`.
 
 `import -window <id>` screenshots it and `xdotool` drives it, both with
 `DISPLAY=:99`. Nothing touches the desktop the developer is using.
