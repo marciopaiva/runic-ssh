@@ -127,6 +127,7 @@ pnpm test
 
 ## 📚 Documentation
 
+- [Changelog](CHANGELOG.md): what changed, and what each release does not do yet
 - [Architecture](docs/architecture.md): how the Rust core and the webview fit together
 - [Security model](docs/security-model.md): threat model and the rules that follow from it
 - [Decision records](docs/adr/): why the stack looks the way it does
