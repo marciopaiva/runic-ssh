@@ -120,6 +120,34 @@ old binary still on disk. Force it:
 sudo dpkg -i ./Runic-SSH_0.1.0_amd64.deb
 ```
 
+### If the window cannot be moved or resized
+
+ADR-0005 turned the system title bar off so the session tabs could occupy it.
+Most window managers are fine with that. Some are not: a compositor that does
+not draw resize borders for an undecorated window leaves one that cannot be
+resized, and one without a window manager at all — WSLg is the case this
+project hit — leaves a window that cannot be moved either.
+
+The escape hatch is a command. Press `Ctrl+Shift+P` and search for **title
+bar**; the entry hands the bar back to the window manager, and the same entry
+gives it back to the application afterwards. It is stored, so it survives a
+restart.
+
+If the palette cannot be reached either, the same switch is a line in
+`settings.json`, next to the session file described in `docs/architecture.md`:
+
+```json
+{ "nativeDecorations": true }
+```
+
+The application reads it at startup and applies it to the window. A window
+manager that ignores a decoration change on a window that is already open —
+some do — will still honour it on the next launch, which is why the setting is
+written to disk as well as applied live.
+
+Not on macOS. There the traffic lights are the platform's own already, and
+turning this on would take them away rather than give anything back.
+
 ### A note on the AppImage
 
 The AppImage is 75 MB against the `.deb`'s 3.4 MB, because it carries the GTK
