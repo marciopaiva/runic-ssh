@@ -1,5 +1,7 @@
 # Installing a build
 
+Building one is `docs/building.md`. This file is about what happens after.
+
 Runic SSH is not code-signed. Every installer below is refused or warned about
 by the operating system, and this page says exactly how, because a project that
 tells people to "just click through the warning" is teaching a habit that the
@@ -47,7 +49,8 @@ workflow produced, and it is the answer to "is this usable yet".
 | Linux, `.deb` | **yes**, 2026-08-23 | Ubuntu 24.04 under WSL2, on an isolated X display |
 | Linux, `.rpm` | no | no RPM distribution to hand |
 | Linux, `.AppImage` | no | discouraged anyway — see below |
-| Windows, `.msi` / `.exe` | **no** | needs a Windows machine |
+| Windows, `.exe` (NSIS) | **yes**, 2026-08-23 | Windows 11 Home, built and installed on the machine itself |
+| Windows, `.msi` (WiX) | built, not installed | the NSIS package was the one exercised |
 | macOS, `.dmg` | **no** | needs an Apple Silicon Mac |
 
 What the Linux run covered, end to end on the packaged binary: it read the real
@@ -56,10 +59,23 @@ displayed a fingerprint that matched `ssh-keyscan` exactly, wrote the correct
 key to `known_hosts` on trust, opened its credential window, authenticated with
 a password and ran a command in a real shell.
 
-The two unchecked platforms are not a formality. Both take a code path Linux
-does not — SmartScreen and the WiX installer on one, Gatekeeper quarantine and
-a `.app` bundle on the other — and both are described below from documentation
-rather than from having been seen.
+What the Windows run covered, on the packaged binary: the NSIS installer put
+the application in `%LOCALAPPDATA%` for the current user without asking for
+administrator rights, registered an uninstall entry, and launched. It picked up
+the system dark theme and the `pt-BR` locale, drew its own title bar, took the
+unknown-host-key path against a fingerprint checked out of band, opened its
+credential window, authenticated and ran a shell — and held exactly one session
+open on the server, which is what ADR-0014 is for.
+
+Minimise, maximise and close were all exercised there, which matters because
+they cannot be checked under WSLg at all: that compositor does not iconify, so a
+working minimise and a broken one look identical. See `docs/testing.md`.
+
+Still unchecked: the `.msi` (a different installer with a different code path,
+and per-machine, so it needs administrator rights), Windows SmartScreen on a
+downloaded file rather than a locally built one, and everything about macOS —
+Gatekeeper quarantine and the `.app` bundle are described below from
+documentation rather than from having been seen.
 
 ## Windows
 

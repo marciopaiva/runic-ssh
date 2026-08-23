@@ -58,6 +58,12 @@ Two things about the container matter when driving it rather than testing it:
 
 ### On WSL2
 
+Reaching a container in WSL *from a Windows build* is a separate problem:
+Windows `127.0.0.1` is not WSL's, and rootless podman is not always picked up by
+WSL's localhost forwarding. Use the address from `ip -4 addr show eth0`, which
+changes whenever WSL restarts, or set `networkingMode=mirrored` in `.wslconfig`
+once and stop thinking about it.
+
 WSLg runs Xwayland without a window manager, so there is no keyboard focus for
 anything to be delivered to: `xdotool` clicks land, and typing goes nowhere.
 Minimising also does nothing, because the compositor does not iconify — which is

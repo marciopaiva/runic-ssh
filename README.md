@@ -37,9 +37,12 @@ the `.deb` verified an unknown host key against its real fingerprint, prompted
 for a password in its own window, opened a shell on an OpenSSH server and ran a
 command in it.
 
+On the same day the Windows installer was built on a Windows 11 machine and
+run through the same path, from an installer nobody had ever run to a shell.
+
 Not there yet: SFTP, port forwarding, and a signed installer of any kind. The
-Windows and macOS packages build on every run and **no one has installed
-either** — see [`docs/installing.md`](docs/installing.md).
+macOS package builds on every run and **no one has installed it** — see
+[`docs/installing.md`](docs/installing.md).
 
 Work is tracked in [issues](https://github.com/marciopaiva/runic-ssh/issues) and
 the decisions behind it in [`docs/adr/`](docs/adr/).
