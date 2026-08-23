@@ -14,6 +14,9 @@
 //! window the engine is painting into.
 
 use serde::Serialize;
+use tauri::{Runtime, WebviewWindow};
+
+use crate::error::{Error, IpcError};
 
 /// Who draws the minimise, maximise and close buttons.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -97,6 +100,59 @@ pub fn window_chrome() -> WindowChrome {
     chrome()
 }
 
+/// What a control we drew is asking the window to do.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum WindowRequest {
+    Minimize,
+    ToggleMaximize,
+    Close,
+}
+
+/// Acts on the window on behalf of a control we drew.
+///
+/// Through the core rather than through `@tauri-apps/api/window`, for two
+/// reasons that turned out to be the same reason.
+///
+/// The capability gets narrower: minimising, maximising and closing no longer
+/// need a permanent grant to the code that renders hostile output, because the
+/// webview is no longer the thing doing them.
+///
+/// And a control that cannot be refused cannot fail silently. The frontend
+/// called `void closeWindow()` and swallowed the rejection, so a denied
+/// permission looked exactly like a button that does nothing — which is what
+/// it looked like, and what it was.
+///
+/// The window is the calling one, injected by the core, and is deliberately
+/// not a label the caller names. A label would hand back the reach the
+/// capability was narrowed to remove: application commands are not gated by
+/// the ACL, so any document could close any window — including the credential
+/// prompt, whose own capability is empty precisely so that nothing in the main
+/// webview can touch it (ADR-0008).
+#[tauri::command]
+pub async fn window_action<R: Runtime>(
+    window: WebviewWindow<R>,
+    request: WindowRequest,
+) -> Result<(), IpcError> {
+    let outcome = match request {
+        WindowRequest::Minimize => window.minimize(),
+        WindowRequest::ToggleMaximize => {
+            if window.is_maximized().unwrap_or(false) {
+                window.unmaximize()
+            } else {
+                window.maximize()
+            }
+        }
+        /* `destroy` rather than `close`: close asks, and asking is how a
+        window ends up waiting on an answer nobody sends. Nothing here needs
+        to veto it. */
+        WindowRequest::Close => window.destroy(),
+    };
+
+    outcome.map_err(|_| Error::WindowActionRefused)?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -127,6 +183,27 @@ mod tests {
             application,
             r#"{"controls":"application","leadingInset":0,"commandModifier":"control"}"#
         );
+    }
+
+    #[test]
+    fn the_requests_are_named_the_way_the_frontend_sends_them() {
+        /* The only thing standing between `toggleMaximize` and a button that
+        rejects every time it is pressed. The matching literals are in
+        src/ipc/chrome.ts. */
+        for (wire, expected) in [
+            (r#""minimize""#, WindowRequest::Minimize),
+            (r#""toggleMaximize""#, WindowRequest::ToggleMaximize),
+            (r#""close""#, WindowRequest::Close),
+        ] {
+            assert_eq!(
+                serde_json::from_str::<WindowRequest>(wire).expect("deserializes"),
+                expected
+            );
+        }
+
+        /* And nothing else. An unknown request is a rejection, not a default
+        that quietly closes the window. */
+        assert!(serde_json::from_str::<WindowRequest>(r#""quit""#).is_err());
     }
 
     #[test]

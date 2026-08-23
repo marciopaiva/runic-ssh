@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import {
+  asIpcError,
   closeWindow,
   isWindowMaximized,
   minimizeWindow,
@@ -26,6 +27,8 @@ interface ChromeState {
   readonly chrome: WindowChrome | null;
   readonly maximized: boolean;
   readonly act: (action: WindowAction) => void;
+  /** Set when a window control could not do what it was asked. */
+  readonly refused: string | null;
 }
 
 export function useChrome(): ChromeState {
@@ -73,20 +76,28 @@ export function useChrome(): ChromeState {
     };
   }, []);
 
+  const [refused, setRefused] = useState<string | null>(null);
+
   const act = useCallback((action: WindowAction): void => {
-    switch (action) {
-      case 'minimize':
-        void minimizeWindow();
-        return;
-      case 'maximize':
-      case 'restore':
-        void toggleMaximizeWindow();
-        return;
-      case 'close':
-        void closeWindow();
-        return;
-    }
+    /* Cleared first. A refusal that outlives the press that caused it is a
+       red bar the window keeps for the rest of its life. */
+    setRefused(null);
+
+    const done =
+      action === 'minimize'
+        ? minimizeWindow()
+        : action === 'close'
+          ? closeWindow()
+          : toggleMaximizeWindow();
+
+    /* Reported rather than swallowed. `void closeWindow()` discarded the
+       rejection, so a control that could not act looked exactly like one that
+       was not wired up — which is how a window nobody could close went
+       unnoticed. */
+    void done.catch((rejection: unknown) => {
+      setRefused(asIpcError(rejection)?.code ?? String(rejection).slice(0, 120));
+    });
   }, []);
 
-  return { chrome, maximized, act };
+  return { chrome, maximized, act, refused };
 }
