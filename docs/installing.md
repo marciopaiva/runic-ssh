@@ -15,9 +15,43 @@ checksum you have compared against the workflow run that produced it.
 
 The `package` workflow builds all three platforms. Run it from the Actions tab,
 or push a `v*` tag. Artifacts are attached to the run and expire after 14 days.
+Each platform's artifact carries a `SHA256SUMS` file, which is what the
+comparisons below are against.
 
 Nothing is built on an ordinary push. Twenty minutes of runner time for an
 artifact nobody asked for is worth avoiding.
+
+**An artifact does not say which commit it came from.** A `workflow_dispatch`
+run packages whatever the branch was at that moment, and every pre-release build
+is version `0.1.0`, so two installers can be weeks apart and identical on the
+outside. The run's own page records the commit; read it there before trusting a
+downloaded file to contain a fix. This is not hypothetical — the first run of
+this smoke test reproduced a bug that had already been fixed, because the
+artifact predated the fix by two commits.
+
+## What has actually been installed
+
+Building is not installing. This table is what someone has run, not what the
+workflow produced, and it is the answer to "is this usable yet".
+
+| Platform | Installed and driven | By what |
+| --- | --- | --- |
+| Linux, `.deb` | **yes**, 2026-08-23 | Ubuntu 24.04 under WSL2, on an isolated X display |
+| Linux, `.rpm` | no | no RPM distribution to hand |
+| Linux, `.AppImage` | no | discouraged anyway — see below |
+| Windows, `.msi` / `.exe` | **no** | needs a Windows machine |
+| macOS, `.dmg` | **no** | needs an Apple Silicon Mac |
+
+What the Linux run covered, end to end on the packaged binary: it read the real
+config directory, listed saved sessions, took the unknown-host-key path,
+displayed a fingerprint that matched `ssh-keyscan` exactly, wrote the correct
+key to `known_hosts` on trust, opened its credential window, authenticated with
+a password and ran a command in a real shell.
+
+The two unchecked platforms are not a formality. Both take a code path Linux
+does not — SmartScreen and the WiX installer on one, Gatekeeper quarantine and
+a `.app` bundle on the other — and both are described below from documentation
+rather than from having been seen.
 
 ## Windows
 
@@ -36,7 +70,9 @@ Get-FileHash .\Runic-SSH_0.1.0_x64_en-US.msi -Algorithm SHA256
 
 ## macOS
 
-`.dmg` and `.app` are produced, unsigned and un-notarized.
+`.dmg` and `.app` are produced, unsigned and un-notarized, and **Apple Silicon
+only** — the runner is `macos-latest`, which is `aarch64`. An Intel Mac has
+nothing to install here.
 
 Gatekeeper reports **"Runic SSH is damaged and can't be opened"** — which is not
 true and is what macOS says about any unsigned application that has the
@@ -55,12 +91,26 @@ as of anything else.
 `.deb`, `.rpm` and `.AppImage`.
 
 ```sh
-sudo apt install ./runic-ssh_0.1.0_amd64.deb
+sha256sum -c SHA256SUMS --ignore-missing
+sudo apt install ./Runic-SSH_0.1.0_amd64.deb
 ```
+
+The file is `Runic-SSH_...`, capitalised, because the product name is; the
+*package* it installs is `runic-ssh`, lowercase. `apt remove runic-ssh` takes it
+back off.
 
 The package depends on `libwebkit2gtk-4.1-0` and `libgtk-3-0`. There is no
 bundled browser engine — the webview is the system's, which is why the download
 is three megabytes rather than a hundred.
+
+**Installing a second build over the first does nothing.** Every pre-release
+carries version `0.1.0`, so `apt` sees the installed version as current and
+exits successfully without replacing anything — no error, no warning, and the
+old binary still on disk. Force it:
+
+```sh
+sudo dpkg -i ./Runic-SSH_0.1.0_amd64.deb
+```
 
 ### A note on the AppImage
 
