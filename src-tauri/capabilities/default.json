@@ -1,15 +1,16 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The narrowest set the application runs on. A capability is a permanent grant to code that renders hostile input, so widening this is a Phase 2 proposal with an ADR (CLAUDE.md 7.6). Minimising, maximising and closing are NOT here: the controls ADR-0005 made ours act through a command of ours, so the webview never needs permission to do them. `allow-start-dragging` stays because it is what Tauri's own drag-region script calls. See issue #39.",
+  "description": "The narrowest set the application runs on: one line per command, no plugin `default` sets. A `default` set is every command a plugin exposes, not the minimum it needs — `core:window:default` alone is 28, of which this application calls one. See ADR-0013 for why each line below is here, and ADR-0012 for why minimise, maximise and close are not: those act through a command of ours, so the webview never holds a grant over the window. A capability is a permanent grant to code that renders hostile input, so widening this is a Phase 2 proposal with an ADR (CLAUDE.md 7.6). Issue #39.",
   "windows": [
     "main"
   ],
   "permissions": [
-    "core:app:default",
-    "core:event:default",
-    "core:webview:default",
-    "core:window:default",
-    "core:window:allow-start-dragging"
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:window:allow-is-maximized",
+    "core:window:allow-internal-toggle-maximize",
+    "core:window:allow-start-dragging",
+    "core:webview:allow-internal-toggle-devtools"
   ]
 }
