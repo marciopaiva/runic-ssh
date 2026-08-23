@@ -28,9 +28,14 @@ on:
 permissions:
   contents: read
 
+# Superseding a run is a saving on a branch and a loss on `main`. A push to the
+# default branch always finishes: the badge reads the newest run, so a cancelled
+# one shows the workflow as failing until something replaces it — and, worse, a
+# commit whose run was killed can never answer "did this pass on main". Two
+# merges seven seconds apart is all it takes.
 concurrency:
   group: audit-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   CARGO_TERM_COLOR: always
