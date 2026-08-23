@@ -12,17 +12,24 @@ use crate::error::{Error, IpcError};
 pub struct SettingsView {
     /// The locale the user chose, or `null` to follow the operating system.
     pub locale: Option<String>,
+    /// Whether the window manager draws the title bar (ADR-0005's escape hatch).
+    pub native_decorations: bool,
 }
 
 impl From<Settings> for SettingsView {
     fn from(settings: Settings) -> Self {
         Self {
             locale: settings.locale,
+            native_decorations: settings.native_decorations,
         }
     }
 }
 
-fn store<R: Runtime>(app: &AppHandle<R>) -> Result<SettingsStore, Error> {
+/// The settings store for this application's config directory.
+///
+/// `pub(crate)` because the chrome command needs it too: which title area the
+/// window is in is now partly the user's choice, and that choice lives here.
+pub(crate) fn store<R: Runtime>(app: &AppHandle<R>) -> Result<SettingsStore, Error> {
     let directory = app
         .path()
         .app_config_dir()

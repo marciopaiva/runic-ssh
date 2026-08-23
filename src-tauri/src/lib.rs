@@ -28,6 +28,16 @@ pub mod vault;
 /// invalid. Both are startup failures, not conditions a user can reach.
 pub fn run() -> tauri::Result<()> {
     tauri::Builder::default()
+        /* The window is created from `tauri.conf.json`, which is read before
+        any of our code runs, so ADR-0005's escape hatch cannot be a
+        declarative setting: a stored preference can only be applied to a
+        window that already exists. Non-fatal by construction — a user whose
+        decorations do not come back has a cosmetic problem, and refusing to
+        start would turn it into a total one. */
+        .setup(|app| {
+            commands::chrome::restore_decorations(app.handle());
+            Ok(())
+        })
         .manage(ssh::registry::Registry::new())
         .manage(ssh::pending::PendingHostKeys::new())
         .manage(ssh::credentials::CredentialRequests::new())
@@ -35,6 +45,7 @@ pub fn run() -> tauri::Result<()> {
         .invoke_handler(tauri::generate_handler![
             commands::chrome::window_chrome,
             commands::chrome::window_action,
+            commands::chrome::set_native_decorations,
             commands::settings::get_settings,
             commands::settings::set_locale,
             commands::sessions::list_sessions,
