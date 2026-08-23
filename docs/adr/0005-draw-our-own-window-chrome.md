@@ -102,8 +102,20 @@ configuration, which is exactly the kind of divergence `docs/architecture.md`
 otherwise avoids by choosing `russh` over an external binary.
 
 **Follow-up**: verify Snap Layouts on Windows 11 before v0.1.0 ships, since that
-is the one behavior most likely to be silently missing. Add a setting that
-restores native decorations, as the escape hatch for a Linux window manager we
-did not anticipate; default it off. Revisit this decision if Tauri ships a
-first-class overlay titlebar API for all three platforms, which would collapse
-the two code paths back into one.
+is the one behavior most likely to be silently missing (#28). Revisit this
+decision if Tauri ships a first-class overlay titlebar API for all three
+platforms, which would collapse the two code paths back into one.
+
+**Done, 2026-08-23**: the escape hatch this ADR asked for exists (#29). It is a
+command in the palette and a `nativeDecorations` line in `settings.json`,
+default off, applied to the live window and stored for the next launch.
+
+Two things it taught, both recorded where the code is rather than only here.
+The title area turned out to have three arrangements and not two — a natively
+decorated window and a macOS overlay window both let the system draw the
+controls, and only one of them has anything floating over our bar — so the
+`bool` that described it became `TitleArea`, and the frontend is told which
+arrangement it is in rather than inferring it from a pair of fields that happen
+to coincide. And the setting is deliberately ignored on macOS: honouring it
+there would remove the traffic lights, which is the opposite of an escape
+hatch.
