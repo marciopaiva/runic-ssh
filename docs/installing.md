@@ -53,6 +53,17 @@ workflow produced, and it is the answer to "is this usable yet".
 | Windows, `.msi` (WiX) | built, not installed | the NSIS package was the one exercised |
 | macOS, `.dmg` | **no** | needs an Apple Silicon Mac |
 
+**Every "yes" above was built on the machine that ran it, not downloaded.** The
+files attached to a release come off the CI runners instead — same commit,
+different machine, and a different set of things that can go wrong: a runner's
+toolchain, the archive that carries the artifact between jobs, a bundler
+behaving differently outside a developer's box. Nobody has yet installed a file
+that came out of a release, on any platform.
+
+That distinction is the whole point of this table. It exists so that "the build
+is green" and "somebody ran it" stay separate claims, and the release download
+is a third one that has not been made yet either.
+
 What the Linux run covered, end to end on the packaged binary: it read the real
 config directory, listed saved sessions, took the unknown-host-key path,
 displayed a fingerprint that matched `ssh-keyscan` exactly, wrote the correct
