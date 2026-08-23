@@ -5,7 +5,7 @@ Source files for the interface design canvas. Each `*.dc.html` is one artboard;
 and `Idiomas`.
 
 `runic-ssh-interface.html` is the published canvas. It is generated, roughly
-2 MB, and deliberately not committed — rebuild it from these sources rather than
+2 MB, and deliberately not committed. Rebuild it from these sources rather than
 editing it.
 
 ## Files
@@ -29,8 +29,9 @@ editing it.
 | `*PtBr.dc.html`, `*Es.dc.html` | The same screens with the catalog swapped |
 
 Every screen a user can meet is drawn here. That is the point of the set rather
-than a boast: the surfaces that were never drawn — the failure, the revoked key,
-the credential window, the host form — are exactly the ones that drifted into
+than a boast. The surfaces that were never drawn, the failure and the revoked
+key and the credential window and the host form, are exactly the ones that
+drifted into
 five different shapes before ADR-0015 pulled them back together.
 
 Screens that live inside the main window are drawn **inside it**, not as loose

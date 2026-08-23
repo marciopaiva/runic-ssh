@@ -17,12 +17,12 @@ checksum you have compared against the workflow run that produced it.
 
 There are two, and they are not equivalent.
 
-**A release** — attached to a `v*` tag, listed under
+**A release**, attached to a `v*` tag, listed under
 [Releases](https://github.com/marciopaiva/runic-ssh/releases). Permanent, no
 account needed, one `SHA256SUMS` covering all three platforms. This is what a
 download link should point at.
 
-**A workflow run** — `package` from the Actions tab, on any branch. Artifacts
+**A workflow run**, `package` from the Actions tab, on any branch. Artifacts
 expire after 14 days and reaching them takes a signed-in account, which is the
 right amount of friction for a build nobody has tried. Each platform's artifact
 carries its own `SHA256SUMS`; the release concatenates the three and re-checks
@@ -35,7 +35,7 @@ artifact nobody asked for is worth avoiding.
 run packages whatever the branch was at that moment, and every pre-release build
 is version `0.1.0`, so two installers can be weeks apart and identical on the
 outside. The run's own page records the commit; read it there before trusting a
-downloaded file to contain a fix. This is not hypothetical — the first run of
+downloaded file to contain a fix. This is not hypothetical. The first run of
 this smoke test reproduced a bug that had already been fixed, because the
 artifact predated the fix by two commits.
 
@@ -48,13 +48,13 @@ workflow produced, and it is the answer to "is this usable yet".
 | --- | --- | --- |
 | Linux, `.deb` | **yes**, 2026-08-23 | Ubuntu 24.04 under WSL2, on an isolated X display |
 | Linux, `.rpm` | no | no RPM distribution to hand |
-| Linux, `.AppImage` | no | discouraged anyway — see below |
+| Linux, `.AppImage` | no | discouraged anyway, see below |
 | Windows, `.exe` (NSIS) | **yes**, 2026-08-23 | Windows 11 Home, built and installed on the machine itself |
 | Windows, `.msi` (WiX) | built, not installed | the NSIS package was the one exercised |
 | macOS, `.dmg` | **no** | needs an Apple Silicon Mac |
 
 **Every "yes" above was built on the machine that ran it, not downloaded.** The
-files attached to a release come off the CI runners instead — same commit,
+files attached to a release come off the CI runners instead: same commit,
 different machine, and a different set of things that can go wrong: a runner's
 toolchain, the archive that carries the artifact between jobs, a bundler
 behaving differently outside a developer's box. Nobody has yet installed a file
@@ -75,7 +75,7 @@ the application in `%LOCALAPPDATA%` for the current user without asking for
 administrator rights, registered an uninstall entry, and launched. It picked up
 the system dark theme and the `pt-BR` locale, drew its own title bar, took the
 unknown-host-key path against a fingerprint checked out of band, opened its
-credential window, authenticated and ran a shell — and held exactly one session
+credential window, authenticated and ran a shell. It held exactly one session
 open on the server, which is what ADR-0014 is for.
 
 Minimise, maximise and close were all exercised there, which matters because
@@ -84,7 +84,7 @@ working minimise and a broken one look identical. See `docs/testing.md`.
 
 Still unchecked: the `.msi` (a different installer with a different code path,
 and per-machine, so it needs administrator rights), Windows SmartScreen on a
-downloaded file rather than a locally built one, and everything about macOS —
+downloaded file rather than a locally built one, and everything about macOS.
 Gatekeeper quarantine and the `.app` bundle are described below from
 documentation rather than from having been seen.
 
@@ -106,10 +106,10 @@ Get-FileHash .\Runic-SSH_0.1.0_x64_en-US.msi -Algorithm SHA256
 ## macOS
 
 `.dmg` and `.app` are produced, unsigned and un-notarized, and **Apple Silicon
-only** — the runner is `macos-latest`, which is `aarch64`. An Intel Mac has
+only**: the runner is `macos-latest`, which is `aarch64`. An Intel Mac has
 nothing to install here.
 
-Gatekeeper reports **"Runic SSH is damaged and can't be opened"** — which is not
+Gatekeeper reports **"Runic SSH is damaged and can't be opened"**, which is not
 true and is what macOS says about any unsigned application that has the
 quarantine attribute. Removing the attribute is the way past it:
 
@@ -135,12 +135,12 @@ The file is `Runic-SSH_...`, capitalised, because the product name is; the
 back off.
 
 The package depends on `libwebkit2gtk-4.1-0` and `libgtk-3-0`. There is no
-bundled browser engine — the webview is the system's, which is why the download
+bundled browser engine. The webview is the system's, which is why the download
 is three megabytes rather than a hundred.
 
 **Installing a second build over the first does nothing.** Every pre-release
 carries version `0.1.0`, so `apt` sees the installed version as current and
-exits successfully without replacing anything — no error, no warning, and the
+exits successfully without replacing anything: no error, no warning, and the
 old binary still on disk. Force it:
 
 ```sh
@@ -152,8 +152,8 @@ sudo dpkg -i ./Runic-SSH_0.1.0_amd64.deb
 ADR-0005 turned the system title bar off so the session tabs could occupy it.
 Most window managers are fine with that. Some are not: a compositor that does
 not draw resize borders for an undecorated window leaves one that cannot be
-resized, and one without a window manager at all — WSLg is the case this
-project hit — leaves a window that cannot be moved either.
+resized, and one without a window manager at all, which is the case this
+project hit with WSLg, leaves a window that cannot be moved either.
 
 The escape hatch is a command. Press `Ctrl+Shift+P` and search for **title
 bar**; the entry hands the bar back to the window manager, and the same entry
@@ -168,8 +168,8 @@ If the palette cannot be reached either, the same switch is a line in
 ```
 
 The application reads it at startup and applies it to the window. A window
-manager that ignores a decoration change on a window that is already open —
-some do — will still honour it on the next launch, which is why the setting is
+manager that ignores a decoration change on a window that is already open,
+and some do, will still honour it on the next launch, which is why the setting is
 written to disk as well as applied live.
 
 Not on macOS. There the traffic lights are the platform's own already, and

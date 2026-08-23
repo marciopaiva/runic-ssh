@@ -2,7 +2,7 @@
 
 Every SSH test in this repository runs against `russh`'s own server, in
 process, on a loopback port. That keeps CI fast and needs no `sshd` on three
-platforms' runners — and it shares an implementation with the client, which
+platforms' runners. It also shares an implementation with the client, which
 makes a shared assumption invisible to both sides of the test.
 
 `src-tauri/tests/against_openssh.rs` closes that gap. It runs against real
@@ -34,7 +34,7 @@ cargo test --test against_openssh -- --ignored --nocapture
 
 The same container is the only way to reach the credential prompt by hand. The
 prompt opens from `authenticate_interactively`, which runs after a connection is
-open and the server has asked for a credential — so no amount of clicking gets
+open and the server has asked for a credential, so no amount of clicking gets
 there without a server that asks.
 
 Save a session against it, connect, accept the host key, and the prompt window
@@ -45,7 +45,7 @@ wrong, so every prompt opened onto "this prompt is no longer valid".
 Two things about the container matter when driving it rather than testing it:
 
 * **Host keys change every time it is recreated**, which is the point (see
-  below) and a nuisance here — a recreated container makes a saved session hit
+  below) and a nuisance here: a recreated container makes a saved session hit
   the changed-key block instead of the prompt. Publish it on a second port
   rather than clearing `known_hosts`; a port with no entry takes the
   unknown-key path, and the entry you already trust stays valid.
@@ -66,7 +66,7 @@ once and stop thinking about it.
 
 WSLg runs Xwayland without a window manager, so there is no keyboard focus for
 anything to be delivered to: `xdotool` clicks land, and typing goes nowhere.
-Minimising also does nothing, because the compositor does not iconify — which is
+Minimising also does nothing, because the compositor does not iconify, which is
 indistinguishable from a broken button and will send you chasing one.
 
 Run the application on a display of its own instead, with a window manager on
@@ -91,7 +91,7 @@ what happened is to read `/proc/<pid>/environ`.
 ## Verifying the capability set
 
 `capabilities/default.json` names one command per line (ADR-0013), and three of
-those lines have no caller in this repository — they are invoked by scripts
+those lines have no caller in this repository. They are invoked by scripts
 Tauri injects into the page. No test here covers them, so after a Tauri upgrade
 or an edit to that file, drive the five checks below.
 
@@ -107,7 +107,7 @@ or an edit to that file, drive the five checks below.
 never reach their handlers under synthetic input, on Xvfb or on WSLg. That is
 not the ACL: granting all 45 commands the four `default` sets used to carry
 fails in exactly the same way. Check those two by hand on a real desktop, and
-do not read a synthetic failure as a missing permission — the control run is
+do not read a synthetic failure as a missing permission: the control run is
 what tells the two apart.
 
 The other three do work under `xdotool`, on the display described above:
@@ -132,11 +132,11 @@ Three public servers were checked on 2026-08-22:
 | Host | Result |
 | --- | --- |
 | `test.rebex.net:22`, `demo` / `password` | authenticates; the shell is **simulated** and runs no commands |
-| `github.com:22` | `publickey` only, and its host keys are published at `api.github.com/meta` — useful for verifying trust code, useless for a shell |
+| `github.com:22` | `publickey` only, and its host keys are published at `api.github.com/meta`; useful for verifying trust code, useless for a shell |
 | `sdf.org:22` | a real machine, but needs an account and is a shared community system |
 
 None of them can test the case that matters most. Rule 3 says a **changed**
-host key blocks the connection, and a public server's key is stable by design —
+host key blocks the connection, and a public server's key is stable by design,
 which is exactly what makes it useless here. The container generates its host
 keys at start, so recreating it changes the key:
 

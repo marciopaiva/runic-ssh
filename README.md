@@ -22,9 +22,9 @@
 
 Connecting to a server is something a sysadmin does fifty times a day, and the
 tools for it are either twenty years old or expensive. The good parts of the
-expensive ones — a session manager that is pleasant to use, SFTP beside the
-terminal, tunnels that are not a command line argument — are not hard problems.
-They are just behind a licence.
+expensive ones are not hard problems: a session manager that is pleasant to use,
+SFTP beside the terminal, tunnels that are not a command line argument. They are
+just behind a licence.
 
 **Runic SSH is an attempt to put those in something free, small enough to audit,
 and owned by the people who use it.** It is built for the sysadmins, DevOps
@@ -35,7 +35,7 @@ It is also built to be handed over. Every architectural decision has a record
 saying what was chosen, what it cost, and what it rules out; the working
 agreement is written down; the checks that gate a change are five commands
 anyone can run. That scaffolding exists so somebody who did not write this can
-still change it — see **Contributing**, below.
+still change it. See **Contributing**, below.
 
 ## ✅ What works today
 
@@ -56,14 +56,14 @@ still change it — see **Contributing**, below.
 
 Not yet: **SFTP**, **port forwarding**, snippets, split panes, and a signed
 installer of any kind. Those are the roadmap further down, not this
-list — a features section describing software that does not exist is the kind of
+list. A features section describing software that does not exist is the kind of
 thing this project would rather not do.
 
 ## 📸 What it looks like
 
-Both captures are of the packaged application connected to a real SSH server —
-not mockups, and not the design canvas. The hosts are invented; the fingerprint,
-the shell and the output are not.
+Both captures are of the packaged application connected to a real SSH server.
+They are not mockups, and not the design canvas. The hosts are invented; the
+fingerprint, the shell and the output are not.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-main-dark.png">
@@ -92,8 +92,8 @@ window, opened a shell and ran commands in it.
 **macOS has never been opened by anyone.** The `.dmg` builds on every run and
 that is all anyone can say about it. `docs/installing.md` tracks which packages
 a human has actually installed, per platform, which is not the same list as the
-one CI produces — and nobody has yet installed a file that came out of a
-release, on any platform.
+one CI produces. Nobody has yet installed a file that came out of a release, on
+any platform.
 
 Work is tracked in [issues](https://github.com/marciopaiva/runic-ssh/issues) and
 the decisions behind it in [`docs/adr/`](docs/adr/).
@@ -111,8 +111,8 @@ Installers for all three platforms are attached to each
 | Linux | `.deb`, `.rpm`, `.AppImage` |
 
 **Nothing here is code-signed.** Windows shows SmartScreen, macOS says the
-application is damaged, and neither is a malfunction — they are what an
-operating system says about a binary whose author it cannot verify.
+application is damaged. Neither is a malfunction: they are what an operating
+system says about a binary whose author it cannot verify.
 [`docs/installing.md`](docs/installing.md) has the exact commands for each
 platform, and the reason this project would rather explain the warning than
 teach you to click through it.
@@ -171,15 +171,15 @@ pnpm test
 
 ## 🗺️ Roadmap
 
-- [x] **v0.1.0 (MVP):** SSH connections with host key verification, saved sessions, and a working terminal — [released 2026-08-23](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.1.0).
+- [x] **v0.1.0 (MVP):** SSH connections with host key verification, saved sessions, and a working terminal. [Released 2026-08-23](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.1.0).
 - [ ] **v0.2.0:** SFTP integration (upload and download) plus session import from PuTTY and OpenSSH.
 - [ ] **v0.3.0:** port forwarding (SSH tunnels) and customizable themes.
 - [ ] **v1.0.0:** production grade stability, and a signed installer on every platform.
 
 The versions after v0.1.0 are a direction, not a promise. If you need something
-that is not on this list, [open an issue](https://github.com/marciopaiva/runic-ssh/issues/new)
-— what a tool like this should do next is better decided by the people running
-it fifty times a day than by whoever wrote the roadmap.
+that is not on this list, [open an issue](https://github.com/marciopaiva/runic-ssh/issues/new).
+What a tool like this should do next is better decided by the people running it
+fifty times a day than by whoever wrote the roadmap.
 
 ## 📚 Documentation
 
@@ -195,15 +195,14 @@ Contributions are very welcome, and the repository is arranged on the assumption
 that whoever writes the next change did not write the last one.
 
 **Every decision has a record.** `docs/adr/` says what was chosen, what it cost,
-and what it forecloses — including the ones that were later reversed, because
+and what it forecloses, including the ones that were later reversed, because
 the record of a reversal is what stops it being made again. If you wonder why
 the terminal has no GPU path, or why RSA private keys are refused, the answer is
 a file rather than an archaeology expedition through the log.
 
 **The process is written down.** [CLAUDE.md](CLAUDE.md) is the working
 agreement: how a change moves from analysis to a proposal to code, when to stop
-and ask, and the five commands that gate it. It is short, and it is the contract
-— read it before the code.
+and ask, and the five commands that gate it. It is short, and it is the contract. Read it before the code.
 
 **The repetitive parts are encoded.** `.claude/skills/` holds the workflows this
 project runs often: `/feature` drives a change through its phases, `/adr` writes
@@ -214,9 +213,9 @@ them.
 That last part is deliberate. This project is built with AI assistance and says
 so here rather than in its commit messages, where
 [CLAUDE.md](CLAUDE.md) forbids it: what matters in a history is what changed and
-why, not what typed it. The scaffolding is there so that a contribution — yours,
-or one you worked out with an assistant — can meet the same bar without anyone
-having to explain the bar first.
+why, not what typed it. The scaffolding is there so that a contribution, whether
+yours alone or one you worked out with an assistant, can meet the same bar
+without anyone having to explain the bar first.
 
 1. Fork the project and branch as `feat/<short-slug>` or `fix/<short-slug>`.
 2. Write the test alongside the code, not after it.
@@ -228,8 +227,8 @@ having to explain the bar first.
    deliberately left out.
 
 Anything touching credential storage, host key verification, logging, or the
-Tauri capability set needs a proposal and a decision record before the code —
-see section 5 of [CLAUDE.md](CLAUDE.md) and use the `/adr` skill.
+Tauri capability set needs a proposal and a decision record before the code.
+See section 5 of [CLAUDE.md](CLAUDE.md) and use the `/adr` skill.
 
 ## 📜 License
 
