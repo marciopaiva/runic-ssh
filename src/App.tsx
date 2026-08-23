@@ -6,7 +6,6 @@ import { HostKeyBlocked } from './components/HostKeyBlocked';
 import { ConnectionFailure } from './components/ConnectionFailure';
 import { HostKeyPrompt } from './components/HostKeyPrompt';
 import { HostKeyRefused } from './components/HostKeyRefused';
-import { SessionEditor } from './components/SessionEditor';
 import { SessionMenu } from './components/SessionMenu';
 import { SessionsSidebar } from './components/SessionsSidebar';
 import { SettingsPanel } from './components/SettingsPanel';
@@ -17,8 +16,9 @@ import { actionCommands, sessionCommands, usePalette } from './features/commands
 import type { CommandContext } from './features/commands';
 import { focusAfter, focusedSession, openTabs, resolveFocus, tabAfterClosing, useChrome, windowControls } from './features/chrome';
 import type { Focus } from './features/chrome';
-import { isOverridable, needsConfirmation, useConnect, useSessions } from './features/sessions';
+import { isOverridable, needsConfirmation, useConnect, useSessionEditor, useSessions } from './features/sessions';
 import type { SessionAction } from './features/sessions';
+import type { SettingsSection } from './components/SettingsPanel';
 import { deleteSession, disconnectSession, saveSession } from './ipc';
 import type { SessionDraft } from './ipc';
 import { useLocale } from './features/settings';
@@ -51,10 +51,7 @@ export function App(): JSX.Element {
   const [focus, setFocus] = useState<Focus | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [size, setSize] = useState<TerminalSize | null>(null);
-  /* `null` means closed; a string is the session being edited, and the empty
-     string is a new one. A separate boolean would let "editing nothing" and
-     "editing a session that has gone" look the same. */
-  const [editing, setEditing] = useState<string | null>(null);
+  const [section, setSection] = useState<SettingsSection>('sessions');
   /* Which row's menu is open, and where it was opened from. */
   const [menu, setMenu] = useState<{
     readonly sessionId: string;
@@ -87,12 +84,6 @@ export function App(): JSX.Element {
   const openSettings = useCallback((): void => {
     setSettingsOpen(true);
     setFocus({ kind: 'settings' });
-  }, []);
-
-  const closeSettings = useCallback((): void => {
-    setSettingsOpen(false);
-    /* `resolveFocus` moves off it on the next render; clearing here would
-       fight that and blank the panel for a frame. */
   }, []);
 
   const { attempt, connect, trust, abandon } = useConnect({
@@ -142,21 +133,39 @@ export function App(): JSX.Element {
   );
 
   const save = useCallback(
-    (draft: SessionDraft): void => {
-      void saveSession(draft)
-        .then(() => reload())
-        .finally(() => setEditing(null));
+    async (draft: SessionDraft) => {
+      const stored = await saveSession(draft);
+      reload();
+      return stored;
     },
     [reload],
   );
 
   const remove = useCallback(
     (sessionId: string): void => {
-      void deleteSession(sessionId)
-        .then(() => reload())
-        .finally(() => setEditing(null));
+      void deleteSession(sessionId).then(() => reload());
     },
     [reload],
+  );
+
+  const saved = useMemo(() => sessions.map((live) => live.session), [sessions]);
+
+  const editor = useSessionEditor(saved, {
+    onSave: save,
+    onDelete: remove,
+    onCloseSettings: () => setSettingsOpen(false),
+  });
+
+  /* Opening the form is what puts the tab on the strip: the sidebar's `+` and
+     the row menu's Edit both land here rather than each knowing about tabs. */
+  const editInSettings = useCallback(
+    (target: Parameters<typeof editor.open>[0]): void => {
+      setSettingsOpen(true);
+      setSection('sessions');
+      setFocus({ kind: 'settings' });
+      editor.open(target);
+    },
+    [editor],
   );
 
   const chooseFromMenu = useCallback(
@@ -180,7 +189,7 @@ export function App(): JSX.Element {
           }
           return;
         case 'edit':
-          setEditing(open.sessionId);
+          editInSettings({ kind: 'existing', sessionId: open.sessionId });
           return;
         case 'delete':
           remove(open.sessionId);
@@ -200,8 +209,8 @@ export function App(): JSX.Element {
       maximized,
       nativeDecorations,
       actions: {
-        newSession: () => setEditing(''),
-        editSession: setEditing,
+        newSession: () => editInSettings({ kind: 'new' }),
+        editSession: (sessionId: string) => editInSettings({ kind: 'existing', sessionId }),
         selectSession: activate,
         activateTab: (sessionId: string) => setFocus({ kind: 'session', sessionId }),
         closeTab,
@@ -228,6 +237,7 @@ export function App(): JSX.Element {
         tabs={tabs}
         focus={resolvedFocus}
         settingsOpen={settingsOpen}
+        settingsDirty={editor.dirty}
         /* Until the core answers, the bar draws without controls. It is the
            same height either way, so nothing below it moves. */
         controls={chrome === null ? [] : windowControls(chrome, maximized)}
@@ -235,7 +245,9 @@ export function App(): JSX.Element {
         panelId={TERMINAL_PANEL}
         onFocus={setFocus}
         onClose={closeTab}
-        onCloseSettings={closeSettings}
+        /* Through the editor rather than straight to the state: closing is
+           one of the three things that can throw an unsaved form away. */
+        onCloseSettings={editor.requestClose}
         onAct={act}
       />
 
@@ -244,7 +256,7 @@ export function App(): JSX.Element {
           sessions={sessions}
           selectedId={selected}
           onSelect={activate}
-          onAdd={() => setEditing('')}
+          onAdd={() => editInSettings({ kind: 'new' })}
           onMenu={(sessionId, at) => setMenu({ sessionId, at })}
         />
         {/* `relative` is what the terminals are positioned against. They are
@@ -276,6 +288,28 @@ export function App(): JSX.Element {
               aria-hidden={resolvedFocus?.kind === 'settings' ? undefined : true}
             >
               <SettingsPanel
+                section={section}
+                onSection={setSection}
+                sessionsSettings={{
+                  sessions: saved,
+                  editingId:
+                    editor.target === null
+                      ? null
+                      : editor.target.kind === 'new'
+                        ? 'new'
+                        : editor.target.sessionId,
+                  values: editor.values,
+                  wrong: editor.wrong,
+                  dirty: editor.dirty,
+                  discarding: editor.discarding,
+                  onEdit: (sessionId) => editor.open({ kind: 'existing', sessionId }),
+                  onNew: () => editor.open({ kind: 'new' }),
+                  onChange: editor.change,
+                  onSubmit: editor.submit,
+                  onDelete: editor.remove,
+                  onConfirmDiscard: editor.confirmDiscard,
+                  onCancelDiscard: editor.cancelDiscard,
+                }}
                 chosenLocale={chosen}
                 onChooseLocale={(locale) => void choose(locale)}
                 nativeDecorations={nativeDecorations}
@@ -364,15 +398,6 @@ export function App(): JSX.Element {
             />
           );
         })()}
-
-      {editing !== null && (
-        <SessionEditor
-          session={sessions.find((live) => live.session.id === editing)?.session ?? null}
-          onSave={save}
-          onDelete={editing === '' ? null : () => remove(editing)}
-          onCancel={() => setEditing(null)}
-        />
-      )}
 
       <CommandPalette
         open={palette.open}
