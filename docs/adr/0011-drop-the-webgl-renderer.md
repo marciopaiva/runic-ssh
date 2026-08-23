@@ -1,8 +1,8 @@
 # ADR-0011: Drop the WebGL renderer and paint with the DOM one
 
-* **Status**: Proposed — deferred to the first packaged build
-* **Date**: 2026-08-22
-* **Would supersede**: [ADR-0006](0006-render-the-terminal-with-webgl.md), which stands until this is decided
+* **Status**: Accepted
+* **Date**: 2026-08-22, proposed. 2026-08-23, decided.
+* **Supersedes**: [ADR-0006](0006-render-the-terminal-with-webgl.md)
 
 ## Context
 
@@ -98,9 +98,38 @@ removing anything. That is a real risk of the deferral, not an argument
 against it, and the mitigation is that #40 carries the measurement as a
 release-blocking item rather than leaving it to be remembered.
 
-## Decision, if the measurements hold
+## Decided on 2026-08-23
 
-Option B, proposed on 2026-08-22.
+The measurement the deferral was waiting for now exists, in
+[`terminal-throughput.md`](../measurements/terminal-throughput.md). It was taken
+in the application's own webview — WebKitGTK, not a browser tab — which is what
+the deferral asked for.
+
+| | DOM | WebGL | Ratio |
+| --- | --- | --- | --- |
+| Windows 11, RTX 5070, Chromium | 95.9 – 102.5 MB/s | 102.1 – 104.9 MB/s | 1.01 – 1.09x |
+| Linux, WebKitGTK, software rasteriser | 88.2 – 108.8 MB/s | 67.1 – 80.2 MB/s | **0.71 – 0.81x** |
+
+**On the weaker configuration the addon is not merely not faster. It is 19 to 29
+percent slower.** And the row with the worst ratio is a 3800×2100 window on a
+3840×2160 display — the large terminal on a high-density screen this decision
+named as one of the two cases it was least sure about.
+
+That is the opposite of what a deferral protects against. The reason to wait was
+that a weak GPU might reveal the addon earning its keep; the weakest
+configuration reachable reveals it costing.
+
+**What is still not measured**, stated plainly because the numbers above are one
+platform: WebKitGTK on working hardware, and macOS under WKWebView on anything.
+Every EGL path on the machine that took these numbers falls back to software —
+the failures are recorded in the measurement document. Neither gap changes the
+arithmetic below, because the transport ceiling is the same on every platform
+and both renderers clear it several times over on the slowest configuration
+anyone has run.
+
+## Decision
+
+Option B, proposed on 2026-08-22 and accepted on 2026-08-23.
 
 Remove the WebGL addon. `xterm.js` paints with its DOM renderer.
 
@@ -129,17 +158,26 @@ with it.
 
 **Bad**: a measured one to nine percent is given up. Small, and real.
 
-**Bad**: this rests on one machine. A weak integrated GPU is exactly the case
-where a software renderer might struggle and was not measured. If that turns
-out to matter, the addon comes back — and the code to bring it back is in this
-repository's history, alongside the tests that covered its fallback.
+**Bad**: this rests on two machines and one of them could not reach its own
+GPU. WebKitGTK on working hardware is unmeasured, and macOS is unmeasured
+entirely. If either turns out to matter, the addon comes back — the code to
+bring it back is in this repository's history, alongside the tests that covered
+its fallback, and `docs/measurements/terminal-throughput.md` says what would
+have to be true for that to be the right move.
 
 **Bad**: the headroom disappears if the transport bound is ever raised. Should
 the 256 KiB ceiling or the 16 ms interval change substantially, this decision
 needs measuring again rather than assuming.
 
-**Follow-up**: record measurements from a machine with integrated graphics
-before v0.1.0 ships, since that is the case this decision is least sure about.
-The renderer benchmark stays in the tree for exactly that. Revisit if the
-transport bound changes, or if a platform reports the DOM renderer struggling
-in a way the numbers here did not predict.
+**Bad**: the renderer benchmark goes with the addon. It compared two things and
+there is now one, so keeping it would have meant keeping the dependency it was
+built to judge. Anyone reopening this reverts the commit that removed both —
+`docs/measurements/terminal-throughput.md` says so where the harness used to be
+described.
+
+**Follow-up**: measure WebKitGTK on working graphics, and macOS under WKWebView
+on anything, if either platform ever reports the DOM renderer struggling. Both
+are unmeasured and neither blocks v0.1.0, because the argument here is that the
+transport ceiling is several times below what the slowest renderer measured
+already draws. Revisit if the transport bound changes — that is the number this
+decision actually rests on.
