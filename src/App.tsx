@@ -9,12 +9,14 @@ import { HostKeyRefused } from './components/HostKeyRefused';
 import { SessionEditor } from './components/SessionEditor';
 import { SessionMenu } from './components/SessionMenu';
 import { SessionsSidebar } from './components/SessionsSidebar';
+import { SettingsPanel } from './components/SettingsPanel';
 import { StatusBar } from './components/StatusBar';
 import { TerminalView } from './components/TerminalView';
 import { Titlebar } from './components/Titlebar';
 import { actionCommands, sessionCommands, usePalette } from './features/commands';
 import type { CommandContext } from './features/commands';
-import { openTabs, resolveActive, tabAfter, tabAfterClosing, useChrome, windowControls } from './features/chrome';
+import { focusAfter, focusedSession, openTabs, resolveFocus, tabAfterClosing, useChrome, windowControls } from './features/chrome';
+import type { Focus } from './features/chrome';
 import { isOverridable, needsConfirmation, useConnect, useSessions } from './features/sessions';
 import type { SessionAction } from './features/sessions';
 import { deleteSession, disconnectSession, saveSession } from './ipc';
@@ -44,7 +46,10 @@ export function App(): JSX.Element {
   const { chrome, maximized, act, refused, nativeDecorations, useNativeDecorations } = useChrome();
   const { i18n, chosen, choose } = useLocale();
   const [selected, setSelected] = useState<string | null>(null);
-  const [active, setActive] = useState<string | null>(null);
+  /* What the strip is pointing at. A union rather than a session id with a
+     reserved value for settings — see `features/chrome/focus.ts`. */
+  const [focus, setFocus] = useState<Focus | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [size, setSize] = useState<TerminalSize | null>(null);
   /* `null` means closed; a string is the session being edited, and the empty
      string is a new one. A separate boolean would let "editing nothing" and
@@ -60,7 +65,8 @@ export function App(): JSX.Element {
   /* A tab disappears when its host drops the connection, which nobody
      clicked. Resolving on render is what keeps the active tab pointing at
      something that is still there. */
-  const activeId = resolveActive(tabs, active);
+  const resolvedFocus = resolveFocus(tabs, settingsOpen, focus);
+  const activeId = focusedSession(resolvedFocus);
   const activeTab = tabs.find((tab) => tab.sessionId === activeId) ?? null;
   const activeHandle = activeTab?.handle ?? null;
   const stats = useSessionStats(activeHandle);
@@ -68,16 +74,33 @@ export function App(): JSX.Element {
   const mounted = useMemo(() => mountedTerminals(tabs), [tabs]);
 
   const closeTab = useCallback(
-    (sessionId: string) => setActive(tabAfterClosing(tabs, sessionId)),
+    (sessionId: string) => {
+      const next = tabAfterClosing(tabs, sessionId);
+      /* Falling through to settings rather than to nothing: closing the last
+         terminal with settings open used to leave the panel blank beside a
+         tab that was still on the bar. */
+      setFocus(next === null ? null : { kind: 'session', sessionId: next });
+    },
     [tabs],
   );
+
+  const openSettings = useCallback((): void => {
+    setSettingsOpen(true);
+    setFocus({ kind: 'settings' });
+  }, []);
+
+  const closeSettings = useCallback((): void => {
+    setSettingsOpen(false);
+    /* `resolveFocus` moves off it on the next render; clearing here would
+       fight that and blank the panel for a frame. */
+  }, []);
 
   const { attempt, connect, trust, abandon } = useConnect({
     onConnecting: (sessionId) => setState(sessionId, 'connecting'),
     onOpened: (sessionId, handle) => {
       attach(sessionId, handle);
       setState(sessionId, 'connected');
-      setActive(sessionId);
+      setFocus({ kind: 'session', sessionId });
     },
     onFailed: (sessionId, code) => {
       /* A changed key is not the same as an unreachable host, and the sidebar
@@ -109,7 +132,7 @@ export function App(): JSX.Element {
       if (live === undefined) return;
 
       if (live.handle !== null) {
-        setActive(sessionId);
+        setFocus({ kind: 'session', sessionId });
         return;
       }
 
@@ -180,15 +203,16 @@ export function App(): JSX.Element {
         newSession: () => setEditing(''),
         editSession: setEditing,
         selectSession: activate,
-        activateTab: setActive,
+        activateTab: (sessionId: string) => setFocus({ kind: 'session', sessionId }),
         closeTab,
-        moveTab: (step) => setActive(tabAfter(tabs, activeId, step)),
+        moveTab: (step) => setFocus(focusAfter(tabs, settingsOpen, resolvedFocus, step)),
         window: act,
         chooseLocale: (locale) => void choose(locale),
         useNativeDecorations,
+        openSettings,
       },
     }),
-    [i18n, sessions, tabs, activeId, chosen, maximized, nativeDecorations, act, choose, closeTab, activate, useNativeDecorations],
+    [i18n, sessions, tabs, activeId, chosen, maximized, nativeDecorations, act, choose, closeTab, activate, useNativeDecorations, openSettings, settingsOpen, resolvedFocus],
   );
 
   const sources = useMemo(
@@ -202,14 +226,16 @@ export function App(): JSX.Element {
     <div className="flex h-full flex-col">
       <Titlebar
         tabs={tabs}
-        activeId={activeId}
+        focus={resolvedFocus}
+        settingsOpen={settingsOpen}
         /* Until the core answers, the bar draws without controls. It is the
            same height either way, so nothing below it moves. */
         controls={chrome === null ? [] : windowControls(chrome, maximized)}
         leadingInset={chrome?.leadingInset ?? 0}
         panelId={TERMINAL_PANEL}
-        onSelect={setActive}
+        onFocus={setFocus}
         onClose={closeTab}
+        onCloseSettings={closeSettings}
         onAct={act}
       />
 
@@ -238,6 +264,25 @@ export function App(): JSX.Element {
               onSize={setSize}
             />
           ))}
+
+          {settingsOpen && (
+            /* Mounted for as long as the tab is on the strip, and hidden the
+               same way the terminals are, so the section you were reading is
+               still the section you come back to. */
+            <div
+              className={`absolute inset-0 ${
+                resolvedFocus?.kind === 'settings' ? '' : 'invisible pointer-events-none'
+              }`}
+              aria-hidden={resolvedFocus?.kind === 'settings' ? undefined : true}
+            >
+              <SettingsPanel
+                chosenLocale={chosen}
+                onChooseLocale={(locale) => void choose(locale)}
+                nativeDecorations={nativeDecorations}
+                onUseNativeDecorations={useNativeDecorations}
+              />
+            </div>
+          )}
 
           {failed !== null && (
             /* Positioned, and after the terminals in document order, so it
