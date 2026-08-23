@@ -18,7 +18,7 @@ import { actionCommands, sessionCommands, usePalette } from './features/commands
 import type { CommandContext } from './features/commands';
 import { focusAfter, focusedSession, openTabs, resolveFocus, tabAfterClosing, useChrome, windowControls } from './features/chrome';
 import type { Focus } from './features/chrome';
-import { isInProgress, isOverridable, needsConfirmation, useConnect, useSessionEditor, useSessions } from './features/sessions';
+import { isInProgress, isOverridable, needsConfirmation, stateAfterFailure, useConnect, useSessionEditor, useSessions } from './features/sessions';
 import type { SessionAction } from './features/sessions';
 import type { SettingsSection } from './components/SettingsPanel';
 import { deleteSession, disconnectSession, saveSession } from './ipc';
@@ -67,11 +67,9 @@ export function App(): JSX.Element {
       setState(sessionId, 'connected');
       setFocus({ kind: 'session', sessionId });
     },
-    onFailed: (sessionId, code) => {
-      /* A changed key is not the same as an unreachable host, and the sidebar
-         marker says which. Collapsing them would hide the one that matters. */
-      setState(sessionId, code === 'hostKeyDecision' ? 'keyMismatch' : 'unreachable');
-    },
+    /* A changed key, a host that did not answer, and a credential window the
+       user closed are three different things, and the marker says which. */
+    onFailed: (sessionId, code) => setState(sessionId, stateAfterFailure(code)),
     /* Back to a plain stored host. Nothing was learned about it — the attempt
        was let go, not answered — so anything else would be a claim. */
     onAbandoned: (sessionId) => setState(sessionId, 'saved'),
@@ -93,6 +91,21 @@ export function App(): JSX.Element {
   /* One terminal per open session, kept mounted across tab switches. */
   const mounted = useMemo(() => mountedTerminals(tabs), [tabs]);
 
+  /* Closing a connection, wherever it is asked for. The tab's X and the row
+     menu both land here rather than each doing their own half of it. */
+  const disconnect = useCallback(
+    (sessionId: string): void => {
+      const live = sessions.find((entry) => entry.session.id === sessionId);
+      if (live?.handle == null) return;
+
+      void disconnectSession(live.handle).finally(() => {
+        attach(sessionId, null);
+        setState(sessionId, 'saved');
+      });
+    },
+    [sessions, attach, setState],
+  );
+
   const closeTab = useCallback(
     (sessionId: string) => {
       const next = tabAfterClosing(tabs, sessionId);
@@ -100,8 +113,16 @@ export function App(): JSX.Element {
          terminal with settings open used to leave the panel blank beside a
          tab that was still on the bar. */
       setFocus(next === null ? null : { kind: 'session', sessionId: next });
+
+      /* The part that was missing entirely. This moved the focus and stopped,
+         so the X on a tab disconnected nothing, and the tab did not even go
+         away — it is derived from the live session, which was still open. A
+         control that looks like it did nothing is indistinguishable from one
+         that is not wired up. */
+      if (attentionId === sessionId) abandon();
+      disconnect(sessionId);
     },
-    [tabs],
+    [tabs, attentionId, abandon, disconnect],
   );
 
   const openSettings = useCallback((): void => {
@@ -136,9 +157,20 @@ export function App(): JSX.Element {
         return;
       }
 
+      /* Already on its way. A double click on a row used to start a second
+         connection to the same host: two sockets, the first orphaned, and with
+         one attempt held at a time the first was silently replaced.
+         `isInProgress` and not merely "has an attempt", because retrying from
+         the failure surface is this same call on a session whose attempt is
+         still held — and that one must go through. */
+      if (attempt !== null && attempt.sessionId === sessionId && isInProgress(attempt.stage)) {
+        setFocus({ kind: 'session', sessionId });
+        return;
+      }
+
       void connect(sessionId, live.session.credentialId);
     },
-    [connect, sessions],
+    [connect, sessions, attempt],
   );
 
   /* What the attempt has to say, as one branch instead of four nested ones at
@@ -257,19 +289,12 @@ export function App(): JSX.Element {
       setMenu(null);
       if (open === null) return;
 
-      const live = sessions.find((entry) => entry.session.id === open.sessionId);
-
       switch (action) {
         case 'connect':
           activate(open.sessionId);
           return;
         case 'disconnect':
-          if (live?.handle != null) {
-            void disconnectSession(live.handle).finally(() => {
-              attach(open.sessionId, null);
-              setState(open.sessionId, 'saved');
-            });
-          }
+          disconnect(open.sessionId);
           return;
         case 'edit':
           editInSettings({ kind: 'existing', sessionId: open.sessionId });
@@ -279,7 +304,7 @@ export function App(): JSX.Element {
           return;
       }
     },
-    [menu, sessions, activate, attach, setState, remove],
+    [menu, activate, disconnect, editInSettings, remove],
   );
 
   const context = useMemo<CommandContext>(
