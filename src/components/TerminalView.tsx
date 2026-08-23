@@ -46,7 +46,14 @@ export function TerminalView({ handle, visible, onSize }: TerminalViewProps): JS
       }`}
       aria-hidden={visible ? undefined : true}
     >
-      <div ref={setContainer} className="min-h-0 flex-1 p-2" />
+      {/* The padding is on this wrapper and not on the element xterm owns.
+          FitAddon measures the parent it is opened into, and the rows it
+          derives from that measurement are laid out over the padding rather
+          than inside it — so a padded container reads as breathing room and
+          renders as a clipped last line. */}
+      <div className="min-h-0 flex-1 p-2">
+        <div ref={setContainer} className="h-full w-full" />
+      </div>
 
       {exitStatus !== null && (
         <p className="text-ink-muted border-line-subtle border-t px-3 py-1.5 font-mono text-xs">
