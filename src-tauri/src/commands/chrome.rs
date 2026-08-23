@@ -134,8 +134,57 @@ pub async fn window_action<R: Runtime>(
     window: WebviewWindow<R>,
     request: WindowRequest,
 ) -> Result<(), IpcError> {
+    act_on(&window, request)
+}
+
+/// The five window operations a control we drew can ask for.
+///
+/// A trait rather than the window itself, so the refusal path can be reached
+/// from a test. It cannot be reached any other way: Tauri's own `MockRuntime`
+/// returns `Ok` from `minimize`, `maximize` and `unmaximize` unconditionally,
+/// and ADR-0012 shipped with the code that reports a refusal never once having
+/// run. The implementation below is pure delegation; the behaviour under test
+/// is all in [`act_on`].
+trait WindowControl {
+    fn is_maximized(&self) -> tauri::Result<bool>;
+    fn minimize(&self) -> tauri::Result<()>;
+    fn maximize(&self) -> tauri::Result<()>;
+    fn unmaximize(&self) -> tauri::Result<()>;
+    fn destroy(&self) -> tauri::Result<()>;
+}
+
+impl<R: Runtime> WindowControl for WebviewWindow<R> {
+    /* Spelled out rather than `self.minimize()`. The inherent method wins
+    method resolution, so the short form would work and would also be one
+    rename away from recursing into itself. */
+    fn is_maximized(&self) -> tauri::Result<bool> {
+        WebviewWindow::is_maximized(self)
+    }
+
+    fn minimize(&self) -> tauri::Result<()> {
+        WebviewWindow::minimize(self)
+    }
+
+    fn maximize(&self) -> tauri::Result<()> {
+        WebviewWindow::maximize(self)
+    }
+
+    fn unmaximize(&self) -> tauri::Result<()> {
+        WebviewWindow::unmaximize(self)
+    }
+
+    fn destroy(&self) -> tauri::Result<()> {
+        WebviewWindow::destroy(self)
+    }
+}
+
+/// Carries out a request, and reports a window that would not.
+fn act_on(window: &impl WindowControl, request: WindowRequest) -> Result<(), IpcError> {
     let outcome = match request {
         WindowRequest::Minimize => window.minimize(),
+        /* A window that cannot say whether it is maximized is treated as not
+        maximized, because the alternative is a button that refuses over a
+        question nobody asked it. */
         WindowRequest::ToggleMaximize => {
             if window.is_maximized().unwrap_or(false) {
                 window.unmaximize()
@@ -149,6 +198,8 @@ pub async fn window_action<R: Runtime>(
         WindowRequest::Close => window.destroy(),
     };
 
+    /* The refusal reaches the user as a code, never as the platform's own
+    text: that string is written by something we do not audit. */
     outcome.map_err(|_| Error::WindowActionRefused)?;
     Ok(())
 }
@@ -183,6 +234,160 @@ mod tests {
             application,
             r#"{"controls":"application","leadingInset":0,"commandModifier":"control"}"#
         );
+    }
+
+    /// A window that answers every request, and records what it was asked.
+    #[derive(Default)]
+    struct Spy {
+        maximized: bool,
+        /* Interior mutability, because `WindowControl` takes `&self` — the
+        real implementation is a handle to a window the core owns, not
+        something a command holds by value. */
+        calls: std::cell::RefCell<Vec<&'static str>>,
+    }
+
+    impl Spy {
+        fn calls(&self) -> Vec<&'static str> {
+            self.calls.borrow().clone()
+        }
+    }
+
+    impl WindowControl for Spy {
+        fn is_maximized(&self) -> tauri::Result<bool> {
+            Ok(self.maximized)
+        }
+
+        fn minimize(&self) -> tauri::Result<()> {
+            self.calls.borrow_mut().push("minimize");
+            Ok(())
+        }
+
+        fn maximize(&self) -> tauri::Result<()> {
+            self.calls.borrow_mut().push("maximize");
+            Ok(())
+        }
+
+        fn unmaximize(&self) -> tauri::Result<()> {
+            self.calls.borrow_mut().push("unmaximize");
+            Ok(())
+        }
+
+        fn destroy(&self) -> tauri::Result<()> {
+            self.calls.borrow_mut().push("destroy");
+            Ok(())
+        }
+    }
+
+    /// A window that refuses everything, the way a real one can and the mock
+    /// runtime cannot.
+    struct Refuses;
+
+    impl WindowControl for Refuses {
+        fn is_maximized(&self) -> tauri::Result<bool> {
+            Err(tauri::Error::WindowNotFound)
+        }
+
+        fn minimize(&self) -> tauri::Result<()> {
+            Err(tauri::Error::WindowNotFound)
+        }
+
+        fn maximize(&self) -> tauri::Result<()> {
+            Err(tauri::Error::WindowNotFound)
+        }
+
+        fn unmaximize(&self) -> tauri::Result<()> {
+            Err(tauri::Error::WindowNotFound)
+        }
+
+        fn destroy(&self) -> tauri::Result<()> {
+            Err(tauri::Error::WindowNotFound)
+        }
+    }
+
+    #[test]
+    fn a_window_that_refuses_is_reported_and_not_swallowed() {
+        /* ADR-0012's open follow-up, and the first time this line has run.
+        The whole point of routing these through a command was that a control
+        which cannot act says so — a refusal returned as `Ok` would put the
+        application back where it started, with a button indistinguishable
+        from one nobody wired up. */
+        for request in [
+            WindowRequest::Minimize,
+            WindowRequest::ToggleMaximize,
+            WindowRequest::Close,
+        ] {
+            assert_eq!(
+                act_on(&Refuses, request),
+                Err(IpcError::WindowActionRefused),
+                "{request:?} was not reported as a refusal"
+            );
+        }
+    }
+
+    #[test]
+    fn each_request_reaches_the_operation_it_names() {
+        /* A swapped arm here is a close button that minimises. Nothing else
+        would notice: every arm returns the same `Ok(())`. */
+        let spy = Spy::default();
+        assert_eq!(act_on(&spy, WindowRequest::Minimize), Ok(()));
+        assert_eq!(spy.calls(), vec!["minimize"]);
+
+        let spy = Spy::default();
+        assert_eq!(act_on(&spy, WindowRequest::Close), Ok(()));
+        assert_eq!(
+            spy.calls(),
+            vec!["destroy"],
+            "close must destroy, not close"
+        );
+    }
+
+    #[test]
+    fn toggling_reads_the_window_before_deciding_which_way() {
+        let restored = Spy::default();
+        assert_eq!(act_on(&restored, WindowRequest::ToggleMaximize), Ok(()));
+        assert_eq!(restored.calls(), vec!["maximize"]);
+
+        let maximized = Spy {
+            maximized: true,
+            ..Spy::default()
+        };
+        assert_eq!(act_on(&maximized, WindowRequest::ToggleMaximize), Ok(()));
+        assert_eq!(maximized.calls(), vec!["unmaximize"]);
+    }
+
+    #[test]
+    fn a_window_that_cannot_say_whether_it_is_maximized_still_acts() {
+        /* `is_maximized` is asked as a question, not as permission. Refusing
+        the whole request because the answer did not arrive would break the
+        button over something the user never asked about. */
+        struct Mute(std::cell::RefCell<Vec<&'static str>>);
+
+        impl WindowControl for Mute {
+            fn is_maximized(&self) -> tauri::Result<bool> {
+                Err(tauri::Error::WindowNotFound)
+            }
+
+            fn minimize(&self) -> tauri::Result<()> {
+                Ok(())
+            }
+
+            fn maximize(&self) -> tauri::Result<()> {
+                self.0.borrow_mut().push("maximize");
+                Ok(())
+            }
+
+            fn unmaximize(&self) -> tauri::Result<()> {
+                Ok(())
+            }
+
+            fn destroy(&self) -> tauri::Result<()> {
+                Ok(())
+            }
+        }
+
+        let mute = Mute(std::cell::RefCell::new(Vec::new()));
+        assert_eq!(act_on(&mute, WindowRequest::ToggleMaximize), Ok(()));
+        assert_eq!(mute.0.borrow().clone(), vec!["maximize"]);
     }
 
     #[test]
