@@ -105,18 +105,29 @@ describe('shapes the frontend declares by hand', () => {
        shape mismatch here is a strip of dead space at the leading edge, or
        tabs drawn underneath the macOS traffic lights. */
     const macos: WindowChrome = JSON.parse(
-      '{"controls":"system","leadingInset":78,"commandModifier":"meta"}',
+      '{"controls":"system","leadingInset":78,"commandModifier":"meta","nativeDecorations":false}',
     ) as WindowChrome;
     const undecorated: WindowChrome = JSON.parse(
-      '{"controls":"application","leadingInset":0,"commandModifier":"control"}',
+      '{"controls":"application","leadingInset":0,"commandModifier":"control","nativeDecorations":false}',
+    ) as WindowChrome;
+    /* ADR-0005's escape hatch. It agrees with macOS on `controls` and differs
+       on everything that decides layout, which is why the core sends the flag
+       instead of leaving the webview to infer it from the pair. */
+    const native: WindowChrome = JSON.parse(
+      '{"controls":"system","leadingInset":0,"commandModifier":"control","nativeDecorations":true}',
     ) as WindowChrome;
 
     expect(macos.controls).toBe('system');
     expect(macos.leadingInset).toBe(78);
     expect(macos.commandModifier).toBe('meta');
+    expect(macos.nativeDecorations).toBe(false);
     expect(undecorated.controls).toBe('application');
     expect(undecorated.leadingInset).toBe(0);
     expect(undecorated.commandModifier).toBe('control');
+    expect(undecorated.nativeDecorations).toBe(false);
+    expect(native.controls).toBe('system');
+    expect(native.leadingInset).toBe(0);
+    expect(native.nativeDecorations).toBe(true);
   });
 
   it('has a Rust test pinning the same window chrome strings', () => {
@@ -126,10 +137,13 @@ describe('shapes the frontend declares by hand', () => {
     );
 
     expect(rust).toContain(
-      '{"controls":"system","leadingInset":78,"commandModifier":"meta"}',
+      '{"controls":"system","leadingInset":78,"commandModifier":"meta","nativeDecorations":false}',
     );
     expect(rust).toContain(
-      '{"controls":"application","leadingInset":0,"commandModifier":"control"}',
+      '{"controls":"application","leadingInset":0,"commandModifier":"control","nativeDecorations":false}',
+    );
+    expect(rust).toContain(
+      '{"controls":"system","leadingInset":0,"commandModifier":"control","nativeDecorations":true}',
     );
   });
 

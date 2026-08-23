@@ -30,10 +30,30 @@ export interface WindowChrome {
   /** Pixels to keep clear at the leading edge, for controls we do not draw. */
   readonly leadingInset: number;
   readonly commandModifier: CommandModifier;
+  /** Whether the window manager is drawing the title bar (ADR-0005's hatch). */
+  readonly nativeDecorations: boolean;
 }
 
 export async function windowChrome(): Promise<WindowChrome> {
   return invoke<WindowChrome>('window_chrome');
+}
+
+/**
+ * Hands the title bar back to the window manager, or takes it again.
+ *
+ * ADR-0005's escape hatch, for a compositor that leaves an undecorated window
+ * impossible to move or resize. The core stores the choice and applies it to
+ * the live window, and answers with the chrome that results — so the titlebar
+ * relays out from what happened rather than from what was asked for.
+ *
+ * This needs no capability: it is a command of ours, and application commands
+ * are not gated by the ACL. Calling `getCurrentWindow().setDecorations()` here
+ * instead would have put `core:window:allow-set-decorations` back into
+ * `capabilities/default.json`, which is the kind of standing grant ADR-0012
+ * took out of it.
+ */
+export async function setNativeDecorations(native: boolean): Promise<WindowChrome> {
+  return invoke<WindowChrome>('set_native_decorations', { native });
 }
 
 /**

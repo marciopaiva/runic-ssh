@@ -70,6 +70,8 @@
   "command.window.maximize": "Maximizar ventana",
   "command.window.restore": "Restaurar ventana",
   "command.window.close": "Cerrar ventana",
+  "command.window.nativeDecorations": "Usar la barra de título del sistema",
+  "command.window.drawnDecorations": "Usar la barra de título de la app",
   "command.language.use": "Idioma: {name}",
   "command.language.system": "Idioma: seguir el sistema",
   "credential.title": "Autenticación requerida",

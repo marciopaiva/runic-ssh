@@ -31,6 +31,8 @@ export interface CommandActions {
   readonly moveTab: (step: 1 | -1) => void;
   readonly window: (action: WindowAction) => void;
   readonly chooseLocale: (locale: string | null) => void;
+  /** Hands the title bar to the window manager, or takes it back. */
+  readonly useNativeDecorations: (native: boolean) => void;
 }
 
 export interface CommandContext {
@@ -41,6 +43,8 @@ export interface CommandContext {
   /** `null` while the language follows the operating system. */
   readonly chosenLocale: string | null;
   readonly maximized: boolean;
+  /** Whether the window manager is currently drawing the title bar. */
+  readonly nativeDecorations: boolean;
   readonly actions: CommandActions;
 }
 
@@ -105,7 +109,7 @@ export function sessionCommands(context: CommandContext): readonly Command[] {
 
 /** Everything that is not a place to go. */
 export function actionCommands(context: CommandContext): readonly Command[] {
-  const { i18n, tabs, activeId, chosenLocale, maximized, actions } = context;
+  const { i18n, tabs, activeId, chosenLocale, maximized, nativeDecorations, actions } = context;
   const commands: Command[] = [];
 
   if (activeId !== null) {
@@ -172,6 +176,24 @@ export function actionCommands(context: CommandContext): readonly Command[] {
       run: () => actions.chooseLocale(locale.tag),
     });
   }
+
+  /* ADR-0005's escape hatch, and the palette is the only way to reach it —
+     there is no settings panel yet. Worth stating why it is reachable from a
+     command at all: the user who needs it may have a window they cannot move
+     or resize, and the palette opens from the keyboard. */
+  commands.push({
+    id: 'chrome:decorations',
+    section: 'actions',
+    title: nativeDecorations
+      ? i18n.t('command.window.drawnDecorations')
+      : i18n.t('command.window.nativeDecorations'),
+    /* No `detail`. It is drawn `shrink-0` beside a title that truncates, so a
+       sentence there squeezes the title to nothing — which is what a first
+       draft of this command did. The reason a user needs this lives in
+       docs/installing.md, not in a palette row. */
+    keywords: ['decorations', 'titlebar', 'decoracoes', 'decoraciones', 'barra'],
+    run: () => actions.useNativeDecorations(!nativeDecorations),
+  });
 
   if (chosenLocale !== null) {
     commands.push({

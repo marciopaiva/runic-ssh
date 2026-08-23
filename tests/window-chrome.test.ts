@@ -16,8 +16,28 @@ import type { Tab } from '../src/features/chrome/tabs';
 import type { LiveSession } from '../src/features/sessions';
 import type { Session } from '../src/ipc';
 
-const MACOS = { controls: 'system', leadingInset: 78, commandModifier: 'meta' } as const;
-const UNDECORATED = { controls: 'application', leadingInset: 0, commandModifier: 'control' } as const;
+const MACOS = {
+  controls: 'system',
+  leadingInset: 78,
+  commandModifier: 'meta',
+  nativeDecorations: false,
+} as const;
+const UNDECORATED = {
+  controls: 'application',
+  leadingInset: 0,
+  commandModifier: 'control',
+  nativeDecorations: false,
+} as const;
+
+/* ADR-0005's escape hatch: the window manager draws the bar above ours, so it
+   owns the controls and nothing overlaps us. `system` with a zero inset, which
+   is the pair MACOS gets wrong in exactly one field. */
+const NATIVE = {
+  controls: 'system',
+  leadingInset: 0,
+  commandModifier: 'control',
+  nativeDecorations: true,
+} as const;
 
 function session(id: string, name: string): Session {
   return {
@@ -55,6 +75,23 @@ describe('window controls', () => {
     const actions = windowControls(UNDECORATED, false).map((control) => control.action);
 
     expect(actions).toEqual(['minimize', 'maximize', 'close']);
+  });
+
+  it('draws none once the window manager has its title bar back', () => {
+    /* ADR-0005's escape hatch, and the failure it guards against is visible
+       rather than subtle: a real title bar with minimise, maximise and close,
+       and a second set of ours drawn directly underneath it. */
+    expect(windowControls(NATIVE, false)).toEqual([]);
+    expect(windowControls(NATIVE, true)).toEqual([]);
+  });
+
+  it('reserves leading space for the overlay and for nothing else', () => {
+    /* MACOS and NATIVE both say `system`, and only one of them has anything
+       floating over our bar. Reading `controls` alone would put 78 pixels of
+       nothing at the start of the tab strip. */
+    expect(MACOS.leadingInset).toBeGreaterThan(0);
+    expect(NATIVE.leadingInset).toBe(0);
+    expect(UNDECORATED.leadingInset).toBe(0);
   });
 
   it('offers to restore a maximized window rather than maximize it again', () => {

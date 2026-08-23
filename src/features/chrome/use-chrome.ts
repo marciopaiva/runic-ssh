@@ -14,6 +14,7 @@ import {
   isWindowMaximized,
   minimizeWindow,
   onWindowResized,
+  setNativeDecorations,
   toggleMaximizeWindow,
   windowChrome,
 } from '../../ipc';
@@ -40,6 +41,10 @@ interface ChromeState {
   readonly act: (action: WindowAction) => void;
   /** Set when a window control could not do what it was asked. */
   readonly refused: string | null;
+  /** Whether the window manager is drawing the title bar. */
+  readonly nativeDecorations: boolean;
+  /** Hands the title bar to the window manager, or takes it back. */
+  readonly useNativeDecorations: (native: boolean) => void;
 }
 
 export function useChrome(): ChromeState {
@@ -93,5 +98,20 @@ export function useChrome(): ChromeState {
     void actOnWindow(action, CONTROLS, setRefused);
   }, []);
 
-  return { chrome, maximized, act, refused };
+  /* The core answers with the chrome that resulted, and that answer is what
+     the bar lays out from. Setting the layout from the requested value would
+     be a guess: a window manager can refuse a decoration change on a mapped
+     window, and then the bar would draw for a title bar that is not there. */
+  const useNativeDecorations = useCallback((native: boolean): void => {
+    void setNativeDecorations(native)
+      .then(setChrome)
+      .catch(() => setRefused('windowActionRefused'));
+  }, []);
+
+  /* Read from the chrome the core sent, not tracked separately. A second copy
+     could disagree with the one the layout uses, and the symptom would be a
+     menu entry offering to turn on what is already on. */
+  const nativeDecorations = chrome?.nativeDecorations ?? false;
+
+  return { chrome, maximized, act, refused, nativeDecorations, useNativeDecorations };
 }

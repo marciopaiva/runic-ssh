@@ -40,7 +40,7 @@ const TERMINAL_PANEL = 'terminal-panel';
  */
 export function App(): JSX.Element {
   const { sessions, setState, attach, reload } = useSessions();
-  const { chrome, maximized, act, refused } = useChrome();
+  const { chrome, maximized, act, refused, nativeDecorations, useNativeDecorations } = useChrome();
   const { i18n, chosen, choose } = useLocale();
   const [selected, setSelected] = useState<string | null>(null);
   const [active, setActive] = useState<string | null>(null);
@@ -172,6 +172,7 @@ export function App(): JSX.Element {
       activeId,
       chosenLocale: chosen,
       maximized,
+      nativeDecorations,
       actions: {
         newSession: () => setEditing(''),
         editSession: setEditing,
@@ -181,9 +182,10 @@ export function App(): JSX.Element {
         moveTab: (step) => setActive(tabAfter(tabs, activeId, step)),
         window: act,
         chooseLocale: (locale) => void choose(locale),
+        useNativeDecorations,
       },
     }),
-    [i18n, sessions, tabs, activeId, chosen, maximized, act, choose, closeTab, activate],
+    [i18n, sessions, tabs, activeId, chosen, maximized, nativeDecorations, act, choose, closeTab, activate, useNativeDecorations],
   );
 
   const sources = useMemo(
