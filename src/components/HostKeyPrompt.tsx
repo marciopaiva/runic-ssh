@@ -3,6 +3,8 @@ import type { JSX } from 'react';
 
 import { useTranslator } from '../features/settings';
 
+import { SessionSurface, SurfaceAction } from './SessionSurface';
+
 interface HostKeyPromptProps {
   readonly host: string;
   readonly port: number;
@@ -20,6 +22,11 @@ interface HostKeyPromptProps {
  * does nothing until the user says they verified the fingerprint somewhere
  * else. Clicking through is the failure mode, and a button that is already
  * armed is an invitation to it.
+ *
+ * That inert button is also what made ADR-0015 affordable. Moving this screen
+ * out of a modal and into the session's panel gives up the guarantee that it
+ * cannot be ignored — but the protection against answering it on reflex was
+ * never the backdrop, and it survives the move intact.
  *
  * There is deliberately no "connect once". The transport has no such path —
  * accepting a key means writing it down and connecting again (see
@@ -39,45 +46,40 @@ export function HostKeyPrompt({
   const [verified, setVerified] = useState(false);
 
   return (
-    <section
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="host-key-title"
-      className="bg-surface-overlay border-line-strong w-[620px] rounded-xl border shadow-2xl"
+    <SessionSurface
+      titleId="host-key-title"
+      title={i18n.t('hostKey.unknown.title')}
+      icon={
+        <svg viewBox="0 0 16 16" width="19" height="19" fill="none" aria-hidden="true">
+          <path
+            d="M8 1.8l5.4 2.2v3.6c0 3.2-2.2 5.6-5.4 6.6-3.2-1-5.4-3.4-5.4-6.6V4z M8 6.4v2.4M8 10.6v.1"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      }
+      body={i18n.t('hostKey.unknown.body', { host })}
+      note={i18n.t('hostKey.savedTo')}
+      actions={
+        <>
+          <SurfaceAction onClick={onCancel} variant="secondary">
+            {i18n.t('hostKey.action.cancel')}
+          </SurfaceAction>
+          <SurfaceAction onClick={onTrust} variant="primary" disabled={!verified}>
+            {i18n.t('hostKey.action.trust')}
+          </SurfaceAction>
+        </>
+      }
     >
-      <div className="flex items-start gap-3.5 px-6 pt-5 pb-4">
-        <div className="border-line-strong bg-surface-raised text-accent-bright flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border">
-          <svg viewBox="0 0 16 16" width="19" height="19" fill="none" aria-hidden="true">
-            <path
-              d="M8 1.8l5.4 2.2v3.6c0 3.2-2.2 5.6-5.4 6.6-3.2-1-5.4-3.4-5.4-6.6V4z M8 6.4v2.4M8 10.6v.1"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <h2 id="host-key-title" className="text-ink text-[17px] font-bold tracking-tight">
-            {i18n.t('hostKey.unknown.title')}
-          </h2>
-          <p className="text-ink-muted text-[13px] leading-relaxed text-pretty">
-            {i18n.t('hostKey.unknown.body', { host })}
-          </p>
-        </div>
-      </div>
-
-      <dl className="bg-surface-base border-line-subtle mx-6 mb-4 flex flex-col gap-3 rounded-lg border p-3.5">
+      <dl className="bg-surface-base border-line-subtle flex flex-col gap-3 rounded-lg border p-3.5">
         <Field label={i18n.t('hostKey.field.host')} value={`${host}:${port}`} />
         <Field label={i18n.t('hostKey.field.keyType')} value={keyType} />
-        <Field
-          label={i18n.t('hostKey.field.fingerprint')}
-          value={fingerprint}
-          emphasis
-        />
+        <Field label={i18n.t('hostKey.field.fingerprint')} value={fingerprint} emphasis />
       </dl>
 
-      <label className="border-line-subtle bg-surface-base mx-6 mb-4 flex cursor-pointer items-start gap-2.5 rounded-lg border p-3">
+      <label className="border-line-subtle bg-surface-base flex cursor-pointer items-start gap-2.5 rounded-lg border p-3">
         <input
           type="checkbox"
           checked={verified}
@@ -93,28 +95,7 @@ export function HostKeyPrompt({
           </span>
         </span>
       </label>
-
-      <footer className="border-line-subtle bg-surface-chrome flex flex-col gap-2.5 rounded-b-xl border-t px-6 py-3.5">
-        <span className="text-ink-faint text-[11.5px]">{i18n.t('hostKey.savedTo')}</span>
-        <div className="flex items-center justify-end gap-2.5">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="border-line-strong text-ink-secondary h-[34px] rounded-md border px-4 text-[12.5px] font-semibold"
-          >
-            {i18n.t('hostKey.action.cancel')}
-          </button>
-          <button
-            type="button"
-            onClick={onTrust}
-            disabled={!verified}
-            className="bg-accent text-surface-base h-[34px] rounded-md px-[18px] text-[12.5px] font-bold disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {i18n.t('hostKey.action.trust')}
-          </button>
-        </div>
-      </footer>
-    </section>
+    </SessionSurface>
   );
 }
 

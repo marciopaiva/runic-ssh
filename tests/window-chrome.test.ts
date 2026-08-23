@@ -117,25 +117,72 @@ describe('window controls', () => {
 
 describe('session tabs', () => {
   it('gives a tab to an open connection', () => {
-    expect(openTabs([live('a', 'connected', 7)]).map((t) => t.sessionId)).toEqual(['a']);
+    expect(openTabs([live('a', 'connected', 7)], null).map((t) => t.sessionId)).toEqual(['a']);
   });
 
   it('gives a tab to one still connecting', () => {
     /* The tab is where the failure will be reported. Waiting for the handle
        means a connection that never completes has nowhere to say so. */
-    expect(openTabs([live('a', 'connecting')]).map((t) => t.sessionId)).toEqual(['a']);
+    expect(openTabs([live('a', 'connecting')], null).map((t) => t.sessionId)).toEqual(['a']);
   });
 
   it('gives no tab to a host nobody has connected to', () => {
     /* A saved host is a row in the sidebar. A tab that cannot be switched to
        is a lie about what is open. */
-    expect(openTabs([live('a', 'saved'), live('b', 'unreachable')])).toEqual([]);
+    expect(openTabs([live('a', 'saved'), live('b', 'unreachable')], null)).toEqual([]);
   });
 
   it('keeps the order the sidebar lists them in', () => {
-    const tabs = openTabs([live('a', 'connected', 1), live('b', 'connecting'), live('c', 'connected', 2)]);
+    const tabs = openTabs(
+      [live('a', 'connected', 1), live('b', 'connecting'), live('c', 'connected', 2)],
+      null,
+    );
 
     expect(tabs.map((t) => t.sessionId)).toEqual(['a', 'b', 'c']);
+  });
+});
+
+describe('the tab a question is waiting in', () => {
+  /* ADR-0015 renders a host key prompt and a connection failure inside the
+     panel of the session they are about. A session with no tab has no panel,
+     so losing the tab loses the surface — which is exactly what happened
+     before: failing flipped the session to `unreachable`, the filter dropped
+     it, and the only place the failure could be shown went with it. */
+
+  it('keeps the tab of a session whose attempt failed', () => {
+    expect(openTabs([live('a', 'unreachable')], 'a').map((t) => t.sessionId)).toEqual(['a']);
+  });
+
+  it('keeps the tab of a session waiting on a host key decision', () => {
+    expect(openTabs([live('a', 'keyMismatch')], 'a').map((t) => t.sessionId)).toEqual(['a']);
+  });
+
+  it('drops the tab once the attempt is let go', () => {
+    /* Dismissing the failure clears the attempt. Without this the tab of a
+       host that never connected would stay on the strip for the session. */
+    expect(openTabs([live('a', 'unreachable')], null)).toEqual([]);
+  });
+
+  it('holds the tab of the session under attention and no other', () => {
+    const tabs = openTabs([live('a', 'unreachable'), live('b', 'unreachable')], 'b');
+
+    expect(tabs.map((t) => t.sessionId)).toEqual(['b']);
+  });
+
+  it('does not give a second tab to a session that already has one', () => {
+    /* The attempt names a session that may also be connected — retrying from
+       the failure surface is exactly that. Two tabs for one session would
+       break every lookup that assumes the id is unique on the strip. */
+    const tabs = openTabs([live('a', 'connected', 3)], 'a');
+
+    expect(tabs.map((t) => t.sessionId)).toEqual(['a']);
+  });
+
+  it('reports the state the session is actually in', () => {
+    /* The marker is what tells a background tab that something is waiting in
+       it, now that no backdrop does. A tab held open by an attempt but drawn
+       as `connected` would say the opposite of what is true. */
+    expect(openTabs([live('a', 'unreachable')], 'a')[0]?.kind).toBe('unreachable');
   });
 });
 

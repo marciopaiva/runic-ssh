@@ -58,7 +58,25 @@ export function App(): JSX.Element {
     readonly at: { readonly x: number; readonly y: number };
   } | null>(null);
 
-  const tabs = useMemo(() => openTabs(sessions), [sessions]);
+  const { attempt, connect, trust, abandon } = useConnect({
+    onConnecting: (sessionId) => setState(sessionId, 'connecting'),
+    onOpened: (sessionId, handle) => {
+      attach(sessionId, handle);
+      setState(sessionId, 'connected');
+      setFocus({ kind: 'session', sessionId });
+    },
+    onFailed: (sessionId, code) => {
+      /* A changed key is not the same as an unreachable host, and the sidebar
+         marker says which. Collapsing them would hide the one that matters. */
+      setState(sessionId, code === 'hostKeyDecision' ? 'keyMismatch' : 'unreachable');
+    },
+  });
+
+  /* The session an unresolved attempt names. It keeps its tab so that the
+     surface asking about it has a panel to render in — ADR-0015. Dismissing
+     the failure clears the attempt, and the tab goes with it. */
+  const attentionId = attempt?.sessionId ?? null;
+  const tabs = useMemo(() => openTabs(sessions, attentionId), [sessions, attentionId]);
   /* A tab disappears when its host drops the connection, which nobody
      clicked. Resolving on render is what keeps the active tab pointing at
      something that is still there. */
@@ -85,20 +103,6 @@ export function App(): JSX.Element {
     setSettingsOpen(true);
     setFocus({ kind: 'settings' });
   }, []);
-
-  const { attempt, connect, trust, abandon } = useConnect({
-    onConnecting: (sessionId) => setState(sessionId, 'connecting'),
-    onOpened: (sessionId, handle) => {
-      attach(sessionId, handle);
-      setState(sessionId, 'connected');
-      setFocus({ kind: 'session', sessionId });
-    },
-    onFailed: (sessionId, code) => {
-      /* A changed key is not the same as an unreachable host, and the sidebar
-         marker says which. Collapsing them would hide the one that matters. */
-      setState(sessionId, code === 'hostKeyDecision' ? 'keyMismatch' : 'unreachable');
-    },
-  });
 
   /* Shown in the main area rather than as a toast: the user just clicked the
      session and is looking at exactly this space, and a message that
@@ -131,6 +135,64 @@ export function App(): JSX.Element {
     },
     [connect, sessions],
   );
+
+  /* What the attempt has to say, as one branch instead of four nested ones at
+     the call site. Revoked and certificate-required end in no decision at all
+     and used to render nothing — the attempt stopped behind an empty window. */
+  const attemptSurface = ((): JSX.Element | null => {
+    if (attempt === null) return null;
+
+    const decision = attempt.stage.stage === 'deciding' ? attempt.decision : null;
+
+    if (decision !== null) {
+      if (!isOverridable(decision.verdict)) {
+        return (
+          <HostKeyRefused
+            host={decision.host}
+            fingerprint={decision.offered}
+            reason={decision.verdict === 'revoked' ? 'revoked' : 'certificateRequired'}
+            onCancel={abandon}
+          />
+        );
+      }
+
+      if (needsConfirmation(decision.verdict)) {
+        return (
+          <HostKeyBlocked
+            host={decision.host}
+            storedFingerprints={decision.stored}
+            offeredFingerprint={decision.offered}
+            onReplace={(confirmation) => void trust(confirmation)}
+            onCancel={abandon}
+          />
+        );
+      }
+
+      return (
+        <HostKeyPrompt
+          host={decision.host}
+          port={decision.port}
+          keyType={decision.keyType}
+          fingerprint={decision.offered}
+          onTrust={() => void trust()}
+          onCancel={abandon}
+        />
+      );
+    }
+
+    if (failed !== null) {
+      return (
+        <ConnectionFailure
+          session={failed.session}
+          code={failed.code}
+          onRetry={() => activate(failed.session.id)}
+          onDismiss={abandon}
+        />
+      );
+    }
+
+    return null;
+  })();
 
   const save = useCallback(
     async (draft: SessionDraft) => {
@@ -318,17 +380,19 @@ export function App(): JSX.Element {
             </div>
           )}
 
-          {failed !== null && (
-            /* Positioned, and after the terminals in document order, so it
-               paints over them. In normal flow it would be painted under
-               every absolutely positioned sibling and never be seen. */
-            <div className="absolute inset-0">
-              <ConnectionFailure
-                session={failed.session}
-                code={failed.code}
-                onRetry={() => activate(failed.session.id)}
-                onDismiss={abandon}
-              />
+          {/* Everything an attempt has to say, inside the panel of the session
+              it names — ADR-0015. Positioned and last in document order so it
+              paints over that session's terminal, and hidden the same way the
+              terminals are, so a question about one session cannot cover
+              another. */}
+          {attempt !== null && attemptSurface !== null && (
+            <div
+              className={`absolute inset-0 ${
+                activeId === attempt.sessionId ? '' : 'invisible pointer-events-none'
+              }`}
+              aria-hidden={activeId === attempt.sessionId ? undefined : true}
+            >
+              {attemptSurface}
             </div>
           )}
         </main>
@@ -351,38 +415,6 @@ export function App(): JSX.Element {
         size={size}
         modifier={chrome?.commandModifier ?? 'control'}
       />
-
-      {attempt !== null &&
-        attempt.stage.stage === 'deciding' &&
-        attempt.decision !== null &&
-        (!isOverridable(attempt.decision.verdict) ? (
-          /* Revoked and certificate-required end in no decision, and used to
-             render nothing at all — the attempt stopped behind an empty
-             window. */
-          <HostKeyRefused
-            host={attempt.decision.host}
-            fingerprint={attempt.decision.offered}
-            reason={attempt.decision.verdict === 'revoked' ? 'revoked' : 'certificateRequired'}
-            onCancel={abandon}
-          />
-        ) : needsConfirmation(attempt.decision.verdict) ? (
-          <HostKeyBlocked
-            host={attempt.decision.host}
-            storedFingerprints={attempt.decision.stored}
-            offeredFingerprint={attempt.decision.offered}
-            onReplace={(confirmation) => void trust(confirmation)}
-            onCancel={abandon}
-          />
-        ) : (
-          <HostKeyPrompt
-            host={attempt.decision.host}
-            port={attempt.decision.port}
-            keyType={attempt.decision.keyType}
-            fingerprint={attempt.decision.offered}
-            onTrust={() => void trust()}
-            onCancel={abandon}
-          />
-        ))}
 
       {menu !== null &&
         (() => {
