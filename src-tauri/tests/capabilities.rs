@@ -14,11 +14,12 @@ use std::collections::BTreeSet;
 /// undecorated window cannot be moved without it.
 ///
 /// Deliberately *not* here, and worth reading twice: minimise, maximise and
-/// close. ADR-0005 made those controls ours to draw, and they act through a
-/// command of ours rather than through the window API — so the code that
-/// renders hostile output never holds permission to close the window. They
-/// were granted once, and the grant bought a button that failed silently when
-/// anything went wrong.
+/// close. ADR-0005 made those controls ours to draw, and ADR-0012 has them act
+/// through a command of ours rather than through the window API — so the code
+/// that renders hostile output never holds permission to close the window.
+/// They were granted once, and the grant bought a button that failed silently
+/// when anything went wrong. `window_action_cannot_name_a_window` below is what
+/// keeps that swap honest.
 ///
 /// Also not here: `allow-is-maximized` and `allow-internal-toggle-maximize`,
 /// which the interface uses and `core:window:default` already includes.
@@ -136,6 +137,68 @@ fn each_capability_names_the_one_window_it_is_for() {
              window it was not reviewed for"
         );
     }
+}
+
+/// The text of `window_action`, signature and body, from its own source.
+///
+/// Read rather than called because the property being guarded is the shape of
+/// the function, and a shape is not observable from a call.
+fn window_action_source() -> String {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/src/commands/chrome.rs");
+    let text = std::fs::read_to_string(path).expect("commands/chrome.rs is missing");
+
+    let start = text
+        .find("pub async fn window_action")
+        .expect("window_action is gone or renamed; ADR-0012 explains what it was for");
+    let tail = &text[start..];
+    let end = tail.find("\n}\n").map_or(tail.len(), |at| at + 2);
+
+    tail[..end].to_owned()
+}
+
+#[test]
+fn window_action_cannot_name_a_window() {
+    /* ADR-0012, and the single edit that would undo it.
+
+    Three `core:window` permissions are absent from ALLOWED because the webview
+    no longer acts on the window itself — it asks `window_action`, and Tauri
+    injects the window that called. Application commands are *not* gated by the
+    ACL, so the moment that command can be told which window to act on, any
+    document can act on any window: the credential prompt included, whose empty
+    capability is ADR-0008's argument that the main webview cannot touch the
+    window a password is typed into.
+
+    Nothing else notices that edit. The capability file still reads as narrow,
+    the ACL still has nothing to check, and the tests above still pass. */
+    let source = window_action_source();
+    let signature = source
+        .split_once('{')
+        .map_or(source.as_str(), |(head, _)| head);
+
+    assert!(
+        signature.contains("window: WebviewWindow<"),
+        "window_action no longer takes the calling window. Read ADR-0012 before \
+         changing this: the injected window is what stops one document acting \
+         on another. Signature is:\n{signature}"
+    );
+
+    for naming in ["String", "&str", "AppHandle"] {
+        assert!(
+            !signature.contains(naming),
+            "window_action takes a `{naming}`, which is a way to name a window \
+             other than the caller's — the reach ADR-0012 removed, and the \
+             reason three permissions could leave the capability. Signature \
+             is:\n{signature}"
+        );
+    }
+
+    /* The other route to the same place: a handle reached through `Manager`
+    turns a label back into any window in the application. */
+    assert!(
+        !source.contains("get_webview_window"),
+        "window_action looks a window up by label. ADR-0012: it may act on the \
+         window that called it and no other."
+    );
 }
 
 #[test]

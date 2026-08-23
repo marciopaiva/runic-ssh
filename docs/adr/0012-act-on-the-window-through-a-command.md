@@ -87,12 +87,19 @@ that renders remote output, is a large standing price for three buttons — and
 because Option A cannot report its own failure, which is how the close button
 came to be broken without anyone noticing.
 
-**The tradeoff accepted is that the guarantee is structural rather than
-enforced.** Adding a window-naming parameter to `window_action` at any point in
-the future silently restores everything Option B was rejected for, and no test,
-capability file or ACL check fails when it happens. That is the reason this ADR
-exists: the code will look like an arbitrary API choice to someone who does not
-know that application commands are ungated.
+**The tradeoff accepted is that nothing in the platform enforces this.** Adding
+a window-naming parameter to `window_action` restores everything Option B was
+rejected for, and the ACL has nothing to check, because it never gated the
+command in the first place. The capability file would still read as narrow while
+being untrue.
+
+So the decision is held by a test — `window_action_cannot_name_a_window` in
+`tests/capabilities.rs`, which reads the command's own source and fails if it
+takes a `String`, a `&str` or an `AppHandle`, or if it looks a window up by
+label. It sits in the capability tests deliberately: it is the reason three
+permissions could leave that file. Both routes were confirmed to fail it, and
+the six other capability tests pass through either sabotage untouched — which is
+the whole problem it exists for.
 
 ## Consequences
 
@@ -112,12 +119,14 @@ itself ungated, so any document, credential prompt included, can act on
 *itself*; that is harmless today because closing the prompt answers its request
 as dismissed, but it is not a property the ACL is enforcing.
 
-**Bad, specifically**: the refusal path has no test and has never been seen. No
-way was found to make `window_action` fail on demand, so the code that reports
-a refusal is covered by reading only — which is the same standard of evidence
-that let the broken close button ship.
+**Bad, specifically**: two things rest on nothing but care. The guard is a test
+that reads source text, so it holds only while someone keeps it — deleting it is
+easier than the edit it prevents, and deleting it fails nothing. And the refusal
+path has never been seen: no way was found to make `window_action` fail on
+demand, so the code that reports a refusal is covered by reading only, which is
+the same standard of evidence that let the broken close button ship.
 
-**Follow-up**: add a guard that fails if `window_action` grows a parameter
-naming a window, since that is the single edit that undoes this decision and
-nothing else would catch it. Revisit if Tauri ever gates application commands
-per window, which would make Option B safe and a label worth having again.
+**Follow-up**: find a way to exercise the refusal path, since it is the half of
+this change that is still only argued for. Revisit the decision itself if Tauri
+ever gates application commands per window, which would move the guarantee from
+a test of ours into the platform and make a label worth having again.
