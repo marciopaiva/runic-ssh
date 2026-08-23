@@ -106,9 +106,12 @@ like a cosmetic choice. Someone tidying it into `display: none` or `hidden`
 would reintroduce the `0x0` resize with no visible symptom until a user resizes
 the window with a background tab open.
 
-**Follow-up**: a `ConnectionFailure` is still drawn over the whole main area
-rather than scoped to the session that failed, because a failed session has no
-tab to scope it to. That is untouched here and worth its own decision. Whether
+**Follow-up**: a `ConnectionFailure` was drawn over the whole main area rather
+than scoped to the session that failed, because a failed session had no tab to
+scope it to. **Closed by ADR-0015**, and by construction rather than by fix: a
+surface that belongs to a session renders inside that session's panel, and a
+session keeps its tab for as long as it has an unresolved attempt, so there is
+no longer a whole main area for a failure to cover. Whether
 output from an abandoned shell could reach a live terminal was never
 established — with this change no shell is abandoned, so the question is moot
 for the path that created it, but the two pumps emitting on one handle was
