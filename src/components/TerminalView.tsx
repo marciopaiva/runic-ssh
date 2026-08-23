@@ -19,7 +19,7 @@ interface TerminalViewProps {
  */
 export function TerminalView({ handle, onSize }: TerminalViewProps): JSX.Element {
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
-  const { renderer, fallbackReason, exitStatus, size } = useTerminal(container, handle);
+  const { exitStatus, size } = useTerminal(container, handle);
 
   /* Reported upward rather than read downward: the status bar is a sibling,
      and lifting the size is cheaper than teaching it to find the terminal. */
@@ -31,22 +31,10 @@ export function TerminalView({ handle, onSize }: TerminalViewProps): JSX.Element
     <section className="bg-surface-terminal flex h-full flex-col">
       <div ref={setContainer} className="min-h-0 flex-1 p-2" />
 
-      {fallbackReason !== null && (
-        <p className="text-ink-muted border-line-subtle border-t px-3 py-1.5 text-xs">
-          {fallbackReason}
-        </p>
-      )}
-
       {exitStatus !== null && (
         <p className="text-ink-muted border-line-subtle border-t px-3 py-1.5 font-mono text-xs">
           session ended · exit {exitStatus}
         </p>
-      )}
-
-      {renderer !== null && (
-        <span className="sr-only" data-testid="renderer">
-          {renderer}
-        </span>
       )}
     </section>
   );
