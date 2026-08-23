@@ -41,7 +41,7 @@ export function TerminalView({ handle, visible, onSize }: TerminalViewProps): JS
 
   return (
     <section
-      className={`bg-surface-terminal absolute inset-0 flex flex-col ${
+      className={`bg-surface-terminal absolute inset-0 flex flex-col overflow-hidden ${
         visible ? '' : 'invisible pointer-events-none'
       }`}
       aria-hidden={visible ? undefined : true}
