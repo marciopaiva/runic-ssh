@@ -35,6 +35,11 @@ const FAILURES: Partial<Record<IpcErrorCode, Failure>> = {
     body: 'failure.unreachable.body',
     retryable: true,
   },
+  connectTimedOut: {
+    title: 'failure.timeout.title',
+    body: 'failure.timeout.body',
+    retryable: true,
+  },
   sshTransport: {
     title: 'failure.transport.title',
     body: 'failure.transport.body',
@@ -130,7 +135,9 @@ export const MAPPED_FAILURES: readonly Failure[] = Object.values(FAILURES).filte
  */
 export function stateAfterFailure(code: IpcErrorCode): ConnectionKind {
   if (code === 'hostKeyDecision') return 'keyMismatch';
-  if (code === 'hostUnreachable' || code === 'sshTransport') return 'unreachable';
+  if (code === 'hostUnreachable' || code === 'sshTransport' || code === 'connectTimedOut') {
+    return 'unreachable';
+  }
 
   return 'saved';
 }

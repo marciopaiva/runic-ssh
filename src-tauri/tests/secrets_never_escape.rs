@@ -65,11 +65,13 @@ fn every_connection_error() -> Vec<ConnectionError> {
             fingerprint: format!("SHA256:{PASSWORD}"),
         })),
         ConnectionError::HostKeyRejected(Box::new(Trust::Matched)),
+        ConnectionError::TimedOut,
     ];
 
     for error in &all {
         match error {
             ConnectionError::Unreachable
+            | ConnectionError::TimedOut
             | ConnectionError::KeyUnreadable
             | ConnectionError::RsaKeyRefused
             | ConnectionError::AuthenticationFailed

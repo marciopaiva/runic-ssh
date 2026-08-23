@@ -15,7 +15,7 @@ use russh::Channel;
 use russh::MethodKind;
 use zeroize::Zeroizing;
 
-use runic_ssh::ssh::connection::{connect, ConnectionError, Credential, Endpoint};
+use runic_ssh::ssh::connection::{connect, connect_within, ConnectionError, Credential, Endpoint};
 use runic_ssh::ssh::known_hosts::KnownHosts;
 use runic_ssh::ssh::trust::Trust;
 
@@ -417,4 +417,68 @@ fn the_trust_verdict_survives_a_refusal() {
         panic!("expected a host key rejection");
     };
     assert!(matches!(*verdict, Trust::Unknown { .. }));
+}
+
+/// A socket that accepts and then says nothing at all.
+///
+/// This is the shape of failure that used to have no end: the TCP handshake
+/// completes, so no retry budget is ever spent, and russh sets no timeout of
+/// its own — `client::Config::default()` leaves `inactivity_timeout` at `None`.
+/// The connection simply waited, and the only way out was to close the
+/// application.
+async fn silent_listener() -> u16 {
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .expect("a loopback port");
+    let port = listener.local_addr().expect("a bound address").port();
+
+    tokio::spawn(async move {
+        /* Held open deliberately. Dropping the stream would send a FIN and the
+        client would fail fast for the wrong reason, proving nothing. */
+        if let Ok((stream, _)) = listener.accept().await {
+            tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+            drop(stream);
+        }
+    });
+
+    port
+}
+
+#[tokio::test]
+async fn a_host_that_answers_and_then_says_nothing_gives_up() {
+    let port = silent_listener().await;
+
+    let result = connect_within(
+        endpoint(port),
+        KnownHosts::default(),
+        std::time::Duration::from_millis(250),
+    )
+    .await;
+
+    let outcome = result
+        .map(|_| "connected")
+        .map_err(|error| error.to_string());
+    assert_eq!(outcome, Err("the host did not answer in time".to_owned()));
+}
+
+#[tokio::test]
+async fn giving_up_is_not_reported_as_unreachable() {
+    /* The two must stay distinct all the way to the user. "Nothing answered at
+    that address and port" sends someone to check whether the host is up and
+    whether the port is right — and here the host answered on the right port.
+    Collapsing them would send every timeout chasing the wrong thing. */
+    let port = silent_listener().await;
+
+    let result = connect_within(
+        endpoint(port),
+        KnownHosts::default(),
+        std::time::Duration::from_millis(250),
+    )
+    .await;
+
+    let unreachable = ConnectionError::Unreachable.to_string();
+    let outcome = result
+        .map(|_| "connected")
+        .map_err(|error| error.to_string());
+    assert_ne!(outcome, Err(unreachable));
 }

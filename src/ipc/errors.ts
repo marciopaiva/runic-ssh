@@ -13,6 +13,7 @@ export type IpcError =
   | { readonly code: 'settingsUnwritable'; readonly path: string }
   | { readonly code: 'invalidLocale'; readonly requested: string }
   | { readonly code: 'hostUnreachable' }
+  | { readonly code: 'connectTimedOut' }
   /**
    * The host key is not trusted. `verdict` names which of the five outcomes it
    * was, so the interface can prompt, block or explain; the fingerprints travel
@@ -112,6 +113,7 @@ export const CODES: ReadonlySet<IpcErrorCode> = new Set<IpcErrorCode>([
   'settingsUnwritable',
   'invalidLocale',
   'hostUnreachable',
+  'connectTimedOut',
   'hostKeyRejected',
   'keyUnreadable',
   'rsaKeyRefused',
