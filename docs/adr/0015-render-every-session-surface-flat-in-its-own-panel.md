@@ -7,8 +7,9 @@
 
 The interface grew one surface at a time, each one solving the problem in front
 of it, and nobody ever decided how the application talks to the user. Driving
-the built application end to end on 2026-08-23 — a real connection to the test
-sshd, a real unknown host key, a real cancelled credential — produced four
+the built application end to end on 2026-08-23, with a real connection to the
+test sshd and a real unknown host key and a real cancelled credential, produced
+four
 different answers to the same question in four consecutive screens:
 
 | Surface | Where it renders | Whose it is |
@@ -21,7 +22,7 @@ different answers to the same question in four consecutive screens:
 Three of those are deliberate. The first is not: `HostKeyPrompt` is a 620px
 `<section>` with no positioning of any kind, laid out in normal flow at the
 bottom of the column, where it lands in the lower-left corner and overflows the
-window. It declares `role="dialog" aria-modal="true"`, which is false — there
+window. It declares `role="dialog" aria-modal="true"`, which is false: there
 is no backdrop, no centring, and no focus trap. The markup claims a behaviour
 the component does not have, and a screen reader is told the rest of the
 application is inert when it is not.
@@ -37,7 +38,7 @@ It is outside the question, not an exception to one side of it.
 **A connection attempt is currently global.** `useConnect` holds one `attempt`,
 and the host key decision, the authenticating stage and the failure all hang
 off it rather than off a session. That is why they render at the root: there is
-no session panel for them to belong to. `openTabs` compounds it — it admits a
+no session panel for them to belong to. `openTabs` compounds it. It admits a
 session with `handle !== null || kind === 'connecting'`, so the moment an
 attempt fails and the session becomes `unreachable` its tab disappears, taking
 away the only place a failure could have been shown. ADR-0014 recorded this as
@@ -55,8 +56,8 @@ connection failure and the settings editor into the same modal layer. One
 mechanism, one visual language, and the guarantee a modal exists to give: the
 decision cannot be ignored or lost behind something else.
 
-It costs the settings tab. Settings is flat by construction — navigation on the
-left, content on the right, inside `<main>` — and was built that way
+It costs the settings tab. Settings is flat by construction, with navigation on
+the left and content on the right inside `<main>`, and was built that way
 deliberately in #96 and shipped on 2026-08-21. Choosing modal reverts it and
 restores the `SessionEditor` overlay that #96 deleted.
 
@@ -77,7 +78,7 @@ unanswered, so the tab has to carry the marker that says so.
 
 It requires the attempt's surface to be addressed to the session it names
 rather than to the root, and requires a session to keep its tab for as long as
-it has an unresolved attempt — otherwise a failure still has nowhere to live.
+it has an unresolved attempt. Otherwise a failure still has nowhere to live.
 
 ## Decision
 
@@ -95,7 +96,7 @@ about one of them must not stop the others.
 
 The tradeoff accepted is real and worth naming: an unknown host key stops being
 impossible to ignore. That is tolerable here for a reason specific to this
-application — `HostKeyPrompt` already arms its primary button only after the
+application. `HostKeyPrompt` already arms its primary button only after the
 user confirms they verified the fingerprint elsewhere. The protection against
 clicking through was never the backdrop; it was the inert button, and that
 survives the move. A prompt waiting in a background tab is marked on the tab
@@ -109,7 +110,7 @@ question, and treating them as either would be a category error.
 ## Consequences
 
 **Good**: one rule, short enough to remember and to apply to surfaces that do
-not exist yet — SFTP transfer progress and port-forward status both already
+not exist yet: SFTP transfer progress and port-forward status both already
 have an obvious home. The follow-up ADR-0014 left open closes by construction
 rather than by fix: a failure scoped to a session panel cannot cover the whole
 main area, because the panel is not the whole main area. The lie in
@@ -122,7 +123,7 @@ decision is why.
 
 **Bad**: it makes the attempt model more complicated before it makes it
 simpler. One global `attempt` becomes one per session, and a session has to
-hold its tab through failure until the failure is dismissed — which means a tab
+hold its tab through failure until the failure is dismissed, which means a tab
 can now exist for a session with no handle and no connection, a state that did
 not previously exist.
 
@@ -132,12 +133,12 @@ this decision does not fix that.
 
 **Follow-up**: `useConnect` still holds one attempt at a time, so starting a
 second connection replaces the first rather than running beside it. This
-decision does not change that and does not depend on it — the surface is
-addressed to `attempt.sessionId` either way — but the rule above only pays off
+decision does not change that and does not depend on it, since the surface is
+addressed to `attempt.sessionId` either way, but the rule above only pays off
 fully once attempts are concurrent, and that is its own piece of work.
 
 The credential window is worth styling to match the application,
-tracked separately — it is presentation only and must not move any secret. The
+tracked separately. It is presentation only and must not move any secret. The
 `ConnectionFailure` scoping named in ADR-0014's follow-up is resolved here.
 Revisit this decision if a surface appears that genuinely must block every
 session at once; nothing in the v0.1.0 scope does.

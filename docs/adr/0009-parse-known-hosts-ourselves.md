@@ -14,7 +14,7 @@ Reading it needs three primitives that nothing in the tree provides yet:
 
 * SHA-256, to show a fingerprint the user can compare against another source;
 * HMAC-SHA-1, because a hashed entry is `|1|salt|hash` where the hash is
-  `HMAC-SHA1(key = salt, message = hostname)` — there is no way to match a
+  `HMAC-SHA1(key = salt, message = hostname)`, so there is no way to match a
   hashed host without computing it;
 * base64 decoding, because the key blob is stored encoded.
 
@@ -65,7 +65,8 @@ byte comparison.
 One dependency, already authorised, with the work done.
 
 It also hands the host key decision to the library. Rule 3 requires three
-explicit outcomes — unknown prompts, matched proceeds, changed *blocks* — and
+explicit outcomes, where unknown prompts and matched proceeds and changed
+*blocks*, and
 ADR-0003 accepted that the SSH layer's security response is ours. Delegating the
 trust decision is the one part of that we should not delegate. It would also
 pull the whole SSH stack in before anything connects.
@@ -81,14 +82,14 @@ byte for byte.
 The tradeoff accepted is that the format's traps are ours to handle, and that a
 parsing bug in a security control is a security bug. That is answered with
 tests rather than with a library, because the alternative libraries do not
-remove the parsing — they only move where it happens.
+remove the parsing. They only move where it happens.
 
 ## Consequences
 
 **Good**: no new crate in the final dependency graph. No release candidate. The
 three-outcome trust decision stays in our code, where rule 3 can be read
 alongside it. A malformed line written by another tool is ours to tolerate
-rather than something that makes a library refuse the whole file — which
+rather than something that makes a library refuse the whole file, which
 matters, because refusing to read `known_hosts` means refusing to detect a
 changed key.
 
@@ -98,7 +99,7 @@ release-blocking case ADR-0003 described.
 
 **Bad**: we own the format. Every trap listed above is a way to be subtly wrong
 in a control the user cannot see working. A wrong answer here does not look like
-a bug — it looks like a connection that succeeded.
+a bug. It looks like a connection that succeeded.
 
 **Bad**: treating the blob as opaque means we cannot tell a user *why* a key is
 unusable, only that it does not match. That is the right trade for trust, and
@@ -106,6 +107,6 @@ the wrong one for diagnostics; revisit if users cannot understand what went
 wrong.
 
 **Follow-up**: `@cert-authority` entries are recognised and preserved on rewrite
-but not honoured — certificate-based host authentication is its own decision and
+but not honoured. Certificate-based host authentication is its own decision and
 its own work. A file containing one must not be silently downgraded to
 "unknown host", so that case needs an explicit outcome rather than a default.

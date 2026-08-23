@@ -10,7 +10,7 @@ underneath it.
 
 `ssh::connection::connect_reporting` builds `client::Config::default()`. In
 russh 0.63.0 that leaves `inactivity_timeout` at `None`, and russh has no
-connect timeout of its own — `client::connect` resolves the address and hands
+connect timeout of its own. `client::connect` resolves the address and hands
 the socket to `TcpStream::connect`, which inherits the kernel's. On Linux that
 is `tcp_syn_retries`, six by default, or roughly 127 seconds before the SYN
 gives up.
@@ -25,7 +25,7 @@ bounded at all. No retry budget is spent, because the connection succeeded;
 russh waits for a protocol banner that never arrives; and with
 `inactivity_timeout: None` there is nothing that will ever fire. A firewall that
 accepts the connection and drops the reply, a server too loaded to finish the
-key exchange, a middlebox terminating TCP and forwarding nothing — all of these
+key exchange, a middlebox terminating TCP and forwarding nothing: all of these
 leave the attempt pending until the application is closed. This was reproduced
 in a test that binds a socket, accepts, and says nothing.
 
@@ -35,7 +35,7 @@ abandons the answer, it does not stop the work, because there is nothing to
 stop it with.
 
 Section 6 of the working agreement says anything touching the network is async
-and must never block the IPC thread. It is not blocked here — but "not blocked"
+and must never block the IPC thread. It is not blocked here, but "not blocked"
 and "will finish" are different claims, and only the first one was true.
 
 ## Options considered
@@ -53,7 +53,7 @@ leave the application with a state it can enter and never leave.
 ### Option B: one deadline covering connect and handshake
 
 Wrap the whole of `client::connect` in `tokio::time::timeout`. When it fires,
-the future is dropped, which closes the socket with it — nothing is left
+the future is dropped, which closes the socket with it, so nothing is left
 half-negotiated on either end.
 
 One number covers both failures, and the expensive one is the reason the number
@@ -64,7 +64,7 @@ the hang it exists to prevent stays uncomfortable.
 ### Option C: separate deadlines for the socket and the handshake
 
 Time the TCP connect and the SSH negotiation independently, so each can be
-tuned to what it actually does — a connect is fast or it is wrong, while a
+tuned to what it actually does: a connect is fast or it is wrong, while a
 handshake on a loaded server can legitimately take seconds.
 
 More accurate, and more surface: two constants to explain, two failure paths to
@@ -86,7 +86,8 @@ to want different numbers, the seam to split them is this one function.
 The deadline is applied **only while opening**. It is deliberately not an
 inactivity timeout on the established session: this is a client people leave
 connected and idle for hours, and a timeout there would close the terminal they
-walked away from — the same class of failure this decision exists to remove,
+walked away from, which is the same class of failure this decision exists to
+remove,
 pointed at a different moment.
 
 `TimedOut` is separate from `Unreachable` because they send the user to
@@ -105,7 +106,7 @@ twenty.
 
 **Bad**: twenty seconds is a guess, and the first person it hurts will be
 someone on a link where the handshake legitimately takes longer. They have no
-way to raise it — there is no setting for this, and adding one is its own
+way to raise it: there is no setting for this, and adding one is its own
 decision. Until then the answer is to try again, which is the wrong answer if
 the link is reliably that slow.
 
@@ -114,6 +115,6 @@ that takes nineteen seconds is almost certainly broken, and this will wait for
 it anyway.
 
 **Follow-up**: expose the deadline as a per-session setting if anyone hits the
-ceiling on a real link — the value already travels as a parameter, so the work
+ceiling on a real link. The value already travels as a parameter, so the work
 is storage and interface, not transport. Revisit Option C if the connect and the
 handshake turn out to want different numbers. Neither is in the v0.1.0 scope.

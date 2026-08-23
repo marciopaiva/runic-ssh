@@ -8,7 +8,7 @@
 A Tauri capability grants permissions to a window, and a permission is usually
 written as `core:<plugin>:default`. That name is misleading in the direction
 that matters here. A plugin's `default` set is not the minimum the plugin needs
-to work — it is **every command the plugin exposes**, bundled for convenience.
+to work. It is **every command the plugin exposes**, bundled for convenience.
 `core:window:default` alone is 28 commands.
 
 Until this decision, `capabilities/default.json` held four such sets plus one
@@ -22,8 +22,9 @@ commands granted to the main window. Five of them have a caller:
 | `core:window:internal_toggle_maximize` | Tauri's own injected `drag.js`, on a double click |
 | `core:window:start_dragging` | the same script, on a drag |
 
-The other 40 have none. `core:app:default` is unused in full — nothing in the
-tree imports `@tauri-apps/api/app` — and two of its eight entries name commands
+The other 40 have none. `core:app:default` is unused in full, since nothing in
+the tree imports `@tauri-apps/api/app`, and two of its eight entries name
+commands
 that the app plugin does not even register. `core:event`'s `emit` and `emit_to`
 are granted in the direction we never use: the core emits, the webview listens.
 
@@ -44,7 +45,8 @@ expected to maximise. Nothing in this repository mentions either command.
 Remove `core:app:default`, and reduce `core:webview:default` to the one command
 in it that is reached. Keep `core:window:default` and `core:event:default`.
 
-Cheap, needs no verification — nothing that is used changes — and it lands 30
+Cheap, needs no verification because nothing that is used changes, and it lands
+30
 commands where 5 are wanted. It answers half of issue #39's "anything unused is
 removed" and leaves the half that is 26 commands wide, in the plugin whose
 surface reaches the window itself.
@@ -56,7 +58,7 @@ do. Six lines, one per command.
 
 The cost is coupling: the capability now depends on Tauri's command names rather
 than on its curated sets. That cost is smaller than it looks, and the difference
-was measured rather than assumed — see the Decision. It also means any future
+was measured rather than assumed; see the Decision. It also means any future
 use of `@tauri-apps/api` fails with an ACL denial until someone edits this file:
 the mechanism working as intended, but friction that a `default` set would have
 absorbed.
@@ -117,7 +119,7 @@ a wrong permission *name* fails at build time.
 
 **Bad, and unresolved**: two of the six could not be exercised. Neither a
 double click on the title bar nor Ctrl+Shift+I reaches its handler under
-synthetic input — `xdotool` on Xvfb and on WSLg both failed, and a control run
+synthetic input. `xdotool` on Xvfb and on WSLg both failed, and a control run
 with all 45 commands granted failed the same way, which is what proves the
 cause is the input synthesis and not the ACL. So `allow-internal-toggle-maximize`
 and `allow-internal-toggle-devtools` are held here on the strength of reading

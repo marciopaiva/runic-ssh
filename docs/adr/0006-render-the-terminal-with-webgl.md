@@ -20,8 +20,8 @@ per platform. WebView2 on Windows and WKWebView on macOS have dependable WebGL2.
 WebKitGTK on Linux does not always: on a machine without a GPU, inside a VM,
 under an unusual driver, or on some Wayland configurations, WebGL2 is either
 missing or backed by software rasterization that is slower than the DOM
-renderer it was meant to beat. A WebGL context can also be lost at runtime — a
-driver reset, a GPU switch on a laptop — and a terminal that goes blank at that
+renderer it was meant to beat. A WebGL context can also be lost at runtime, on a
+driver reset or a GPU switch on a laptop, and a terminal that goes blank at that
 moment is worse than one that was never fast.
 
 Also true: the DOM renderer keeps real text nodes, which is what screen readers
@@ -61,7 +61,7 @@ dependency without buying the speed that justifies one.
 ## Decision
 
 Option B, accepted on 2026-08-22. The WebGL addon is the renderer, and the
-built-in DOM renderer is the fallback — used when WebGL2 is unavailable at
+built-in DOM renderer is the fallback, used when WebGL2 is unavailable at
 startup, and switched to if the context is lost while running.
 
 Deliberately not a three-step chain through the canvas addon: that would be a
@@ -85,8 +85,8 @@ screen already surfaces, so a user on a slow machine can see why rather than
 guessing.
 
 **Bad**: one runtime npm dependency, tracked for advisories like any other.
-Two render paths mean glyph-level differences — ligatures, emoji, box-drawing
-characters and custom glyph widths do not always land identically — so visual
+Two render paths mean glyph-level differences. Ligatures, emoji, box-drawing
+characters and custom glyph widths do not always land identically, so visual
 bugs may reproduce only under one renderer. A GPU driver bug becomes a Runic SSH
 bug report. The fallback path is the least-exercised code in the terminal and
 will be the least-tested unless we force it in CI.
@@ -100,18 +100,18 @@ WebGL came out between one and nine percent ahead of the DOM renderer, against
 a transport that delivers six to ten times less than either can draw. See
 `adr/0011-drop-the-webgl-renderer.md`, which proposes reversing this one, and
 `docs/measurements/terminal-throughput.md` for the numbers. That proposal is
-deferred to the first packaged build, so this decision still stands — a record
+deferred to the first packaged build, so this decision still stands on a record
 cannot be superseded by a decision nobody has taken.
 
 **Partly done on 2026-08-22**, and the part that was done first is not the part
 this decision needed. `docs/measurements/terminal-throughput.md` records transport
-throughput from all three platforms — the Rust side reading a channel and
+throughput from all three platforms: the Rust side reading a channel and
 emitting batches, which is identical under either renderer. The comparison that
 would justify this ADR, WebGL against DOM while drawing, is still unmeasured and
 needs a browser harness nobody has proposed yet. Until then this decision rests
 on the two renderers' reputations rather than on anything observed here. Force the DOM fallback in at least one
 CI job so it does not rot. Decide the event batching interval for terminal
-output in the streaming slice — batching is what protects the IPC channel, and
+output in the streaming slice. Batching is what protects the IPC channel, and
 no renderer saves us from a hostile host sending one byte at a time. Revisit if
 WebKitGTK's WebGL2 support proves unreliable enough that most Linux users land
 on the fallback anyway, at which point the dependency is not earning its place.

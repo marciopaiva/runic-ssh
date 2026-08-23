@@ -21,7 +21,7 @@ The second is a command of our own. Here the fact that decides this ADR:
 **application commands are not gated by the ACL at all.** Tauri's permission
 system covers core and plugin commands; a command in `commands/` is reachable
 from any document in the application, with whatever arguments that document
-chooses. ADR-0008 relies on this from the other side — the credential window's
+chooses. ADR-0008 relies on this from the other side: the credential window's
 capability is empty precisely because it needs nothing but our own commands.
 
 Two more things were true when this was decided, and both are consequences of
@@ -57,7 +57,7 @@ discard without the type system noticing.
 It also reads naturally, and it is what most codebases would write.
 
 The cost is that it hands the reach straight back in a different shape. Since
-application commands are not ACL-gated, any document could name any window —
+application commands are not ACL-gated, any document could name any window.
 including `credential`, whose empty capability is ADR-0008's argument that the
 main webview cannot touch the window a password is typed into. The label
 parameter would make that untrue while the capability file still said it was.
@@ -70,7 +70,7 @@ because there is no parameter to name it with.
 
 Same capability reduction and same reportable failures as Option B. The cost is
 that cross-window control becomes impossible rather than merely discouraged, and
-the protection is structural — it rests on a parameter's absence, not on a
+the protection is structural. It rests on a parameter's absence, not on a
 permission the ACL enforces.
 
 ## Decision
@@ -83,7 +83,7 @@ removes the ability to get it wrong, which is worth more than the flexibility it
 costs, because the flexibility has no use today and the mistake is silent.
 
 It beat Option A because a permanent grant over the window, held by the document
-that renders remote output, is a large standing price for three buttons — and
+that renders remote output, is a large standing price for three buttons, and
 because Option A cannot report its own failure, which is how the close button
 came to be broken without anyone noticing.
 
@@ -93,12 +93,12 @@ rejected for, and the ACL has nothing to check, because it never gated the
 command in the first place. The capability file would still read as narrow while
 being untrue.
 
-So the decision is held by a test — `window_action_cannot_name_a_window` in
+So the decision is held by a test. `window_action_cannot_name_a_window` in
 `tests/capabilities.rs`, which reads the command's own source and fails if it
 takes a `String`, a `&str` or an `AppHandle`, or if it looks a window up by
 label. It sits in the capability tests deliberately: it is the reason three
 permissions could leave that file. Both routes were confirmed to fail it, and
-the six other capability tests pass through either sabotage untouched — which is
+the six other capability tests pass through either sabotage untouched, which is
 the whole problem it exists for.
 
 ## Consequences
@@ -106,7 +106,7 @@ the whole problem it exists for.
 **Good**: `capabilities/default.json` drops three permissions, so the only
 `core:window` grants left are `default` and `allow-start-dragging`, the latter
 being what Tauri's own drag-region script calls. A control that cannot act now
-says so, under `windowActionRefused`, instead of looking unwired — and that
+says so, under `windowActionRefused`, instead of looking unwired, and that
 line is now run by a test rather than argued for, on both sides of the IPC
 boundary. ADR-0008's claim about the credential window holds against the main
 webview rather than only against the ACL.
@@ -114,7 +114,7 @@ webview rather than only against the ACL.
 **Bad**: no window can act on another, so a future "close all windows" or a
 parent closing its child needs a new command and a fresh argument for why that
 one may name a target. Every click now costs an IPC round trip where it was
-previously an in-process call — irrelevant for a titlebar button, and a real
+previously an in-process call. Irrelevant for a titlebar button, and a real
 cost if this pattern is copied somewhere hot. The `window_action` command is
 itself ungated, so any document, credential prompt included, can act on
 *itself*; that is harmless today because closing the prompt answers its request
@@ -126,7 +126,7 @@ and deleting it fails nothing. A permission would have been enforced by the
 platform; this is enforced by the repository agreeing with itself.
 
 **Bad, specifically**: reaching the refusal path at all cost a seam. Neither
-half of it can be made to fail from outside — Tauri's `MockRuntime` returns `Ok`
+half of it can be made to fail from outside. Tauri's `MockRuntime` returns `Ok`
 from `minimize`, `maximize` and `unmaximize` unconditionally, and a real window
 refuses only in states a test cannot arrange. So `window_action` delegates to
 `act_on` behind a `WindowControl` trait, and the frontend's dispatcher moved out

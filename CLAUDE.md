@@ -68,6 +68,14 @@ None of this is about formality. It is about the text sounding like it was
 written on purpose, which is the same standard the rest of this file asks of the
 code.
 
+The rule applies to everything written from here on: prose, commit messages,
+pull request text, code comments. What already exists was corrected in the
+documents people read, and deliberately **not** swept through the code
+comments. A style pass across every file in the tree would take the line
+authorship with it, and in a repository where the reason for a change is the
+thing being preserved, that costs more than the inconsistency does. Old comments
+are corrected when the code around them is touched anyway.
+
 ---
 
 ## 2. Stack

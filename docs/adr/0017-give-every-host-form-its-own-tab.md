@@ -10,8 +10,9 @@ ADR-0015 sorted every surface into two boxes:
 > A surface belongs to a session or to the application. A session's surface
 > renders in that session's panel; the application's renders as a tab.
 
-A stored host is neither. It is not a session — there is no connection, and
-often never was — and it is not a preference like the locale or the title bar.
+A stored host is neither. It is not a session, because there is no connection
+and often never was, and it is not a preference like the locale or the title
+bar.
 With only two boxes it went into the one that was left, so creating a host meant
 opening a tab labelled **Settings**, and the maintainer's reaction on meeting it
 was that this made no sense: adding a host is a task, not a setting.
@@ -24,7 +25,7 @@ feel wrong before anyone could name why.
 Underneath was a second problem, recorded and parked when the editor first moved
 into the settings tab (#96): the editor was **one slot**, so "is there unsaved
 work" was a question about *the form* rather than about a host. Editing `web-01`,
-then clicking `db-01`, asked you to answer for `web-01` — a question about
+then clicking `db-01`, asked you to answer for `web-01`: a question about
 something you were no longer looking at, and could no longer see.
 
 Both problems have the same root. The editor had one place to be, and the place
@@ -72,20 +73,20 @@ pure module rather than in a hook.
 > because it carries a secret.
 
 That is ADR-0015's rule with the missing third box added. Everything else it
-decided stands — the flat panels, the credential window, the strip.
+decided stands, including the flat panels, the credential window and the strip.
 
 `useSessionEditor` is deleted. The drafts are a list of `OpenEditor` values in
 `features/sessions/editors.ts`, and every operation on them is a pure function
 the shell calls. This is the trade the rest of this feature already makes: what
 decides anything is testable without a DOM, and the component only draws. Two of
-the seventeen tests it gained could not previously be *written*, let alone fail —
+the seventeen tests it gained could not previously be *written*, let alone fail.
 "does not leak a keystroke from one form into another" and "marks only the form
 that was typed into" have no meaning when there is one form.
 
 The tab strip stops weaving its kinds by hand. Two could be special-cased in
 `focus.ts`; three cannot, so the strip is built once as an ordered list and every
-question — what is focused, what the arrow key reaches, what takes over when a
-tab closes — is asked of that list.
+question, whether that is what is focused or what the arrow key reaches or what
+takes over when a tab closes, is asked of that list.
 
 Saving a host that did not exist closes the tab it was created on. The
 alternative is a tab that goes on saying "New session" while holding one already
@@ -97,7 +98,7 @@ tab open, because there the name on it stays true.
 
 **Good**: the unsaved marker finally belongs to a host. Closing a tab asks about
 the host on that tab. Two hosts can be edited at once, and a half-typed hostname
-survives a glance at a session — and at the other half-typed hostname. The
+survives a glance at a session, and at the other half-typed hostname. The
 duplicate list is gone, and so is the settings navigation column: navigation with
 one destination is chrome pretending to be structure, and it comes back when
 there is a second section to reach with it.
@@ -106,7 +107,7 @@ there is a second section to reach with it.
 open, and a strip of eight host forms is a worse problem than the one this
 solves. Nobody has hit it, and a limit invented before anyone has is a guess.
 
-**Bad**: this is the fourth change to the navigation model in four days —
+**Bad**: this is the fourth change to the navigation model in four days:
 modal, settings tab, flat panels, and now this. Each was an improvement and the
 churn is still real. What makes this one different is that it removes: a column,
 a duplicated list, a hook, and a word that was wrong.
