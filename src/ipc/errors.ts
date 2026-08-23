@@ -36,6 +36,14 @@ export type IpcError =
   | { readonly code: 'malformedInput' }
   /** The core refuses to forward input this large. */
   | { readonly code: 'inputTooLarge' }
+  /**
+   * A second shell was asked for on a connection that already has one.
+   *
+   * Unreachable while one terminal stays mounted per session (ADR-0014), and
+   * deliberately without copy of its own: it reports a defect on our side, not
+   * something the user can act on.
+   */
+  | { readonly code: 'terminalAlreadyOpen' }
   /** A saved session was rejected; `field` names which part. */
   | { readonly code: 'invalidSession'; readonly field: string }
   /**
@@ -115,6 +123,7 @@ export const CODES: ReadonlySet<IpcErrorCode> = new Set<IpcErrorCode>([
   'missingCredential',
   'malformedInput',
   'inputTooLarge',
+  'terminalAlreadyOpen',
   'invalidSession',
   'hostKeyDecision',
   'unknownDecision',

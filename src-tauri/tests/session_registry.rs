@@ -293,3 +293,38 @@ async fn a_closed_session_stops_answering() {
         .await
         .is_none());
 }
+
+#[tokio::test]
+async fn a_handle_says_whether_it_already_has_a_shell() {
+    /* The guard in `open_terminal` is this question and nothing else, and the
+    command itself needs an app handle to call, so the invariant is tested
+    where it lives. Before it existed, a second `open_terminal` on one handle
+    opened a second shell and abandoned the first — still running, still
+    holding a pty, still counting against the server's MaxSessions (#94). */
+    let (registry, handle, _input) = open_session().await;
+
+    /* `open_session` attaches an input channel, which is what a running shell
+    leaves behind in the map. */
+    assert!(registry.has_shell(handle).await);
+
+    /* The same connection as it looks after authenticating and before anyone
+    has asked for a terminal. */
+    let open = registry.take(handle).await.expect("the session is open");
+    let fresh = registry
+        .insert(Open {
+            input: None,
+            ..open
+        })
+        .await;
+
+    assert!(
+        !registry.has_shell(fresh).await,
+        "a connection with no shell must not be mistaken for one that has one, \
+         or the first terminal a session opens would be refused"
+    );
+
+    assert!(
+        !registry.has_shell(handle).await,
+        "a handle that no longer names a session has no shell"
+    );
+}

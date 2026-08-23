@@ -68,6 +68,9 @@ pub enum Error {
     #[error("the input is larger than the core will forward")]
     InputTooLarge,
 
+    #[error("that connection already has a shell")]
+    TerminalAlreadyOpen,
+
     #[error("the session is missing or malformed")]
     InvalidSession { field: String },
 
@@ -170,6 +173,12 @@ pub enum IpcError {
     MissingCredential,
     MalformedInput,
     InputTooLarge,
+    /// A second shell was asked for on a connection that already has one.
+    ///
+    /// Unreachable while the frontend keeps one terminal mounted per session
+    /// (ADR-0014), which is why it carries no dedicated copy: the user should
+    /// never meet it, and it falls through to the generic failure text.
+    TerminalAlreadyOpen,
     /// A host key needs a decision. `pending` names it; `inner` says which of
     /// the five outcomes it was and carries the fingerprints to compare.
     HostKeyDecision {
@@ -239,6 +248,7 @@ impl From<Error> for IpcError {
             Error::MissingCredential => Self::MissingCredential,
             Error::MalformedInput => Self::MalformedInput,
             Error::InputTooLarge => Self::InputTooLarge,
+            Error::TerminalAlreadyOpen => Self::TerminalAlreadyOpen,
             Error::InvalidSession { field } => Self::InvalidSession { field },
             Error::UnknownDecision => Self::UnknownDecision,
             Error::NotAwaitingDecision => Self::NotAwaitingDecision,

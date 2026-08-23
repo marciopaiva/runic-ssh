@@ -165,6 +165,22 @@ impl Registry {
         }
     }
 
+    /// Whether a shell has already been opened on this handle.
+    ///
+    /// `input` is set when a shell attaches and is never cleared afterwards, so
+    /// this answers "has this handle ever had a shell", which is the question
+    /// the caller needs: a second shell on one connection is wrong whether or
+    /// not the first has since exited. Opening one anyway abandons the first —
+    /// it keeps running, holds a pty, and counts against the server's
+    /// `MaxSessions` (#94, ADR-0014).
+    pub async fn has_shell(&self, handle: SessionHandle) -> bool {
+        self.open
+            .lock()
+            .await
+            .get(&handle)
+            .is_some_and(|entry| entry.input.is_some())
+    }
+
     /// Sends a keystroke or a resize, if that session has a shell running.
     ///
     /// The map lock is released before awaiting the send: a full input queue
