@@ -73,7 +73,7 @@ export function PasteConfirm({
       /* The reason we are asking, which is not always the same reason. Past
          one line the danger is the shell running them as they arrive. At
          exactly one line that cannot be it, because a single line is only ever
-         asked about when the paste is going to more than one host — so saying
+         asked about when the paste is going to more than one host. Saying
          it would be describing a risk this paste does not carry, next to a
          banner naming the one it does. */
       body={
