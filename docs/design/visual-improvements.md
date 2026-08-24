@@ -1,182 +1,259 @@
-# Visual improvements proposal
+# Runic SSH — proposta visual unificada
 
-Status: **implemented on `feat/visual-improvements`** (except sidebar density).
+Status: **fonte de verdade da branch `feat/visual-improvements`**.
 
-This document is the complete visual proposal for Runic SSH based on what the
-application already does today (v0.1.1 + unreleased split panes and broadcast
-typing). It is written so a reviewer can accept or reject each piece against
-the current product, not against a roadmap slide.
+Este documento substitui os mockups soltos e a implementação fragmentada.
+Os três painéis de referência (main, broadcast 2×2, host key) **não formam um
+produto sozinhos**: em um a sidebar existe, no outro some; a titlebar muda de
+função; o broadcast vira um banner que o resto do chrome não conhece.
 
-Nothing here invents SFTP, ProxyJump, port forwarding, or themes. Those remain
-roadmap items. This proposal only tightens density and safety signals on the
-surfaces that already ship.
+Aqui o sistema é um só. Cada superfície herda as mesmas regras.
 
 ---
 
-## What already works (baseline)
+## 1. Princípios (não negociáveis)
 
-These are the working surfaces this proposal builds on. They are not aspirational.
-
-| Surface | What it already does |
-| --- | --- |
-| **Main window** | Custom chrome (ADR-0005), sidebar + terminal panel + status bar |
-| **Sessions sidebar** | Grouped hosts, status markers by shape + colour, name + host, context menu |
-| **Terminal** | One xterm per session (ADR-0014), kept mounted across tab switches |
-| **Split panes** | 1 / 2 columns / 2 rows / 2×2 grid; each pane has its own header label |
-| **Broadcast typing** | Off by default; disarms on pane-set change; per-pane spare; status-bar disarm button |
-| **Host key unknown** | Fingerprint shown; Trust button inert until out-of-band checkbox |
-| **Host key changed** | Blocked; requires typing the host name back |
-| **Host key revoked / cert** | Refused with no override |
-| **Status bar** | State marker, latency grade (bars + colour), transfer, size, encoding, term, palette hint, broadcast button |
-| **Command palette** | `Ctrl+Shift+P` / `⌘⇧P`, sessions + actions |
-| **Themes** | Dark default, light via system or settings; single token set |
-| **Locales** | English + Brazilian Portuguese (Spanish held for security-copy review) |
-
-Design tokens live only in `src/styles/tokens.css`. No component invents a colour.
+1. **Dark-first.** A composição é em navy/cyan. Light existe como o mesmo jogo
+   de tokens invertido, não como segundo design.
+2. **Um chrome, sempre.** Titlebar + sidebar + painel + status bar existem em
+   *toda* tela de trabalho. Split, broadcast e host-key **não removem** a
+   sidebar nem trocam a titlebar por outro produto.
+3. **Tokens únicos.** Cor só em `src/styles/tokens.css`. Nenhum componente
+   inventa hex.
+4. **Estado nunca só por cor.** Markers por forma; cor é o segundo sinal.
+5. **Segurança mais alta que estética.** Trust inerte, broadcast off-by-default,
+   disarm óbvio — o visual amplifica a regra, não a afrouxa.
+6. **Não inventar dados.** Tags, health “All Systems Operational”, busca global
+   na titlebar só entram quando o modelo/IPC existir. Até lá o layout reserva
+   espaço mental, não UI mentindo.
 
 ---
 
-## Goals
-
-1. **More useful density** on the status bar and sidebar without increasing
-   cognitive load or growing the chrome.
-2. **Louder safety signals** for the two controls whose blast radius is larger
-   than one host: host-key trust and broadcast typing.
-3. **Keep the existing token set and dark-first design.** Clearer hierarchy and
-   stronger affordances, not new colours.
-4. **Ship in small, reviewable steps** that pass the ordinary gate.
-
----
-
-## 1. Status bar — session identity
-
-### Status on this branch
-
-**Done.** The focused session’s name and `user@host[:port]` now appear
-immediately after the connection marker.
+## 2. Anatomia fixa da janela
 
 ```
-[● Connected]  web-01  root@10.0.1.42:22   |  42ms  ↑… ↓…  |  80×24  |  [SYNC 3]
+┌─ Titlebar (app mark · tabs · window controls) ─────────────────────┐
+├─ Sidebar ──────────┬─ Main panel ──────────────────────────────────┤
+│  SESSIONS          │  terminal(s) / editor / settings / surfaces   │
+│  [filter]          │  (split = panes *dentro* do main, não outra   │
+│  groups            │   janela e não “modo sem sidebar”)            │
+│  rows              │                                               │
+├────────────────────┴───────────────────────────────────────────────┤
+│ Status bar                                                         │
+└────────────────────────────────────────────────────────────────────┘
 ```
 
-### Why
+### Regras de layout
 
-With four panes the shell prompt is otherwise the only thing saying which host
-a rectangle belongs to, and remote `PS1` is not under our control. The status
-bar is always visible and already owns window-level state.
-
-### Implementation notes (landed)
-
-- `paneLabel()` already produced `{ name, where }` for pane headers.
-- `StatusBar` now accepts `identity: PaneLabel | null`.
-- `App` passes the label of the focused session.
-- Aggressive truncation (`max-w`) so the bar never wraps.
-- Order of cells unchanged: identity sits right after the state marker.
-
----
-
-## 2. Host key prompt — randomart
-
-### Status on this branch
-
-**Done.** Drunken Bishop randomart is drawn beside the fingerprint on the
-unknown-host-key screen.
-
-### Why
-
-Many sysadmins recognise a key by its randomart faster than by reading a
-SHA-256 string. Making the out-of-band check cheaper does not make it optional.
-
-### Implementation notes (landed)
-
-- Pure function in `src/lib/randomart.ts` over the fingerprint string the core
-  already sends (`SHA256:…` or hex).
-- `Randomart` component omits itself when the fingerprint cannot be decoded.
-- Trust stays **inert** until the out-of-band checkbox is ticked.
-- Localised label (`hostKey.field.randomart`) in en / pt-BR / es.
-- Tests in `tests/randomart.test.ts` pin decoding and a stable grid.
-
-### Explicit non-goals (still hold)
-
-- No “Trust once” / temporary accept path.
-- No auto-trust, no TOFU.
-- No change to changed / revoked / certificate behaviour.
-
----
-
-## 3. Broadcast typing — stronger chrome signal
-
-### Status on this branch
-
-**Done.** The disarm button uses a stronger border, larger hit target, and
-bolder weight within the existing warn tokens.
-
-### Behaviour unchanged
-
-- Off by default; never persisted.
-- Disarms whenever the set of panes changes.
-- Per-pane spare checkbox stays in the pane header.
-
----
-
-## 4. Sidebar density
-
-### Status
-
-**Not implemented.** Blocked on session-record fields (last-connected timestamp,
-opaque credential type). Documented for a later change.
-
----
-
-## What this proposal deliberately does **not** do
-
-- No new colours beyond the existing token set in `tokens.css`.
-- No change to the host-key trust model or the inert-button rule.
-- No SFTP UI, tunnel UI, or ProxyJump UI.
-- No cloud sync, no decorative illustrations inside working surfaces.
-- No increase of the sidebar width.
-- No telemetry or crash-reporting UI.
-
----
-
-## Implementation order on this branch
-
-| Step | Item | Status |
+| Região | Largura / altura | Sempre visível? |
 | --- | --- | --- |
-| 1 | Status-bar identity cell | **Done** |
-| 2 | Broadcast button contrast reinforcement | **Done** |
-| 3 | Host-key randomart | **Done** |
-| 4 | Sidebar density | Blocked on data fields |
+| Titlebar | altura ~40px | Sim |
+| Sidebar | 280px | **Sim** — inclusive com 2×2 e broadcast armado |
+| Main | flex | Sim |
+| Status bar | altura ~32px | Sim |
 
-Each step ships with the ordinary gate (`cargo fmt`, `clippy`, `cargo test`,
-`pnpm typecheck`, `pnpm test`).
+**Por que a sidebar não some no 2×2**
+
+O mockup de broadcast sem sidebar é um frame de marketing, não um modo de
+aplicação. Esconder a lista de hosts no momento em que se digita em três
+máquinas **aumenta** o risco de erro (“qual host estou poupando?”). A lista
+continua acessível; o main encolhe.
 
 ---
 
-## How to test (for Claude / reviewers)
+## 3. Sistema visual
+
+### 3.1 Superfícies (do fundo ao topo)
+
+| Token | Papel |
+| --- | --- |
+| `surface-base` | Fundo da app / settings |
+| `surface-panel` | Sidebar |
+| `surface-chrome` | Titlebar + status bar + pane headers |
+| `surface-terminal` | Área do xterm (mais fundo) |
+| `surface-raised` | Tab ativa, row hover |
+| `surface-overlay` | Palette, menus |
+| `surface-input` | Campos |
+
+### 3.2 Accent e estado
+
+| Token | Uso |
+| --- | --- |
+| `accent` / `accent-bright` | Foco, tab underline, links de UI |
+| `accent-soft` | Seleção de row, opção ativa na palette |
+| `ok` | Conectado |
+| `warn` | Connecting, **broadcast armado** |
+| `danger` | Host key changed / revoked, erros |
+
+### 3.3 Tipografia
+
+- UI: **Manrope** (`font-sans`)
+- Terminal e metadados (`user@host`, fingerprint, sizes): **JetBrains Mono**
+
+### 3.4 Densidade
+
+- Sidebar row: duas linhas (nome + `user@host`), ~40–44px de altura total
+- Titlebar: 40px
+- Status bar: 32px
+- Pane header (quando split): 28px
+
+---
+
+## 4. Superfícies uma a uma
+
+### 4.1 Titlebar
+
+**É o strip de tabs** (ADR-0005), não uma barra de search centrada.
+
+```
+[ mark Runic SSH ]  [ tab ] [ tab ] …     ……     [ window controls ]
+```
+
+- Tab ativa: fundo `raised` + underline `accent` (2px)
+- Session tab: marker de estado + nome
+- A busca global do mockup **não substitui** as tabs. Quem precisa achar host
+  usa o **filter da sidebar** ou a **command palette** (`Ctrl+Shift+P`).
+
+### 4.2 Sidebar
+
+```
+SESSIONS                          [+]
+[ 🔍 Filter sessions          ]
+
+▸ GRUPO-TESTE                    2
+  ● teste-docker
+    deploy@127.0.0.1
+  ○ teste-web-02
+    deploy@127.0.0.1
+
+▸ UNGROUPED                       2
+  …
+```
+
+- Filter local (client-side) sobre name / host / user / group
+- Grupos colapsáveis
+- Seleção: `accent-soft` + barra lateral `accent` 3px
+- **Sem tags** (`web`, `db`) até existir campo no session record
+- **Sem** rodapé “All Systems Operational” até existir sinal real de saúde
+
+### 4.3 Main / panes
+
+- 1 terminal: sem borda extra, sem header de pane (a tab já nomeia)
+- Split (2 col / 2 rows / 2×2): cada pane tem header `nome` + `user@host`
+- Foco: borda `accent`
+- Broadcast recebendo: borda + glow `warn`, header em `warn-soft`
+- Spared: checkbox no header; **sem** borda warn
+
+### 4.4 Broadcast (o mockup vermelho unificado)
+
+O mockup mostra um **banner full-width** “Broadcast ON – typing reaches N panes”
++ botão Disarm. Na anatomia fixa isso vira:
+
+1. **Status bar** — botão sólido `warn` com `SYNC N` / disarm (já é o controle
+   que desarma; continua sendo o hit target principal).
+2. **Pane edges** — warn em todo pane que recebe; spared fica quieto.
+3. **Opcional (fase 2):** uma faixa de 28px *entre* titlebar e o bloco
+   sidebar+main, só enquanto `armed`, com o texto de advertência e o mesmo
+   disarm. Não substitui a status bar; reforça.
+
+Regras de comportamento **não mudam**: off by default, desarma se o conjunto
+de panes muda, nunca persiste.
+
+### 4.5 Status bar
+
+```
+● connected │ nome  user@host:port │ ▮▮▮ 42ms │ ↑ 1.2KB  ↓ 8.4KB │ [SYNC 3]   …  UTF-8 │ xterm │ 80×24 │ ⌘⇧P
+```
+
+- Identidade sempre que há sessão focada
+- Latência na cor do grade
+- Transfer como par ↑ ↓
+- SYNC só quando armado (não um “Broadcast OFF” permanente que convida clique
+  sem contexto)
+
+### 4.6 Host key (unknown)
+
+Uma **SessionSurface** no pane da sessão (ADR-0015), não um modal flutuante
+sobre a app inteira — mas o *conteúdo* segue o mockup:
+
+```
+┌─ Unknown host key ─────────────────────────────────────────────┐
+│  body (confirme out-of-band)                                   │
+│  ┌ fields ──────────────┐  ┌ randomart ──────────────┐         │
+│  │ host / type / sha256 │  │ ASCII Drunken Bishop    │         │
+│  └──────────────────────┘  └─────────────────────────┘         │
+│  ☐ I verified this fingerprint out of band                     │
+│                               [ Cancel ]  [ Trust  (inert) ]   │
+└────────────────────────────────────────────────────────────────┘
+```
+
+- Trust **inerte** até o checkbox
+- Randomart ao lado do fingerprint (já implementado)
+- Sem caminho “Trust once”
+
+### 4.7 Command palette
+
+Overlay escuro, card `overlay`, row ativa com `accent-soft` + barra accent.
+É o “⌘K / search” do mockup na prática do produto atual.
+
+---
+
+## 5. O que os mockups tinham e esta proposta **rejeita ou adia**
+
+| Elemento no mockup | Decisão |
+| --- | --- |
+| Sidebar some no 2×2 | **Rejeitado** — sempre visível |
+| Search centrado na titlebar | **Adiado** — tabs + filter + palette cobrem |
+| Tags web/db/cache | **Adiado** — sem campo no modelo |
+| “All Systems Operational” | **Rejeitado** até haver health real |
+| Banner broadcast full-bleed estilo alarme | **Fase 2** — status bar + edges primeiro |
+| Titlebar “New Session / Settings” como botões primários | Tabs + `+` da sidebar + palette já abrem isso |
+| Version string / help no chrome | Fora de escopo visual desta branch |
+
+---
+
+## 6. Mapa de implementação (esta branch)
+
+| # | Item | Estado |
+| --- | --- | --- |
+| 1 | Dark forçado + tokens navy/cyan | Feito |
+| 2 | Status bar com identidade | Feito |
+| 3 | Randomart no host key | Feito |
+| 4 | Broadcast edges + botão warn | Feito |
+| 5 | Sidebar 2 linhas + filter + collapse | Feito |
+| 6 | Titlebar / palette / empty polish | Feito |
+| 7 | Faixa de aviso broadcast (fase 2) | Pendente |
+| 8 | Tags / health / search na titlebar | Fora — precisa produto |
+
+---
+
+## 7. Critério de “pronto”
+
+Uma tela está alinhada à proposta quando:
+
+1. Continua dentro da anatomia da §2 (sidebar não some).
+2. Só usa tokens da §3.
+3. Broadcast e host-key ainda obedecem às regras de segurança da §1.5.
+4. Não mostra dado que o backend não tem.
+
+Se um mockup futuro contradisser a anatomia, **atualiza-se este documento
+primeiro** — não se implementa o frame isolado.
+
+---
+
+## 8. Como validar
 
 ```bash
-pnpm install
-pnpm typecheck
-pnpm test
-cd src-tauri && cargo fmt --all -- --check && cargo clippy --all-targets --all-features -- -D warnings && cargo test
+git checkout feat/visual-improvements
+pnpm install && pnpm typecheck && pnpm test
 pnpm tauri dev
 ```
 
-Manual checks:
+Checklist manual:
 
-1. Connect to a host → status bar shows `name · user@host` after the state marker.
-2. Split into 2+ panes, arm broadcast → disarm button is loud; click disarms.
-3. Connect to a never-seen host → unknown host key shows fingerprint **and**
-   randomart; Trust stays disabled until the checkbox is ticked.
-4. Narrow the window → status bar does not wrap.
-
----
-
-## Review checklist
-
-1. Does it stay inside the existing token set?
-2. Does it leave the host-key inert-Trust rule intact?
-3. Does broadcast remain off-by-default and self-disarming?
-4. Does the status bar still fit on a narrow window without wrapping?
-5. Is any new string localised (en + pt-BR at minimum)?
+1. Dark navy em toda a janela
+2. Sidebar presente com 1 pane e com 2×2
+3. Filter e collapse de grupo
+4. Status bar com identidade
+5. SYNC armado → edges warn + botão sólido; sidebar ainda lá
+6. Host desconhecido → fingerprint + randomart; Trust inerte
