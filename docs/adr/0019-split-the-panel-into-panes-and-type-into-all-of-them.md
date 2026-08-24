@@ -89,6 +89,12 @@ tab. The only separate window is the credential prompt, because it carries a
 secret. The editor and the settings panel are not session surfaces and go on
 taking the whole panel, per ADR-0017.
 
+Picking a tab fills an empty pane if there is one, replaces the focused pane if
+there is not, and moves nothing when the session is already on screen. The empty
+pane comes first because it cannot be focused: focus points at a session and an
+empty pane has none, so without that ordering an empty pane would be a rectangle
+asking to be filled with no way to fill it.
+
 A session's surface is not drawn at all when that session is in no pane. It used
 to be mounted and hidden, because there was always exactly one panel it belonged
 to; now there may be none, and drawing it anywhere else would be a claim about

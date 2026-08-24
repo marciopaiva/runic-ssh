@@ -134,12 +134,24 @@ describe('resolving what is drawn', () => {
 });
 
 describe('picking a tab', () => {
-  it('puts the session in the focused pane', () => {
+  it('replaces the focused pane when the layout is full', () => {
     expect(placeSession(['web-01', 'db-01'], 1, 'cache-01')).toEqual(['web-01', 'cache-01']);
   });
 
-  it('fills an empty pane', () => {
-    expect(placeSession(['web-01', null], 1, 'cache-01')).toEqual(['web-01', 'cache-01']);
+  it('prefers an empty pane over the focused one', () => {
+    /* An empty pane cannot be focused: focus points at a session and it has
+       none. Without this it would be a rectangle asking to be filled with no
+       way to fill it. */
+    expect(placeSession(['web-01', null], 0, 'cache-01')).toEqual(['web-01', 'cache-01']);
+  });
+
+  it('fills the first empty pane when there are several', () => {
+    expect(placeSession([null, null, null, null], 0, 'web-01')).toEqual([
+      'web-01',
+      null,
+      null,
+      null,
+    ]);
   });
 
   it('moves nothing when the session is already on screen', () => {
@@ -149,7 +161,9 @@ describe('picking a tab', () => {
     expect(placeSession(slots, 0, 'db-01')).toBe(slots);
   });
 
-  it('leaves the panes alone when the focus is not on one', () => {
+  it('leaves a full layout alone when the focus is not on a pane', () => {
+    /* The editor or the settings tab is focused, so there is no pane to
+       replace and no empty one to fill. */
     const slots = ['web-01', 'db-01'];
     expect(placeSession(slots, -1, 'cache-01')).toBe(slots);
     expect(placeSession(slots, 5, 'cache-01')).toBe(slots);

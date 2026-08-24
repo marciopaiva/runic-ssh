@@ -108,10 +108,14 @@ export function resolveLayout(
 /**
  * What clicking a tab does to the panes.
  *
- * One rule: the session goes into the focused pane, unless it is already on
- * screen, in which case nothing moves and only the focus travels. Rearranging
+ * Already on screen: nothing moves and only the focus travels. Rearranging
  * panes under someone who was reaching for a terminal they can already see is
  * the sort of thing that makes a split feel unpredictable.
+ *
+ * Otherwise it fills an empty pane if there is one, and replaces the focused
+ * pane if there is not. The empty pane comes first because it cannot be
+ * focused: focus points at a session, an empty pane has none, and without this
+ * an empty pane would be a rectangle asking to be filled with no way to do it.
  */
 export function placeSession(
   slots: readonly (string | null)[],
@@ -119,9 +123,12 @@ export function placeSession(
   sessionId: string,
 ): readonly (string | null)[] {
   if (slots.includes(sessionId)) return slots;
-  if (focusedAt < 0 || focusedAt >= slots.length) return slots;
 
-  return slots.map((held, at) => (at === focusedAt ? sessionId : held));
+  const free = slots.indexOf(null);
+  const target = free >= 0 ? free : focusedAt;
+  if (target < 0 || target >= slots.length) return slots;
+
+  return slots.map((held, at) => (at === target ? sessionId : held));
 }
 
 /**
