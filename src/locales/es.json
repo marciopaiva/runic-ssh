@@ -87,6 +87,7 @@
   "hostKey.field.fingerprint": "HUELLA DIGITAL SHA256",
   "hostKey.field.host": "HOST",
   "hostKey.field.keyType": "TIPO DE CLAVE",
+  "hostKey.field.randomart": "RANDOMART",
   "hostKey.refused.note": "No se envió nada al host",
   "hostKey.revoked.body": "known_hosts marca esta clave como revocada. No puede aceptarse, y no hay excepción.",
   "hostKey.revoked.title": "Esta clave está revocada",
