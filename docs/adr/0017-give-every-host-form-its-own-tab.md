@@ -1,6 +1,6 @@
 # ADR-0017: Give every host form its own tab
 
-* **Status**: Accepted
+* **Status**: Accepted; the three-box rule carried forward by ADR-0019
 * **Date**: 2026-08-23
 
 ## Context

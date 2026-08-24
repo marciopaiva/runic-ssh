@@ -101,6 +101,29 @@ text carrying a line break executes without anybody pressing Return. Bracketed
 paste closes this and `xterm.js` applies it whenever the remote shell asks;
 where it is absent, a multi-line paste is shown to the user before it is sent.
 
+## What synchronised typing carries
+
+The panel can be split, and typing can be sent to every pane at once. It is the
+only control here whose reach is larger than the host being looked at, so it is
+off by default, it disarms itself whenever the set of panes changes, and while
+it is armed every pane on screen carries the same warning edge and the status
+bar carries a button that turns it off. Nothing is remembered between runs.
+
+The danger it cannot close is a password. Anything typed at a `sudo` prompt
+reaches every pane, where the hosts that were not asking for it echo it to their
+screens and may keep it in their shell history. **A password prompt cannot be
+detected from here.** The remote pty turns the echo off on the far side of the
+channel; what arrives is a byte stream with nothing in it to key on. There is no
+mitigation beyond the switch being loud and off by default, and saying so is
+better than implying a check exists.
+
+For the same reason every paste is shown first while the switch is armed, one
+line and bracketed pastes included. The paragraph above is about the shell
+running a line; this is about the paste reaching four production machines
+because the wrong pane had focus, which no protocol feature closes. ADR-0019
+records both, and why per-pane opt-in was refused: a subset the user has to
+check pane by pane is harder to see than a rule that spans all of them.
+
 ## Reviewing a change
 
 Any change touching `vault/`, host key verification, logging, or
