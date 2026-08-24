@@ -4,9 +4,17 @@ This document describes how Runic SSH is put together and why the boundaries
 sit where they do. It is the map; `security-model.md` is the set of rules that
 map has to satisfy.
 
-Status: the design is settled, the source tree is not yet written. Sections
-below describe the target. Decisions that are already binding are recorded in
+Status: mostly built. `commands/`, `ssh/`, `vault/`, `config/` and the whole
+frontend exist and are what the application runs on. Two things in the tables
+below are still the target rather than the tree: the `sftp/` module, which no
+file corresponds to yet, and tunnels, listed under what `ssh/` owns. Both are
+marked where they appear. Decisions that are already binding are recorded in
 `adr/`.
+
+That line used to say the source tree was not yet written, which was true when
+it was typed and quietly stopped being true. A stale architecture document is
+worse than an absent one in a project that asks to be audited, because it is
+where somebody auditing starts.
 
 ## Process model
 
@@ -39,8 +47,8 @@ frontend claims to have checked.
 | Module | Owns | Never does |
 | --- | --- | --- |
 | `commands/` | Input validation, delegation, error mapping | Business logic |
-| `ssh/` | Connection lifecycle, auth, channels, tunnels | Talk to the webview |
-| `sftp/` | Directory listing, transfer, resume | Talk to the webview |
+| `ssh/` | Connection lifecycle, auth, channels, tunnels (tunnels: target) | Talk to the webview |
+| `sftp/` (target) | Directory listing, transfer, resume | Talk to the webview |
 | `vault/` | Credential storage over the OS keychain | Return plaintext across IPC |
 | `config/` | Session and app settings persistence | Store secrets |
 
@@ -53,7 +61,7 @@ That constraint is what keeps the test suite fast and the logic reviewable.
 | Directory | Owns |
 | --- | --- |
 | `ipc/` | Typed wrappers over commands. The only place `invoke` appears. |
-| `features/` | State and effects per feature slice: sessions, terminal, sftp, vault |
+| `features/` | State and effects per feature slice: sessions, terminal, chrome, commands, status (sftp: target) |
 | `components/` | Presentational components. Props in, markup out. |
 | `lib/` | Framework-free helpers |
 
