@@ -37,6 +37,19 @@ agreement is written down; the checks that gate a change are five commands
 anyone can run. That scaffolding exists so somebody who did not write this can
 still change it. See **Contributing**, below.
 
+## 🧭 Why "Runic"
+
+The name comes from the runic alphabets. They are the carved symbols used
+across Northern Europe to write, to remember, and to cross distances.
+
+An SSH session is not so different: a small string of characters typed into a
+terminal that opens a door to a machine somewhere else. The protocol is the
+rune. The connection is the crossing.
+
+It is also a reminder of the project's other promise: to be small enough to
+read, to audit, and to trust. A rune fits in the hand. So should the tool that
+carries your keys.
+
 ## ✅ What works today
 
 - **SSH sessions** with the host key actually verified. An unknown key prompts
