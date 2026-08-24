@@ -208,6 +208,13 @@ export function App(): JSX.Element {
       const sessionId = focusedSession(next);
       if (sessionId !== null) {
         setSlots((current) => placeSession(current, focusedAt < 0 ? 0 : focusedAt, sessionId));
+        /* The sidebar highlight follows too. It only ever moved on connecting,
+           so looking at one session while the sidebar pointed at another was
+           always possible and was hard to notice with one panel on screen. It
+           is not hard to notice with four. Nothing reads it but the highlight
+           itself, so one place saying "this is the one you are looking at"
+           costs nothing and stops the two disagreeing. */
+        setSelected(sessionId);
       }
       setFocus(next);
     },

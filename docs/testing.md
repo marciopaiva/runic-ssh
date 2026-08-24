@@ -140,11 +140,25 @@ a session in them.
 | Cancel that confirmation | no host received anything |
 
 **The password case is what the switch cannot protect and the thing to see for
-yourself.** Run `sudo -k true` in one pane with the switch armed and type a
-password: it goes to every pane, and the panes that were not asking echo it to
-the screen. That is the documented limit, not a defect. There is no signal to
-detect it by, because the remote pty turns the echo off on the far side of the
-channel.
+yourself.** The fixture is Alpine and has no `sudo`, so use the mechanism
+directly. Any prompt that hides what you type does it the same way: the remote
+pty turns the echo off, on the far side of the channel, where nothing here can
+see it.
+
+With the switch **off**, in one pane only:
+
+```sh
+stty -echo; read secret; stty echo; echo "[$secret]"
+```
+
+That pane is now waiting with the echo off, exactly as `sudo` or `ssh` would
+leave it. Arm the switch and type a password, then Return.
+
+The pane that asked hides it and prints it back in brackets. **The other three
+print it on screen** and try to run it as a command. That is the whole of the
+limit, and it is a documented one rather than a defect: there is no signal to
+key on, because the decision to stop echoing was made by the host and never
+crossed the channel.
 
 **Four panes flooding is unmeasured.** ADR-0011 measured the renderer against
 one terminal. Run `yes` in two of four panes and watch whether the window stays
