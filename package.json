@@ -16,7 +16,8 @@
     "typecheck": "node scripts/generate-catalog-types.mjs && tsc -p tsconfig.json && tsc -p tsconfig.tools.json",
     "test": "vitest run",
     "gate": "node scripts/gate.mjs",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "prose": "node scripts/prose.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.1",

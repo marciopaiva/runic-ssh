@@ -300,6 +300,15 @@ was verified cites the loud form.
 `pnpm gate rust` and `pnpm gate front` run one half, for when only one half
 changed.
 
+`pnpm prose` checks the two rules in this document a machine can decide: the
+long dash from section 1, and the commit prefix and subject length from section
+9. It reads only what the branch adds, which is the rule rather than a
+shortcut. The tree holds around 180 long dashes in code comments and every one
+of them is meant to be there, for the reason section 1 gives. It is not one of
+the canonical five, and it does not gate a merge on its own; it is there so the
+rule stops depending on whoever happened to read the diff. CI runs it as its
+own job, next to the five rather than among them.
+
 Rust domain modules get unit tests. The IPC layer gets at least one test per
 command covering the error path, because the error path is what the user
 actually hits.
@@ -309,7 +318,9 @@ actually hits.
 ## 9. Commits
 
 * Conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`,
-  `chore:`. Subject in the imperative, under 72 characters.
+  `chore:`, `ci:`, `design:`. Subject in the imperative, under 72 characters.
+  `ci:` and `design:` were in use long before they were written down here; the
+  list was short because nobody had looked, not because they were irregular.
 * Body explains why the change was made when the subject is not self-evident.
 * **No AI attribution of any kind.** No `Co-Authored-By: Claude`, no session
   trailer, no generated-with footer, in commits or in PR descriptions.
