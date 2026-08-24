@@ -17,6 +17,7 @@ import type { Translator } from '../../lib/i18n';
 import type { WindowAction } from '../chrome';
 import type { Tab } from '../chrome';
 import type { LiveSession } from '../sessions';
+import type { LayoutKind } from '../terminal';
 
 import type { Command } from './registry';
 
@@ -35,6 +36,10 @@ export interface CommandActions {
   readonly useNativeDecorations: (native: boolean) => void;
   /** Puts the settings tab on the strip and focuses it. */
   readonly openSettings: () => void;
+  /** Divides the panel, or puts it back to one terminal. */
+  readonly splitPanel: (kind: LayoutKind) => void;
+  /** Arms or disarms typing into every pane at once. */
+  readonly toggleSync: () => void;
 }
 
 export interface CommandContext {
@@ -47,6 +52,12 @@ export interface CommandContext {
   readonly maximized: boolean;
   /** Whether the window manager is currently drawing the title bar. */
   readonly nativeDecorations: boolean;
+  /** How the panel is divided right now. */
+  readonly layout: LayoutKind;
+  /** Whether what is typed reaches every pane. */
+  readonly syncing: boolean;
+  /** How many panes have a session in them. */
+  readonly panesFilled: number;
   readonly actions: CommandActions;
 }
 
@@ -111,7 +122,18 @@ export function sessionCommands(context: CommandContext): readonly Command[] {
 
 /** Everything that is not a place to go. */
 export function actionCommands(context: CommandContext): readonly Command[] {
-  const { i18n, tabs, activeId, chosenLocale, maximized, nativeDecorations, actions } = context;
+  const {
+    i18n,
+    tabs,
+    activeId,
+    chosenLocale,
+    maximized,
+    nativeDecorations,
+    layout,
+    syncing,
+    panesFilled,
+    actions,
+  } = context;
   const commands: Command[] = [];
 
   if (activeId !== null) {
@@ -141,6 +163,60 @@ export function actionCommands(context: CommandContext): readonly Command[] {
         run: () => actions.moveTab(-1),
       },
     );
+  }
+
+  /* Dividing the panel needs something to put in the second half. With one
+     session open the command would produce an empty rectangle and a question,
+     which is the sort of entry this list exists not to have. */
+  if (tabs.length > 1) {
+    const shapes: readonly (readonly [
+      LayoutKind,
+      'command.split.columns' | 'command.split.rows' | 'command.split.grid',
+    ])[] = [
+      ['columns', 'command.split.columns'],
+      ['rows', 'command.split.rows'],
+      ['grid', 'command.split.grid'],
+    ];
+
+    for (const [kind, label] of shapes) {
+      if (kind === layout) continue;
+      commands.push({
+        id: `split:${kind}`,
+        section: 'actions',
+        title: i18n.t(label),
+        keywords: ['split', 'pane', 'dividir', 'painel', 'panel'],
+        run: () => actions.splitPanel(kind),
+      });
+    }
+  }
+
+  if (layout !== 'single') {
+    commands.push({
+      id: 'split:none',
+      section: 'actions',
+      title: i18n.t('command.split.none'),
+      keywords: ['split', 'pane', 'dividir', 'painel', 'panel'],
+      run: () => actions.splitPanel('single'),
+    });
+  }
+
+  /* Only with somewhere for it to reach. Armed against a single pane it would
+     do nothing and still say it was on, which for this switch is worse than
+     being absent. */
+  if (panesFilled > 1) {
+    commands.push({
+      id: 'split:sync',
+      section: 'actions',
+      title: i18n.t(syncing ? 'command.split.sync.off' : 'command.split.sync.on'),
+      /* The count is on the entry that arms it. How many hosts a keystroke is
+         about to reach is the fact worth reading before pressing Enter, and
+         after that the status bar carries it. */
+      ...(syncing
+        ? {}
+        : { detail: i18n.t('command.split.sync.detail', { count: String(panesFilled) }) }),
+      keywords: ['sync', 'broadcast', 'sincronizar', 'todos', 'sincronizado'],
+      run: actions.toggleSync,
+    });
   }
 
   const windowActions: readonly (readonly [string, WindowAction, 'command.window.minimize' | 'command.window.maximize' | 'command.window.restore' | 'command.window.close'])[] =

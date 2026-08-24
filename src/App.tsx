@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
-import type { JSX } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { CSSProperties, JSX } from 'react';
 
 import { CommandPalette } from './components/CommandPalette';
 import { ConnectingSurface } from './components/ConnectingSurface';
@@ -46,11 +46,49 @@ import { deleteSession, disconnectSession, saveSession, sendInput } from './ipc'
 import type { Session, SessionDraft } from './ipc';
 import { useLocale } from './features/settings';
 import { useSessionStats } from './features/status';
-import { mountedTerminals } from './features/terminal';
+import {
+  WHOLE_PANEL,
+  inputTargets,
+  mountedTerminals,
+  paneCount,
+  placeSession,
+  resolveLayout,
+} from './features/terminal';
+import type { Box, LayoutKind } from './features/terminal';
+import type { PaneEdge } from './components/TerminalView';
 import type { TerminalSize } from './features/terminal/use-terminal';
 
 /** The element the tabs switch between. Named once, referenced from both ends. */
 const TERMINAL_PANEL = 'terminal-panel';
+
+/**
+ * What a pane's edge should say.
+ *
+ * Nothing at all when the panel holds one terminal, so a window that has not
+ * been split looks exactly as it did before panes existed. `synced` wins over
+ * focus: with the switch armed every pane on screen is a destination, and which
+ * one holds the keyboard is the less urgent fact.
+ */
+function paneEdge(
+  layout: LayoutKind,
+  onScreen: boolean,
+  focused: boolean,
+  syncing: boolean,
+): PaneEdge {
+  if (layout === 'single' || !onScreen) return 'none';
+  if (syncing) return 'synced';
+  return focused ? 'focused' : 'idle';
+}
+
+/** A pane's rectangle, as the browser wants it. Percentages of the panel. */
+function paneStyle(box: Box): CSSProperties {
+  return {
+    left: `${box.left}%`,
+    top: `${box.top}%`,
+    width: `${box.width}%`,
+    height: `${box.height}%`,
+  };
+}
 
 /**
  * The application shell.
@@ -98,6 +136,15 @@ export function App(): JSX.Element {
     readonly sessionId: string;
     readonly text: string;
   } | null>(null);
+  /* How the panel is divided, and which session sits in which slot. The slots
+     are a hint rather than the truth: `resolveLayout` decides what is actually
+     drawn, because a session leaves on its own when its host hangs up. */
+  const [layout, setLayout] = useState<LayoutKind>('single');
+  const [slots, setSlots] = useState<readonly (string | null)[]>([null]);
+  /* Typing into every pane at once. Off by default and never persisted: this
+     is the one switch in the application whose blast radius is more than the
+     host being looked at. */
+  const [sync, setSync] = useState(false);
 
   const { attempt, connect, trust, abandon } = useConnect({
     onConnecting: (sessionId) => setState(sessionId, 'connecting'),
@@ -134,6 +181,73 @@ export function App(): JSX.Element {
   const stats = useSessionStats(activeHandle);
   /* One terminal per open session, kept mounted across tab switches. */
   const mounted = useMemo(() => mountedTerminals(tabs), [tabs]);
+  const panes = useMemo(
+    () => resolveLayout(layout, slots, tabs, activeId),
+    [layout, slots, tabs, activeId],
+  );
+  const focusedAt = panes.findIndex((pane) => pane.sessionId === activeId);
+  const filled = panes.filter((pane) => pane.sessionId !== null).length;
+
+  /* Nobody inherits a broadcast they did not arm. Moving the focus between
+     panes leaves this alone; changing which hosts are in them does not. */
+  const paneKey = panes.map((pane) => pane.sessionId ?? '').join('\u0000');
+  const lastPaneKey = useRef(paneKey);
+  useEffect(() => {
+    if (lastPaneKey.current === paneKey) return;
+    lastPaneKey.current = paneKey;
+    setSync(false);
+  }, [paneKey]);
+
+  /* Focus and the panes move together: picking a tab puts that session in the
+     focused pane unless it is already on screen, in which case only the focus
+     travels. One rule, applied wherever focus is set, so the strip cannot end
+     up pointing at a session the panel is not drawing. */
+  const focusOn = useCallback(
+    (next: Focus | null): void => {
+      const sessionId = focusedSession(next);
+      if (sessionId !== null) {
+        setSlots((current) => placeSession(current, focusedAt < 0 ? 0 : focusedAt, sessionId));
+      }
+      setFocus(next);
+    },
+    [focusedAt],
+  );
+
+  /* Where a keystroke goes, resolved for the terminal that produced it. */
+  const broadcast = useCallback(
+    (from: string, bytes: Uint8Array): void => {
+      for (const sessionId of inputTargets(panes, from, sync)) {
+        const target = mounted.find((candidate) => candidate.sessionId === sessionId);
+        if (target === undefined) continue;
+        /* Rejections are caught and dropped on purpose. The input is split to
+           stay inside what the core accepts, so what is left is a session that
+           has ended, and `onClosed` already says so. A banner per keystroke
+           after that would bury it. */
+        void sendInput(target.handle, bytes).catch(() => {});
+      }
+    },
+    [panes, sync, mounted],
+  );
+
+  /* Which rectangle a session's surfaces belong in, or `null` when it is not
+     on screen at all. ADR-0015 put a session's surfaces in that session's
+     panel; with a split that panel is a pane, and the rule is otherwise the
+     one it always was. */
+  const boxOf = useCallback(
+    (sessionId: string): Box | null =>
+      panes.find((pane) => pane.sessionId === sessionId)?.box ?? null,
+    [panes],
+  );
+
+  /* Changing the shape resizes the slots with it, and disarms the switch: the
+     set of hosts receiving what you type has just changed. */
+  const chooseLayout = useCallback((kind: LayoutKind): void => {
+    setSlots((current) =>
+      Array.from({ length: paneCount(kind) }, (_, at) => current[at] ?? null),
+    );
+    setLayout(kind);
+    setSync(false);
+  }, []);
 
   /* Closing a connection, wherever it is asked for. The tab's X and the row
      menu both land here rather than each doing their own half of it. */
@@ -221,7 +335,7 @@ export function App(): JSX.Element {
       if (live === undefined) return;
 
       if (live.handle !== null) {
-        setFocus({ kind: 'session', sessionId });
+        focusOn({ kind: 'session', sessionId });
         return;
       }
 
@@ -232,13 +346,13 @@ export function App(): JSX.Element {
          the failure surface is this same call on a session whose attempt is
          still held — and that one must go through. */
       if (attempt !== null && attempt.sessionId === sessionId && isInProgress(attempt.stage)) {
-        setFocus({ kind: 'session', sessionId });
+        focusOn({ kind: 'session', sessionId });
         return;
       }
 
       void connect(sessionId, live.session.credentialId);
     },
-    [connect, sessions, attempt],
+    [connect, sessions, attempt, focusOn],
   );
 
   /* What the attempt has to say, as one branch instead of four nested ones at
@@ -473,20 +587,25 @@ export function App(): JSX.Element {
       chosenLocale: chosen,
       maximized,
       nativeDecorations,
+      layout,
+      syncing: sync,
+      panesFilled: filled,
       actions: {
         newSession: () => openEditor({ kind: 'new' }),
         editSession: (sessionId: string) => openEditor({ kind: 'existing', sessionId }),
         selectSession: activate,
-        activateTab: (sessionId: string) => setFocus({ kind: 'session', sessionId }),
+        activateTab: (sessionId: string) => focusOn({ kind: 'session', sessionId }),
         closeTab: (sessionId: string) => closeFocus({ kind: 'session', sessionId }),
-        moveTab: (step) => setFocus(focusAfter(entries, resolvedFocus, step)),
+        moveTab: (step) => focusOn(focusAfter(entries, resolvedFocus, step)),
+        splitPanel: chooseLayout,
+        toggleSync: () => setSync((on) => !on),
         window: act,
         chooseLocale: (locale) => void choose(locale),
         useNativeDecorations,
         openSettings,
       },
     }),
-    [i18n, sessions, tabs, activeId, chosen, maximized, nativeDecorations, act, choose, closeFocus, activate, useNativeDecorations, openSettings, settingsOpen, resolvedFocus],
+    [i18n, sessions, tabs, activeId, chosen, maximized, nativeDecorations, act, choose, closeFocus, activate, useNativeDecorations, openSettings, settingsOpen, resolvedFocus, focusOn, entries, chooseLayout, layout, sync, filled],
   );
 
   const sources = useMemo(
@@ -495,6 +614,9 @@ export function App(): JSX.Element {
   );
 
   const palette = usePalette(sources, chrome?.commandModifier ?? 'control');
+
+  const pasteBox = pendingPaste === null ? null : boxOf(pendingPaste.sessionId);
+  const attemptBox = attempt === null ? null : boxOf(attempt.sessionId);
 
   return (
     <div className="flex h-full flex-col">
@@ -508,7 +630,7 @@ export function App(): JSX.Element {
         controls={chrome === null ? [] : windowControls(chrome, maximized)}
         leadingInset={chrome?.leadingInset ?? 0}
         panelId={TERMINAL_PANEL}
-        onFocus={setFocus}
+        onFocus={focusOn}
         /* One handler for the whole strip. Closing an editor goes through the
            hook, because that is one of the ways unsaved work gets thrown out. */
         onClose={closeFocus}
@@ -537,23 +659,48 @@ export function App(): JSX.Element {
              terminal to its panel whatever the fit arithmetic rounds to. */
           className="bg-surface-terminal relative min-w-0 flex-1 overflow-hidden"
         >
-          {mounted.map((terminal) => (
-            <TerminalView
-              key={terminal.sessionId}
-              handle={terminal.handle}
-              visible={terminal.sessionId === activeId}
-              onSize={setSize}
-              modifier={chrome?.commandModifier ?? 'control'}
-              onPasteNeedsConfirming={(text) =>
-                setPendingPaste({ sessionId: terminal.sessionId, text })
-              }
-              /* Rejections are caught and dropped on purpose. The input is
-                 split to stay inside what the core accepts, so what is left is
-                 a session that has ended, and `onClosed` already says so. A
-                 banner per keystroke after that would bury it. */
-              onInput={(bytes) => void sendInput(terminal.handle, bytes).catch(() => {})}
-            />
-          ))}
+          {mounted.map((terminal) => {
+            const at = panes.findIndex((pane) => pane.sessionId === terminal.sessionId);
+            const onScreen = at >= 0;
+            const isFocused = terminal.sessionId === activeId;
+
+            return (
+              <TerminalView
+                key={terminal.sessionId}
+                handle={terminal.handle}
+                visible={onScreen}
+                focused={isFocused}
+                /* Off screen it keeps the whole panel, so `FitAddon` and the
+                   resize observer go on measuring something real — ADR-0014. */
+                box={panes[at]?.box ?? WHOLE_PANEL}
+                edge={paneEdge(layout, onScreen, isFocused, sync && filled > 1)}
+                onPaneFocus={() => focusOn({ kind: 'session', sessionId: terminal.sessionId })}
+                onSize={setSize}
+                modifier={chrome?.commandModifier ?? 'control'}
+                onPasteNeedsConfirming={(text) =>
+                  setPendingPaste({ sessionId: terminal.sessionId, text })
+                }
+                onInput={(bytes) => broadcast(terminal.sessionId, bytes)}
+              />
+            );
+          })}
+
+          {/* A slot with nothing in it yet. Dashed rather than solid so it
+              reads as somewhere to put a session and not as a terminal that
+              failed to paint, which is the same worry the empty panel below
+              was written for. */}
+          {layout !== 'single' &&
+            panes.map((pane, at) =>
+              pane.sessionId === null ? (
+                <div
+                  key={`slot-${String(at)}`}
+                  className="border-line-subtle absolute border-2 border-dashed"
+                  style={paneStyle(pane.box)}
+                >
+                  <EmptyPanel modifier={chrome?.commandModifier ?? 'control'} />
+                </div>
+              ) : null,
+            )}
 
           {/* Nothing open at all. A blank panel beside a blank tab strip is
               indistinguishable from a window that failed to paint, and it is
@@ -618,48 +765,36 @@ export function App(): JSX.Element {
             </div>
           )}
 
-          {/* A paste waiting on an answer, in the panel of the session that
+          {/* A paste waiting on an answer, in the pane of the session that
               asked. Ahead of the attempt surface in document order because a
               session with a terminal to paste into is not one that has an
               attempt still running. */}
-          {pendingPaste !== null && (
-            <div
-              className={`absolute inset-0 ${
-                activeId === pendingPaste.sessionId ? '' : 'invisible pointer-events-none'
-              }`}
-              aria-hidden={activeId === pendingPaste.sessionId ? undefined : true}
-            >
+          {pendingPaste !== null && pasteBox !== null && (
+            <div className="absolute" style={paneStyle(pasteBox)}>
               <PasteConfirm
                 text={pendingPaste.text}
                 onCancel={() => setPendingPaste(null)}
                 onConfirm={() => {
-                  const target = mounted.find(
-                    (candidate) => candidate.sessionId === pendingPaste.sessionId,
+                  /* Through the same fan-out a keystroke takes, so a confirmed
+                     paste reaches exactly the hosts the question named. */
+                  broadcast(
+                    pendingPaste.sessionId,
+                    new TextEncoder().encode(preparePaste(pendingPaste.text)),
                   );
-                  if (target !== undefined) {
-                    void sendInput(
-                      target.handle,
-                      new TextEncoder().encode(preparePaste(pendingPaste.text)),
-                    ).catch(() => {});
-                  }
                   setPendingPaste(null);
                 }}
               />
             </div>
           )}
 
-          {/* Everything an attempt has to say, inside the panel of the session
+          {/* Everything an attempt has to say, inside the pane of the session
               it names — ADR-0015. Positioned and last in document order so it
-              paints over that session's terminal, and hidden the same way the
-              terminals are, so a question about one session cannot cover
-              another. */}
-          {attempt !== null && attemptSurface !== null && (
-            <div
-              className={`absolute inset-0 ${
-                activeId === attempt.sessionId ? '' : 'invisible pointer-events-none'
-              }`}
-              aria-hidden={activeId === attempt.sessionId ? undefined : true}
-            >
+              paints over that session's terminal, and bounded to that pane, so
+              a question about one session cannot cover another. Absent
+              entirely when its session is in no pane: there is nowhere honest
+              to draw it, and the tab is still on the strip. */}
+          {attempt !== null && attemptSurface !== null && attemptBox !== null && (
+            <div className="absolute" style={paneStyle(attemptBox)}>
               {attemptSurface}
             </div>
           )}
