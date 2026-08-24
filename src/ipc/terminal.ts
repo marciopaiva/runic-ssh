@@ -53,12 +53,37 @@ export async function openTerminal(
   return invoke<void>('open_terminal', { handle, columns, rows });
 }
 
-/** Sends what the user typed. Bytes, because a paste can contain any of them. */
+/**
+ * The most one `send_input` call carries.
+ *
+ * `MAX_INPUT_BYTES` in `commands/terminal.rs`, which refuses anything larger so
+ * a paste cannot be used to make the core allocate without bound. The two have
+ * to agree: too high here and a large paste is refused instead of delivered.
+ */
+const MAX_INPUT_BYTES = 32 * 1024;
+
+/**
+ * Sends what the user typed. Bytes, because a paste can contain any of them.
+ *
+ * Split, because a paste is input too and a pasted private key runs past the
+ * limit the core enforces. The pieces go one at a time and in order: the host
+ * is reading a byte stream, and two calls in flight could deliver a paste
+ * shuffled.
+ */
 export async function sendInput(
   handle: SessionHandle,
   bytes: Uint8Array,
 ): Promise<void> {
-  return invoke<void>('send_input', { handle, data: encode(bytes) });
+  for (let at = 0; at < bytes.length; at += MAX_INPUT_BYTES) {
+    const piece = bytes.subarray(at, at + MAX_INPUT_BYTES);
+    await invoke<void>('send_input', { handle, data: encode(piece) });
+  }
+
+  /* An empty write still crosses. Something the host is waiting on may be
+     nothing at all, and swallowing it here would be a silent change. */
+  if (bytes.length === 0) {
+    await invoke<void>('send_input', { handle, data: '' });
+  }
 }
 
 export async function resizeTerminal(
