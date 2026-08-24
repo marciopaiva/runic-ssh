@@ -6,10 +6,10 @@
  * what makes the custom themes promised for v0.3.0 a data change rather than a
  * rewrite of every component.
  *
- * Values come from the interface canvas approved on 2026-08-22, which took its
- * palette from assets/logo.png. Dark is the default and the design was composed
- * in it; light is the same token set with the values swapped, never a second
- * design.
+ * Values come from the interface canvas approved on 2026-08-22, refined on the
+ * visual-improvements branch toward the denser navy/cyan mockups. Dark is the
+ * default and the design was composed in it; light is the same token set with
+ * the values swapped, never a second design.
  *
  * Every token defined here must exist in both themes. One that appears in only
  * one renders that theme's text on the other theme's ground, and nothing warns
@@ -19,28 +19,28 @@
 :root {
   /* Surfaces, from the furthest back to the closest to the reader. The
      terminal is the deepest on purpose: it is where the eye rests. */
-  --rs-surface-base: #0b131e;
-  --rs-surface-panel: #0f1a29;
-  --rs-surface-chrome: #0d1725;
-  --rs-surface-raised: #17273c;
-  --rs-surface-overlay: #101c2c;
-  --rs-surface-terminal: #0a1119;
-  --rs-surface-input: #101d2e;
+  --rs-surface-base: #070e18;
+  --rs-surface-panel: #0c1522;
+  --rs-surface-chrome: #0a121e;
+  --rs-surface-raised: #152536;
+  --rs-surface-overlay: #0e1a2a;
+  --rs-surface-terminal: #060c14;
+  --rs-surface-input: #0e1b2c;
 
-  --rs-border-subtle: #1d2f47;
-  --rs-border-strong: #294060;
+  --rs-border-subtle: #1a2a40;
+  --rs-border-strong: #2a4060;
 
   /* Five steps, because a session list needs to separate a connected host from
      a saved one from a column header without reaching for colour. */
-  --rs-text-primary: #e4ecf7;
-  --rs-text-secondary: #c8d6e8;
-  --rs-text-muted: #8ea1ba;
-  --rs-text-faint: #5d7189;
-  --rs-text-disabled: #3d5271;
+  --rs-text-primary: #e8f0fa;
+  --rs-text-secondary: #c5d4e8;
+  --rs-text-muted: #8b9fb8;
+  --rs-text-faint: #5a6f88;
+  --rs-text-disabled: #3a4f6a;
 
-  --rs-accent: #1ea7e2;
-  --rs-accent-bright: #56b6ea;
-  --rs-accent-soft: #133449;
+  --rs-accent: #22b4ef;
+  --rs-accent-bright: #5ec8f5;
+  --rs-accent-soft: #0e2a3c;
 
   /* The mark's gradient. Kept apart from the accent so that recolouring the
      interface does not recolour the logo. */
@@ -50,10 +50,10 @@
 
   /* State is never carried by colour alone in this interface, but when colour
      is present it comes from here. */
-  --rs-state-ok: #2fb894;
-  --rs-state-ok-soft: #131f18;
-  --rs-state-warn: #e0a83c;
-  --rs-state-warn-soft: #221b10;
+  --rs-state-ok: #2fc49e;
+  --rs-state-ok-soft: #0e1c18;
+  --rs-state-warn: #e8b04a;
+  --rs-state-warn-soft: #241c0e;
   --rs-state-danger: #ff5f6b;
   --rs-state-danger-text: #ff8a92;
   --rs-state-danger-soft: #24141a;
@@ -63,74 +63,74 @@
    inside the app. */
 @media (prefers-color-scheme: light) {
   :root:not([data-theme='dark']) {
-    --rs-surface-base: #eef1f7;
-    --rs-surface-panel: #f7f9fc;
-    --rs-surface-chrome: #e6ebf3;
-    --rs-surface-raised: #e2eaf6;
+    --rs-surface-base: #e8edf5;
+    --rs-surface-panel: #f4f7fb;
+    --rs-surface-chrome: #e2e8f2;
+    --rs-surface-raised: #dce6f4;
     --rs-surface-overlay: #ffffff;
-    --rs-surface-terminal: #ffffff;
+    --rs-surface-terminal: #fafbfd;
     --rs-surface-input: #ffffff;
 
-    --rs-border-subtle: #d8e0ec;
-    --rs-border-strong: #c2ccdb;
+    --rs-border-subtle: #d0dae8;
+    --rs-border-strong: #b4c2d6;
 
-    --rs-text-primary: #101b28;
-    --rs-text-secondary: #253549;
-    --rs-text-muted: #55677f;
-    --rs-text-faint: #6b7c93;
-    --rs-text-disabled: #9aa8bc;
+    --rs-text-primary: #0c1624;
+    --rs-text-secondary: #1e3044;
+    --rs-text-muted: #4e6078;
+    --rs-text-faint: #64788f;
+    --rs-text-disabled: #92a0b4;
 
-    --rs-accent: #0d7fb5;
-    --rs-accent-bright: #0f6f9e;
-    --rs-accent-soft: #d6ecf7;
+    --rs-accent: #0b7eb8;
+    --rs-accent-bright: #0a6a9c;
+    --rs-accent-soft: #d0eaf6;
 
     --rs-brand-start: #1f9fd4;
     --rs-brand-end: #a04fd0;
     --rs-brand-rune: #1a2735;
 
-    --rs-state-ok: #14855f;
-    --rs-state-ok-soft: #e8f6f0;
-    --rs-state-warn: #8f6209;
-    --rs-state-warn-soft: #fbf2e0;
-    --rs-state-danger: #cf2230;
-    --rs-state-danger-text: #a3121f;
-    --rs-state-danger-soft: #fdeced;
+    --rs-state-ok: #12855f;
+    --rs-state-ok-soft: #e4f5ee;
+    --rs-state-warn: #8a5e08;
+    --rs-state-warn-soft: #faf0dc;
+    --rs-state-danger: #c91e2c;
+    --rs-state-danger-text: #9e101c;
+    --rs-state-danger-soft: #fceaea;
   }
 }
 
 /* An explicit choice in the application's own settings, which beats the system
    in both directions. */
 :root[data-theme='light'] {
-  --rs-surface-base: #eef1f7;
-  --rs-surface-panel: #f7f9fc;
-  --rs-surface-chrome: #e6ebf3;
-  --rs-surface-raised: #e2eaf6;
+  --rs-surface-base: #e8edf5;
+  --rs-surface-panel: #f4f7fb;
+  --rs-surface-chrome: #e2e8f2;
+  --rs-surface-raised: #dce6f4;
   --rs-surface-overlay: #ffffff;
-  --rs-surface-terminal: #ffffff;
+  --rs-surface-terminal: #fafbfd;
   --rs-surface-input: #ffffff;
 
-  --rs-border-subtle: #d8e0ec;
-  --rs-border-strong: #c2ccdb;
+  --rs-border-subtle: #d0dae8;
+  --rs-border-strong: #b4c2d6;
 
-  --rs-text-primary: #101b28;
-  --rs-text-secondary: #253549;
-  --rs-text-muted: #55677f;
-  --rs-text-faint: #6b7c93;
-  --rs-text-disabled: #9aa8bc;
+  --rs-text-primary: #0c1624;
+  --rs-text-secondary: #1e3044;
+  --rs-text-muted: #4e6078;
+  --rs-text-faint: #64788f;
+  --rs-text-disabled: #92a0b4;
 
-  --rs-accent: #0d7fb5;
-  --rs-accent-bright: #0f6f9e;
-  --rs-accent-soft: #d6ecf7;
+  --rs-accent: #0b7eb8;
+  --rs-accent-bright: #0a6a9c;
+  --rs-accent-soft: #d0eaf6;
 
   --rs-brand-start: #1f9fd4;
   --rs-brand-end: #a04fd0;
   --rs-brand-rune: #1a2735;
 
-  --rs-state-ok: #14855f;
-  --rs-state-ok-soft: #e8f6f0;
-  --rs-state-warn: #8f6209;
-  --rs-state-warn-soft: #fbf2e0;
-  --rs-state-danger: #cf2230;
-  --rs-state-danger-text: #a3121f;
-  --rs-state-danger-soft: #fdeced;
+  --rs-state-ok: #12855f;
+  --rs-state-ok-soft: #e4f5ee;
+  --rs-state-warn: #8a5e08;
+  --rs-state-warn-soft: #faf0dc;
+  --rs-state-danger: #c91e2c;
+  --rs-state-danger-text: #9e101c;
+  --rs-state-danger-soft: #fceaea;
 }

@@ -20,6 +20,9 @@ interface SessionsSidebarProps {
  *
  * Presentational: it renders what it is handed and reports what was clicked.
  * Loading, grouping and connection state live in the feature slice.
+ *
+ * Density is deliberate: a sysadmin with dozens of hosts needs the list to
+ * stay compact without losing the group structure or the state marker.
  */
 export function SessionsSidebar({
   sessions,
@@ -36,8 +39,8 @@ export function SessionsSidebar({
       aria-label={i18n.t('sessions.title')}
       className="bg-surface-panel border-line-subtle flex h-full w-[264px] shrink-0 flex-col border-r"
     >
-      <header className="flex items-center justify-between px-3.5 pt-3.5 pb-2.5">
-        <span className="text-ink-faint text-[10.5px] font-bold tracking-[0.1em]">
+      <header className="border-line-subtle flex items-center justify-between border-b px-3.5 py-3">
+        <span className="text-ink-faint text-[10px] font-bold tracking-[0.12em]">
           {i18n.t('sessions.title')}
         </span>
         <button
@@ -45,7 +48,7 @@ export function SessionsSidebar({
           onClick={onAdd}
           aria-label={i18n.t('sessions.add')}
           title={i18n.t('sessions.add')}
-          className="text-ink-muted hover:text-ink"
+          className="text-ink-muted hover:bg-surface-raised hover:text-accent-bright flex h-6 w-6 items-center justify-center rounded transition-colors"
         >
           <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" aria-hidden="true">
             <path
@@ -68,27 +71,27 @@ export function SessionsSidebar({
           </p>
         </div>
       ) : (
-        <div className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-2">
+        <div className="flex flex-1 flex-col gap-1 overflow-y-auto px-2 py-2">
           {groups.map((group) => (
             <section key={group.name ?? 'ungrouped'} className="flex flex-col gap-0.5">
-              <h2 className="text-ink-muted flex items-center gap-1.5 px-1.5 pt-2 pb-1 text-[10.5px] font-bold tracking-[0.08em]">
+              <h2 className="text-ink-muted flex items-center gap-1.5 px-2 pt-2.5 pb-1 text-[10px] font-bold tracking-[0.1em]">
                 <span className="truncate">{group.name ?? i18n.t('sessions.ungrouped')}</span>
-                <span className="text-ink-disabled ml-auto font-mono text-[10px]">
+                <span className="text-ink-disabled bg-surface-raised ml-auto rounded px-1.5 py-0.5 font-mono text-[9.5px]">
                   {group.sessions.length}
                 </span>
               </h2>
 
-              <ul className="flex flex-col gap-0.5">
+              <ul className="flex flex-col gap-px">
                 {group.sessions.map(({ session, kind }) => {
                   const selected = session.id === selectedId;
 
                   return (
                     <li
                       key={session.id}
-                      className={`group relative flex items-center rounded ${
+                      className={`group relative flex items-center rounded-md ${
                         selected
-                          ? 'bg-surface-raised shadow-[inset_2px_0_0_var(--color-accent)]'
-                          : 'hover:bg-surface-raised/50'
+                          ? 'bg-accent-soft shadow-[inset_3px_0_0_var(--color-accent)]'
+                          : 'hover:bg-surface-raised/60'
                       }`}
                       /* Right-click is the convention. The button beside it is
                          what somebody finds without knowing the convention. */
@@ -101,12 +104,12 @@ export function SessionsSidebar({
                         type="button"
                         onClick={() => onSelect(session.id)}
                         aria-current={selected ? 'true' : undefined}
-                        className={`flex h-7 min-w-0 flex-1 items-center gap-2.5 px-2 text-left ${
+                        className={`flex h-8 min-w-0 flex-1 items-center gap-2.5 px-2.5 text-left ${
                           selected ? 'text-ink' : 'text-ink-secondary'
                         }`}
                       >
                         <SessionMarker kind={kind} />
-                        <span className="truncate text-[12.5px]">{session.name}</span>
+                        <span className="truncate text-[12.5px] font-medium">{session.name}</span>
                         <span className="text-ink-faint ml-auto shrink-0 font-mono text-[10.5px]">
                           {session.host}
                         </span>

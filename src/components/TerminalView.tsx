@@ -20,8 +20,11 @@ export type PaneEdge = 'none' | 'idle' | 'focused' | 'synced';
 const EDGES: Readonly<Record<PaneEdge, string>> = {
   none: '',
   idle: 'border-2 border-line-subtle',
-  focused: 'border-2 border-accent',
-  synced: 'border-2 border-warn',
+  focused: 'border-2 border-accent shadow-[inset_0_0_0_1px_var(--color-accent)]',
+  /* Warn border plus a soft outer glow so a glance across four panes still
+     picks up which ones receive the keystroke. */
+  synced:
+    'border-2 border-warn shadow-[0_0_0_1px_var(--color-warn),inset_0_0_12px_var(--color-warn-soft)]',
 };
 
 interface TerminalViewProps {
@@ -138,7 +141,13 @@ export function TerminalView({
           border with nothing left to say about focus, and the status bar is
           describing one pane without anything pointing at it. */}
       {label !== null && (
-        <div className="border-line-subtle bg-surface-chrome flex h-[28px] shrink-0 items-center gap-2 border-b px-3">
+        <div
+          className={`border-line-subtle flex h-[28px] shrink-0 items-center gap-2 border-b px-3 ${
+            receiving === true
+              ? 'bg-warn-soft text-warn'
+              : 'bg-surface-chrome'
+          }`}
+        >
           {/* Only while something is being broadcast. Off screen it would be a
               control for a state that does not exist, and this row is read at
               a glance rather than studied. */}
@@ -152,13 +161,27 @@ export function TerminalView({
               className="accent-warn h-3 w-3 shrink-0 cursor-pointer"
             />
           )}
-          <span className="text-ink-secondary truncate text-[12px] font-semibold">
+          <span
+            className={`truncate text-[12px] font-semibold ${
+              receiving === true ? 'text-warn' : 'text-ink-secondary'
+            }`}
+          >
             {label.name}
           </span>
-          <span className="text-ink-faint truncate font-mono text-[11px]">{label.where}</span>
+          <span
+            className={`truncate font-mono text-[11px] ${
+              receiving === true ? 'text-warn opacity-80' : 'text-ink-faint'
+            }`}
+          >
+            {label.where}
+          </span>
           <span className="flex-1" />
           {focused && (
-            <span className="text-ink-secondary font-mono text-[10px] font-bold tracking-[0.08em]">
+            <span
+              className={`font-mono text-[10px] font-bold tracking-[0.08em] ${
+                receiving === true ? 'text-warn' : 'text-accent-bright'
+              }`}
+            >
               {i18n.t('terminal.pane.focused')}
             </span>
           )}

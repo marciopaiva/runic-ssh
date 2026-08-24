@@ -87,7 +87,7 @@ export function Titlebar({
 
     event.preventDefault();
     onFocus(next);
-    queueMicrotask(() => document.getElementById(elementId(next))?.focus());
+    voidMicrotask(() => document.getElementById(elementId(next))?.focus());
   };
 
   return (
@@ -159,8 +159,10 @@ export function Titlebar({
               <div
                 key={id}
                 role="presentation"
-                className={`flex min-w-0 shrink-0 items-center gap-1.5 self-center rounded px-2 ${
-                  active ? 'bg-surface-raised' : 'hover:bg-surface-raised/50'
+                className={`relative flex min-w-0 shrink-0 items-center gap-1.5 self-center rounded-md px-2 ${
+                  active
+                    ? 'bg-surface-raised shadow-[inset_0_-2px_0_0_var(--color-accent)]'
+                    : 'hover:bg-surface-raised/50'
                 }`}
               >
                 <button
@@ -174,7 +176,7 @@ export function Titlebar({
                   tabIndex={active ? 0 : -1}
                   onClick={() => onFocus(entry)}
                   className={`flex h-6 min-w-0 items-center gap-2 text-[12px] ${
-                    active ? 'text-ink' : 'text-ink-secondary'
+                    active ? 'text-ink font-medium' : 'text-ink-secondary'
                   }`}
                 >
                   {entry.kind === 'session' && tab !== null && <SessionMarker kind={tab.kind} />}
@@ -221,7 +223,7 @@ export function Titlebar({
                   onClick={() => onClose(entry)}
                   aria-label={closeLabel}
                   title={closeLabel}
-                  className="text-ink-faint hover:text-ink flex h-4 w-4 shrink-0 items-center justify-center rounded"
+                  className="text-ink-faint hover:bg-surface-base hover:text-ink flex h-4 w-4 shrink-0 items-center justify-center rounded"
                 >
                   <svg viewBox="0 0 10 10" className="h-2 w-2" fill="none" aria-hidden="true">
                     <path d="M0.5 0.5l9 9M9.5 0.5l-9 9" stroke="currentColor" strokeWidth="1.4" />
