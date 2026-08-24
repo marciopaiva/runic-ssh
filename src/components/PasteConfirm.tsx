@@ -1,0 +1,93 @@
+import type { JSX } from 'react';
+
+import { pasteLines } from '../features/terminal/clipboard';
+import { useTranslator } from '../features/settings';
+
+import { SessionSurface, SurfaceAction } from './SessionSurface';
+
+interface PasteConfirmProps {
+  readonly text: string;
+  readonly onConfirm: () => void;
+  readonly onCancel: () => void;
+}
+
+/** How much of the paste is shown before it is summarised. */
+const SHOWN = 8;
+
+/**
+ * The question asked before a multi-line paste the remote shell has not
+ * bracketed.
+ *
+ * A shell runs each line of a paste as it arrives, so text carrying a line
+ * break executes without anybody pressing Return. Bracketed paste closes this
+ * and most shells ask for it, which is why this screen is rare: it appears only
+ * where the protection is absent.
+ *
+ * The weight is carried by the preview rather than by the buttons. Pasting
+ * several lines is an ordinary thing to do, and a surface that makes it
+ * difficult would teach people to click through the one paste that mattered.
+ * What changes a decision is seeing an unexpected line in your own clipboard,
+ * so the lines are shown as they will run, in the terminal's own typeface.
+ *
+ * Unlike `HostKeyPrompt` the primary action is armed from the start, and
+ * deliberately: this is a question the user just asked for by pressing a key,
+ * not one that arrived on its own.
+ */
+export function PasteConfirm({ text, onConfirm, onCancel }: PasteConfirmProps): JSX.Element {
+  const i18n = useTranslator();
+  const lines = pasteLines(text);
+  const shown = lines.slice(0, SHOWN);
+  const hidden = lines.length - shown.length;
+
+  return (
+    <SessionSurface
+      titleId="paste-confirm-title"
+      title={i18n.t('terminal.paste.title', { count: String(lines.length) })}
+      icon={
+        <svg viewBox="0 0 16 16" width="19" height="19" fill="none" aria-hidden="true">
+          <path
+            d="M5.5 2.5h5v2h-5z M4 3.5H2.8v10h10.4v-10H12 M5 7.5h6M5 10.5h4"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      }
+      body={i18n.t('terminal.paste.body')}
+      actions={
+        <>
+          <SurfaceAction onClick={onCancel} variant="secondary">
+            {i18n.t('terminal.paste.cancel')}
+          </SurfaceAction>
+          <SurfaceAction onClick={onConfirm} variant="primary">
+            {i18n.t('terminal.paste.confirm')}
+          </SurfaceAction>
+        </>
+      }
+    >
+      <div className="bg-surface-base border-line-subtle max-h-56 overflow-auto rounded-lg border p-3">
+        <ol className="flex flex-col gap-0.5">
+          {shown.map((line, at) => (
+            <li
+              /* Keyed by position: the list is one paste, rebuilt whole, and
+                 never reordered. */
+              key={at}
+              className="text-ink-secondary font-mono text-[12px] leading-relaxed whitespace-pre-wrap"
+            >
+              {/* A blank line is part of what makes a paste look shorter than
+                  it is, so it keeps its row rather than collapsing away. */}
+              {line === '' ? ' ' : line}
+            </li>
+          ))}
+        </ol>
+      </div>
+
+      {hidden > 0 && (
+        <p className="text-ink-faint text-[11.5px]">
+          {i18n.t('terminal.paste.more', { count: String(hidden) })}
+        </p>
+      )}
+    </SessionSurface>
+  );
+}

@@ -16,6 +16,7 @@ import {
 } from '../../ipc';
 import type { SessionHandle } from '../../ipc';
 
+import { keyIntent, pasteNeedsConfirming } from './clipboard';
 import { terminalTheme } from './theme';
 
 /** The grid the remote pty is drawing on. */
@@ -46,6 +47,8 @@ export interface TerminalState {
 export function useTerminal(
   container: HTMLDivElement | null,
   handle: SessionHandle | null,
+  modifier: 'meta' | 'control',
+  onPasteNeedsConfirming: (text: string) => void,
 ): TerminalState {
   const [state, setState] = useState<TerminalState>({
     exitStatus: null,
@@ -54,6 +57,15 @@ export function useTerminal(
 
   /* Held in a ref rather than state: writing output must not re-render. */
   const writeRef = useRef<((bytes: Uint8Array) => void) | null>(null);
+
+  /* Also a ref, for a different reason: the effect below mounts an xterm, and
+     it must not tear one down and build another because a parent re-rendered
+     and handed us a new closure. */
+  const confirmRef = useRef(onPasteNeedsConfirming);
+  confirmRef.current = onPasteNeedsConfirming;
+
+  const modifierRef = useRef(modifier);
+  modifierRef.current = modifier;
 
   useEffect(() => {
     if (container === null || handle === null) return;
@@ -128,15 +140,56 @@ export function useTerminal(
         setState((current) => ({ ...current, exitStatus }));
       });
 
+      /* Ctrl-C is the keystroke this has to be careful with. Returning `false`
+         makes xterm return from its key handler before it calls
+         `preventDefault`, so the browser goes on to raise the ordinary `copy`
+         or `paste` event and the handlers xterm already registers do the work.
+         Nothing here reads the clipboard, which is why none of it needs a
+         permission the webview would then hold permanently. */
+      terminal.attachCustomKeyEventHandler((event) => {
+        const intent = keyIntent(event, terminal.hasSelection(), modifierRef.current);
+        return intent === 'send';
+      });
+
+      /* Drop the selection once it has been copied, so the next Ctrl-C is an
+         interrupt again. Registered on the container, which sees the event
+         bubble up after xterm's own handler has filled the clipboard. */
+      const copied = (): void => terminal.clearSelection();
+      container.addEventListener('copy', copied);
+
+      /* Ask before a multi-line paste the remote shell has not bracketed, since
+         that shell runs each line as it arrives. Capturing on the container
+         puts this ahead of the listeners xterm puts on its own elements, which
+         is the only place the text can still be stopped. */
+      const pasting = (event: ClipboardEvent): void => {
+        const text = event.clipboardData?.getData('text/plain') ?? '';
+        if (!pasteNeedsConfirming(text, terminal.modes.bracketedPasteMode)) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        confirmRef.current(text);
+      };
+      container.addEventListener('paste', pasting, true);
+
       const encoder = new TextEncoder();
       const typed = terminal.onData((data) => {
-        void sendInput(handle, encoder.encode(data));
+        /* Typing anything ends the selection, so a selection left on screen
+           costs at most one Ctrl-C. Done here rather than in the key handler
+           because that one also sees the `keydown` for Ctrl itself, and
+           clearing there would erase the selection a moment before the C
+           arrived to copy it. */
+        terminal.clearSelection();
+        /* Rejections are caught and dropped on purpose. The input is split to
+           stay inside what the core accepts, so what is left is a session that
+           has ended, and `onClosed` already says so. A banner per keystroke
+           after that would bury it. */
+        void sendInput(handle, encoder.encode(data)).catch(() => {});
       });
       /* Paste and anything else that arrives as bytes rather than text. */
       const binary = terminal.onBinary((data) => {
         const bytes = new Uint8Array(data.length);
         for (let i = 0; i < data.length; i += 1) bytes[i] = data.charCodeAt(i) & 0xff;
-        void sendInput(handle, bytes);
+        void sendInput(handle, bytes).catch(() => {});
       });
 
       /* The remote pty has to be told, or every program that draws by column
@@ -152,6 +205,8 @@ export function useTerminal(
       observer.observe(container);
 
       teardown.push(
+        () => container.removeEventListener('copy', copied),
+        () => container.removeEventListener('paste', pasting, true),
         () => systemTheme.removeEventListener('change', repaint),
         () => themeAttribute.disconnect(),
         () => observer.disconnect(),

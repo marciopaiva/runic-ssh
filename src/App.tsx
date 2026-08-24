@@ -8,6 +8,7 @@ import { HostKeyBlocked } from './components/HostKeyBlocked';
 import { ConnectionFailure } from './components/ConnectionFailure';
 import { HostKeyPrompt } from './components/HostKeyPrompt';
 import { HostKeyRefused } from './components/HostKeyRefused';
+import { PasteConfirm } from './components/PasteConfirm';
 import { SessionMenu } from './components/SessionMenu';
 import { SessionEditorPanel } from './components/SessionEditorPanel';
 import { SessionsSidebar } from './components/SessionsSidebar';
@@ -40,7 +41,8 @@ import {
   withoutEditor,
 } from './features/sessions';
 import type { DraftValues, EditorTarget, OpenEditor, SessionAction } from './features/sessions';
-import { deleteSession, disconnectSession, saveSession } from './ipc';
+import { preparePaste } from './features/terminal/clipboard';
+import { deleteSession, disconnectSession, saveSession, sendInput } from './ipc';
 import type { Session, SessionDraft } from './ipc';
 import { useLocale } from './features/settings';
 import { useSessionStats } from './features/status';
@@ -88,6 +90,13 @@ export function App(): JSX.Element {
   const [menu, setMenu] = useState<{
     readonly sessionId: string;
     readonly at: { readonly x: number; readonly y: number };
+  } | null>(null);
+  /* A paste held back for an answer, and the session that asked. Held here
+     rather than inside the terminal so it renders in that session's panel the
+     way every other question does, per ADR-0015. */
+  const [pendingPaste, setPendingPaste] = useState<{
+    readonly sessionId: string;
+    readonly text: string;
   } | null>(null);
 
   const { attempt, connect, trust, abandon } = useConnect({
@@ -534,6 +543,10 @@ export function App(): JSX.Element {
               handle={terminal.handle}
               visible={terminal.sessionId === activeId}
               onSize={setSize}
+              modifier={chrome?.commandModifier ?? 'control'}
+              onPasteNeedsConfirming={(text) =>
+                setPendingPaste({ sessionId: terminal.sessionId, text })
+              }
             />
           ))}
 
@@ -596,6 +609,36 @@ export function App(): JSX.Element {
                 onChooseLocale={(locale) => void choose(locale)}
                 nativeDecorations={nativeDecorations}
                 onUseNativeDecorations={useNativeDecorations}
+              />
+            </div>
+          )}
+
+          {/* A paste waiting on an answer, in the panel of the session that
+              asked. Ahead of the attempt surface in document order because a
+              session with a terminal to paste into is not one that has an
+              attempt still running. */}
+          {pendingPaste !== null && (
+            <div
+              className={`absolute inset-0 ${
+                activeId === pendingPaste.sessionId ? '' : 'invisible pointer-events-none'
+              }`}
+              aria-hidden={activeId === pendingPaste.sessionId ? undefined : true}
+            >
+              <PasteConfirm
+                text={pendingPaste.text}
+                onCancel={() => setPendingPaste(null)}
+                onConfirm={() => {
+                  const target = mounted.find(
+                    (candidate) => candidate.sessionId === pendingPaste.sessionId,
+                  );
+                  if (target !== undefined) {
+                    void sendInput(
+                      target.handle,
+                      new TextEncoder().encode(preparePaste(pendingPaste.text)),
+                    ).catch(() => {});
+                  }
+                  setPendingPaste(null);
+                }}
               />
             </div>
           )}

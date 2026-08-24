@@ -4,6 +4,7 @@ import type { JSX } from 'react';
 import type { SessionHandle } from '../ipc';
 import { useTerminal } from '../features/terminal/use-terminal';
 import type { TerminalSize } from '../features/terminal/use-terminal';
+import { useTranslator } from '../features/settings';
 
 interface TerminalViewProps {
   readonly handle: SessionHandle | null;
@@ -11,6 +12,10 @@ interface TerminalViewProps {
   readonly visible: boolean;
   /** Reports the grid the remote pty was last told about. */
   readonly onSize: (size: TerminalSize | null) => void;
+  /** Which key means the clipboard on this platform. */
+  readonly modifier: 'meta' | 'control';
+  /** Raised for a paste the remote shell would run a line at a time. */
+  readonly onPasteNeedsConfirming: (text: string) => void;
 }
 
 /**
@@ -27,9 +32,16 @@ interface TerminalViewProps {
  * hidden terminal keeps its real dimensions, so a window resize reaches every
  * session and not only the one being looked at.
  */
-export function TerminalView({ handle, visible, onSize }: TerminalViewProps): JSX.Element {
+export function TerminalView({
+  handle,
+  visible,
+  onSize,
+  modifier,
+  onPasteNeedsConfirming,
+}: TerminalViewProps): JSX.Element {
+  const i18n = useTranslator();
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
-  const { exitStatus, size } = useTerminal(container, handle);
+  const { exitStatus, size } = useTerminal(container, handle, modifier, onPasteNeedsConfirming);
 
   /* Reported upward rather than read downward: the status bar is a sibling,
      and lifting the size is cheaper than teaching it to find the terminal.
@@ -57,7 +69,7 @@ export function TerminalView({ handle, visible, onSize }: TerminalViewProps): JS
 
       {exitStatus !== null && (
         <p className="text-ink-muted border-line-subtle border-t px-3 py-1.5 font-mono text-xs">
-          session ended · exit {exitStatus}
+          {i18n.t('terminal.ended', { status: String(exitStatus) })}
         </p>
       )}
     </section>
