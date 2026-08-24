@@ -15,6 +15,9 @@ interface StatusBarProps {
   readonly stats: SessionStats;
   readonly size: TerminalSize | null;
   readonly modifier: CommandModifier;
+  /** How many hosts a keystroke reaches, or `null` when it reaches one. */
+  readonly syncing: number | null;
+  readonly onStopSync: () => void;
 }
 
 /** A cell, so every item on the bar has the same padding and no more. */
@@ -64,7 +67,14 @@ function LatencyBars({ filled }: { readonly filled: number }): JSX.Element {
  * told. The encoding and the terminal type are constants, shown because they
  * answer a question people ask of an SSH client, not because they are settings.
  */
-export function StatusBar({ kind, stats, size, modifier }: StatusBarProps): JSX.Element {
+export function StatusBar({
+  kind,
+  stats,
+  size,
+  modifier,
+  syncing,
+  onStopSync,
+}: StatusBarProps): JSX.Element {
   const i18n = useTranslator();
   const latency = gradeLatency(stats.latencyMs);
   const down = i18n.bytes(stats.fromHost);
@@ -124,6 +134,30 @@ export function StatusBar({ kind, stats, size, modifier }: StatusBarProps): JSX.
           </span>
         </>
       </Cell>
+
+      {/* The only thing on screen saying that what you type leaves this pane,
+          and the bar is where it belongs: it is true of the window rather than
+          of any one terminal. Loud on purpose, and a button rather than a
+          label, because turning it off should never cost a search. */}
+      {syncing !== null && (
+        <button
+          type="button"
+          onClick={onStopSync}
+          title={i18n.t('command.split.sync.off')}
+          className="bg-warn-soft text-warn border-warn/40 my-1 flex shrink-0 items-center gap-1.5 rounded border px-2 font-mono font-semibold"
+        >
+          <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" aria-hidden="true">
+            <path
+              d="M8 1.8 1.5 13.2h13L8 1.8ZM8 6.2v3.4M8 11.4h.01"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          {i18n.t('status.sync.on', { count: String(syncing) })}
+        </button>
+      )}
 
       <span className="flex-1" />
 

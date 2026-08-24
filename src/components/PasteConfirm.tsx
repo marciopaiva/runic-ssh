@@ -7,6 +7,8 @@ import { SessionSurface, SurfaceAction } from './SessionSurface';
 
 interface PasteConfirmProps {
   readonly text: string;
+  /** How many hosts a confirmed paste reaches. One, unless sync is armed. */
+  readonly hosts: number;
   readonly onConfirm: () => void;
   readonly onCancel: () => void;
 }
@@ -32,8 +34,18 @@ const SHOWN = 8;
  * Unlike `HostKeyPrompt` the primary action is armed from the start, and
  * deliberately: this is a question the user just asked for by pressing a key,
  * not one that arrived on its own.
+ *
+ * With typing synchronised the screen appears for every paste, one line
+ * included. There the danger is not the shell running a line, which bracketed
+ * paste already handles: it is the paste reaching four hosts because the wrong
+ * pane had focus, and no protocol feature closes that.
  */
-export function PasteConfirm({ text, onConfirm, onCancel }: PasteConfirmProps): JSX.Element {
+export function PasteConfirm({
+  text,
+  hosts,
+  onConfirm,
+  onCancel,
+}: PasteConfirmProps): JSX.Element {
   const i18n = useTranslator();
   const lines = pasteLines(text);
   const shown = lines.slice(0, SHOWN);
@@ -42,7 +54,11 @@ export function PasteConfirm({ text, onConfirm, onCancel }: PasteConfirmProps): 
   return (
     <SessionSurface
       titleId="paste-confirm-title"
-      title={i18n.t('terminal.paste.title', { count: String(lines.length) })}
+      title={
+        lines.length === 1
+          ? i18n.t('terminal.paste.line')
+          : i18n.t('terminal.paste.title', { count: String(lines.length) })
+      }
       icon={
         <svg viewBox="0 0 16 16" width="19" height="19" fill="none" aria-hidden="true">
           <path
@@ -82,6 +98,14 @@ export function PasteConfirm({ text, onConfirm, onCancel }: PasteConfirmProps): 
           ))}
         </ol>
       </div>
+
+      {hosts > 1 && (
+        /* Above the count of hidden lines, because how many machines this
+           reaches outranks how much of it is off screen. */
+        <p className="bg-warn-soft text-warn border-warn/40 rounded border px-2.5 py-1.5 text-[12px] font-semibold">
+          {i18n.t('terminal.paste.hosts', { count: String(hosts) })}
+        </p>
+      )}
 
       {hidden > 0 && (
         <p className="text-ink-faint text-[11.5px]">

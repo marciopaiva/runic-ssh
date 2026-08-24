@@ -681,6 +681,7 @@ export function App(): JSX.Element {
                   setPendingPaste({ sessionId: terminal.sessionId, text })
                 }
                 onInput={(bytes) => broadcast(terminal.sessionId, bytes)}
+                broadcasting={sync && onScreen && filled > 1}
               />
             );
           })}
@@ -773,6 +774,7 @@ export function App(): JSX.Element {
             <div className="absolute" style={paneStyle(pasteBox)}>
               <PasteConfirm
                 text={pendingPaste.text}
+                hosts={inputTargets(panes, pendingPaste.sessionId, sync).length}
                 onCancel={() => setPendingPaste(null)}
                 onConfirm={() => {
                   /* Through the same fan-out a keystroke takes, so a confirmed
@@ -817,6 +819,8 @@ export function App(): JSX.Element {
         stats={stats}
         size={size}
         modifier={chrome?.commandModifier ?? 'control'}
+        syncing={sync && filled > 1 ? filled : null}
+        onStopSync={() => setSync(false)}
       />
 
       {menu !== null &&

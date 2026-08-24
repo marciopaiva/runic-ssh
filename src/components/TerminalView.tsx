@@ -43,6 +43,8 @@ interface TerminalViewProps {
   readonly onPasteNeedsConfirming: (text: string) => void;
   /** Where a keystroke goes. Decided by the shell, not by this terminal. */
   readonly onInput: (bytes: Uint8Array) => void;
+  /** Whether what is typed here reaches more than this session. */
+  readonly broadcasting: boolean;
 }
 
 /**
@@ -74,6 +76,7 @@ export function TerminalView({
   modifier,
   onPasteNeedsConfirming,
   onInput,
+  broadcasting,
 }: TerminalViewProps): JSX.Element {
   const i18n = useTranslator();
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
@@ -83,6 +86,7 @@ export function TerminalView({
     modifier,
     onPasteNeedsConfirming,
     onInput,
+    broadcasting,
   );
 
   /* Reported upward rather than read downward: the status bar is a sibling,
