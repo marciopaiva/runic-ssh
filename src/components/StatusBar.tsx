@@ -5,6 +5,7 @@ import { describeState } from '../features/sessions';
 import { useTranslator } from '../features/settings';
 import { ENCODING, TERM, gradeLatency, paletteKeys } from '../features/status';
 import type { TerminalSize } from '../features/terminal/use-terminal';
+import type { PaneLabel } from '../features/terminal/layout';
 import type { CommandModifier, SessionStats } from '../ipc';
 
 import { SessionMarker } from './SessionMarker';
@@ -12,6 +13,8 @@ import { SessionMarker } from './SessionMarker';
 interface StatusBarProps {
   /** `null` when no session is open. */
   readonly kind: ConnectionKind | null;
+  /** Identity of the focused session, when one is focused. */
+  readonly identity: PaneLabel | null;
   readonly stats: SessionStats;
   readonly size: TerminalSize | null;
   readonly modifier: CommandModifier;
@@ -66,9 +69,15 @@ function LatencyBars({ filled }: { readonly filled: number }): JSX.Element {
  * timed against the host — and the size is whatever the remote pty was last
  * told. The encoding and the terminal type are constants, shown because they
  * answer a question people ask of an SSH client, not because they are settings.
+ *
+ * When a session is focused the identity cell sits immediately after the state
+ * marker so the eye that is already looking at the green/yellow/red also sees
+ * *which* host it refers to. With four panes the shell prompt is otherwise the
+ * only clue, and remote PS1 is not under our control.
  */
 export function StatusBar({
   kind,
+  identity,
   stats,
   size,
   modifier,
@@ -99,6 +108,19 @@ export function StatusBar({
           )}
         </>
       </Cell>
+
+      {identity !== null && (
+        <Cell title={`${identity.name} · ${identity.where}`}>
+          <>
+            <span className="text-ink-secondary max-w-[9rem] truncate font-semibold">
+              {identity.name}
+            </span>
+            <span className="text-ink-faint max-w-[11rem] truncate font-mono">
+              {identity.where}
+            </span>
+          </>
+        </Cell>
+      )}
 
       <Cell title={i18n.t(latency.label)}>
         <>
