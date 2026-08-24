@@ -351,6 +351,7 @@ decision that lives only there is already lost.
 | `/feature` | Any non-trivial change. Drives the five phases in section 4. |
 | `/tauri-cmd` | Adding an IPC command end to end, Rust through to typed wrapper. |
 | `/adr` | Recording an architectural decision under `docs/adr/`. |
+| `/release` | Cutting a version: the sweep before the tag, and driving what the tag produced. |
 
 Skills live in `.claude/skills/`. Extend them when a workflow repeats often
 enough to be worth encoding.
