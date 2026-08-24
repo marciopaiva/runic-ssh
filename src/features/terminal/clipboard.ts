@@ -75,11 +75,17 @@ export function keyIntent(
  * whole attack, and the person pasting is the only one who can tell whether
  * they meant it.
  */
-export function pasteNeedsConfirming(text: string, bracketedPasteMode: boolean): boolean {
+export function pasteNeedsConfirming(
+  text: string,
+  bracketedPasteMode: boolean,
+  broadcasting: boolean,
+): boolean {
+  /* Going to more than one host is enough on its own. Bracketed paste stops
+     the remote shell running the lines, and stops nothing about the paste
+     landing on four production machines because the wrong pane had focus. A
+     single line earns the question here for the same reason. */
+  if (broadcasting) return text.length > 0;
   if (bracketedPasteMode) return false;
-
-  /* A single trailing newline is somebody pasting one command and expecting it
-     to run. Anything else puts a line break in the middle of the text. */
   return /[\r\n]/.test(text.replace(/[\r\n]+$/, ''));
 }
 
