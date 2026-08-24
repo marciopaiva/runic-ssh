@@ -179,6 +179,7 @@
   "terminal.ended": "Sesión terminada, salida {status}",
   "terminal.pane.focused": "ENFOCADO",
   "terminal.paste.body": "El shell remoto ejecuta cada línea apenas llega, así que esto empieza a correr antes de que presiones Enter.",
+  "terminal.paste.body.one": "La escritura está sincronizada, así que esto sale del panel que está mirando y se ejecuta en todos los paneles en pantalla.",
   "terminal.paste.cancel": "Cancelar",
   "terminal.paste.confirm": "Pegar",
   "terminal.paste.hosts": "Esto se envía a {count} hosts a la vez.",
