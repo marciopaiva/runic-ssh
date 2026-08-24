@@ -62,6 +62,14 @@ Decrypted private keys and passphrases are wrapped in `zeroize` types and
 dropped as soon as authentication completes. They are never written to a
 temporary file, which would survive the process and land in a backup.
 
+The promise stops where our copy does. Once the secret is handed to `russh` for
+authentication its lifetime belongs to `russh` and to whatever its crypto
+backend allocates, and no wrapper on our side reaches into that. `ssh/connection.rs`
+has said so at the top of the file since it was written; this section had not,
+and a rule that claims more than it can do is worth less than one that names its
+edge. What is guaranteed is that Runic's own copy is zeroized and does not
+outlive the attempt.
+
 ### 5. No telemetry without opt-in
 
 No usage reporting, no crash reporting, no update ping, unless the user turns it
