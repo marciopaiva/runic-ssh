@@ -88,7 +88,8 @@ exists to prevent, so it is not one click away.
 
 ## 🚦 Status
 
-**Pre-alpha, and it connects.** v0.1.0 shipped on 2026-08-23. On Linux and on
+**Pre-alpha, and it connects.** v0.1.0 shipped on 2026-08-23, and v0.1.1 the
+same day with copy and paste in the terminal. On Linux and on
 Windows 11 a packaged build was installed and driven end to end: it verified an
 unknown host key against its real fingerprint, asked for a password in its own
 window, opened a shell and ran commands in it.
@@ -96,8 +97,10 @@ window, opened a shell and ran commands in it.
 **macOS has never been opened by anyone.** The `.dmg` builds on every run and
 that is all anyone can say about it. `docs/installing.md` tracks which packages
 a human has actually installed, per platform, which is not the same list as the
-one CI produces. Nobody has yet installed a file that came out of a release, on
-any platform.
+one CI produces. The Linux `.deb` from the v0.1.1 release has now been
+downloaded, checked against its hash, installed and driven, which is the first
+time anyone has run a file that came out of a release rather than off their own
+machine. Windows and macOS have not.
 
 Work is tracked in [issues](https://github.com/marciopaiva/runic-ssh/issues) and
 the decisions behind it in [`docs/adr/`](docs/adr/).
