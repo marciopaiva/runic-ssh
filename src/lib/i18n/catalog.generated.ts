@@ -184,6 +184,7 @@ export const SOURCE_CATALOG = {
   "tabs.settings.unsaved": "Settings — unsaved changes",
   "terminal.ended": "Session ended, exit {status}",
   "terminal.pane.focused": "FOCUSED",
+  "terminal.pane.sync": "Receives what you type",
   "terminal.paste.body": "The remote shell runs each line as it arrives, so this starts running before you press Return.",
   "terminal.paste.body.one": "Typing is synchronised, so this leaves the pane you are looking at and runs on every pane on screen.",
   "terminal.paste.cancel": "Cancel",

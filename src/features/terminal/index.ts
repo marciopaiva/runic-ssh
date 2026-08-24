@@ -11,5 +11,6 @@ export {
   paneCount,
   placeSession,
   resolveLayout,
+  syncedPanes,
 } from './layout';
 export type { Box, LayoutKind, Pane, PaneLabel } from './layout';

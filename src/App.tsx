@@ -54,6 +54,7 @@ import {
   paneLabel,
   placeSession,
   resolveLayout,
+  syncedPanes,
 } from './features/terminal';
 import type { Box, LayoutKind } from './features/terminal';
 import type { PaneEdge } from './components/TerminalView';
@@ -146,6 +147,9 @@ export function App(): JSX.Element {
      is the one switch in the application whose blast radius is more than the
      host being looked at. */
   const [sync, setSync] = useState(false);
+  /* Panes turned off in their own header while the switch is armed. Three of
+     four machines in a pool, with the database spared, is the ordinary case. */
+  const [muted, setMuted] = useState<ReadonlySet<string>>(new Set());
 
   const { attempt, connect, trust, abandon } = useConnect({
     onConnecting: (sessionId) => setState(sessionId, 'connecting'),
@@ -188,6 +192,10 @@ export function App(): JSX.Element {
   );
   const focusedAt = panes.findIndex((pane) => pane.sessionId === activeId);
   const filled = panes.filter((pane) => pane.sessionId !== null).length;
+  const receiving = useMemo(() => syncedPanes(panes, muted), [panes, muted]);
+  /* One pane left receiving is not a broadcast: it sends exactly where an
+     unarmed keystroke goes, and the screen must not claim otherwise. */
+  const armed = sync && receiving.length > 1;
 
   /* Nobody inherits a broadcast they did not arm. Moving the focus between
      panes leaves this alone; changing which hosts are in them does not. */
@@ -197,6 +205,7 @@ export function App(): JSX.Element {
     if (lastPaneKey.current === paneKey) return;
     lastPaneKey.current = paneKey;
     setSync(false);
+    setMuted(new Set());
   }, [paneKey]);
 
   /* Focus and the panes move together: picking a tab puts that session in the
@@ -224,7 +233,7 @@ export function App(): JSX.Element {
   /* Where a keystroke goes, resolved for the terminal that produced it. */
   const broadcast = useCallback(
     (from: string, bytes: Uint8Array): void => {
-      for (const sessionId of inputTargets(panes, from, sync)) {
+      for (const sessionId of inputTargets(panes, from, sync, muted)) {
         const target = mounted.find((candidate) => candidate.sessionId === sessionId);
         if (target === undefined) continue;
         /* Rejections are caught and dropped on purpose. The input is split to
@@ -234,7 +243,7 @@ export function App(): JSX.Element {
         void sendInput(target.handle, bytes).catch(() => {});
       }
     },
-    [panes, sync, mounted],
+    [panes, sync, muted, mounted],
   );
 
   /* Which rectangle a session's surfaces belong in, or `null` when it is not
@@ -255,6 +264,7 @@ export function App(): JSX.Element {
     );
     setLayout(kind);
     setSync(false);
+    setMuted(new Set());
   }, []);
 
   /* Closing a connection, wherever it is asked for. The tab's X and the row
@@ -606,14 +616,20 @@ export function App(): JSX.Element {
         closeTab: (sessionId: string) => closeFocus({ kind: 'session', sessionId }),
         moveTab: (step) => focusOn(focusAfter(entries, resolvedFocus, step)),
         splitPanel: chooseLayout,
-        toggleSync: () => setSync((on) => !on),
+        /* Arming always starts with every pane checked. Inheriting a set
+           somebody narrowed for a different pair of hosts is the kind of thing
+           this switch must never do. */
+        toggleSync: () => {
+          setMuted(new Set());
+          setSync((on) => !on);
+        },
         window: act,
         chooseLocale: (locale) => void choose(locale),
         useNativeDecorations,
         openSettings,
       },
     }),
-    [i18n, sessions, tabs, activeId, chosen, maximized, nativeDecorations, act, choose, closeFocus, activate, useNativeDecorations, openSettings, settingsOpen, resolvedFocus, focusOn, entries, chooseLayout, layout, sync, filled],
+    [i18n, sessions, tabs, activeId, chosen, maximized, nativeDecorations, act, choose, closeFocus, activate, useNativeDecorations, openSettings, settingsOpen, resolvedFocus, focusOn, entries, chooseLayout, layout, sync, filled, muted, armed, receiving],
   );
 
   const sources = useMemo(
@@ -689,11 +705,22 @@ export function App(): JSX.Element {
                 /* Off screen it keeps the whole panel, so `FitAddon` and the
                    resize observer go on measuring something real — ADR-0014. */
                 box={panes[at]?.box ?? WHOLE_PANEL}
-                edge={paneEdge(layout, onScreen, isFocused, sync && filled > 1)}
+                edge={paneEdge(layout, onScreen, isFocused, armed && !muted.has(terminal.sessionId))}
                 label={
                   layout === 'single' || !onScreen
                     ? null
                     : (paneLabels.get(terminal.sessionId) ?? null)
+                }
+                /* Absent unless something is being broadcast, and absent off
+                   screen: a control for a pane nobody can see decides nothing. */
+                receiving={sync && onScreen && layout !== 'single' ? !muted.has(terminal.sessionId) : null}
+                onToggleReceiving={() =>
+                  setMuted((current) => {
+                    const next = new Set(current);
+                    if (next.has(terminal.sessionId)) next.delete(terminal.sessionId);
+                    else next.add(terminal.sessionId);
+                    return next;
+                  })
                 }
                 onPaneFocus={() => focusOn({ kind: 'session', sessionId: terminal.sessionId })}
                 onSize={setSize}
@@ -702,7 +729,7 @@ export function App(): JSX.Element {
                   setPendingPaste({ sessionId: terminal.sessionId, text })
                 }
                 onInput={(bytes) => broadcast(terminal.sessionId, bytes)}
-                broadcasting={sync && onScreen && filled > 1}
+                broadcasting={armed && !muted.has(terminal.sessionId)}
               />
             );
           })}
@@ -795,7 +822,7 @@ export function App(): JSX.Element {
             <div className="absolute" style={paneStyle(pasteBox)}>
               <PasteConfirm
                 text={pendingPaste.text}
-                hosts={inputTargets(panes, pendingPaste.sessionId, sync).length}
+                hosts={inputTargets(panes, pendingPaste.sessionId, sync, muted).length}
                 onCancel={() => setPendingPaste(null)}
                 onConfirm={() => {
                   /* Through the same fan-out a keystroke takes, so a confirmed
@@ -840,8 +867,11 @@ export function App(): JSX.Element {
         stats={stats}
         size={size}
         modifier={chrome?.commandModifier ?? 'control'}
-        syncing={sync && filled > 1 ? filled : null}
-        onStopSync={() => setSync(false)}
+        syncing={armed ? receiving.length : null}
+        onStopSync={() => {
+          setSync(false);
+          setMuted(new Set());
+        }}
       />
 
       {menu !== null &&

@@ -109,11 +109,30 @@ to be mounted and hidden, because there was always exactly one panel it belonged
 to; now there may be none, and drawing it anywhere else would be a claim about
 which terminal it concerns.
 
-**Synchronised input is one switch, off by default, spanning every pane that has
-a session in it.** Per-pane opt-in was rejected: it is more flexible and much
-harder to make obvious, because the state becomes a subset the user has to check
-pane by pane before pressing Return, and being obvious is the property that
-matters here. The switch disarms itself whenever the set of panes changes.
+**Synchronised input is one switch, off by default, and each pane can be turned
+off in its own header.** Arming stays a single deliberate gesture from the
+palette, which says how many hosts it is about to reach; narrowing costs one
+click. The switch disarms itself whenever the set of panes changes, and arming
+always starts with every pane checked, so a set narrowed for one pair of hosts
+is never inherited by another.
+
+Per-pane opt-in was rejected when this was first written, on the ground that a
+subset is harder to see at a glance than a rule spanning everything. That was
+argued before the panes had headers. With one, the subset is visible without
+being studied: a receiving pane carries the warning edge and a spared one does
+not, with the host named against it, which is more information on screen rather
+than less.
+
+The rigid rule also had a cost that only appeared in use. Sparing one host meant
+dropping it from the split or not using the switch at all, so somebody wanting
+three of four would arm all four — the rule pushed toward the more dangerous of
+the two behaviours it was meant to guard. Left as it was, it would have been a
+safety argument producing a less safe habit.
+
+One receiving pane is treated as no broadcast at all. It would send exactly
+where an unarmed keystroke goes while the screen claimed otherwise, and a pane
+turned off reaches only itself, so typing into the host you deliberately spared
+is not a way to reach everything else.
 
 While it is armed, every paste is shown before it is sent, single lines and
 bracketed pastes included. ADR-0018 asks the question when the remote shell

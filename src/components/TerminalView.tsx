@@ -35,6 +35,12 @@ interface TerminalViewProps {
   readonly edge: PaneEdge;
   /** What this pane says it is, or `null` when the panel holds one terminal. */
   readonly label: PaneLabel | null;
+  /**
+   * Whether this pane takes what is typed elsewhere, or `null` when nothing is
+   * being broadcast and the question does not arise.
+   */
+  readonly receiving: boolean | null;
+  readonly onToggleReceiving: () => void;
   /** Raised when the pointer or the keyboard lands inside this pane. */
   readonly onPaneFocus: () => void;
   /** Reports the grid the remote pty was last told about. */
@@ -74,6 +80,8 @@ export function TerminalView({
   box,
   edge,
   label,
+  receiving,
+  onToggleReceiving,
   onPaneFocus,
   onSize,
   modifier,
@@ -131,6 +139,19 @@ export function TerminalView({
           describing one pane without anything pointing at it. */}
       {label !== null && (
         <div className="border-line-subtle bg-surface-chrome flex h-[28px] shrink-0 items-center gap-2 border-b px-3">
+          {/* Only while something is being broadcast. Off screen it would be a
+              control for a state that does not exist, and this row is read at
+              a glance rather than studied. */}
+          {receiving !== null && (
+            <input
+              type="checkbox"
+              checked={receiving}
+              onChange={onToggleReceiving}
+              title={i18n.t('terminal.pane.sync')}
+              aria-label={i18n.t('terminal.pane.sync')}
+              className="accent-warn h-3 w-3 shrink-0 cursor-pointer"
+            />
+          )}
           <span className="text-ink-secondary truncate text-[12px] font-semibold">
             {label.name}
           </span>
