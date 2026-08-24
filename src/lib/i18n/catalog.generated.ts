@@ -93,6 +93,7 @@ export const SOURCE_CATALOG = {
   "hostKey.field.fingerprint": "SHA256 FINGERPRINT",
   "hostKey.field.host": "HOST",
   "hostKey.field.keyType": "KEY TYPE",
+  "hostKey.field.randomart": "RANDOMART",
   "hostKey.refused.note": "Nothing was sent to the host",
   "hostKey.revoked.body": "known_hosts marks this key as revoked. It cannot be accepted, and there is no override.",
   "hostKey.revoked.title": "This key is revoked",
