@@ -56,6 +56,36 @@ Two things about the container matter when driving it rather than testing it:
   ssh-keyscan -p 2222 -t ed25519 127.0.0.1 | ssh-keygen -lf -
   ```
 
+### Driving a release build from the tree
+
+`pnpm tauri dev` serves the frontend from Vite and reloads on every edit, which
+is the loop. A release binary is a different thing: it serves the frontend
+**embedded in it at compile time**, which is what a packaged build does and what
+a `tauri dev` run exercises none of.
+
+Rebuilding one from the tree has a trap worth knowing, because it fails
+silently:
+
+```sh
+pnpm build                        # writes dist/
+touch src-tauri/src/lib.rs        # or cargo will not notice
+cd src-tauri && cargo build --release
+```
+
+**Without the `touch`, `cargo` reports `Finished` in under a second and leaves
+the old binary in place.** Nothing declares `dist/` as an input, so a frontend
+change alone never invalidates the build, and the binary goes on serving the
+interface it was compiled with. Measured: `dist/index.html` written at 08:01:30,
+`target/release/runic-ssh` still stamped 07:51:31, and `cargo` said it was
+finished.
+
+The date on the binary is the check. `strings` on it is not: Tauri embeds the
+assets compressed, so grepping for a string you just added finds nothing whether
+or not the build is current.
+
+`pnpm tauri build` does the whole thing correctly and also builds every
+installer, which is minutes rather than one.
+
 ### Copy and paste
 
 The clipboard is the one part of the terminal that cannot be asserted from a
