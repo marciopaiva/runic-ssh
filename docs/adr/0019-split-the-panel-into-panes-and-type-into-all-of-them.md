@@ -148,6 +148,13 @@ mitigation is that the switch is loud and off by default, not that it is clever.
 That is a real limit and it is written here rather than left for somebody to
 discover.
 
+Driven on 2026-08-24 against two containers rather than argued: one pane left
+waiting on `read` with the echo off, the switch armed, a password typed. The
+pane that asked showed nothing. The pane that had not asked printed the password
+on screen and tried to run it as a command. The procedure is in
+`docs/testing.md` so that anybody doubting this paragraph can watch it instead
+of taking it on trust.
+
 A destructive command reaches every pane with one Return, which is the feature
 working correctly and is the reason it is not on by default.
 
