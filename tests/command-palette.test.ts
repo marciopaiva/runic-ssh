@@ -50,6 +50,8 @@ function actions(): CommandActions & { readonly calls: string[] } {
     window: (action) => calls.push(`window:${action}`),
     chooseLocale: (locale) => calls.push(`locale:${locale ?? 'system'}`),
     useNativeDecorations: (native) => calls.push(`decorations:${native}`),
+    splitPanel: (kind) => calls.push(`split:${kind}`),
+    toggleSync: () => calls.push('sync'),
   };
 }
 
@@ -62,6 +64,9 @@ function context(overrides: Partial<CommandContext> = {}): CommandContext {
     chosenLocale: null,
     nativeDecorations: false,
     maximized: false,
+    layout: 'single',
+    syncing: false,
+    panesFilled: 0,
     actions: actions(),
     ...overrides,
   };

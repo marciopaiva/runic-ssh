@@ -4,12 +4,37 @@ import type { JSX } from 'react';
 import type { SessionHandle } from '../ipc';
 import { useTerminal } from '../features/terminal/use-terminal';
 import type { TerminalSize } from '../features/terminal/use-terminal';
+import type { Box } from '../features/terminal';
 import { useTranslator } from '../features/settings';
+
+/**
+ * What the edge of a pane says about it.
+ *
+ * `none` is a panel with one terminal in it, drawn exactly as it was before
+ * there were panes. `synced` is the loud one, and it is a safety marker rather
+ * than decoration: it is the only thing on screen saying that what you type
+ * reaches more than the host you are looking at.
+ */
+export type PaneEdge = 'none' | 'idle' | 'focused' | 'synced';
+
+const EDGES: Readonly<Record<PaneEdge, string>> = {
+  none: '',
+  idle: 'border-2 border-line-subtle',
+  focused: 'border-2 border-accent',
+  synced: 'border-2 border-warn',
+};
 
 interface TerminalViewProps {
   readonly handle: SessionHandle | null;
-  /** Whether this session's tab is the active one. */
+  /** Whether this session is in a pane at all. */
   readonly visible: boolean;
+  /** Whether this is the pane the keyboard and the status bar belong to. */
+  readonly focused: boolean;
+  /** The rectangle of the panel this pane occupies. */
+  readonly box: Box;
+  readonly edge: PaneEdge;
+  /** Raised when the pointer or the keyboard lands inside this pane. */
+  readonly onPaneFocus: () => void;
   /** Reports the grid the remote pty was last told about. */
   readonly onSize: (size: TerminalSize | null) => void;
   /** Which key means the clipboard on this platform. */
@@ -33,10 +58,18 @@ interface TerminalViewProps {
  * garbage grid and the `ResizeObserver` tell the remote pty it is `0x0`. A
  * hidden terminal keeps its real dimensions, so a window resize reaches every
  * session and not only the one being looked at.
+ *
+ * That is also why a hidden terminal is handed the whole panel as its box and
+ * not the pane it last sat in: it goes on measuring something real, and it is
+ * given its rectangle on the way back in.
  */
 export function TerminalView({
   handle,
   visible,
+  focused,
+  box,
+  edge,
+  onPaneFocus,
   onSize,
   modifier,
   onPasteNeedsConfirming,
@@ -54,18 +87,29 @@ export function TerminalView({
 
   /* Reported upward rather than read downward: the status bar is a sibling,
      and lifting the size is cheaper than teaching it to find the terminal.
-     Only the visible one reports — otherwise the bar would show whichever
-     background session last resized. */
+     Only the focused one reports — with several panes on screen the bar would
+     otherwise show whichever of them resized last. */
   useEffect(() => {
-    if (visible) onSize(size);
-  }, [onSize, size, visible]);
+    if (focused) onSize(size);
+  }, [onSize, size, focused]);
 
   return (
     <section
-      className={`bg-surface-terminal absolute inset-0 flex flex-col overflow-hidden ${
-        visible ? '' : 'invisible pointer-events-none'
-      }`}
+      className={`bg-surface-terminal absolute flex flex-col overflow-hidden ${
+        EDGES[edge]
+      } ${visible ? '' : 'invisible pointer-events-none'}`}
+      /* Inline because the rectangle is a percentage that changes with the
+         layout, and there is no class for "half of whatever this panel is". */
+      style={{
+        left: `${box.left}%`,
+        top: `${box.top}%`,
+        width: `${box.width}%`,
+        height: `${box.height}%`,
+      }}
       aria-hidden={visible ? undefined : true}
+      /* React's `onFocus` is `focusin`, so this catches the click that lands
+         inside xterm as well as a tab into it. */
+      onFocus={onPaneFocus}
     >
       {/* The padding is on this wrapper and not on the element xterm owns.
           FitAddon measures the parent it is opened into, and the rows it
