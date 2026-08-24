@@ -130,9 +130,24 @@ the limit, so the obvious test does not reach the split.
 
 ### Split panes and synchronised typing
 
-Two sessions at least, and four for the grid. The container recipe above is one
-host; a second port on the same container is enough for a second session, and
-`docs/adr/0019-...` is the reasoning behind what these are checking.
+Two sessions at least, and four for the grid. The container recipe above gives
+one host, so the grid needs three more. They are the same image on three more
+ports, which is enough to make four sessions that are genuinely separate
+connections:
+
+```bash
+for port in 2223 2224 2225; do
+  podman run -d --name "runic-test-sshd-$port" -p "$port:2222" runic-test-sshd
+done
+```
+
+Each one is a distinct host key, so the first connection to each prompts on its
+own. That is the point: four panes that trust four different keys is closer to
+what a person has on screen than four tabs onto one machine.
+
+Save them as four sessions and the split is one palette command away.
+`docs/adr/0019-split-the-panel-into-panes-and-type-into-all-of-them.md` is the
+reasoning behind what these are checking.
 
 Nothing here can be asserted from a test either, for the same reason as the
 clipboard: what is being checked is what the webview does with a real keyboard
