@@ -74,6 +74,9 @@ function LatencyBars({ filled }: { readonly filled: number }): JSX.Element {
  * marker so the eye that is already looking at the green/yellow/red also sees
  * *which* host it refers to. With four panes the shell prompt is otherwise the
  * only clue, and remote PS1 is not under our control.
+ *
+ * The broadcast button is the loudest thing on the bar on purpose: when armed,
+ * typing reaches more than one host, and turning it off must never cost a search.
  */
 export function StatusBar({
   kind,
@@ -166,9 +169,9 @@ export function StatusBar({
           type="button"
           onClick={onStopSync}
           title={i18n.t('command.split.sync.off')}
-          className="bg-warn-soft text-warn border-warn/40 my-1 flex shrink-0 items-center gap-1.5 rounded border px-2 font-mono font-semibold"
+          className="bg-warn-soft text-warn border-warn my-0.5 flex shrink-0 items-center gap-1.5 rounded border-2 px-2.5 font-mono text-[12px] font-bold shadow-[0_0_0_1px_var(--color-warn)]"
         >
-          <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" aria-hidden="true">
+          <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" aria-hidden="true">
             <path
               d="M8 1.8 1.5 13.2h13L8 1.8ZM8 6.2v3.4M8 11.4h.01"
               stroke="currentColor"
