@@ -432,3 +432,62 @@ describe('what a palette row can hold', () => {
     }
   });
 });
+
+describe('dividing the panel', () => {
+  function ids(over: Parameters<typeof context>[0]): readonly string[] {
+    return actionCommands(context(over)).map((entry) => entry.id);
+  }
+
+  it('offers the shapes with a single session open', () => {
+    /* Splitting first and connecting into the empty pane is the ordinary way
+       round: picking a tab fills an empty pane before it replaces the focused
+       one. Requiring two open sessions made the command invisible exactly
+       when somebody first went looking for it. */
+    expect(ids({ tabs: [tab('a')], activeId: 'a' })).toEqual(
+      expect.arrayContaining(['split:columns', 'split:rows', 'split:grid']),
+    );
+  });
+
+  it('offers nothing to divide when nothing is open', () => {
+    expect(ids({})).not.toContain('split:columns');
+  });
+
+  it('leaves out the shape already in use', () => {
+    const offered = ids({ tabs: [tab('a')], activeId: 'a', layout: 'columns' });
+    expect(offered).not.toContain('split:columns');
+    expect(offered).toContain('split:rows');
+  });
+
+  it('offers the way back only once there is something to go back from', () => {
+    expect(ids({ tabs: [tab('a')], activeId: 'a' })).not.toContain('split:none');
+    expect(ids({ tabs: [tab('a')], activeId: 'a', layout: 'grid' })).toContain('split:none');
+  });
+
+  it('offers the sync switch only when it would reach somewhere', () => {
+    /* Armed against one pane it would do nothing and still say it was on,
+       which for this switch is worse than being absent. */
+    expect(ids({ tabs: [tab('a')], activeId: 'a', layout: 'columns', panesFilled: 1 })).not.toContain(
+      'split:sync',
+    );
+    expect(ids({ tabs: [tab('a')], activeId: 'a', layout: 'columns', panesFilled: 2 })).toContain(
+      'split:sync',
+    );
+  });
+
+  it('says how many hosts arming it would reach', () => {
+    const entry = actionCommands(
+      context({ tabs: [tab('a')], activeId: 'a', layout: 'grid', panesFilled: 3 }),
+    ).find((command) => command.id === 'split:sync');
+
+    expect(entry?.detail).toContain('3');
+  });
+
+  it('runs the shape it names', () => {
+    const act = actions();
+    actionCommands(context({ tabs: [tab('a')], activeId: 'a', actions: act }))
+      .find((entry) => entry.id === 'split:grid')
+      ?.run();
+
+    expect(act.calls).toEqual(['split:grid']);
+  });
+});

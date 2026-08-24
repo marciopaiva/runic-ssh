@@ -165,10 +165,11 @@ export function actionCommands(context: CommandContext): readonly Command[] {
     );
   }
 
-  /* Dividing the panel needs something to put in the second half. With one
-     session open the command would produce an empty rectangle and a question,
-     which is the sort of entry this list exists not to have. */
-  if (tabs.length > 1) {
+  /* One open session is enough. Splitting first and connecting into the empty
+     pane is the ordinary way round, since picking a tab fills an empty pane
+     before it replaces the focused one. With nothing open at all there is no
+     panel to divide, and the entry would be a shape with two holes in it. */
+  if (tabs.length > 0) {
     const shapes: readonly (readonly [
       LayoutKind,
       'command.split.columns' | 'command.split.rows' | 'command.split.grid',

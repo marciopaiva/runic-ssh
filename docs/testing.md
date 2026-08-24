@@ -108,8 +108,10 @@ Nothing here can be asserted from a test either, for the same reason as the
 clipboard: what is being checked is what the webview does with a real keyboard
 in real rectangles, and injected keys do not reach it.
 
-Split from the palette (`Ctrl-Shift-P`, then "Split"). With one session open the
-split commands are absent, which is correct.
+Split from the palette (`Ctrl-Shift-P`, then "Split"). One open session is
+enough: splitting first and connecting into the empty pane is the ordinary way
+round. With nothing connected at all the commands are absent, because there is
+no panel to divide.
 
 | Do this | Expect |
 | --- | --- |
