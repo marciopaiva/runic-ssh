@@ -15,8 +15,9 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 
 - **Split panes.** The panel divides into two columns, two rows, or a grid of
   four, from the command palette. Each pane holds a session that is already
-  connected: picking a tab puts it in the focused pane unless it is already on
-  screen, in which case only the focus moves. A session's questions, the host
+  connected: picking a tab fills an empty pane if there is one, replaces the
+  focused pane if there is not, and moves nothing when that session is already
+  on screen. A session's questions, the host
   key prompt included, are drawn inside that session's pane and nowhere else.
 - **Typing into every pane at once.** One switch, off by default, reaching every
   pane that has a session in it. It disarms itself whenever the set of panes
