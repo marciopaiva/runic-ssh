@@ -49,6 +49,8 @@ export const SOURCE_CATALOG = {
   "credential.submit": "Authenticate",
   "credential.title": "Authentication required",
   "empty.hint": "Pick a host on the left, or press {keys} for commands.",
+  "empty.pane.hint": "Pick a tab above, or a host on the left.",
+  "empty.pane.title": "No session in this pane",
   "empty.title": "No session open",
   "failure.authentication.body": "The password or key was not accepted for this user. Trying again asks for it afresh.",
   "failure.authentication.title": "The host refused the credential",

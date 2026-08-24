@@ -43,6 +43,8 @@
   "credential.submit": "Autenticar",
   "credential.title": "Autenticação necessária",
   "empty.hint": "Escolha um host à esquerda, ou pressione {keys} para os comandos.",
+  "empty.pane.hint": "Escolha uma aba acima, ou um host à esquerda.",
+  "empty.pane.title": "Nenhuma sessão neste painel",
   "empty.title": "Nenhuma sessão aberta",
   "failure.authentication.body": "A senha ou a chave não foi aceita para este usuário. Tentar de novo pede a credencial outra vez.",
   "failure.authentication.title": "O host recusou a credencial",

@@ -4,6 +4,19 @@ import { useTranslator } from '../features/settings';
 import { paletteKeys } from '../features/status';
 import type { CommandModifier } from '../ipc';
 
+interface EmptyPanelProps {
+  readonly modifier: CommandModifier;
+  /**
+   * Which nothing this is.
+   *
+   * `panel` is a window with no session at all. `pane` is one slot of a split
+   * with sessions running in the others, where saying "no session open" would
+   * be plainly false and the way forward is a different one: the tabs are
+   * already there, and picking one fills the empty pane first.
+   */
+  readonly variant?: 'panel' | 'pane';
+}
+
 /**
  * The main area with nothing open in it.
  *
@@ -11,7 +24,7 @@ import type { CommandModifier } from '../ipc';
  * failed to paint, which is the first thing a new user meets. This says which
  * of the two it is, and names the two ways forward.
  */
-export function EmptyPanel({ modifier }: { readonly modifier: CommandModifier }): JSX.Element {
+export function EmptyPanel({ modifier, variant = 'panel' }: EmptyPanelProps): JSX.Element {
   const i18n = useTranslator();
   /* The same helper the status bar uses, so the shortcut is never spelled two
      ways in one window — and so a Mac reads ⌘ in both places. */
@@ -31,9 +44,11 @@ export function EmptyPanel({ modifier }: { readonly modifier: CommandModifier })
       </svg>
 
       <div className="flex flex-col items-center gap-[7px]">
-        <span className="text-ink-secondary text-[14px] font-semibold">{i18n.t('empty.title')}</span>
+        <span className="text-ink-secondary text-[14px] font-semibold">
+          {i18n.t(variant === 'pane' ? 'empty.pane.title' : 'empty.title')}
+        </span>
         <span className="text-ink-faint text-[12.5px]">
-          {i18n.t('empty.hint', { keys })}
+          {variant === 'pane' ? i18n.t('empty.pane.hint') : i18n.t('empty.hint', { keys })}
         </span>
       </div>
     </div>

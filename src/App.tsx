@@ -746,7 +746,7 @@ export function App(): JSX.Element {
                   className="border-line-subtle absolute border-2 border-dashed"
                   style={paneStyle(pane.box)}
                 >
-                  <EmptyPanel modifier={chrome?.commandModifier ?? 'control'} />
+                  <EmptyPanel modifier={chrome?.commandModifier ?? 'control'} variant="pane" />
                 </div>
               ) : null,
             )}

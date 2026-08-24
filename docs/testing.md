@@ -151,6 +151,7 @@ no panel to divide.
 | Click a tab that is not on screen | it takes the focused pane |
 | Click a tab that is already on screen | only the focus moves, nothing rearranges |
 | Close one session of a split | its pane goes dashed and empty, the other stays |
+| Read the empty pane | it says no session *in this pane*, not that none is open |
 | Read the pane headers | each names its saved session and `user@host`, and one is marked focused |
 | Read the status bar | it shows the grid of the focused pane, not the last resized |
 | Back to one terminal | the panel is exactly what it was before splitting |
