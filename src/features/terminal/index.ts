@@ -6,9 +6,10 @@ export type { MountedTerminal } from './mounted';
 export {
   WHOLE_PANEL,
   inputTargets,
+  paneLabel,
   paneBoxes,
   paneCount,
   placeSession,
   resolveLayout,
 } from './layout';
-export type { Box, LayoutKind, Pane } from './layout';
+export type { Box, LayoutKind, Pane, PaneLabel } from './layout';

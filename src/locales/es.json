@@ -177,6 +177,7 @@
   "tabs.settings.close": "Cerrar la configuración",
   "tabs.settings.unsaved": "Configuración — cambios sin guardar",
   "terminal.ended": "Sesión terminada, salida {status}",
+  "terminal.pane.focused": "ENFOCADO",
   "terminal.paste.body": "El shell remoto ejecuta cada línea apenas llega, así que esto empieza a correr antes de que presiones Enter.",
   "terminal.paste.cancel": "Cancelar",
   "terminal.paste.confirm": "Pegar",

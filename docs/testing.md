@@ -121,6 +121,7 @@ no panel to divide.
 | Click a tab that is not on screen | it takes the focused pane |
 | Click a tab that is already on screen | only the focus moves, nothing rearranges |
 | Close one session of a split | its pane goes dashed and empty, the other stays |
+| Read the pane headers | each names its saved session and `user@host`, and one is marked focused |
 | Read the status bar | it shows the grid of the focused pane, not the last resized |
 | Back to one terminal | the panel is exactly what it was before splitting |
 
@@ -132,6 +133,7 @@ a session in them.
 | Type | it arrives in every pane, each host echoing its own |
 | `Ctrl-C` | interrupts in every pane |
 | Look at the panes and the bar | every pane has the warning edge; the bar has the count |
+| Find the focused pane | the edge says nothing now, so the header marker is the only thing that does |
 | Click the count in the status bar | the switch goes off in one click |
 | Close a pane's session, or change a pane's host | the switch disarms itself |
 | Paste one line, under `bash` | the confirmation appears anyway, naming the host count |
