@@ -48,6 +48,10 @@ still change it. See **Contributing**, below.
   text. Password or private key, saving optional.
 - **A terminal per session** (xterm.js), kept alive across tab switches, with
   scrollback and a status bar carrying latency and bytes moved.
+- **Copy and paste.** Ctrl-C copies a selection and interrupts when there is
+  none; Ctrl-V pastes; Ctrl-Shift-C and Ctrl-Shift-V always mean the clipboard.
+  A multi-line paste the remote shell has not bracketed is shown to you first,
+  because a shell runs each line as it arrives.
 - **Saved hosts**, grouped, each edited on its own tab.
 - **A command palette** on `Ctrl+Shift+P`.
 - **Light and dark**, from one token set, following the system.
@@ -172,6 +176,7 @@ pnpm test
 ## 🗺️ Roadmap
 
 - [x] **v0.1.0 (MVP):** SSH connections with host key verification, saved sessions, and a working terminal. [Released 2026-08-23](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.1.0).
+- [x] **v0.1.1:** copy and paste in the terminal. [Released 2026-08-23](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.1.1).
 - [ ] **v0.2.0:** SFTP integration (upload and download) plus session import from PuTTY and OpenSSH.
 - [ ] **v0.3.0:** port forwarding (SSH tunnels) and customizable themes.
 - [ ] **v1.0.0:** production grade stability, and a signed installer on every platform.
