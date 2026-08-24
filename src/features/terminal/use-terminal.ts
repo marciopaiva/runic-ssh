@@ -7,13 +7,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-import {
-  onClosed,
-  onOutput,
-  openTerminal,
-  resizeTerminal,
-  sendInput,
-} from '../../ipc';
+import { onClosed, onOutput, openTerminal, resizeTerminal } from '../../ipc';
 import type { SessionHandle } from '../../ipc';
 
 import { keyIntent, pasteNeedsConfirming } from './clipboard';
@@ -49,6 +43,7 @@ export function useTerminal(
   handle: SessionHandle | null,
   modifier: 'meta' | 'control',
   onPasteNeedsConfirming: (text: string) => void,
+  onInput: (bytes: Uint8Array) => void,
 ): TerminalState {
   const [state, setState] = useState<TerminalState>({
     exitStatus: null,
@@ -66,6 +61,15 @@ export function useTerminal(
 
   const modifierRef = useRef(modifier);
   modifierRef.current = modifier;
+
+  /* A ref for the third time, and here it is load-bearing rather than tidy.
+     Where a keystroke goes is the shell's business, and the shell changes its
+     mind whenever the panes or the sync switch change. As a dependency that
+     would re-run the effect, dispose every xterm and have the core open a
+     second shell to replace the one nobody was reading any more, which is
+     defect #94 and the reason ADR-0014 exists. */
+  const inputRef = useRef(onInput);
+  inputRef.current = onInput;
 
   useEffect(() => {
     if (container === null || handle === null) return;
@@ -179,17 +183,13 @@ export function useTerminal(
            clearing there would erase the selection a moment before the C
            arrived to copy it. */
         terminal.clearSelection();
-        /* Rejections are caught and dropped on purpose. The input is split to
-           stay inside what the core accepts, so what is left is a session that
-           has ended, and `onClosed` already says so. A banner per keystroke
-           after that would bury it. */
-        void sendInput(handle, encoder.encode(data)).catch(() => {});
+        inputRef.current(encoder.encode(data));
       });
       /* Paste and anything else that arrives as bytes rather than text. */
       const binary = terminal.onBinary((data) => {
         const bytes = new Uint8Array(data.length);
         for (let i = 0; i < data.length; i += 1) bytes[i] = data.charCodeAt(i) & 0xff;
-        void sendInput(handle, bytes).catch(() => {});
+        inputRef.current(bytes);
       });
 
       /* The remote pty has to be told, or every program that draws by column

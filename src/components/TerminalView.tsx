@@ -16,6 +16,8 @@ interface TerminalViewProps {
   readonly modifier: 'meta' | 'control';
   /** Raised for a paste the remote shell would run a line at a time. */
   readonly onPasteNeedsConfirming: (text: string) => void;
+  /** Where a keystroke goes. Decided by the shell, not by this terminal. */
+  readonly onInput: (bytes: Uint8Array) => void;
 }
 
 /**
@@ -38,10 +40,17 @@ export function TerminalView({
   onSize,
   modifier,
   onPasteNeedsConfirming,
+  onInput,
 }: TerminalViewProps): JSX.Element {
   const i18n = useTranslator();
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
-  const { exitStatus, size } = useTerminal(container, handle, modifier, onPasteNeedsConfirming);
+  const { exitStatus, size } = useTerminal(
+    container,
+    handle,
+    modifier,
+    onPasteNeedsConfirming,
+    onInput,
+  );
 
   /* Reported upward rather than read downward: the status bar is a sibling,
      and lifting the size is cheaper than teaching it to find the terminal.

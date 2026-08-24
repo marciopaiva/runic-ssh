@@ -547,6 +547,11 @@ export function App(): JSX.Element {
               onPasteNeedsConfirming={(text) =>
                 setPendingPaste({ sessionId: terminal.sessionId, text })
               }
+              /* Rejections are caught and dropped on purpose. The input is
+                 split to stay inside what the core accepts, so what is left is
+                 a session that has ended, and `onClosed` already says so. A
+                 banner per keystroke after that would bury it. */
+              onInput={(bytes) => void sendInput(terminal.handle, bytes).catch(() => {})}
             />
           ))}
 
