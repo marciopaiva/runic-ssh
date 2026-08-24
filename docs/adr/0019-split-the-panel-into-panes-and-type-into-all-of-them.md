@@ -120,6 +120,11 @@ bracketed pastes included. ADR-0018 asks the question when the remote shell
 would run each line; this asks it when the paste reaches more than one machine,
 which is a different danger with no protocol feature behind it.
 
+The screen says which of the two it is asking about. A single line is only ever
+asked about because of the fan-out, so repeating ADR-0018's sentence about the
+shell running each line would describe a risk that paste does not carry, beside
+a banner naming the one it does.
+
 ## Consequences
 
 **Good**: no new dependency, no capability, and no Rust. `send_input` already

@@ -70,7 +70,15 @@ export function PasteConfirm({
           />
         </svg>
       }
-      body={i18n.t('terminal.paste.body')}
+      /* The reason we are asking, which is not always the same reason. Past
+         one line the danger is the shell running them as they arrive. At
+         exactly one line that cannot be it, because a single line is only ever
+         asked about when the paste is going to more than one host — so saying
+         it would be describing a risk this paste does not carry, next to a
+         banner naming the one it does. */
+      body={
+        lines.length > 1 ? i18n.t('terminal.paste.body') : i18n.t('terminal.paste.body.one')
+      }
       actions={
         <>
           <SurfaceAction onClick={onCancel} variant="secondary">
