@@ -32,10 +32,10 @@ Nothing is built on an ordinary push. Twenty minutes of runner time for an
 artifact nobody asked for is worth avoiding.
 
 **An artifact does not say which commit it came from.** A `workflow_dispatch`
-run packages whatever the branch was at that moment, and every pre-release build
-is version `0.1.0`, so two installers can be weeks apart and identical on the
-outside. The run's own page records the commit; read it there before trusting a
-downloaded file to contain a fix. This is not hypothetical. The first run of
+run packages whatever the branch was at that moment, and the version only moves
+when somebody bumps it for a release, so two installers of the same version can
+be weeks apart and identical on the outside. The run's own page records the
+commit; read it there before trusting a downloaded file to contain a fix. This is not hypothetical. The first run of
 this smoke test reproduced a bug that had already been fixed, because the
 artifact predated the fix by two commits.
 
@@ -44,25 +44,31 @@ artifact predated the fix by two commits.
 Building is not installing. This table is what someone has run, not what the
 workflow produced, and it is the answer to "is this usable yet".
 
-| Platform | Installed and driven | By what |
-| --- | --- | --- |
-| Linux, `.deb` | **yes**, 2026-08-23 | Ubuntu 24.04 under WSL2, on an isolated X display |
-| Linux, `.rpm` | no | no RPM distribution to hand |
-| Linux, `.AppImage` | no | discouraged anyway, see below |
-| Windows, `.exe` (NSIS) | **yes**, 2026-08-23 | Windows 11 Home, built and installed on the machine itself |
-| Windows, `.msi` (WiX) | built, not installed | the NSIS package was the one exercised |
-| macOS, `.dmg` | **no** | needs an Apple Silicon Mac |
+| Platform | Installed and driven | Version | Where the file came from |
+| --- | --- | --- | --- |
+| Linux, `.deb` | **yes**, 2026-08-24 | 0.1.1 | **downloaded from the release** |
+| Linux, `.rpm` | no | | no RPM distribution to hand |
+| Linux, `.AppImage` | no | | discouraged anyway, see below |
+| Windows, `.exe` (NSIS) | **yes**, 2026-08-23 | 0.1.0 | built on the machine that ran it |
+| Windows, `.msi` (WiX) | built, not installed | | the NSIS package was the one exercised |
+| macOS, `.dmg` | **no** | | needs an Apple Silicon Mac |
 
-**Every "yes" above was built on the machine that ran it, not downloaded.** The
-files attached to a release come off the CI runners instead: same commit,
-different machine, and a different set of things that can go wrong: a runner's
-toolchain, the archive that carries the artifact between jobs, a bundler
-behaving differently outside a developer's box. Nobody has yet installed a file
-that came out of a release, on any platform.
+**The Linux row is now a release download, and that is a different claim.** The
+files attached to a release come off the CI runners: same commit, different
+machine, and a different set of things that can go wrong along the way, from a
+runner's toolchain to the archive that carries the artifact between jobs to a
+bundler behaving differently outside a developer's box. That path has now been
+walked once, on one platform.
+
+What it covered: `sha256sum -c SHA256SUMS` against the downloaded bytes,
+`apt install` of the `.deb` over an installed `0.1.0`, the window opening on the
+packaged frontend rather than the Vite dev server, and copy and paste driven in
+a real session. The Windows row is still a locally built package, and macOS
+still has nobody.
 
 That distinction is the whole point of this table. It exists so that "the build
-is green" and "somebody ran it" stay separate claims, and the release download
-is a third one that has not been made yet either.
+is green", "somebody ran it", and "somebody ran the file a stranger would
+download" stay three separate claims.
 
 What the Linux run covered, end to end on the packaged binary: it read the real
 config directory, listed saved sessions, took the unknown-host-key path,
@@ -100,7 +106,7 @@ can it tell you the file was not modified in transit. Compare the SHA-256
 against the workflow run before you do it:
 
 ```powershell
-Get-FileHash .\Runic-SSH_0.1.0_x64_en-US.msi -Algorithm SHA256
+Get-FileHash .\Runic-SSH_0.1.1_x64_en-US.msi -Algorithm SHA256
 ```
 
 ## macOS
@@ -127,7 +133,7 @@ as of anything else.
 
 ```sh
 sha256sum -c SHA256SUMS --ignore-missing
-sudo apt install ./Runic-SSH_0.1.0_amd64.deb
+sudo apt install ./Runic-SSH_0.1.1_amd64.deb
 ```
 
 The file is `Runic-SSH_...`, capitalised, because the product name is; the
@@ -138,13 +144,14 @@ The package depends on `libwebkit2gtk-4.1-0` and `libgtk-3-0`. There is no
 bundled browser engine. The webview is the system's, which is why the download
 is three megabytes rather than a hundred.
 
-**Installing a second build over the first does nothing.** Every pre-release
-carries version `0.1.0`, so `apt` sees the installed version as current and
-exits successfully without replacing anything: no error, no warning, and the
-old binary still on disk. Force it:
+**Installing a second build of the same version does nothing.** `apt` compares
+version numbers, so a rebuild of `0.1.1` over an installed `0.1.1` exits
+successfully without replacing anything: no error, no warning, and the old
+binary still on disk. A real bump does upgrade normally, so `0.1.1` over `0.1.0`
+needs none of this. For a rebuild of the same version, force it:
 
 ```sh
-sudo dpkg -i ./Runic-SSH_0.1.0_amd64.deb
+sudo dpkg -i ./Runic-SSH_0.1.1_amd64.deb
 ```
 
 ### If the window cannot be moved or resized
