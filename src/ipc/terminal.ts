@@ -63,17 +63,16 @@ export async function openTerminal(
 const MAX_INPUT_BYTES = 32 * 1024;
 
 /**
- * Sends what the user typed. Bytes, because a paste can contain any of them.
+ * The write in flight for each session, so the next one can wait for it.
  *
- * Split, because a paste is input too and a pasted private key runs past the
- * limit the core enforces. The pieces go one at a time and in order: the host
- * is reading a byte stream, and two calls in flight could deliver a paste
- * shuffled.
+ * Keyed by handle and not global: a slow host must not hold up the keystrokes
+ * going to a different one, which is the whole point of typing into several
+ * sessions at once.
  */
-export async function sendInput(
-  handle: SessionHandle,
-  bytes: Uint8Array,
-): Promise<void> {
+const inFlight = new Map<SessionHandle, Promise<void>>();
+
+/** One write, split to fit what the core accepts. */
+async function deliver(handle: SessionHandle, bytes: Uint8Array): Promise<void> {
   for (let at = 0; at < bytes.length; at += MAX_INPUT_BYTES) {
     const piece = bytes.subarray(at, at + MAX_INPUT_BYTES);
     await invoke<void>('send_input', { handle, data: encode(piece) });
@@ -84,6 +83,45 @@ export async function sendInput(
   if (bytes.length === 0) {
     await invoke<void>('send_input', { handle, data: '' });
   }
+}
+
+/**
+ * Sends what the user typed. Bytes, because a paste can contain any of them.
+ *
+ * Split, because a paste is input too and a pasted private key runs past the
+ * limit the core enforces. The pieces go one at a time and in order: the host
+ * is reading a byte stream, and two calls in flight could deliver a paste
+ * shuffled.
+ *
+ * Queued per handle for the same reason one call is split in order. Splitting
+ * alone only orders the pieces of a single write; a second write starting while
+ * the first is still going would interleave with it, and a keystroke landing in
+ * the middle of a pasted key is not something the host can be asked to sort
+ * out. Typing into several sessions at once makes overlapping writes ordinary
+ * rather than rare, so the ordering is stated here instead of being inherited
+ * from how fast the calls happened to be made.
+ */
+export function sendInput(handle: SessionHandle, bytes: Uint8Array): Promise<void> {
+  const sent = (inFlight.get(handle) ?? Promise.resolve()).then(() =>
+    deliver(handle, bytes),
+  );
+
+  /* What the next write waits on never carries a rejection. A refused write is
+     the caller's to see, through the promise returned below; leaving it in the
+     chain would make one refusal reject every keystroke after it. */
+  const settled = sent.then(
+    () => {},
+    () => {},
+  );
+
+  inFlight.set(handle, settled);
+  void settled.then(() => {
+    /* Only the last write clears the slot, so a session that goes quiet stops
+       costing an entry while one that is busy keeps its order. */
+    if (inFlight.get(handle) === settled) inFlight.delete(handle);
+  });
+
+  return sent;
 }
 
 export async function resizeTerminal(
