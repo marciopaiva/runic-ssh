@@ -106,8 +106,11 @@ where it is absent, a multi-line paste is shown to the user before it is sent.
 The panel can be split, and typing can be sent to every pane at once. It is the
 only control here whose reach is larger than the host being looked at, so it is
 off by default, it disarms itself whenever the set of panes changes, and while
-it is armed every pane on screen carries the same warning edge and the status
-bar carries a button that turns it off. Nothing is remembered between runs.
+it is armed every receiving pane carries a warning edge and the status bar
+carries a button that turns it off. Individual panes can be spared from their
+own headers, which is what a receiving pane's edge is saying and a spared one's
+is not. Nothing is remembered between runs, and arming always starts with every
+pane receiving rather than inheriting a set narrowed for other hosts.
 
 The danger it cannot close is a password. Anything typed at a `sudo` prompt
 reaches every pane, where the hosts that were not asking for it echo it to their

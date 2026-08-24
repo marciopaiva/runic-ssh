@@ -133,6 +133,25 @@ export function placeSession(
 }
 
 /**
+ * The panes a keystroke would reach if the switch were armed.
+ *
+ * Every pane with a session in it, less the ones turned off in their own
+ * header. Excluding a host is the ordinary case rather than an exotic one:
+ * three of four machines in a pool, with the database left out. Without it the
+ * only way to spare that host is to drop it from the split, so the rigid rule
+ * pushes people to arm all four when they wanted three, which is the more
+ * dangerous of the two.
+ */
+export function syncedPanes(
+  panes: readonly Pane[],
+  muted: ReadonlySet<string>,
+): readonly string[] {
+  return panes
+    .map((pane) => pane.sessionId)
+    .filter((sessionId): sessionId is string => sessionId !== null && !muted.has(sessionId));
+}
+
+/**
  * Which sessions a keystroke reaches.
  *
  * `from` is the session whose terminal produced the bytes, not whichever the
@@ -140,25 +159,29 @@ export function placeSession(
  * disagreeing for one render is a keystroke sent to the wrong host, so the
  * question is asked of the terminal that actually has the keyboard.
  *
- * A terminal that is not in a pane never broadcasts. It should not be able to
- * receive a keystroke at all, being hidden and `pointer-events-none`, but the
- * whole point of this switch is that the blast radius is larger than one host,
- * and "should not happen" is not a good enough reason to widen it.
+ * A terminal that is not receiving reaches only itself. That covers a pane
+ * turned off in its header and a terminal in no pane at all: neither should be
+ * able to send anywhere else, and the second should not be able to receive a
+ * keystroke in the first place. The whole point of this switch is that the
+ * blast radius is larger than one host, and "cannot happen" is not a good
+ * enough reason to widen it.
+ *
+ * One receiving pane is not a broadcast. Left as one it would send exactly
+ * where an unarmed keystroke goes while the screen claimed something was
+ * happening, so it is treated as off.
  */
 export function inputTargets(
   panes: readonly Pane[],
   from: string,
   sync: boolean,
+  muted: ReadonlySet<string>,
 ): readonly string[] {
   if (!sync) return [from];
 
-  const shown = panes
-    .map((pane) => pane.sessionId)
-    .filter((sessionId): sessionId is string => sessionId !== null);
+  const receiving = syncedPanes(panes, muted);
+  if (receiving.length < 2 || !receiving.includes(from)) return [from];
 
-  if (!shown.includes(from)) return [from];
-
-  return shown;
+  return receiving;
 }
 
 /** What a pane says it is. */

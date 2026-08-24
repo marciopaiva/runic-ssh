@@ -164,6 +164,11 @@ a session in them.
 | `Ctrl-C` | interrupts in every pane |
 | Look at the panes and the bar | every pane has the warning edge; the bar has the count |
 | Find the focused pane | the edge says nothing now, so the header marker is the only thing that does |
+| Uncheck one pane's box, with four open | its edge goes back to normal, the bar counts one fewer |
+| Type after unchecking | the spared pane receives nothing |
+| Type *into* the spared pane | it reaches that pane and no other |
+| Uncheck until one is left | the bar stops claiming a broadcast |
+| Turn the switch off and on again | every box is checked again |
 | Click the count in the status bar | the switch goes off in one click |
 | Close a pane's session, or change a pane's host | the switch disarms itself |
 | Paste one line, under `bash` | the confirmation appears anyway, naming the host count |

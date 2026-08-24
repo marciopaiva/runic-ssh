@@ -25,8 +25,11 @@ with the caveat that anything below 1.0 may break, and this project intends to.
   remote end put in `PS1`.
 - **Typing into every pane at once.** One switch, off by default, reaching every
   pane that has a session in it. It disarms itself whenever the set of panes
-  changes, every pane on screen carries a warning edge while it is armed, and
-  the status bar carries a button that turns it off in one click.
+  changes, and the status bar carries a button that turns it off in one click.
+- **Each pane can be spared**, from a check box in its own header, so three of
+  four machines in a pool can take a command while the database does not. A
+  receiving pane carries the warning edge and a spared one does not, and typing
+  into a spared pane reaches only that pane.
 - Every paste is shown before it is sent while that switch is armed, single
   lines and bracketed pastes included. Bracketed paste stops the remote shell
   running the lines; nothing stops a paste reaching four machines because the

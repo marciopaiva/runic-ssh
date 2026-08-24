@@ -16,6 +16,7 @@ import {
   paneLabel,
   placeSession,
   resolveLayout,
+  syncedPanes,
 } from '../src/features/terminal/layout';
 import type { LayoutKind, Pane } from '../src/features/terminal/layout';
 import type { Tab } from '../src/features/chrome/tabs';
@@ -174,36 +175,86 @@ describe('picking a tab', () => {
 
 describe('where a keystroke goes', () => {
   const WHOLE = { left: 0, top: 0, width: 100, height: 100 };
+  const NONE: ReadonlySet<string> = new Set();
 
   function panes(...ids: readonly (string | null)[]): readonly Pane[] {
     return ids.map((sessionId, at) => ({ sessionId, box: paneBoxes('grid')[at] ?? WHOLE }));
   }
 
   it('reaches one host with the switch off', () => {
-    expect(inputTargets(panes('web-01', 'db-01'), 'web-01', false)).toEqual(['web-01']);
+    expect(inputTargets(panes('web-01', 'db-01'), 'web-01', false, NONE)).toEqual(['web-01']);
   });
 
   it('reaches every pane with the switch on', () => {
-    expect(inputTargets(panes('web-01', 'db-01'), 'web-01', true)).toEqual([
+    expect(inputTargets(panes('web-01', 'db-01'), 'web-01', true, NONE)).toEqual([
       'web-01',
       'db-01',
     ]);
   });
 
   it('skips an empty pane', () => {
-    expect(inputTargets(panes('web-01', null), 'web-01', true)).toEqual(['web-01']);
+    expect(inputTargets(panes('web-01', null), 'web-01', true, NONE)).toEqual(['web-01']);
   });
 
   it('refuses to broadcast from a terminal that is not on screen', () => {
     /* It should not be able to receive a keystroke at all, being hidden and
        `pointer-events-none`. The whole point of this switch is that the blast
        radius is more than one host, so "should not happen" does not earn it. */
-    expect(inputTargets(panes('web-01', 'db-01'), 'cache-01', true)).toEqual(['cache-01']);
+    expect(inputTargets(panes('web-01', 'db-01'), 'cache-01', true, NONE)).toEqual(['cache-01']);
   });
 
   it('sends nowhere twice', () => {
-    const targets = inputTargets(panes('web-01', 'db-01', 'cache-01', 'web-02'), 'db-01', true);
+    const targets = inputTargets(
+      panes('web-01', 'db-01', 'cache-01', 'web-02'),
+      'db-01',
+      true,
+      NONE,
+    );
     expect(new Set(targets).size).toBe(targets.length);
+  });
+
+  it('leaves out a pane turned off in its header', () => {
+    /* Three of four machines in a pool, with the database spared. */
+    const four = panes('web-01', 'web-02', 'cache-01', 'db-prod');
+    expect(inputTargets(four, 'web-01', true, new Set(['db-prod']))).toEqual([
+      'web-01',
+      'web-02',
+      'cache-01',
+    ]);
+  });
+
+  it('sends only to itself from a pane that is turned off', () => {
+    /* Typing into the host you deliberately spared must not be the way it
+       reaches everything else. */
+    const four = panes('web-01', 'web-02', 'db-prod');
+    expect(inputTargets(four, 'db-prod', true, new Set(['db-prod']))).toEqual(['db-prod']);
+  });
+
+  it('treats one remaining pane as no broadcast at all', () => {
+    /* Turning the others off leaves it sending exactly where an unarmed
+       keystroke goes, and the screen must not claim otherwise. */
+    const two = panes('web-01', 'db-01');
+    expect(inputTargets(two, 'web-01', true, new Set(['db-01']))).toEqual(['web-01']);
+  });
+});
+
+describe('which panes are receiving', () => {
+  const WHOLE = { left: 0, top: 0, width: 100, height: 100 };
+
+  function panes(...ids: readonly (string | null)[]): readonly Pane[] {
+    return ids.map((sessionId) => ({ sessionId, box: WHOLE }));
+  }
+
+  it('is every filled pane by default', () => {
+    expect(syncedPanes(panes('a', null, 'b'), new Set())).toEqual(['a', 'b']);
+  });
+
+  it('drops the ones turned off', () => {
+    expect(syncedPanes(panes('a', 'b', 'c'), new Set(['b']))).toEqual(['a', 'c']);
+  });
+
+  it('ignores a name that is in no pane', () => {
+    expect(syncedPanes(panes('a'), new Set(['gone']))).toEqual(['a']);
   });
 });
 
