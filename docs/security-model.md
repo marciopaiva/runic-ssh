@@ -83,6 +83,24 @@ renders hostile input.
 * Protocol-level limits are enforced by the core. A remote host must not be able
   to exhaust memory by announcing an enormous directory or an enormous packet.
 
+## What the clipboard carries
+
+Copying from the terminal puts terminal contents on the system clipboard, where
+adversary 3 can read them. That is the asset row above, moved somewhere less
+protected, by the person at the keyboard. It is user-initiated egress and the
+alternative is a terminal nobody can work in, so it is allowed and written down
+rather than allowed quietly.
+
+The application itself neither reads nor writes the clipboard. Copy and paste
+run on the browser's own clipboard events, raised by a keystroke, so no
+capability grants us access to it at any other moment. ADR-0018 records why the
+plugin that would have granted that access was refused.
+
+Pasting is the sharper edge. A shell runs each line of a paste as it arrives, so
+text carrying a line break executes without anybody pressing Return. Bracketed
+paste closes this and `xterm.js` applies it whenever the remote shell asks;
+where it is absent, a multi-line paste is shown to the user before it is sent.
+
 ## Reviewing a change
 
 Any change touching `vault/`, host key verification, logging, or

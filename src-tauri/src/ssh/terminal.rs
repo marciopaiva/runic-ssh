@@ -148,7 +148,13 @@ pub async fn pump<S: Sink>(
             /* Deliberately *not* disabled while the buffer is full. Under a
                flood the output side pauses, and the keystroke that stops the
                flood is Ctrl-C — a client that stops accepting input exactly
-               when the user needs to interrupt has the priority backwards. */
+               when the user needs to interrupt has the priority backwards.
+
+               The frontend now decides whether Ctrl-C is an interrupt or a
+               copy, from whether anything is selected (ADR-0018). That does not
+               weaken this: a flood leaves nothing selected, and the selection
+               is dropped as soon as it is used. What arrives here is still the
+               0x03 the test below expects. */
             command = input.recv() => {
                 match command {
                     Some(Input::Keys(bytes)) => {
