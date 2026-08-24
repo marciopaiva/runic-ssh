@@ -20,19 +20,16 @@ interface EmptyPanelProps {
 /**
  * The main area with nothing open in it.
  *
- * A blank panel and a blank status bar is indistinguishable from a window that
- * failed to paint, which is the first thing a new user meets. This says which
- * of the two it is, and names the two ways forward.
+ * Visual weight matches the dark mockup: larger mark, quieter copy, more
+ * breathing room so an empty window does not look like a failed paint.
  */
 export function EmptyPanel({ modifier, variant = 'panel' }: EmptyPanelProps): JSX.Element {
   const i18n = useTranslator();
-  /* The same helper the status bar uses, so the shortcut is never spelled two
-     ways in one window — and so a Mac reads ⌘ in both places. */
   const keys = paletteKeys(modifier).join(' ');
 
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-[18px] p-8">
-      <svg viewBox="0 0 24 24" className="h-[46px] w-[46px] opacity-50" fill="none" aria-hidden="true">
+    <div className="flex h-full flex-col items-center justify-center gap-5 p-10">
+      <svg viewBox="0 0 24 24" className="h-14 w-14 opacity-40" fill="none" aria-hidden="true">
         <circle cx="9.5" cy="12" r="7" className="stroke-brand-start" strokeWidth="1.2" />
         <circle cx="14.5" cy="12" r="7" className="stroke-brand-end" strokeWidth="1.2" />
         <path
@@ -43,11 +40,11 @@ export function EmptyPanel({ modifier, variant = 'panel' }: EmptyPanelProps): JS
         />
       </svg>
 
-      <div className="flex flex-col items-center gap-[7px]">
-        <span className="text-ink-secondary text-[14px] font-semibold">
+      <div className="flex max-w-sm flex-col items-center gap-2 text-center">
+        <span className="text-ink-secondary text-[15px] font-semibold tracking-tight">
           {i18n.t(variant === 'pane' ? 'empty.pane.title' : 'empty.title')}
         </span>
-        <span className="text-ink-faint text-[12.5px]">
+        <span className="text-ink-faint text-[13px] leading-relaxed">
           {variant === 'pane' ? i18n.t('empty.pane.hint') : i18n.t('empty.hint', { keys })}
         </span>
       </div>

@@ -47,14 +47,9 @@ function elementId(focus: Focus): string {
  *
  * ADR-0005: the window is undecorated on Windows and Linux, and on macOS the
  * native traffic lights float over this bar with `leadingInset` reserved for
- * them. Everything the OS used to do up here is now ours — dragging the window
- * is `data-tauri-drag-region`, double-click to maximise comes with it, and the
- * buttons at the trailing edge are drawn by us or by nobody.
- *
- * `deep` on the drag region means a drag starting anywhere on the bar moves the
- * window, *except* on a button: Tauri's handler stops at the first clickable
- * element it walks through. So the tabs stay clickable without each gap having
- * to be marked by hand.
+ * them. The tab strip lives here on purpose — the mockup's centred search bar
+ * would steal that slot, so the denser visual treatment stays on the tabs and
+ * the mark rather than relocating chrome the ADR already claimed.
  */
 export function Titlebar({
   entries,
@@ -70,14 +65,6 @@ export function Titlebar({
 }: TitlebarProps): JSX.Element {
   const i18n = useTranslator();
 
-  /* Automatic activation, which is what a tab strip is expected to do: the
-     arrow key both moves and switches. Focus follows, or the next arrow press
-     would start over from wherever focus was left behind.
-
-     The ring includes the settings tab, which is why this asks `focusAfter`
-     rather than `tabAfter`: a tab the mouse can reach and the keyboard cannot
-     is exactly the gap ADR-0005 took on when it took the chrome away from the
-     platform. */
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
     const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : null;
     if (step === null) return;
@@ -93,28 +80,28 @@ export function Titlebar({
   return (
     <header
       data-tauri-drag-region="deep"
-      className="bg-surface-chrome border-line-subtle flex h-9 shrink-0 items-stretch gap-2 border-b"
+      className="bg-surface-chrome border-line-subtle flex h-10 shrink-0 items-stretch gap-2 border-b"
       style={{ paddingLeft: `${leadingInset}px` }}
     >
-      <div className="flex shrink-0 items-center gap-2 pl-3">
+      <div className="flex shrink-0 items-center gap-2.5 pl-3.5">
         <svg
-          width="16"
-          height="16"
+          width="18"
+          height="18"
           viewBox="0 0 24 24"
           fill="none"
           role="img"
           aria-label={i18n.t('app.name')}
         >
-          <circle cx="9.5" cy="12" r="7" className="stroke-brand-start" strokeWidth="1.4" />
-          <circle cx="14.5" cy="12" r="7" className="stroke-brand-end" strokeWidth="1.4" />
+          <circle cx="9.5" cy="12" r="7" className="stroke-brand-start" strokeWidth="1.5" />
+          <circle cx="14.5" cy="12" r="7" className="stroke-brand-end" strokeWidth="1.5" />
           <path
             d="M12 6.5v11M12 10l3-2.5M12 14l3 2.5M12 12l-2.6-2.2"
             className="stroke-brand-rune"
-            strokeWidth="1.4"
+            strokeWidth="1.5"
             strokeLinecap="round"
           />
         </svg>
-        <span className="text-ink text-[12.5px] font-semibold tracking-tight">
+        <span className="text-ink text-[13px] font-semibold tracking-tight">
           {i18n.t('app.name')}
         </span>
       </div>
@@ -127,7 +114,7 @@ export function Titlebar({
           aria-label={i18n.t('tabs.label')}
           aria-orientation="horizontal"
           onKeyDown={onKeyDown}
-          className="flex min-w-0 items-stretch gap-0.5 overflow-x-auto"
+          className="flex min-w-0 items-stretch gap-1 overflow-x-auto py-1.5"
         >
           {entries.map((entry) => {
             const active = sameFocus(entry, focus);
@@ -159,7 +146,7 @@ export function Titlebar({
               <div
                 key={id}
                 role="presentation"
-                className={`relative flex min-w-0 shrink-0 items-center gap-1.5 self-center rounded-md px-2 ${
+                className={`relative flex min-w-0 shrink-0 items-center gap-1.5 rounded-md px-2.5 ${
                   active
                     ? 'bg-surface-raised shadow-[inset_0_-2px_0_0_var(--color-accent)]'
                     : 'hover:bg-surface-raised/50'
@@ -171,12 +158,10 @@ export function Titlebar({
                   id={id}
                   aria-selected={active}
                   aria-controls={panelId}
-                  /* Roving tabindex: one stop for the whole strip, and the
-                     arrow keys move within it. */
                   tabIndex={active ? 0 : -1}
                   onClick={() => onFocus(entry)}
-                  className={`flex h-6 min-w-0 items-center gap-2 text-[12px] ${
-                    active ? 'text-ink font-medium' : 'text-ink-secondary'
+                  className={`flex h-7 min-w-0 items-center gap-2 text-[12.5px] ${
+                    active ? 'text-ink font-semibold' : 'text-ink-secondary'
                   }`}
                 >
                   {entry.kind === 'session' && tab !== null && <SessionMarker kind={tab.kind} />}
@@ -207,10 +192,6 @@ export function Titlebar({
                   <span className="max-w-[180px] truncate">{title}</span>
 
                   {editor?.dirty === true && (
-                    /* A dot rather than an asterisk in the label: the label is
-                       translated and an asterisk glued to it reads as part of
-                       the word in some of them. The name is on the button for
-                       anybody who is not looking at it. */
                     <span
                       aria-hidden="true"
                       className="bg-accent inline-block h-1.5 w-1.5 shrink-0 rounded-full"
@@ -223,9 +204,9 @@ export function Titlebar({
                   onClick={() => onClose(entry)}
                   aria-label={closeLabel}
                   title={closeLabel}
-                  className="text-ink-faint hover:bg-surface-base hover:text-ink flex h-4 w-4 shrink-0 items-center justify-center rounded"
+                  className="text-ink-faint hover:bg-surface-base hover:text-ink flex h-5 w-5 shrink-0 items-center justify-center rounded"
                 >
-                  <svg viewBox="0 0 10 10" className="h-2 w-2" fill="none" aria-hidden="true">
+                  <svg viewBox="0 0 10 10" className="h-2.5 w-2.5" fill="none" aria-hidden="true">
                     <path d="M0.5 0.5l9 9M9.5 0.5l-9 9" stroke="currentColor" strokeWidth="1.4" />
                   </svg>
                 </button>
@@ -235,8 +216,6 @@ export function Titlebar({
         </div>
       )}
 
-      {/* The rest of the bar is drag surface, and the reason the controls sit
-          flush against the trailing edge. */}
       <div className="min-w-0 flex-1" />
 
       <WindowControls controls={controls} onAct={onAct} />

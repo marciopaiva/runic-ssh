@@ -35,9 +35,6 @@ function Highlighted({
 }): JSX.Element {
   const marked = new Set(at);
 
-  /* Keyed by position, which is unusual and correct here: the position *is*
-     the identity, since what a character means to this component is only
-     whether the character at that index matched. */
   return (
     <>
       {[...text].map((character, index) =>
@@ -56,13 +53,8 @@ function Highlighted({
 /**
  * The command palette.
  *
- * A combobox over a listbox, which is what a screen reader needs to announce
- * "3 of 12" while the user types — focus never leaves the input, so the active
- * option is named by `aria-activedescendant` rather than by moving focus into
- * the list.
- *
- * Presentational: it draws what it is handed and reports what was pressed.
- * Ranking, selection and what a command does live in the feature slice.
+ * A combobox over a listbox. Visual weight matches the mockup: deeper overlay,
+ * tighter radius, accent soft on the active row.
  */
 export function CommandPalette({
   open,
@@ -78,8 +70,6 @@ export function CommandPalette({
   const i18n = useTranslator();
   const input = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLDivElement>(null);
-  /* Where focus came from, so closing puts it back rather than dropping it on
-     the body — which leaves a keyboard user with nothing selected. */
   const opener = useRef<Element | null>(null);
 
   useEffect(() => {
@@ -94,7 +84,6 @@ export function CommandPalette({
     input.current?.focus();
   }, [open]);
 
-  /* Keeps the active option on screen while the arrows move past the edge. */
   useEffect(() => {
     if (!open) return;
     const active = list.current?.querySelector('[aria-selected="true"]');
@@ -130,9 +119,7 @@ export function CommandPalette({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex justify-center bg-black/45 pt-[12vh]"
-      /* A click on the backdrop closes, which is the gesture people try
-         before they look for a button. */
+      className="fixed inset-0 z-50 flex justify-center bg-black/55 pt-[11vh] backdrop-blur-[2px]"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onDismiss();
       }}
@@ -141,7 +128,7 @@ export function CommandPalette({
         role="dialog"
         aria-modal="true"
         aria-label={i18n.t('palette.title')}
-        className="bg-surface-overlay border-line-strong flex max-h-[60vh] w-[560px] max-w-[92vw] flex-col overflow-hidden rounded-lg border shadow-2xl"
+        className="bg-surface-overlay border-line-strong flex max-h-[60vh] w-[580px] max-w-[92vw] flex-col overflow-hidden rounded-xl border shadow-[0_24px_64px_rgba(0,0,0,0.55)]"
       >
         <input
           ref={input}
@@ -157,18 +144,18 @@ export function CommandPalette({
           placeholder={i18n.t('palette.placeholder')}
           onChange={(event) => onQuery(event.target.value)}
           onKeyDown={onKeyDown}
-          className="text-ink placeholder:text-ink-faint border-line-subtle h-11 shrink-0 border-b bg-transparent px-4 text-[13.5px] outline-none"
+          className="text-ink placeholder:text-ink-faint border-line-subtle h-12 shrink-0 border-b bg-transparent px-5 text-[14px] outline-none"
         />
 
-        <div ref={list} id="command-results" role="listbox" className="min-h-0 flex-1 overflow-y-auto py-1.5">
+        <div ref={list} id="command-results" role="listbox" className="min-h-0 flex-1 overflow-y-auto py-2">
           {matches.length === 0 ? (
-            <p className="text-ink-faint px-4 py-6 text-center text-[12.5px]">
+            <p className="text-ink-faint px-5 py-8 text-center text-[13px]">
               {i18n.t('palette.empty', { query })}
             </p>
           ) : (
             groups.map((group) => (
               <div key={group.section} role="group" aria-label={i18n.t(SECTION_LABEL[group.section])}>
-                <h2 className="text-ink-faint px-4 pt-2 pb-1 text-[10.5px] font-bold tracking-[0.08em]">
+                <h2 className="text-ink-faint px-5 pt-2.5 pb-1 text-[10.5px] font-bold tracking-[0.1em]">
                   {i18n.t(SECTION_LABEL[group.section])}
                 </h2>
 
@@ -184,8 +171,10 @@ export function CommandPalette({
                       aria-selected={isActive}
                       onMouseMove={() => onSelect(index)}
                       onClick={() => onRun(index)}
-                      className={`flex h-8 cursor-default items-center gap-3 px-4 text-[12.5px] ${
-                        isActive ? 'bg-accent-soft text-ink' : 'text-ink-secondary'
+                      className={`mx-2 flex h-9 cursor-default items-center gap-3 rounded-md px-3 text-[13px] ${
+                        isActive
+                          ? 'bg-accent-soft text-ink shadow-[inset_2px_0_0_var(--color-accent)]'
+                          : 'text-ink-secondary'
                       }`}
                     >
                       <span className="min-w-0 truncate">
