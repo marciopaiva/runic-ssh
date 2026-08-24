@@ -65,13 +65,20 @@ carries your keys.
   none; Ctrl-V pastes; Ctrl-Shift-C and Ctrl-Shift-V always mean the clipboard.
   A multi-line paste the remote shell has not bracketed is shown to you first,
   because a shell runs each line as it arrives.
+- **Split panes**, two columns, two rows or a grid of four, each holding a
+  session that is already connected. A session's questions, the host key prompt
+  included, are drawn inside that session's pane.
+- **Typing into every pane at once**, off by default, and any pane can be
+  spared from it with the check box in its own header. Every pane that will
+  receive is outlined while it is armed, because the switch is a safety
+  decision and not a convenience.
 - **Saved hosts**, grouped, each edited on its own tab.
 - **A command palette** on `Ctrl+Shift+P`.
 - **Light and dark**, from one token set, following the system.
 - **English and Brazilian Portuguese.** Spanish is translated and held back
   until a native speaker reviews its security copy.
 
-Not yet: **SFTP**, **port forwarding**, snippets, split panes, and a signed
+Not yet: **SFTP**, **port forwarding**, snippets, and a signed
 installer of any kind. Those are the roadmap further down, not this
 list. A features section describing software that does not exist is the kind of
 thing this project would rather not do.
