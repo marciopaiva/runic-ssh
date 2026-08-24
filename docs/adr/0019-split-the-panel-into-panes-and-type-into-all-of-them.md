@@ -95,6 +95,15 @@ pane comes first because it cannot be focused: focus points at a session and an
 empty pane has none, so without that ordering an empty pane would be a rectangle
 asking to be filled with no way to fill it.
 
+Each pane is headed with its session's name and `user@host`. With one terminal
+the tab strip answers that and the header is absent. With four it is the only
+thing on screen naming the host, since the shell prompt says whatever the remote
+end put in `PS1`, and reading a hostname off the far side of the channel is a
+poor way to decide what to run on all of them. The header is also where the
+focus marker lives: with typing synchronised every pane carries the same warning
+edge on purpose, which leaves the border nothing left to say about focus while
+the status bar is describing one pane in particular.
+
 A session's surface is not drawn at all when that session is in no pane. It used
 to be mounted and hidden, because there was always exactly one panel it belonged
 to; now there may be none, and drawing it anywhere else would be a claim about

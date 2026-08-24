@@ -183,6 +183,7 @@ export const SOURCE_CATALOG = {
   "tabs.settings.close": "Close settings",
   "tabs.settings.unsaved": "Settings — unsaved changes",
   "terminal.ended": "Session ended, exit {status}",
+  "terminal.pane.focused": "FOCUSED",
   "terminal.paste.body": "The remote shell runs each line as it arrives, so this starts running before you press Return.",
   "terminal.paste.cancel": "Cancel",
   "terminal.paste.confirm": "Paste",

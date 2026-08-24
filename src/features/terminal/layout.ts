@@ -19,6 +19,7 @@
  */
 
 import type { Tab } from '../chrome/tabs';
+import type { Session } from '../../ipc';
 
 export type LayoutKind = 'single' | 'columns' | 'rows' | 'grid';
 
@@ -158,4 +159,29 @@ export function inputTargets(
   if (!shown.includes(from)) return [from];
 
   return shown;
+}
+
+/** What a pane says it is. */
+export interface PaneLabel {
+  readonly name: string;
+  readonly where: string;
+}
+
+/**
+ * How a pane names its session.
+ *
+ * With one terminal the tab strip answers this and the panel needs no label.
+ * With four, the shell prompt is the only thing on screen saying which host a
+ * rectangle belongs to, and a prompt says whatever the remote host decided to
+ * put in `PS1`. That is a bad thing to be reading a moment before running the
+ * same command on all of them.
+ *
+ * The port is left off when it is 22. It is on every row otherwise and carries
+ * no information; showing it would push the part that does identify the host
+ * along by three characters on every pane.
+ */
+export function paneLabel(session: Session): PaneLabel {
+  const port = session.port === 22 ? '' : `:${String(session.port)}`;
+
+  return { name: session.name, where: `${session.user}@${session.host}${port}` };
 }

@@ -19,6 +19,10 @@ with the caveat that anything below 1.0 may break, and this project intends to.
   focused pane if there is not, and moves nothing when that session is already
   on screen. A session's questions, the host
   key prompt included, are drawn inside that session's pane and nowhere else.
+  Each pane is headed with the session's name and who it connects as, because
+  with four of them the shell prompt is otherwise the only thing on screen
+  saying which host a rectangle belongs to, and a prompt says whatever the
+  remote end put in `PS1`.
 - **Typing into every pane at once.** One switch, off by default, reaching every
   pane that has a session in it. It disarms itself whenever the set of panes
   changes, every pane on screen carries a warning edge while it is armed, and

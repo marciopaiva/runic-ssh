@@ -13,11 +13,13 @@ import {
   inputTargets,
   paneBoxes,
   paneCount,
+  paneLabel,
   placeSession,
   resolveLayout,
 } from '../src/features/terminal/layout';
 import type { LayoutKind, Pane } from '../src/features/terminal/layout';
 import type { Tab } from '../src/features/chrome/tabs';
+import type { Session } from '../src/ipc';
 
 function tab(sessionId: string): Tab {
   return { sessionId, title: sessionId, kind: 'password', handle: 1 } as unknown as Tab;
@@ -202,5 +204,37 @@ describe('where a keystroke goes', () => {
   it('sends nowhere twice', () => {
     const targets = inputTargets(panes('web-01', 'db-01', 'cache-01', 'web-02'), 'db-01', true);
     expect(new Set(targets).size).toBe(targets.length);
+  });
+});
+
+describe('how a pane names its session', () => {
+  function saved(over: Partial<Session> = {}): Session {
+    return {
+      id: 'a1',
+      name: 'web-01',
+      host: '10.0.4.12',
+      port: 22,
+      user: 'deploy',
+      group: null,
+      credentialId: null,
+      ...over,
+    };
+  }
+
+  it('carries the saved name and who it connects as', () => {
+    /* With four panes the shell prompt is otherwise the only thing on screen
+       saying which host a rectangle is, and a prompt says whatever the remote
+       host put in PS1. */
+    expect(paneLabel(saved())).toEqual({ name: 'web-01', where: 'deploy@10.0.4.12' });
+  });
+
+  it('shows a port that is not the default', () => {
+    expect(paneLabel(saved({ port: 2222 })).where).toBe('deploy@10.0.4.12:2222');
+  });
+
+  it('leaves out port 22', () => {
+    /* On every row and carrying no information, it would push the part that
+       does identify the host along by three characters in every pane. */
+    expect(paneLabel(saved()).where).not.toContain('22');
   });
 });

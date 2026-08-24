@@ -4,7 +4,7 @@ import type { JSX } from 'react';
 import type { SessionHandle } from '../ipc';
 import { useTerminal } from '../features/terminal/use-terminal';
 import type { TerminalSize } from '../features/terminal/use-terminal';
-import type { Box } from '../features/terminal';
+import type { Box, PaneLabel } from '../features/terminal';
 import { useTranslator } from '../features/settings';
 
 /**
@@ -33,6 +33,8 @@ interface TerminalViewProps {
   /** The rectangle of the panel this pane occupies. */
   readonly box: Box;
   readonly edge: PaneEdge;
+  /** What this pane says it is, or `null` when the panel holds one terminal. */
+  readonly label: PaneLabel | null;
   /** Raised when the pointer or the keyboard lands inside this pane. */
   readonly onPaneFocus: () => void;
   /** Reports the grid the remote pty was last told about. */
@@ -71,6 +73,7 @@ export function TerminalView({
   focused,
   box,
   edge,
+  label,
   onPaneFocus,
   onSize,
   modifier,
@@ -111,10 +114,35 @@ export function TerminalView({
         height: `${box.height}%`,
       }}
       aria-hidden={visible ? undefined : true}
+      aria-label={label?.name}
       /* React's `onFocus` is `focusin`, so this catches the click that lands
          inside xterm as well as a tab into it. */
       onFocus={onPaneFocus}
     >
+      {/* Which host this rectangle is. Absent with one terminal, where the tab
+          strip already answers it. Present with more, because otherwise the
+          only thing on screen naming the host is the shell prompt, and a
+          prompt says whatever the remote end put in `PS1` — a bad thing to be
+          reading a moment before running one command on all of them.
+
+          It is also where the focus marker lives. With typing synchronised
+          every pane carries the same warning edge on purpose, which leaves the
+          border with nothing left to say about focus, and the status bar is
+          describing one pane without anything pointing at it. */}
+      {label !== null && (
+        <div className="border-line-subtle bg-surface-chrome flex h-[28px] shrink-0 items-center gap-2 border-b px-3">
+          <span className="text-ink-secondary truncate text-[12px] font-semibold">
+            {label.name}
+          </span>
+          <span className="text-ink-faint truncate font-mono text-[11px]">{label.where}</span>
+          <span className="flex-1" />
+          {focused && (
+            <span className="text-ink-secondary font-mono text-[10px] font-bold tracking-[0.08em]">
+              {i18n.t('terminal.pane.focused')}
+            </span>
+          )}
+        </div>
+      )}
       {/* The padding is on this wrapper and not on the element xterm owns.
           FitAddon measures the parent it is opened into, and the rows it
           derives from that measurement are laid out over the padding rather

@@ -51,6 +51,7 @@ import {
   inputTargets,
   mountedTerminals,
   paneCount,
+  paneLabel,
   placeSession,
   resolveLayout,
 } from './features/terminal';
@@ -615,6 +616,14 @@ export function App(): JSX.Element {
 
   const palette = usePalette(sources, chrome?.commandModifier ?? 'control');
 
+  /* Built once per render rather than looked up per pane: the map is small,
+     and four linear searches through the session list to draw four headers is
+     the kind of thing that reads as fine and is not. */
+  const paneLabels = useMemo(
+    () => new Map(sessions.map((live) => [live.session.id, paneLabel(live.session)])),
+    [sessions],
+  );
+
   const pasteBox = pendingPaste === null ? null : boxOf(pendingPaste.sessionId);
   const attemptBox = attempt === null ? null : boxOf(attempt.sessionId);
 
@@ -674,6 +683,11 @@ export function App(): JSX.Element {
                    resize observer go on measuring something real — ADR-0014. */
                 box={panes[at]?.box ?? WHOLE_PANEL}
                 edge={paneEdge(layout, onScreen, isFocused, sync && filled > 1)}
+                label={
+                  layout === 'single' || !onScreen
+                    ? null
+                    : (paneLabels.get(terminal.sessionId) ?? null)
+                }
                 onPaneFocus={() => focusOn({ kind: 'session', sessionId: terminal.sessionId })}
                 onSize={setSize}
                 modifier={chrome?.commandModifier ?? 'control'}
