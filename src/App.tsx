@@ -703,7 +703,7 @@ export function App(): JSX.Element {
                 visible={onScreen}
                 focused={isFocused}
                 /* Off screen it keeps the whole panel, so `FitAddon` and the
-                   resize observer go on measuring something real — ADR-0014. */
+                   resize observer go on measuring something real. ADR-0014. */
                 box={panes[at]?.box ?? WHOLE_PANEL}
                 edge={paneEdge(layout, onScreen, isFocused, armed && !muted.has(terminal.sessionId))}
                 label={

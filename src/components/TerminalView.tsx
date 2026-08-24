@@ -102,7 +102,7 @@ export function TerminalView({
 
   /* Reported upward rather than read downward: the status bar is a sibling,
      and lifting the size is cheaper than teaching it to find the terminal.
-     Only the focused one reports — with several panes on screen the bar would
+     Only the focused one reports. With several panes on screen the bar would
      otherwise show whichever of them resized last. */
   useEffect(() => {
     if (focused) onSize(size);
@@ -130,7 +130,7 @@ export function TerminalView({
       {/* Which host this rectangle is. Absent with one terminal, where the tab
           strip already answers it. Present with more, because otherwise the
           only thing on screen naming the host is the shell prompt, and a
-          prompt says whatever the remote end put in `PS1` — a bad thing to be
+          prompt says whatever the remote end put in `PS1`, a bad thing to be
           reading a moment before running one command on all of them.
 
           It is also where the focus marker lives. With typing synchronised

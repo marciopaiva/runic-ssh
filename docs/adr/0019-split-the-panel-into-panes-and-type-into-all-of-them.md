@@ -125,7 +125,7 @@ than less.
 
 The rigid rule also had a cost that only appeared in use. Sparing one host meant
 dropping it from the split or not using the switch at all, so somebody wanting
-three of four would arm all four — the rule pushed toward the more dangerous of
+three of four would arm all four. The rule pushed toward the more dangerous of
 the two behaviours it was meant to guard. Left as it was, it would have been a
 safety argument producing a less safe habit.
 
@@ -147,8 +147,8 @@ a banner naming the one it does.
 ## Consequences
 
 **Good**: no new dependency, no capability, and no Rust. `send_input` already
-took one handle at a time and the frontend already filtered output per handle —
-the comment in `src/ipc/terminal.ts` anticipating "a second terminal must not
+took one handle at a time and the frontend already filtered output per handle.
+The comment in `src/ipc/terminal.ts` anticipating "a second terminal must not
 receive the first one's output" was written for exactly this. ADR-0014 is
 untouched: one terminal per session, one shell per handle, hidden terminals
 still measuring a real box. With the layout set to one pane the panel is what it
