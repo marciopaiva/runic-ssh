@@ -1,6 +1,6 @@
 # Visual improvements proposal
 
-Status: **in progress on `feat/visual-improvements`**.
+Status: **implemented on `feat/visual-improvements`** (except sidebar density).
 
 This document is the complete visual proposal for Runic SSH based on what the
 application already does today (v0.1.1 + unreleased split panes and broadcast
@@ -73,47 +73,30 @@ bar is always visible and already owns window-level state.
 - Aggressive truncation (`max-w`) so the bar never wraps.
 - Order of cells unchanged: identity sits right after the state marker.
 
-### Follow-ups (optional, same area)
-
-- Click identity to copy `user@host:port` to the clipboard (browser clipboard
-  events only — same rule as terminal copy, ADR-0018).
-- When broadcast is armed, keep showing the *focused* identity; do not try to
-  list every receiving host (that is what the SYNC button and pane edges are for).
-
 ---
 
 ## 2. Host key prompt — randomart
 
-### Current state
+### Status on this branch
 
-The unknown-key screen already:
-
-- Shows host, key type, SHA-256 fingerprint.
-- Keeps Trust **inert** until the out-of-band checkbox is ticked.
-- Lives inside the session’s own panel (ADR-0015), not a floating modal.
-
-That trust model is the important part and **must not be weakened**.
-
-### Proposed addition
-
-Show an SSH randomart (Drunken Bishop) next to the fingerprint, the same
-picture OpenSSH prints with `VisualHostKey`.
+**Done.** Drunken Bishop randomart is drawn beside the fingerprint on the
+unknown-host-key screen.
 
 ### Why
 
 Many sysadmins recognise a key by its randomart faster than by reading a
 SHA-256 string. Making the out-of-band check cheaper does not make it optional.
 
-### Implementation notes
+### Implementation notes (landed)
 
-- Generation belongs in the **core** (pure function over the key blob / fingerprint).
-- Frontend only receives a finished grid (string lines or a tiny SVG).
-- Layout: the existing definition list can gain a sibling column; the inert
-  Trust button and checkbox stay exactly as they are.
-- Needs a small IPC field on the host-key decision payload. If the shape of
-  that payload is non-trivial, write a short ADR first.
+- Pure function in `src/lib/randomart.ts` over the fingerprint string the core
+  already sends (`SHA256:…` or hex).
+- `Randomart` component omits itself when the fingerprint cannot be decoded.
+- Trust stays **inert** until the out-of-band checkbox is ticked.
+- Localised label (`hostKey.field.randomart`) in en / pt-BR / es.
+- Tests in `tests/randomart.test.ts` pin decoding and a stable grid.
 
-### Explicit non-goals for this item
+### Explicit non-goals (still hold)
 
 - No “Trust once” / temporary accept path.
 - No auto-trust, no TOFU.
@@ -123,67 +106,25 @@ SHA-256 string. Making the out-of-band check cheaper does not make it optional.
 
 ## 3. Broadcast typing — stronger chrome signal
 
-### Current state (already correct)
+### Status on this branch
+
+**Done.** The disarm button uses a stronger border, larger hit target, and
+bolder weight within the existing warn tokens.
+
+### Behaviour unchanged
 
 - Off by default; never persisted.
 - Disarms whenever the set of panes changes.
-- Status-bar button is already loud (`bg-warn-soft`, icon, `SYNC {count}`).
-- Receiving panes get a distinct edge; spared panes do not.
-- Per-pane spare checkbox in the pane header.
-
-### Proposed reinforcement (presentation only)
-
-When armed:
-
-1. Make the status-bar disarm button the **primary visual focus** of the chrome
-   (slightly larger hit target, stronger border / contrast within the existing
-   warn tokens).
-2. Optionally a one-line status-bar caption under the button area is *not*
-   needed; the existing `status.sync.on` string is enough.
-3. Keep the spared checkbox where it is. Do not move opt-out into a modal.
-
-No new behaviour. Only weight and contrast so that “I am typing to three hosts”
-cannot be missed at a glance.
+- Per-pane spare checkbox stays in the pane header.
 
 ---
 
 ## 4. Sidebar density
 
-### Current state
+### Status
 
-Groups, status markers (shape + colour), session name, host. Width 264 px.
-Clean and readable.
-
-### Proposed additions (presentational, when data exists)
-
-| Addition | Depends on | Notes |
-| --- | --- | --- |
-| Relative last-connected (`2h ago`) | Session record must carry a timestamp | Pure presentational once the field exists |
-| Small auth indicator (key vs password) | Whether we already know credential *type* without resolving the secret | Must never reveal the secret; opaque type only |
-| Keep width at 264 px | — | Do not grow the sidebar to fit more columns |
-
-If the session record does not yet carry last-connected or credential-type
-metadata, these items wait. They are not blockers for the rest of this proposal.
-
-### Explicit non-goals for the sidebar
-
-- No multi-column layout.
-- No nested folders beyond the existing group name.
-- No live terminal preview in the row.
-
----
-
-## 5. Pane headers and edges (already largely done)
-
-Unreleased split work already puts the session name + `user@host` on each pane
-header and uses a distinct edge for broadcast receivers. This proposal does not
-change that model.
-
-Optional polish only:
-
-- Ensure the “spared” state remains visually quieter than “receiving”.
-- Keep focus edge subordinate to the broadcast edge (already the rule in
-  `paneEdge`).
+**Not implemented.** Blocked on session-record fields (last-connected timestamp,
+opaque credential type). Documented for a later change.
 
 ---
 
@@ -191,11 +132,10 @@ Optional polish only:
 
 - No new colours beyond the existing token set in `tokens.css`.
 - No change to the host-key trust model or the inert-button rule.
-- No SFTP UI, tunnel UI, or ProxyJump UI (those need product features first).
+- No SFTP UI, tunnel UI, or ProxyJump UI.
 - No cloud sync, no decorative illustrations inside working surfaces.
 - No increase of the sidebar width.
 - No telemetry or crash-reporting UI.
-- No Spanish security strings until a native review lands (#4).
 
 ---
 
@@ -203,25 +143,40 @@ Optional polish only:
 
 | Step | Item | Status |
 | --- | --- | --- |
-| 1 | Status-bar identity cell | **Done** on this branch |
-| 2 | Broadcast button contrast reinforcement | Next, pure CSS / class weights |
-| 3 | Host-key randomart (core + IPC + UI) | Needs small design discussion / ADR if payload shape grows |
-| 4 | Sidebar density | Blocked on data fields; document only until then |
+| 1 | Status-bar identity cell | **Done** |
+| 2 | Broadcast button contrast reinforcement | **Done** |
+| 3 | Host-key randomart | **Done** |
+| 4 | Sidebar density | Blocked on data fields |
 
 Each step ships with the ordinary gate (`cargo fmt`, `clippy`, `cargo test`,
-`pnpm typecheck`, `pnpm test`). Behaviour changes get a test that pins the new
-presentation.
+`pnpm typecheck`, `pnpm test`).
+
+---
+
+## How to test (for Claude / reviewers)
+
+```bash
+pnpm install
+pnpm typecheck
+pnpm test
+cd src-tauri && cargo fmt --all -- --check && cargo clippy --all-targets --all-features -- -D warnings && cargo test
+pnpm tauri dev
+```
+
+Manual checks:
+
+1. Connect to a host → status bar shows `name · user@host` after the state marker.
+2. Split into 2+ panes, arm broadcast → disarm button is loud; click disarms.
+3. Connect to a never-seen host → unknown host key shows fingerprint **and**
+   randomart; Trust stays disabled until the checkbox is ticked.
+4. Narrow the window → status bar does not wrap.
 
 ---
 
 ## Review checklist
-
-When reviewing a change from this proposal:
 
 1. Does it stay inside the existing token set?
 2. Does it leave the host-key inert-Trust rule intact?
 3. Does broadcast remain off-by-default and self-disarming?
 4. Does the status bar still fit on a narrow window without wrapping?
 5. Is any new string localised (en + pt-BR at minimum)?
-
-If the answer to any of 1–4 is no, the change is out of scope for this proposal.
