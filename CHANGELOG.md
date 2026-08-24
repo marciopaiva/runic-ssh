@@ -11,6 +11,58 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-08-23
+
+Copy and paste, which v0.1.0 shipped without. A terminal you cannot get text out
+of is not one you can work in, and this was the first thing the release ran into
+in daily use.
+
+### Added
+
+- **Copy and paste in the terminal.** Ctrl-C copies when text is selected and
+  interrupts when nothing is, which is the behaviour of every terminal that
+  offers both. Ctrl-V pastes. Ctrl-Shift-C and Ctrl-Shift-V always mean the
+  clipboard whatever is on screen, so there is a binding that never has to
+  choose. On macOS the command key does the clipboard and Ctrl-C is left alone.
+- **A confirmation before a multi-line paste** the remote shell has not
+  bracketed, showing the lines that are about to run. A shell executes each line
+  of a paste as it arrives, so pasted text with a line break in it runs without
+  anybody pressing Return.
+- The exit line under a closed session is translated, rather than English in
+  every locale.
+
+### Fixed
+
+- **A paste larger than 32 KiB no longer disappears.** The core refuses any
+  single input above that limit, and the refusal landed on a promise nobody
+  awaited, so pasting a private key did nothing at all and said nothing about
+  it. Input is now split to stay inside the limit and delivered in order.
+
+### Security
+
+- Copy and paste use the browser's own clipboard events, raised by the
+  keystroke. No clipboard plugin, no new permission, and the capability set is
+  still the six entries ADR-0013 settled on. The plugin route was refused
+  because it grants the ability to read the system clipboard at any moment to
+  the document that renders hostile output (ADR-0018).
+- Copying moves terminal contents to the system clipboard, where any local
+  process can read them. That is deliberate, asked for by the person at the
+  keyboard, and now written into `docs/security-model.md` rather than left
+  implicit.
+- The Spanish string for the paste confirmation describes a security decision
+  and has not been reviewed by a native speaker. Spanish is still held out of
+  the language selector for exactly this reason (#4).
+
+### Known limitations
+
+- A selection left on screen costs one Ctrl-C: the first press copies it, and
+  the second interrupts. Ctrl-Shift-C always copies for anyone who would rather
+  never spend that press. ADR-0018 records why clearing the selection on every
+  write from the host was rejected.
+- There is no context menu on the terminal yet, so copy and paste are
+  keyboard-only and a person who does not know the convention will not find
+  them.
+
 ## [0.1.0] — 2026-08-23
 
 First packaged release. It connects, and that is the claim: an SSH client that
@@ -83,5 +135,6 @@ deliberately labelled one.
 - A connection gives up after twenty seconds (ADR-0016). That number is a
   choice, not a measurement, and there is no setting for it yet.
 
-[Unreleased]: https://github.com/marciopaiva/runic-ssh/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/marciopaiva/runic-ssh/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/marciopaiva/runic-ssh/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/marciopaiva/runic-ssh/releases/tag/v0.1.0
