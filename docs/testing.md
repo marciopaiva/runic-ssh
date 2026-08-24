@@ -98,6 +98,55 @@ that in one call and the frontend splits to stay inside it, which is proven by
 unit test and has never been driven. Note that an SSH private key is far below
 the limit, so the obvious test does not reach the split.
 
+### Split panes and synchronised typing
+
+Two sessions at least, and four for the grid. The container recipe above is one
+host; a second port on the same container is enough for a second session, and
+`docs/adr/0019-...` is the reasoning behind what these are checking.
+
+Nothing here can be asserted from a test either, for the same reason as the
+clipboard: what is being checked is what the webview does with a real keyboard
+in real rectangles, and injected keys do not reach it.
+
+Split from the palette (`Ctrl-Shift-P`, then "Split"). With one session open the
+split commands are absent, which is correct.
+
+| Do this | Expect |
+| --- | --- |
+| Split into two columns, two sessions open | both paint, each with its own grid |
+| Resize the window | both re-fit, and neither reports `0x0` |
+| Click inside a pane | that pane's tab is the highlighted one |
+| Click a tab that is not on screen | it takes the focused pane |
+| Click a tab that is already on screen | only the focus moves, nothing rearranges |
+| Close one session of a split | its pane goes dashed and empty, the other stays |
+| Read the status bar | it shows the grid of the focused pane, not the last resized |
+| Back to one terminal | the panel is exactly what it was before splitting |
+
+Then arm the switch ("Type into every pane"). It is absent unless two panes have
+a session in them.
+
+| Do this | Expect |
+| --- | --- |
+| Type | it arrives in every pane, each host echoing its own |
+| `Ctrl-C` | interrupts in every pane |
+| Look at the panes and the bar | every pane has the warning edge; the bar has the count |
+| Click the count in the status bar | the switch goes off in one click |
+| Close a pane's session, or change a pane's host | the switch disarms itself |
+| Paste one line, under `bash` | the confirmation appears anyway, naming the host count |
+| Cancel that confirmation | no host received anything |
+
+**The password case is what the switch cannot protect and the thing to see for
+yourself.** Run `sudo -k true` in one pane with the switch armed and type a
+password: it goes to every pane, and the panes that were not asking echo it to
+the screen. That is the documented limit, not a defect. There is no signal to
+detect it by, because the remote pty turns the echo off on the far side of the
+channel.
+
+**Four panes flooding is unmeasured.** ADR-0011 measured the renderer against
+one terminal. Run `yes` in two of four panes and watch whether the window stays
+responsive; if it does not, the limit belongs at two panes and the measurement
+belongs in ADR-0019.
+
 ### On WSL2
 
 Reaching a container in WSL *from a Windows build* is a separate problem:

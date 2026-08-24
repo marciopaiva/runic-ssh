@@ -11,6 +11,42 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 
 ## [Unreleased]
 
+### Added
+
+- **Split panes.** The panel divides into two columns, two rows, or a grid of
+  four, from the command palette. Each pane holds a session that is already
+  connected: picking a tab puts it in the focused pane unless it is already on
+  screen, in which case only the focus moves. A session's questions, the host
+  key prompt included, are drawn inside that session's pane and nowhere else.
+- **Typing into every pane at once.** One switch, off by default, reaching every
+  pane that has a session in it. It disarms itself whenever the set of panes
+  changes, every pane on screen carries a warning edge while it is armed, and
+  the status bar carries a button that turns it off in one click.
+- Every paste is shown before it is sent while that switch is armed, single
+  lines and bracketed pastes included. Bracketed paste stops the remote shell
+  running the lines; nothing stops a paste reaching four machines because the
+  wrong pane had focus.
+
+### Fixed
+
+- **Two writes to one session can no longer interleave.** Input was split to
+  stay inside what the core accepts, which ordered the pieces of one write and
+  nothing between two of them. Nobody hit it with one terminal and one person
+  typing; typing into several at once makes overlapping writes ordinary.
+
+### Known limitations
+
+- **A password typed with the switch armed goes to every pane.** There is no way
+  to notice: the remote pty turns the echo off on the far side of the channel,
+  so nothing here can tell a password prompt from any other output. The switch
+  being loud and off by default is the whole of the protection.
+- Panes hold sessions that are already connected. A second terminal on a host
+  you are already on is not possible yet, and would need a second connection.
+- No draggable divider, and no keyboard shortcut for splitting or for moving
+  between panes. Both go through the command palette.
+- Four terminals painting at once has never been measured. ADR-0011 measured
+  one, and concluded the transport bound is what that decision rests on.
+
 ## [0.1.1] — 2026-08-23
 
 Copy and paste, which v0.1.0 shipped without. A terminal you cannot get text out

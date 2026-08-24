@@ -180,7 +180,7 @@ pnpm test
 
 - [x] **v0.1.0 (MVP):** SSH connections with host key verification, saved sessions, and a working terminal. [Released 2026-08-23](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.1.0).
 - [x] **v0.1.1:** copy and paste in the terminal. [Released 2026-08-23](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.1.1).
-- [ ] **v0.2.0:** SFTP integration (upload and download) plus session import from PuTTY and OpenSSH.
+- [ ] **v0.2.0:** split panes with synchronised typing, SFTP integration (upload and download), and session import from PuTTY and OpenSSH.
 - [ ] **v0.3.0:** port forwarding (SSH tunnels) and customizable themes.
 - [ ] **v1.0.0:** production grade stability, and a signed installer on every platform.
 
