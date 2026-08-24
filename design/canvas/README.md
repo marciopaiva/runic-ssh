@@ -22,6 +22,7 @@ editing it.
 | `HostKeyChanged.dc.html` | Changed host key, blocked |
 | `HostKeyRefused.dc.html` | Revoked host key, no override |
 | `Failure.dc.html` | Connection failure, in the session panel |
+| `Split.dc.html` | Two panes, with typing going to both |
 | `States.dc.html` | Connecting, and nothing open |
 | `SettingsSessions.dc.html` | Settings, sessions and the host form |
 | `Credential.dc.html` | Credential window, password and private key |
