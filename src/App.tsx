@@ -647,6 +647,10 @@ export function App(): JSX.Element {
     [sessions],
   );
 
+  /* The identity shown on the status bar. Same source as the pane headers so
+     the two never disagree about what a session is called. */
+  const activeIdentity = activeId === null ? null : (paneLabels.get(activeId) ?? null);
+
   const pasteBox = pendingPaste === null ? null : boxOf(pendingPaste.sessionId);
   const attemptBox = attempt === null ? null : boxOf(attempt.sessionId);
 
@@ -864,6 +868,7 @@ export function App(): JSX.Element {
 
       <StatusBar
         kind={activeTab?.kind ?? null}
+        identity={activeIdentity}
         stats={stats}
         size={size}
         modifier={chrome?.commandModifier ?? 'control'}
