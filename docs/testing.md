@@ -56,6 +56,48 @@ Two things about the container matter when driving it rather than testing it:
   ssh-keyscan -p 2222 -t ed25519 127.0.0.1 | ssh-keygen -lf -
   ```
 
+### Copy and paste
+
+The clipboard is the one part of the terminal that cannot be asserted from a
+test. It runs on the browser's own `copy` and `paste` events (ADR-0018), so what
+is being checked is whether the webview raises them, and WebKitGTK and WebView2
+each get their own vote. Synthetic key events do not answer this: keys injected
+with `xdotool` never reach the WebKit web process under Xvfb, so this list is
+driven by hand or not at all.
+
+Connect a session, then:
+
+| Do this | Expect |
+| --- | --- |
+| Select with the mouse, `Ctrl-C` | the text is on the clipboard, and the selection clears |
+| `Ctrl-C` again, nothing selected | the running process is interrupted |
+| `Ctrl-C` while `yes` is flooding | interrupted. A flood leaves nothing selected |
+| `Ctrl-V` with one line on the clipboard | it arrives |
+| `Ctrl-Shift-C` and `Ctrl-Shift-V` | always the clipboard, selection or not |
+| `Ctrl-Shift-P` | still opens the palette |
+
+**The paste confirmation needs bracketed paste switched off**, and `bash` keeps
+it on, so it will not appear there and that is correct. Run `cat` or `sh` on the
+host and paste several lines into it: the confirmation lists the first eight and
+counts the rest. Cancelling must leave the host with nothing.
+
+What to check in the file that comes out of `cat > somefile`:
+
+```sh
+tr -cd '\r' < somefile | wc -c        # must be 0
+iconv -f UTF-8 -t UTF-8 somefile      # accents must survive
+```
+
+The carriage returns are the point. A confirmed paste is delivered around xterm,
+so it has to redo the newline normalising xterm would have done; get it wrong
+and the shell receives line feeds and runs nothing. A 4409 byte paste with
+accented text was how this was verified for 0.1.1.
+
+**Above 32 KiB is not covered by any of this.** `send_input` refuses more than
+that in one call and the frontend splits to stay inside it, which is proven by
+unit test and has never been driven. Note that an SSH private key is far below
+the limit, so the obvious test does not reach the split.
+
 ### On WSL2
 
 Reaching a container in WSL *from a Windows build* is a separate problem:
