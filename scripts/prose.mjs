@@ -102,7 +102,11 @@ for (const added of addedLines(base)) {
   problems.push(`${added.file}:${added.line}  ${added.text.trim()}`);
 }
 
-for (const subject of git(['log', `${base}..HEAD`, '--format=%s']).split('\n').filter(Boolean)) {
+/* `--no-merges` is not tidiness. On a pull request GitHub checks out the merge
+   commit rather than the branch head, and its subject is "Merge <sha> into
+   <sha>", which no prefix rule can accept. The check reported it on its own
+   first run in CI. */
+for (const subject of git(['log', `${base}..HEAD`, '--no-merges', '--format=%s']).split('\n').filter(Boolean)) {
   const prefix = /^([a-z]+)(?:\(.+\))?: /.exec(subject);
   if (prefix === null || !ALLOWED_PREFIXES.includes(prefix[1])) {
     problems.push(`commit  ${subject}\n          prefix must be one of ${ALLOWED_PREFIXES.join(', ')}`);
