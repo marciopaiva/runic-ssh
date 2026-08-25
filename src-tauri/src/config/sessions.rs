@@ -35,6 +35,14 @@ pub struct Session {
     /// An opaque id: the frontend never sees more, and neither does this file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub credential_id: Option<String>,
+    /// The saved session to reach this host through, if it is behind one.
+    ///
+    /// A reference rather than an address, because a bastion is a host in its
+    /// own right: it has its own key to verify and its own credential, and
+    /// duplicating its address here would leave two copies to keep in step.
+    /// ADR-0023.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub proxy_jump: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -71,6 +79,57 @@ pub struct SessionDraft {
     pub user: String,
     #[serde(default)]
     pub group: Option<String>,
+    /// The id of the saved session to reach this host through.
+    #[serde(default)]
+    pub proxy_jump: Option<String>,
+}
+
+/// Why a jump host reference cannot be used.
+///
+/// A code rather than a sentence: ADR-0007 puts the wording in the frontend,
+/// and the three cases need three different things from the reader.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProxyJumpProblem {
+    /// The session names itself as its own jump host.
+    Itself,
+    /// Nothing saved has that id. Also what a deleted bastion looks like.
+    Unknown,
+    /// The jump host is itself reached through one. ADR-0023 allows one hop,
+    /// and refuses the rest rather than connecting to the first and behaving as
+    /// if the whole chain had been honoured.
+    Chained,
+}
+
+/// Checks a jump host reference against what is saved.
+///
+/// Separate from [`validate_draft`] because none of it can be answered from the
+/// draft alone: whether the id names anything, and whether that thing is itself
+/// behind a bastion, are questions about the file.
+///
+/// `editing` is the id of the session being saved, when one is being edited.
+/// Without it a session could be made to name itself on the way in.
+pub fn check_proxy_jump(
+    sessions: &Sessions,
+    editing: Option<&str>,
+    proxy_jump: Option<&str>,
+) -> Result<(), ProxyJumpProblem> {
+    let Some(bastion) = proxy_jump else {
+        return Ok(());
+    };
+
+    if editing == Some(bastion) {
+        return Err(ProxyJumpProblem::Itself);
+    }
+
+    let Some(session) = sessions.find(bastion) else {
+        return Err(ProxyJumpProblem::Unknown);
+    };
+
+    if session.proxy_jump.is_some() {
+        return Err(ProxyJumpProblem::Chained);
+    }
+
+    Ok(())
 }
 
 /// Characters that must never reach a session name.
@@ -236,6 +295,19 @@ pub fn save_session(store: &SessionStore, draft: SessionDraft) -> Result<Session
 
     let mut sessions = store.load()?;
 
+    /* Checked here rather than in `validate_draft` because it needs the file.
+    Enforced again at connect time, which is the check that cannot be
+    outmanoeuvred: a bastion can grow a jump host of its own, or be deleted,
+    long after the session naming it was saved. */
+    let proxy_jump = draft
+        .proxy_jump
+        .as_deref()
+        .map(str::trim)
+        .filter(|jump| !jump.is_empty());
+    check_proxy_jump(&sessions, draft.id.as_deref(), proxy_jump)
+        .map_err(|problem| Error::InvalidProxyJump { problem })?;
+    let proxy_jump = proxy_jump.map(str::to_owned);
+
     let session = match draft.id {
         Some(id) => {
             let index = sessions
@@ -253,6 +325,7 @@ pub fn save_session(store: &SessionStore, draft: SessionDraft) -> Result<Session
                 user: draft.user.trim().to_owned(),
                 group: draft.group.map(|g| g.trim().to_owned()),
                 credential_id: existing.credential_id.clone(),
+                proxy_jump,
             };
             sessions.items[index] = session.clone();
             session
@@ -266,6 +339,7 @@ pub fn save_session(store: &SessionStore, draft: SessionDraft) -> Result<Session
                 user: draft.user.trim().to_owned(),
                 group: draft.group.map(|g| g.trim().to_owned()),
                 credential_id: None,
+                proxy_jump,
             };
             sessions.items.push(session.clone());
             session
@@ -305,12 +379,135 @@ mod tests {
             user: "deploy".to_owned(),
             group: Some("Production".to_owned()),
             credential_id: Some("keychain-4f21".to_owned()),
+            proxy_jump: None,
         }
     }
 
     fn store() -> (SessionStore, tempfile::TempDir) {
         let dir = tempfile::tempdir().expect("a temporary directory");
         (SessionStore::new(dir.path()), dir)
+    }
+
+    /* ---------------------------------------------------------------- *
+     * Jump hosts. ADR-0023.
+     * ---------------------------------------------------------------- */
+
+    /// Saves a bastion and returns its id.
+    fn a_saved_bastion(store: &SessionStore) -> String {
+        let mut draft = draft("bastion");
+        draft.host = "bastion.example.com".to_owned();
+        save_session(store, draft).expect("the bastion saves").id
+    }
+
+    #[test]
+    fn a_file_written_before_jump_hosts_existed_still_loads() {
+        /* The whole migration, such as it is. A build that never heard of a
+        jump host wrote this, and a build that has must not treat it as a
+        malformed file and take every saved session down with it. */
+        let (store, _dir) = store();
+        std::fs::write(
+            store.path(),
+            r#"[{"id":"a1","name":"web-01","host":"10.0.4.12","port":22,"user":"deploy"}]"#,
+        )
+        .expect("the file writes");
+
+        let sessions = store.load().expect("an older file still loads");
+        assert_eq!(sessions.items.len(), 1);
+        assert_eq!(sessions.items[0].proxy_jump, None);
+    }
+
+    #[test]
+    fn a_session_without_a_jump_host_writes_no_field_at_all() {
+        /* So a build that never heard of one reads back exactly what it wrote.
+        The field is absent rather than null. */
+        let (store, _dir) = store();
+        save_session(&store, draft("web-01")).expect("it saves");
+
+        let json = std::fs::read_to_string(store.path()).expect("the file reads");
+        assert!(!json.contains("proxyJump"), "wrote: {json}");
+    }
+
+    #[test]
+    fn a_jump_host_is_stored_and_survives_an_edit() {
+        let (store, _dir) = store();
+        let bastion = a_saved_bastion(&store);
+
+        let mut draft = draft("web-01");
+        draft.proxy_jump = Some(bastion.clone());
+        let saved = save_session(&store, draft).expect("it saves");
+        assert_eq!(saved.proxy_jump.as_deref(), Some(bastion.as_str()));
+
+        /* Renaming must not quietly drop the route to the host. */
+        let mut edit = self::draft("web-01 renamed");
+        edit.id = Some(saved.id.clone());
+        edit.proxy_jump = Some(bastion.clone());
+        let edited = save_session(&store, edit).expect("the edit saves");
+        assert_eq!(edited.proxy_jump.as_deref(), Some(bastion.as_str()));
+    }
+
+    #[test]
+    fn a_session_cannot_be_its_own_jump_host() {
+        let (store, _dir) = store();
+        let saved = save_session(&store, draft("web-01")).expect("it saves");
+
+        let mut edit = draft("web-01");
+        edit.id = Some(saved.id.clone());
+        edit.proxy_jump = Some(saved.id.clone());
+
+        assert!(matches!(
+            save_session(&store, edit),
+            Err(Error::InvalidProxyJump {
+                problem: ProxyJumpProblem::Itself
+            })
+        ));
+    }
+
+    #[test]
+    fn a_jump_host_that_is_not_saved_is_refused() {
+        let (store, _dir) = store();
+        let mut draft = draft("web-01");
+        draft.proxy_jump = Some("no-such-session".to_owned());
+
+        assert!(matches!(
+            save_session(&store, draft),
+            Err(Error::InvalidProxyJump {
+                problem: ProxyJumpProblem::Unknown
+            })
+        ));
+    }
+
+    #[test]
+    fn a_jump_host_behind_another_jump_host_is_refused() {
+        /* One hop, per ADR-0023. Refused here rather than connecting to the
+        first and behaving as if the whole chain had been honoured. */
+        let (store, _dir) = store();
+        let first = a_saved_bastion(&store);
+
+        let mut middle = draft("middle");
+        middle.proxy_jump = Some(first);
+        let middle = save_session(&store, middle).expect("one hop is fine");
+
+        let mut far = draft("far");
+        far.proxy_jump = Some(middle.id);
+
+        assert!(matches!(
+            save_session(&store, far),
+            Err(Error::InvalidProxyJump {
+                problem: ProxyJumpProblem::Chained
+            })
+        ));
+    }
+
+    #[test]
+    fn an_empty_jump_host_is_no_jump_host() {
+        /* An empty select reaches the core as an empty string, and a session
+        stored with `Some("")` would be refused as unknown forever after. */
+        let (store, _dir) = store();
+        let mut draft = draft("web-01");
+        draft.proxy_jump = Some("   ".to_owned());
+
+        let saved = save_session(&store, draft).expect("it saves");
+        assert_eq!(saved.proxy_jump, None);
     }
 
     #[test]
@@ -365,6 +562,7 @@ mod tests {
             port: 22,
             user: "deploy".to_owned(),
             group: Some("Production".to_owned()),
+            proxy_jump: None,
         }
     }
 
