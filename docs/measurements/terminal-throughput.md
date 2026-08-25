@@ -194,3 +194,83 @@ the adapter as **`Apple GPU`** — on an NVIDIA card, on Linux. WebKit returns a
 fixed string to resist fingerprinting, so it says nothing about the machine.
 
 Read the EGL warnings on stderr instead. They are what told these runs apart.
+
+---
+
+## Several terminals painting at once
+
+The measurement #123 asked for, taken on 2026-08-24. ADR-0011 measured one
+terminal and named what would invalidate the answer: the headroom disappears if
+the transport bound is raised. Per session it has not moved. In aggregate it
+has, because ADR-0019 lets four panes deliver four times what one could into
+four DOM renderers at the same time.
+
+- **Machine**: WSL2 on Linux, WebKitGTK 4.1 under Xvfb, software rasteriser.
+  The same conditions as the Linux renderer comparison above.
+- **Engine**: `MiniBrowser` from `webkit2gtk-4.1`, which is the engine Tauri
+  embeds on Linux, against the Vite dev server.
+- **Harness**: `src/features/terminal/flood.ts`, run by `?flood=32` and posted
+  back by `vite-benchmark-plugin.ts`.
+- **Terminal size**: 96x22 each, which is what a pane gets in the 2x2 grid of a
+  1440x900 window.
+
+### Flat out, 32 MB through each terminal
+
+| terminals | MB/s total | MB/s each | median gap | p95 gap | worst gap | gaps over 100 ms |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 104.2 | 104.2 | 17 ms | 43 ms | 43 ms | 0 of 13 |
+| 2 | 104.1 | 52.0 | 30 ms | 62 ms | 62 ms | 0 of 17 |
+| 4 | 125.1 | 31.3 | 53 ms | 62 ms | 62 ms | 0 of 20 |
+
+A second run agreed: 106.3, 100.0 and 128.0 MB/s.
+
+### Paced at the transport rate, ten seconds each
+
+`ssh/terminal.rs` emits at most 256 KiB every 16 ms per session, so each
+terminal is fed exactly that. This is the run that answers the question, and
+the one the flat-out numbers cannot: a run that drains in 300 ms produces
+thirteen frame samples, which is an anecdote rather than a distribution.
+
+| terminals | MB/s total | MB/s each | median gap | p95 gap | worst gap | gaps over 100 ms |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 12.5 | 12.5 | 16 ms | 17 ms | 21 ms | 0 of 621 |
+| 2 | 24.8 | 12.4 | 16 ms | 19 ms | 24 ms | 0 of 621 |
+| 4 | 48.2 | 12.0 | 16 ms | 20 ms | 24 ms | 0 of 620 |
+
+### What this says
+
+**It holds.** With four terminals streaming at the rate the transport actually
+delivers, the median gap between frames stays at 16 ms and the worst gap in 620
+frames is 24 ms. Nothing approaches the 100 ms where a keystroke starts to look
+dropped and the palette opens visibly late.
+
+The headroom did shrink, and by more than the flat-out total suggests. Per
+terminal, drawing falls from 104 MB/s alone to 31 MB/s with four running, so
+four terminals draw 125 MB/s between them rather than 400. Against a transport
+that delivers 9.1 to 15.2 MB/s per session, four sessions at full rate demand
+36 to 61 MB/s:
+
+| | one terminal | four terminals |
+| --- | --- | --- |
+| What the transport asks for | 9.1 – 15.2 MB/s | 36.4 – 60.8 MB/s |
+| What the renderer draws | 96 – 105 MB/s | 125 MB/s |
+| Headroom | about 7x | **about 2 to 3.4x** |
+
+Seven times became two to three times. That is still headroom and it is no
+longer comfortable, which is worth knowing before anything raises the per
+session bound.
+
+### What this does NOT establish
+
+1. **It measures drawing, not the whole pipeline.** The harness writes bytes
+   straight into `terminal.write()`. The real path decodes an event payload
+   from the IPC bridge first, on the same thread. Whatever that costs is on top
+   of these numbers, not included in them.
+2. **One machine, one engine, software rasterised.** A GPU would change the
+   flat-out figures and, going by the Linux comparison above, not necessarily
+   upward.
+3. **Panes this size.** Each terminal is 96x22. A window at 2560 wide gives
+   each pane more cells, and cells are the work.
+4. **Synthetic text.** Printable, varied, no escape sequences, so it measures
+   drawing rather than parsing. A host emitting heavy SGR or cursor addressing
+   is a different load.

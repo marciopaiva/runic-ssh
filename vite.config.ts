@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 
 import { defineConfig } from 'vite';
+import { benchmarkCollector } from './vite-benchmark-plugin';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
@@ -10,7 +11,7 @@ import tailwindcss from '@tailwindcss/vite';
 const DEV_PORT = 1420;
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), benchmarkCollector()],
   // Tauri serves the built frontend from a file:// origin, so every asset has
   // to be referenced relatively.
   base: './',
