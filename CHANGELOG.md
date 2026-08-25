@@ -13,27 +13,46 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 
 ### Added
 
-- **Split panes.** The panel divides into two columns, two rows, or a grid of
-  four, from the command palette. Each pane holds a session that is already
-  connected: picking a tab fills an empty pane if there is one, replaces the
-  focused pane if there is not, and moves nothing when that session is already
-  on screen. A session's questions, the host
-  key prompt included, are drawn inside that session's pane and nowhere else.
-  Each pane is headed with the session's name and who it connects as, because
-  with four of them the shell prompt is otherwise the only thing on screen
-  saying which host a rectangle belongs to, and a prompt says whatever the
-  remote end put in `PS1`.
-- **Typing into every pane at once.** One switch, off by default, reaching every
-  pane that has a session in it. It disarms itself whenever the set of panes
-  changes, and the status bar carries a button that turns it off in one click.
-- **Each pane can be spared**, from a check box in its own header, so three of
-  four machines in a pool can take a command while the database does not. A
-  receiving pane carries the warning edge and a spared one does not, and typing
-  into a spared pane reaches only that pane.
+- **The window has an anatomy, and it is written down** (ADR-0020). A top strip
+  of mark, drag surface and window controls; a rail of activities down the
+  leading edge that never closes; the session list beside it, which does; and a
+  main area of groups. Four surfaces used to be decided one at a time, and the
+  next one inherits this instead of deciding again.
+- **Groups.** The main area divides into two columns, two rows or a grid of
+  four, and every rectangle is a strip of tabs over the body of whichever tab
+  it is showing. Six sessions in four rectangles is now expressible. The strip
+  is the tab bar and the pane header at once: those were two objects naming the
+  same rectangle, and nothing failed when they disagreed.
+- **Everything opened is a tab.** A terminal, a host form and the settings page
+  all live in a group. A session's questions, the host key prompt included, are
+  drawn inside the group whose active tab that session is, and nowhere else, so
+  a question about one host leaves the terminals around it readable.
+- **A group's own controls.** The `+` opens a host form in that rectangle. The
+  trailing button, and right-clicking a tab, open a menu that sends a tab to
+  another rectangle or closes every tab in this one. Closing says how many
+  connections it is about to drop before it is clicked, and never throws out
+  unsaved work in bulk: a form holding changes stays where it is and asks.
+- **Typing into every group at once.** One switch, off by default, reaching the
+  active tab of each group. A session sitting behind another tab in the same
+  group is connected and is not receiving. It disarms itself whenever the set
+  of sessions on screen changes.
+- **Any group can be spared**, from the check box on the tab that would
+  receive, so three of four machines in a pool can take a command while the
+  database does not. Typing into a spared group reaches only that group.
+- **Every surface says who is receiving.** The whole top edge of the status bar
+  turns amber and carries the count and the way off. Every receiving group is
+  outlined. The sidebar marks each receiving host and labels every connected
+  host that is not receiving `SPARED`, which is the only place two of the three
+  ways to be spared can be read. The rail turns amber and holds the settings
+  gear shut. The switch is a safety decision and not a convenience.
 - Every paste is shown before it is sent while that switch is armed, single
   lines and bracketed pastes included. Bracketed paste stops the remote shell
   running the lines; nothing stops a paste reaching four machines because the
-  wrong pane had focus.
+  wrong group had focus.
+- **Four terminals painting at once has been measured** (#123). Fed at the rate
+  the transport actually delivers, they hold a 16 ms median gap between frames,
+  with the worst gap in 620 frames at 24 ms. The four-rectangle limit rests on
+  a number now rather than on a guess.
 
 ### Fixed
 
@@ -44,16 +63,22 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 
 ### Known limitations
 
-- **A password typed with the switch armed goes to every pane.** There is no way
-  to notice: the remote pty turns the echo off on the far side of the channel,
-  so nothing here can tell a password prompt from any other output. The switch
-  being loud and off by default is the whole of the protection.
-- Panes hold sessions that are already connected. A second terminal on a host
+- **A password typed with the switch armed goes to every receiving group.**
+  There is no way to notice: the remote pty turns the echo off on the far side
+  of the channel, so nothing here can tell a password prompt from any other
+  output. The switch being loud and off by default is the whole of the
+  protection. A session sitting in a group's background is connected without
+  receiving, which is a second way to be surprised by where a keystroke went,
+  and the sidebar is where that one is read.
+- Groups hold sessions that are already connected. A second terminal on a host
   you are already on is not possible yet, and would need a second connection.
-- No draggable divider, and no keyboard shortcut for splitting or for moving
-  between panes. Both go through the command palette.
-- Four terminals painting at once has never been measured. ADR-0011 measured
-  one, and concluded the transport bound is what that decision rests on.
+- No draggable divider, no keyboard shortcut for splitting or for moving between
+  groups, and no pointer control for splitting at all. The command palette is
+  the only way to divide the main area.
+- SFTP has no code behind it, so the rail carries one view rather than the three
+  the design canvas draws. The icon arrives with the feature.
+- The screenshots below the feature list are of the previous anatomy, taken
+  before the tabs left the title bar.
 
 ## [0.1.1] — 2026-08-23
 

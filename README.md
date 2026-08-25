@@ -65,13 +65,20 @@ carries your keys.
   none; Ctrl-V pastes; Ctrl-Shift-C and Ctrl-Shift-V always mean the clipboard.
   A multi-line paste the remote shell has not bracketed is shown to you first,
   because a shell runs each line as it arrives.
-- **Split panes**, two columns, two rows or a grid of four, each holding a
-  session that is already connected. A session's questions, the host key prompt
-  included, are drawn inside that session's pane.
-- **Typing into every pane at once**, off by default, and any pane can be
-  spared from it with the check box in its own header. Every pane that will
-  receive is outlined while it is armed, because the switch is a safety
-  decision and not a convenience.
+- **One window with an anatomy**, decided once and written down (ADR-0020). A
+  rail of activities that never closes, the session list beside it that does,
+  and a main area of groups. Splitting, broadcasting and a host key prompt
+  never swap the window for a different product.
+- **Groups**, two columns, two rows or a grid of four. Every rectangle is a
+  strip of tabs over the body of whichever tab it is showing, so six sessions
+  in four rectangles is an ordinary thing to have. A terminal, a host form and
+  the settings page are all tabs, and a session's questions, the host key
+  prompt included, are drawn inside the group showing that session.
+- **Typing into every group at once**, off by default, reaching the active tab
+  of each one. Any group is spared with the check box on the tab that would
+  receive. While it is armed the status bar's top edge, every receiving group,
+  every receiving tab and the host list all say so, because the switch is a
+  safety decision and not a convenience.
 - **Saved hosts**, grouped, each edited on its own tab.
 - **A command palette** on `Ctrl+Shift+P`.
 - **Light and dark**, from one token set, following the system.
@@ -88,6 +95,11 @@ thing this project would rather not do.
 Both captures are of the packaged application connected to a real SSH server.
 They are not mockups, and not the design canvas. The hosts are invented; the
 fingerprint, the shell and the output are not.
+
+They are also **out of date**. They were taken before the tabs left the title
+bar, so they show the anatomy ADR-0020 replaced. Retaking them needs a packaged
+build driven by hand against a real host, which is why they have not been
+replaced with something cheaper and captioned as if it were the same thing.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-main-dark.png">
