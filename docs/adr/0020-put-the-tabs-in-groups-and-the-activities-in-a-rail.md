@@ -137,8 +137,10 @@ While it is armed:
   thing to allow;
 * every receiving tab carries a checked square, and every receiving group a warn
   border;
-* the entire top edge of the status bar turns warn, and carries the count and
-  the way off;
+* the entire top edge of the status bar turns warn, and carries the count. The
+  way off was here too until ADR-0021 took it, along with the way on, to the
+  top strip: a switch about the window belongs with the other control that is
+  about the window, and a bar of measurements is not where you press things;
 * the sidebar marks each receiving host and labels the held-out ones `SPARED`.
 
 The sidebar may still be closed while armed. Every receiving host has a tab

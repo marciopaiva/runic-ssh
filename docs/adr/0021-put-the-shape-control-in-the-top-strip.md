@@ -101,6 +101,19 @@ obvious neighbour when the divider becomes draggable.
 choosing, or if a window narrow enough to matter turns out to be common, in
 which case the four buttons fold into one that opens the four.
 
-**They folded** (ADR-0022). Not for width in the end, but for count: seven
-shapes is around 196px of a bar whose remaining job is being dragged. The
-control is one button showing the shape in use, which opens the seven.
+**They folded** (ADR-0022). Not for width in the end, but for count: eight
+shapes is around 224px of a bar whose remaining job is being dragged. The
+control is one button showing the shape in use, which opens them all.
+
+**And the reason took a second control with it.** The switch for typing into
+every rectangle at once moved here from the status bar, on the maintainer's
+reading that a bar of measurements is the wrong place for a control. The
+argument this document makes about the shape is the same one: that switch is
+about the window, and the top strip is the only surface that is. The status bar
+keeps what it is good at, which is the whole top edge turning warn and saying
+how many hosts are on the receiving end.
+
+That amends ADR-0020, which listed the count **and the way off** as the status
+bar's job while a broadcast is armed. It keeps the count. The way off is beside
+the way on now, which is a pair that should not have been split across two
+edges of the window in the first place.

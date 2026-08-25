@@ -5,6 +5,7 @@ import type { Grid } from '../features/terminal';
 import { useTranslator } from '../features/settings';
 
 import { ShapeControl } from './ShapeControl';
+import { SyncControl } from './SyncControl';
 import { WindowControls } from './WindowControls';
 
 interface TitlebarProps {
@@ -14,6 +15,12 @@ interface TitlebarProps {
   /** How the main area is divided right now. */
   readonly layout: Grid;
   readonly onLayout: (kind: Grid) => void;
+  /** How many hosts a keystroke reaches, or `null` when it reaches one. */
+  readonly syncing: number | null;
+  /** Whether the switch is worth offering, and whether it can act. */
+  readonly canSync: boolean | null;
+  readonly onStartSync: () => void;
+  readonly onStopSync: () => void;
   readonly onAct: (action: WindowAction) => void;
 }
 
@@ -37,6 +44,10 @@ interface TitlebarProps {
  * not: a tab names something inside the main area, and a shape names the main
  * area itself.
  *
+ * The switch for typing into every rectangle followed it, for the same reason
+ * and by the same argument. It used to live in the status bar, which is
+ * measurement, and a control among the readings reads as one more reading.
+ *
  * `deep` on the drag region means a drag starting anywhere on the bar moves
  * the window, *except* on a button: Tauri's handler stops at the first
  * clickable element it walks through. That is what keeps the shape buttons
@@ -47,6 +58,10 @@ export function Titlebar({
   leadingInset,
   layout,
   onLayout,
+  syncing,
+  canSync,
+  onStartSync,
+  onStopSync,
   onAct,
 }: TitlebarProps): JSX.Element {
   const i18n = useTranslator();
@@ -96,6 +111,13 @@ export function Titlebar({
           {i18n.t('app.name')}
         </span>
       </div>
+
+      <SyncControl
+        syncing={syncing}
+        canSync={canSync}
+        onStart={onStartSync}
+        onStop={onStopSync}
+      />
 
       <ShapeControl layout={layout} onChoose={onLayout} />
 
