@@ -2,321 +2,242 @@
   "pages": [
     {
       "id": "page-1",
-      "name": "Interface"
+      "name": "System"
     },
     {
       "id": "page-2",
-      "name": "Idiomas"
+      "name": "Surfaces"
+    },
+    {
+      "id": "page-3",
+      "name": "Variants"
     }
   ],
   "artboards": [
     {
+      "file": "Anatomy.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 900,
+      "page": "page-1",
+      "title": "Anatomy and the seven rules"
+    },
+    {
+      "file": "Tokens.dc.html",
+      "x": 1920,
+      "y": 0,
+      "w": 1440,
+      "h": 900,
+      "page": "page-1",
+      "title": "Tokens, type, density, markers"
+    },
+    {
+      "file": "Empty.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 900,
+      "page": "page-2",
+      "title": "Nothing open yet"
+    },
+    {
+      "file": "NewSession.dc.html",
+      "x": 1920,
+      "y": 0,
+      "w": 1440,
+      "h": 900,
+      "page": "page-2",
+      "title": "The + opens a host form"
+    },
+    {
       "file": "Main.dc.html",
-      "page": "page-1",
-      "x": 0,
+      "x": 3840,
       "y": 0,
       "w": 1440,
       "h": 900,
-      "title": "Main window — dark"
+      "page": "page-2",
+      "title": "One group, three sessions"
     },
     {
-      "file": "MainLight.dc.html",
-      "page": "page-1",
-      "x": 1560,
-      "y": 0,
-      "w": 1440,
-      "h": 900,
-      "title": "Main window — light"
-    },
-    {
-      "file": "Sftp.dc.html",
-      "page": "page-1",
+      "file": "Collapsed.dc.html",
       "x": 0,
-      "y": 1020,
+      "y": 1080,
       "w": 1440,
       "h": 900,
-      "title": "SFTP dual pane"
+      "page": "page-2",
+      "title": "Sidebar closed"
     },
     {
-      "file": "Palette.dc.html",
-      "page": "page-1",
-      "x": 1560,
-      "y": 1020,
+      "file": "Groups.dc.html",
+      "x": 1920,
+      "y": 1080,
       "w": 1440,
       "h": 900,
-      "title": "Command palette"
+      "page": "page-2",
+      "title": "Four groups, six sessions"
     },
     {
-      "file": "Appearance.dc.html",
-      "page": "page-1",
-      "x": 0,
-      "y": 2040,
+      "file": "Broadcast.dc.html",
+      "x": 3840,
+      "y": 1080,
       "w": 1440,
       "h": 900,
-      "title": "Settings — appearance & tokens"
-    },
-    {
-      "file": "Sidebar.dc.html",
-      "page": "page-1",
-      "x": 1560,
-      "y": 2040,
-      "w": 480,
-      "h": 900,
-      "title": "Sessions sidebar"
+      "page": "page-2",
+      "title": "Typing into two of three"
     },
     {
       "file": "HostKey.dc.html",
-      "page": "page-1",
       "x": 0,
-      "y": 3060,
-      "w": 940,
-      "h": 640,
-      "title": "Host key — unknown (en)"
+      "y": 2160,
+      "w": 1440,
+      "h": 900,
+      "page": "page-2",
+      "title": "Unknown host key"
     },
     {
       "file": "HostKeyChanged.dc.html",
-      "page": "page-1",
-      "x": 1060,
-      "y": 3060,
-      "w": 940,
-      "h": 640,
-      "title": "Host key — changed (en)"
-    },
-    {
-      "file": "MainPtBr.dc.html",
-      "page": "page-2",
-      "x": 0,
-      "y": 0,
+      "x": 1920,
+      "y": 2160,
       "w": 1440,
       "h": 900,
-      "title": "Main window — pt-BR"
-    },
-    {
-      "file": "MainEs.dc.html",
       "page": "page-2",
-      "x": 1560,
-      "y": 0,
-      "w": 1440,
-      "h": 900,
-      "title": "Main window — es"
-    },
-    {
-      "file": "HostKeyPtBr.dc.html",
-      "page": "page-2",
-      "x": 0,
-      "y": 1020,
-      "w": 940,
-      "h": 640,
-      "title": "Host key unknown — pt-BR"
-    },
-    {
-      "file": "HostKeyEs.dc.html",
-      "page": "page-2",
-      "x": 1060,
-      "y": 1020,
-      "w": 940,
-      "h": 640,
-      "title": "Host key unknown — es"
-    },
-    {
-      "file": "HostKeyChangedPtBr.dc.html",
-      "page": "page-2",
-      "x": 2120,
-      "y": 1020,
-      "w": 940,
-      "h": 640,
-      "title": "Host key changed — pt-BR"
-    },
-    {
-      "file": "HostKeyChangedEs.dc.html",
-      "page": "page-2",
-      "x": 3180,
-      "y": 1020,
-      "w": 940,
-      "h": 640,
-      "title": "Host key changed — es"
+      "title": "Changed key, blocked"
     },
     {
       "file": "Failure.dc.html",
-      "page": "page-1",
-      "x": 0,
-      "y": 4080,
+      "x": 3840,
+      "y": 2160,
       "w": 1440,
       "h": 900,
-      "title": "Connection failure — in the session panel"
+      "page": "page-2",
+      "title": "Unreachable host"
     },
     {
-      "file": "HostKeyRefused.dc.html",
-      "page": "page-1",
-      "x": 1560,
-      "y": 4080,
+      "file": "Sftp.dc.html",
+      "x": 0,
+      "y": 3240,
       "w": 1440,
       "h": 900,
-      "title": "Host key refused — revoked"
-    },
-    {
-      "file": "SettingsSessions.dc.html",
-      "page": "page-1",
-      "x": 0,
-      "y": 5100,
-      "w": 1440,
-      "h": 900,
-      "title": "Settings — sessions"
-    },
-    {
-      "file": "Credential.dc.html",
-      "page": "page-1",
-      "x": 1560,
-      "y": 5100,
-      "w": 1040,
-      "h": 560,
-      "title": "Credential window — password and private key"
-    },
-    {
-      "file": "States.dc.html",
-      "page": "page-1",
-      "x": 0,
-      "y": 6120,
-      "w": 1440,
-      "h": 1840,
-      "title": "Connecting, and nothing open"
-    },
-    {
-      "file": "Markers.dc.html",
-      "page": "page-1",
-      "x": 1560,
-      "y": 6120,
-      "w": 560,
-      "h": 420,
-      "title": "Connection state markers"
+      "page": "page-2",
+      "title": "SFTP as a tab"
     },
     {
       "file": "PasteConfirm.dc.html",
-      "page": "page-1",
-      "x": 0,
-      "y": 8080,
+      "x": 1920,
+      "y": 3240,
       "w": 1440,
       "h": 900,
-      "title": "Paste confirmation"
+      "page": "page-2",
+      "title": "Paste, with typing synchronised"
     },
     {
-      "file": "Split.dc.html",
-      "page": "page-1",
-      "x": 1560,
-      "y": 8080,
+      "file": "Palette.dc.html",
+      "x": 3840,
+      "y": 3240,
       "w": 1440,
       "h": 900,
-      "title": "Split panes, typing into both"
+      "page": "page-2",
+      "title": "Command palette"
+    },
+    {
+      "file": "Settings.dc.html",
+      "x": 0,
+      "y": 4320,
+      "w": 1440,
+      "h": 900,
+      "page": "page-2",
+      "title": "The gear opens a tab"
+    },
+    {
+      "file": "Credential.dc.html",
+      "x": 1920,
+      "y": 4320,
+      "w": 1040,
+      "h": 560,
+      "page": "page-2",
+      "title": "Credential window, its own window"
+    },
+    {
+      "file": "MainLight.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 900,
+      "page": "page-3",
+      "title": "Main window, light"
+    },
+    {
+      "file": "MainPtBr.dc.html",
+      "x": 1920,
+      "y": 0,
+      "w": 1440,
+      "h": 900,
+      "page": "page-3",
+      "title": "Main window, pt-BR"
+    },
+    {
+      "file": "MainEs.dc.html",
+      "x": 3840,
+      "y": 0,
+      "w": 1440,
+      "h": 900,
+      "page": "page-3",
+      "title": "Main window, es"
     }
   ],
   "annotations": [
     {
-      "id": "brief",
-      "page": "page-1",
+      "id": "system-brief",
       "x": 0,
-      "y": -210,
-      "w": 620,
-      "text": "Runic SSH — visual direction\n\nWindows Terminal / VS Code density: custom titlebar carrying the session tabs, sessions sidebar always visible, status bar on the floor.\n\nPalette is lifted from assets/logo.png: navy base, cyan #1ea7e2 to violet #b961e6 for accent and brand. Type is Manrope for UI, JetBrains Mono for the terminal."
+      "y": -300,
+      "w": 760,
+      "page": "page-1",
+      "text": "The record, rebuilt from ADR-0020\n\nThis page is the system: the anatomy every surface inherits and the tokens every surface is drawn from. The Surfaces page applies it thirteen times; the Variants page is the light theme and the longest-language check.\n\nThe artboards are generated. gen.py builds every one from a single skeleton, so a change to the anatomy is one edit rather than thirteen, and two screens cannot drift apart by hand. gen.py --light regenerates the light variant from the same code with only the token values swapped, which is the claim tokens.css makes and this is the proof of it.\n\nCopy comes from src/locales/. A string here that is not in the catalogue is the artboard inventing interface."
     },
     {
-      "id": "theme-note",
-      "page": "page-1",
-      "x": 1560,
-      "y": -210,
-      "w": 520,
-      "text": "Light is the same token set with the values swapped, not a second design. Every surface, border and terminal color resolves from the table on the Settings artboard — that is what makes the v0.3 custom-theme promise cheap instead of a rewrite."
-    },
-    {
-      "id": "sidebar-note",
-      "page": "page-1",
-      "x": 2100,
-      "y": 2040,
+      "id": "tokens-note",
+      "x": 3420,
+      "y": 0,
       "w": 340,
-      "text": "Connection state is carried by one 6px dot in a fixed position, never by colour alone: connected fills it, connecting outlines it amber with a halo, saved leaves it hollow, a key mismatch replaces it with a warning triangle, and unreachable replaces it with a slashed circle. The Markers artboard is the specimen sheet — five states, drawn once."
+      "page": "page-1",
+      "text": "The tokens had a guard and never a meaning\n\nA file of hex values does not say that surface-terminal is deepest because that is where the eye rests, or that warn belongs to connecting and to armed broadcast and to nothing else.\n\nThe red box is the honest part. The guard is strong and there is one thing it cannot see."
+    },
+    {
+      "id": "surfaces-brief",
+      "x": 0,
+      "y": -300,
+      "w": 760,
+      "page": "page-2",
+      "text": "Every screen a person can meet, in the anatomy ADR-0020 fixed\n\nEach rectangle in the main area is a group: a 28px strip of tabs plus the body of the active one. A surface belonging to a session renders in the group whose active tab it is, which is why the host key screens and the failure screen sit inside one rectangle while the terminals around them keep running.\n\nThe credential window is the exception and always was. It is a separate OS window under ADR-0008, so that a document rendering hostile terminal output is never the document holding a password. Nothing in ADR-0020 touches it, which is why it is the one artboard here that was not redrawn."
+    },
+    {
+      "id": "safety-note",
+      "x": 3420,
+      "y": 1080,
+      "w": 340,
+      "page": "page-2",
+      "text": "The safety markers, in one place\n\nArmed broadcast reaches the active tab of each group, so a session behind another is connected and not receiving. Four markers say what is happening and none of them is colour alone: a checked square on each receiving tab, a warn border around each receiving group, a check in the sidebar row with SPARED on the ones held out, and the whole top edge of the status bar turning warn with the count and the way off.\n\nThe rail is pinned and locked while armed. The sidebar may still be closed: every receiving host has a tab naming it."
     },
     {
       "id": "hostkey-note",
-      "page": "page-1",
-      "x": 2080,
-      "y": 3060,
-      "w": 360,
-      "text": "Security rule 3 made visual.\n\nUnknown key: trusting is gated behind an out-of-band verification checkbox, so the primary button starts inert.\n\nChanged key: the safe action is the only filled button. The override is a low-contrast outline that stays dead until the host name is typed."
-    },
-    {
-      "id": "l10n-brief",
-      "page": "page-2",
-      "x": 0,
-      "y": -230,
-      "w": 640,
-      "text": "Longest-language check — pt-BR and neutral es against the same layout\n\nThe screens on the Interface page were composed against English. These are the same artboards with the catalog swapped, at identical sizes, to find what breaks before any component is written. Terminal output stays English on purpose: remote text is never translated."
-    },
-    {
-      "id": "l10n-findings",
-      "page": "page-2",
-      "x": 3120,
-      "y": -230,
-      "w": 460,
-      "text": "What the check found\n\nOne real break: the unknown-key footer put three buttons and the known_hosts note in one row, leaving about 24px of slack in pt-BR. The note moved above the buttons — in English too, since the layout is one layout.\n\nEverything else held. STAGING to HOMOLOGAÇÃO grows 55% and still fits the 264px sidebar; IMPRESSÃO DIGITAL SHA256 grows 47% and still fits its card."
-    },
-    {
-      "id": "l10n-intl",
-      "page": "page-2",
-      "x": 0,
-      "y": 1780,
-      "w": 520,
-      "text": "2,4 MB in the status bar is not a translated string — it comes from Intl.NumberFormat reading the active locale. Both pt-BR and es use the decimal comma. This is the class of bug that gets reported as 'the numbers are wrong' when a project hardcodes English formatting."
-    },
-    {
-      "id": "l10n-security",
-      "page": "page-2",
-      "x": 2120,
-      "y": 1780,
-      "w": 520,
-      "text": "These two dialogs are the security copy that CLAUDE.md section 1 now requires a native speaker to review before release. Nobody has been named for Spanish yet — that is the open thread from ADR-0007, and it blocks release, not implementation."
-    },
-    {
-      "id": "failure-note",
-      "page": "page-1",
-      "x": 2100,
-      "y": 4080,
-      "w": 360,
-      "text": "Two variants, one frame. Twelve failures share this surface; four of them are not retryable — an RSA key we refuse, a revoked host key, a certificate-required host, and an unknown session — and those drop the Try again button rather than offering a press that cannot work.\n\nUnreachable is drawn cool, not red. A host being down is not a security event; a changed key is."
-    },
-    {
-      "id": "refused-note",
-      "page": "page-1",
-      "x": 3120,
-      "y": 4080,
-      "w": 360,
-      "text": "Revoked and certificate-required end in no decision at all. There is one button and it cancels — offering an override would defeat the only purpose the marker has.\n\nCertificate-required swaps the title and the sentence; everything else on this artboard holds."
-    },
-    {
-      "id": "credential-note",
-      "page": "page-1",
-      "x": 2620,
-      "y": 5100,
-      "w": 360,
-      "text": "Drawn from src/credential/CredentialWindow.tsx at its real size — inner_size(440, 340), not resizable. The first version of this artboard was drawn from a screenshot and got two things wrong: it offered a key *path* where the component takes pasted key material, and it omitted the keychain checkbox entirely.\n\nThe window manager draws the title bar. credential.rs keeps decorations(true) on this window alone, and the reason is not aesthetic: a prompt whose script fails to load and has no OS close button is a connection that can never be cancelled — the hang ADR-0008 calls the worst failure of this design. The seam is drawn here rather than hidden.\n\nIt is the only surface outside the main window, because rule 1 of section 7 keeps secrets out of the document that renders terminal output. A modal inside the webview would be exactly as forbidden as an inline panel.\n\nFinding: at 340px the private key box shows about two and a half lines. It scrolls, and nobody reads a pasted key — but if that turns out to be uncomfortable, the fix is a taller window for the key method, not a smaller font."
-    },
-    {
-      "id": "states-note",
-      "page": "page-1",
-      "x": 1560,
-      "y": 7000,
-      "w": 380,
-      "text": "Connecting had no drawing and therefore no design: the built application showed an empty panel and one word in the status bar for as long as the TCP stack took to give up.\n\nThe surface names the host, says what has and has not been sent yet, and offers Cancel — an affordance the implementation does not have at all today."
-    },
-    {
-      "id": "markers-note",
-      "page": "page-1",
-      "x": 2180,
-      "y": 6120,
+      "x": 3420,
+      "y": 2160,
       "w": 340,
-      "text": "Drawn because the sidebar annotation specified four states and the code has five. `unreachable` existed only as a choice somebody made while implementing, which is how a design system stops being one."
+      "page": "page-2",
+      "text": "The two screens that are the product's argument\n\nUnknown key: the primary button is inert until the out-of-band checkbox is ticked, because clicking through is the failure the screen exists to prevent.\n\nChanged key: the safe action is the only filled button, the override is low contrast and dead until the host name is typed. A rebuilt host and a machine in the middle look identical from here, and only one of them is survivable.\n\nThe randomart is drawn because it exists on feat/visual-improvements. Its test pins the implementation's own output rather than ssh-keygen -lv, which is tracked in #135."
+    },
+    {
+      "id": "variants-brief",
+      "x": 0,
+      "y": -300,
+      "w": 760,
+      "page": "page-3",
+      "text": "Light, and the longest-language check\n\nMainLight is generated by gen.py --light: the same code, the same layout, only the token values swapped. If light ever needed a different layout, tokens.css would be making a claim it could not keep.\n\nMainPtBr and MainEs come from gen-locales.mjs, which substitutes catalogue strings into the English artboard and fails hard when a replacement does not match exactly once. Terminal output stays English on purpose: remote text is never translated.\n\nWhat is not here yet: locale variants of the host key screens. The old canvas had them and that is where its one real layout break was found, so they are worth rebuilding rather than quietly dropped."
     }
   ],
   "launch": {
     "view": "canvas",
-    "page": "page-2"
+    "page": "page-1"
   }
 }
