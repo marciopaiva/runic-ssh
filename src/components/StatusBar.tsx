@@ -4,6 +4,7 @@ import type { ConnectionKind } from '../features/sessions';
 import { describeState } from '../features/sessions';
 import { useTranslator } from '../features/settings';
 import { ENCODING, TERM, gradeLatency, paletteKeys } from '../features/status';
+import type { GroupLabel } from '../features/terminal';
 import type { TerminalSize } from '../features/terminal/use-terminal';
 import type { CommandModifier, SessionStats } from '../ipc';
 
@@ -12,6 +13,8 @@ import { SessionMarker } from './SessionMarker';
 interface StatusBarProps {
   /** `null` when no session is open. */
   readonly kind: ConnectionKind | null;
+  /** What the focused session is called, or `null` when a tab is not one. */
+  readonly identity: GroupLabel | null;
   readonly stats: SessionStats;
   readonly size: TerminalSize | null;
   readonly modifier: CommandModifier;
@@ -69,6 +72,7 @@ function LatencyBars({ filled }: { readonly filled: number }): JSX.Element {
  */
 export function StatusBar({
   kind,
+  identity,
   stats,
   size,
   modifier,
@@ -105,6 +109,24 @@ export function StatusBar({
           )}
         </>
       </Cell>
+
+      {/* Which host the rest of this bar is about. The same label a tab
+          carries, from the same helper, so the two cannot come to call one
+          session by two names. Without it the bar reads as facts about
+          nothing in particular, which is fine with one terminal and stops
+          being fine the moment four are on screen. */}
+      {identity !== null && (
+        <Cell title={`${identity.name} ${identity.where}`}>
+          <>
+            <span className="text-ink-secondary max-w-[160px] truncate font-semibold">
+              {identity.name}
+            </span>
+            <span className="text-ink-faint max-w-[200px] truncate font-mono">
+              {identity.where}
+            </span>
+          </>
+        </Cell>
+      )}
 
       <Cell title={i18n.t(latency.label)}>
         <>
