@@ -53,6 +53,25 @@ pub enum Error {
     #[error("no saved session has that id")]
     UnknownSession { id: String },
 
+    #[error("the jump host cannot be used")]
+    InvalidProxyJump {
+        problem: crate::config::sessions::ProxyJumpProblem,
+    },
+
+    /// A chain failed, and this says at which host. See [`Hop`].
+    ///
+    /// A wrapper rather than a field on every variant: "connection refused" is
+    /// the same sentence whichever host refused, and the difference the user
+    /// needs is which one it was.
+    ///
+    /// [`Hop`]: crate::ssh::connection::Hop
+    #[error("the connection failed at one hop of a chain")]
+    Chain {
+        hop: crate::ssh::connection::Hop,
+        #[source]
+        inner: Box<Error>,
+    },
+
     #[error("that connection is not open")]
     UnknownHandle,
 
@@ -170,6 +189,21 @@ pub enum IpcError {
     UnknownSession {
         id: String,
     },
+    /// The jump host a session names cannot be used. `problem` says which of
+    /// the three ways, because they need three different things from the
+    /// reader: pick another, restore the one that is gone, or shorten a chain.
+    InvalidProxyJump {
+        problem: &'static str,
+    },
+    /// A failure that happened at one hop of a chain. `hop` names which host
+    /// it happened at; `inner` is the failure itself.
+    ///
+    /// Additive: a caller that does not know this code falls through to the
+    /// generic failure, which is what it did before chains existed.
+    ChainFailed {
+        hop: crate::ssh::connection::Hop,
+        inner: Box<IpcError>,
+    },
     /// The handle does not name an open connection.
     UnknownHandle,
     /// The webview sent both a password and a key, or neither.
@@ -247,6 +281,17 @@ impl From<Error> for IpcError {
             Error::InvalidLocale { requested } => Self::InvalidLocale { requested },
             Error::Ssh(ssh) => Self::from(*ssh),
             Error::UnknownSession { id } => Self::UnknownSession { id },
+            Error::InvalidProxyJump { problem } => Self::InvalidProxyJump {
+                problem: match problem {
+                    crate::config::sessions::ProxyJumpProblem::Itself => "itself",
+                    crate::config::sessions::ProxyJumpProblem::Unknown => "unknown",
+                    crate::config::sessions::ProxyJumpProblem::Chained => "chained",
+                },
+            },
+            Error::Chain { hop, inner } => Self::ChainFailed {
+                hop,
+                inner: Box::new(Self::from(*inner)),
+            },
             Error::UnknownHandle => Self::UnknownHandle,
             Error::AmbiguousCredential => Self::AmbiguousCredential,
             Error::MissingCredential => Self::MissingCredential,
