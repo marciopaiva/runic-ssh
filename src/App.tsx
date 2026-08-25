@@ -945,6 +945,8 @@ export function App(): JSX.Element {
            same height either way, so nothing below it moves. */
         controls={chrome === null ? [] : windowControls(chrome, maximized)}
         leadingInset={chrome?.leadingInset ?? 0}
+        layout={layout}
+        onLayout={chooseLayout}
         onAct={act}
       />
 
@@ -1091,8 +1093,14 @@ export function App(): JSX.Element {
 
           {/* Nothing open at all. A blank area beside a blank rail is
               indistinguishable from a window that failed to paint, and it is
-              the first thing a new user meets. */}
-          {entries.length === 0 && attemptSurface === null && (
+              the first thing a new user meets.
+
+              Only undivided. Splitting with nothing open used to be
+              unreachable, because the palette offered no shape without a
+              session; ADR-0021 made it reachable from the strip, and the empty
+              rectangles above say the same thing better than one panel drawn
+              over all of them. */}
+          {layout === 'single' && entries.length === 0 && attemptSurface === null && (
             <div className="absolute inset-0">
               <EmptyPanel modifier={chrome?.commandModifier ?? 'control'} />
             </div>

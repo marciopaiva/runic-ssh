@@ -180,6 +180,7 @@ export const SOURCE_CATALOG = {
   "settings.sessions.none": "No session saved yet.",
   "settings.sessions.pick": "Pick a host to edit, or add one.",
   "settings.title": "Settings",
+  "shape.label": "How the area is divided",
   "status.encoding": "Encoding",
   "status.idle": "No session",
   "status.latency.fair": "Latency: fair",
