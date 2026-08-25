@@ -146,7 +146,7 @@ describe('what counts as still working', () => {
   });
 
   it('is not working once it has failed', () => {
-    expect(isInProgress({ stage: 'failed', code: 'hostUnreachable' })).toBe(false);
+    expect(isInProgress({ stage: 'failed', code: 'hostUnreachable', hop: null })).toBe(false);
   });
 
   it('is not working before anything started', () => {

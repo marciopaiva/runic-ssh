@@ -2,13 +2,18 @@ import type { JSX } from 'react';
 
 import { describeFailure } from '../features/sessions';
 import { useTranslator } from '../features/settings';
-import type { IpcErrorCode, Session } from '../ipc';
+import type { Hop, IpcErrorCode, Session } from '../ipc';
 
 import { SessionSurface, SurfaceAction } from './SessionSurface';
 
 interface ConnectionFailureProps {
   readonly session: Session;
   readonly code: IpcErrorCode;
+  /**
+   * Which host in a chain the failure happened at, or `null` when the session
+   * is not behind one.
+   */
+  readonly hop: Hop | null;
   readonly onRetry: () => void;
   readonly onDismiss: () => void;
 }
@@ -31,6 +36,7 @@ interface ConnectionFailureProps {
 export function ConnectionFailure({
   session,
   code,
+  hop,
   onRetry,
   onDismiss,
 }: ConnectionFailureProps): JSX.Element {
@@ -55,12 +61,21 @@ export function ConnectionFailure({
       }
       body={i18n.t(failure.body)}
       note={
-        <span className="font-mono">
-          {i18n.t('failure.host', {
-            user: session.user,
-            host: session.host,
-            port: session.port,
-          })}
+        <span className="flex flex-col gap-1">
+          <span className="font-mono">
+            {i18n.t('failure.host', {
+              user: session.user,
+              host: session.host,
+              port: session.port,
+            })}
+          </span>
+          {/* Which hop failed, when there was more than one. "Could not reach
+              the host" is true of both hosts in a chain and says nothing about
+              which, and the two call for opposite reactions: one is the jump
+              host being down, the other is everything past it. */}
+          {hop !== null && (
+            <span>{i18n.t(hop === 'bastion' ? 'failure.hop.bastion' : 'failure.hop.target')}</span>
+          )}
         </span>
       }
       actions={

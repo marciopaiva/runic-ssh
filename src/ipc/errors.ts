@@ -6,6 +6,14 @@
  * against the code. See ADR-0007 and `src-tauri/src/error.rs`.
  */
 
+/**
+ * Which host in a chain something happened at.
+ *
+ * A direct connection is always `'target'`, so nothing has to special-case the
+ * ordinary case. See ADR-0023.
+ */
+export type Hop = 'target' | 'bastion';
+
 export type IpcError =
   | { readonly code: 'configDirUnavailable' }
   | { readonly code: 'settingsUnreadable'; readonly path: string }
@@ -47,6 +55,34 @@ export type IpcError =
   | { readonly code: 'terminalAlreadyOpen' }
   /** A saved session was rejected; `field` names which part. */
   | { readonly code: 'invalidSession'; readonly field: string }
+  /**
+   * The jump host a session names cannot be used.
+   *
+   * Three problems rather than one message, because they ask three different
+   * things of the reader: pick another host, restore the one that is gone, or
+   * shorten a chain that is longer than one hop.
+   */
+  | {
+      readonly code: 'invalidProxyJump';
+      readonly problem: 'itself' | 'unknown' | 'chained';
+    }
+  /**
+   * A connection failed at one hop of a chain.
+   *
+   * `hop` says which host, because "the host could not be reached" is the same
+   * sentence whichever one it was, and which one is the part the reader cannot
+   * work out alone.
+   *
+   * Never wraps a `hostKeyDecision`: the interface finds a held decision by the
+   * code at the top of the error, and a wrapper there would leave a host behind
+   * a bastion unable to have its key accepted at all. See
+   * `commands::sessions::refusal`.
+   */
+  | {
+      readonly code: 'chainFailed';
+      readonly hop: Hop;
+      readonly inner: IpcError;
+    }
   /**
    * A host key needs a decision.
    *
@@ -127,6 +163,8 @@ export const CODES: ReadonlySet<IpcErrorCode> = new Set<IpcErrorCode>([
   'inputTooLarge',
   'terminalAlreadyOpen',
   'invalidSession',
+  'invalidProxyJump',
+  'chainFailed',
   'hostKeyDecision',
   'unknownDecision',
   'notAwaitingDecision',

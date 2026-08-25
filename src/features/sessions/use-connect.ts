@@ -24,8 +24,8 @@ import {
 } from '../../ipc';
 import type { HostKeyDecisionView, IpcErrorCode, SessionHandle } from '../../ipc';
 
-import { heldDecision, shouldPromptAfterSaved, shouldTrySaved } from './connect';
-import type { ConnectStage } from './connect';
+import { heldDecision, reportedFailure, shouldPromptAfterSaved, shouldTrySaved } from './connect';
+import type { ConnectStage, ReportedFailure } from './connect';
 
 interface Attempt {
   readonly sessionId: string;
@@ -78,10 +78,14 @@ export function useConnect(wiring: Wiring): ConnectState {
   const current = useCallback((mine: number): boolean => generation.current === mine, []);
 
   const fail = useCallback(
-    (sessionId: string, code: IpcErrorCode, mine: number): void => {
+    (sessionId: string, reported: ReportedFailure, mine: number): void => {
       if (!current(mine)) return;
 
-      setAttempt({ sessionId, stage: { stage: 'failed', code }, decision: null });
+      const { code, hop } = reported;
+      setAttempt({ sessionId, stage: { stage: 'failed', code, hop }, decision: null });
+      /* The state machine sees the inner code, so a bastion that cannot be
+         reached still marks the session unreachable. It is: the host cannot be
+         reached, and the reason is one hop further away than usual. */
       onFailed(sessionId, code);
     },
     [onFailed, current],
@@ -115,12 +119,12 @@ export function useConnect(wiring: Wiring): ConnectState {
           onOpened(sessionId, handle);
           return;
         } catch (rejection) {
-          const code = asIpcError(rejection)?.code ?? 'sshTransport';
-          if (!shouldPromptAfterSaved(code)) {
+          const reported = reportedFailure(asIpcError(rejection) ?? null);
+          if (!shouldPromptAfterSaved(reported.code)) {
             /* The connection is open and unusable. Closing it is the only
                way not to leave a socket nobody can reach. */
             void disconnectSession(handle);
-            fail(sessionId, code, mine);
+            fail(sessionId, reported, mine);
             return;
           }
         }
@@ -136,7 +140,7 @@ export function useConnect(wiring: Wiring): ConnectState {
         onOpened(sessionId, handle);
       } catch (rejection) {
         void disconnectSession(handle);
-        fail(sessionId, asIpcError(rejection)?.code ?? 'sshTransport', mine);
+        fail(sessionId, reportedFailure(asIpcError(rejection) ?? null), mine);
       }
     },
     [fail, onOpened, current],
@@ -158,7 +162,7 @@ export function useConnect(wiring: Wiring): ConnectState {
         const held = error === null ? null : heldDecision(error);
 
         if (held === null) {
-          fail(sessionId, error?.code ?? 'sshTransport', mine);
+          fail(sessionId, reportedFailure(error), mine);
           return;
         }
 
@@ -170,7 +174,7 @@ export function useConnect(wiring: Wiring): ConnectState {
 
           setAttempt({ sessionId, stage: { stage: 'deciding', decision: held }, decision });
         } catch {
-          fail(sessionId, 'unknownDecision', mine);
+          fail(sessionId, { code: 'unknownDecision', hop: null }, mine);
         }
         return;
       }
@@ -196,7 +200,11 @@ export function useConnect(wiring: Wiring): ConnectState {
       try {
         await trustHostKey(pending, confirmation);
       } catch (rejection) {
-        fail(sessionId, asIpcError(rejection)?.code ?? 'unknownDecision', generation.current);
+        fail(
+          sessionId,
+          { code: asIpcError(rejection)?.code ?? 'unknownDecision', hop: null },
+          generation.current,
+        );
         return;
       }
 

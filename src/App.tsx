@@ -44,6 +44,7 @@ import {
   isInProgress,
   isOverridable,
   needsConfirmation,
+  eligibleJumpHosts,
   parsePort,
   settled,
   stateAfterFailure,
@@ -587,7 +588,7 @@ export function App(): JSX.Element {
   const failed =
     failedSession === null || attempt === null || attempt.stage.stage !== 'failed'
       ? null
-      : { session: failedSession, code: attempt.stage.code };
+      : { session: failedSession, code: attempt.stage.code, hop: attempt.stage.hop };
 
   /* Activating a saved host is what starts a connection. An open one only
      switches, which is why the sidebar and the palette both route through
@@ -635,6 +636,7 @@ export function App(): JSX.Element {
             host={decision.host}
             fingerprint={decision.offered}
             reason={decision.verdict === 'revoked' ? 'revoked' : 'certificateRequired'}
+            hop={decision.hop}
             onCancel={abandon}
           />
         );
@@ -646,6 +648,7 @@ export function App(): JSX.Element {
             host={decision.host}
             storedFingerprints={decision.stored}
             offeredFingerprint={decision.offered}
+            hop={decision.hop}
             onReplace={(confirmation) => void trust(confirmation)}
             onCancel={abandon}
           />
@@ -658,6 +661,7 @@ export function App(): JSX.Element {
           port={decision.port}
           keyType={decision.keyType}
           fingerprint={decision.offered}
+          hop={decision.hop}
           onTrust={() => void trust()}
           onCancel={abandon}
         />
@@ -685,6 +689,7 @@ export function App(): JSX.Element {
         <ConnectionFailure
           session={failed.session}
           code={failed.code}
+          hop={failed.hop}
           onRetry={() => activate(failed.session.id)}
           onDismiss={abandon}
         />
@@ -764,6 +769,7 @@ export function App(): JSX.Element {
         port,
         user: filled.user.trim(),
         group: filled.group.trim() === '' ? null : filled.group.trim(),
+        proxyJump: filled.proxyJump === '' ? null : filled.proxyJump,
       }).then((stored) => {
         /* Saving a host that did not exist closes the tab it was created on.
            The alternative is a tab that goes on saying "New session" while
@@ -1213,6 +1219,10 @@ export function App(): JSX.Element {
                   values={open.values}
                   wrong={open.wrong}
                   discarding={open.discarding}
+                  jumpHosts={eligibleJumpHosts(
+                    saved,
+                    open.target.kind === 'existing' ? open.target.sessionId : null,
+                  )}
                   onChange={(field, value) => changeIn(open.target, field, value)}
                   onSubmit={() => submitIn(open.target)}
                   onDelete={() => removeIn(open.target)}

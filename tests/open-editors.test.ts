@@ -36,6 +36,7 @@ function session(id: string, name: string): Session {
     user: 'deploy',
     group: null,
     credentialId: null,
+    proxyJump: null,
   };
 }
 
