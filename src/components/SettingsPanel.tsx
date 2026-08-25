@@ -60,8 +60,8 @@ export function SettingsPanel({
             </p>
           </div>
 
-          <fieldset className="flex flex-col gap-1.5">
-            <legend className="text-ink pb-1.5 text-[12.5px] font-medium">
+          <fieldset className="m-0 flex min-w-0 flex-col gap-1.5 border-0 p-0">
+            <legend className="text-ink p-0 pb-1.5 text-[12.5px] font-medium">
               {i18n.t('settings.theme')}
             </legend>
 
@@ -96,30 +96,49 @@ export function SettingsPanel({
             <span className="text-ink text-[12.5px] font-medium">
               {i18n.t('settings.language')}
             </span>
-            <select
-              value={chosenLocale ?? ''}
-              onChange={(event) =>
-                onChooseLocale(event.target.value === '' ? null : event.target.value)
-              }
-              className="bg-surface-input text-ink border-line-subtle w-[260px] rounded border px-2.5 py-1.5 text-[12.5px] outline-none"
-            >
-              <option value="">{i18n.t('settings.language.system')}</option>
-              {offeredLocales().map((locale) => (
-                /* The language's own name for itself, never translated: a
-                   reader looking for their language cannot find it under a
-                   name written in one they do not read. */
-                <option key={locale.tag} value={locale.tag}>
-                  {locale.name}
-                </option>
-              ))}
-            </select>
+            {/* The chevron is ours because the control is. Left to the
+                platform, the closed select is painted in the platform's own
+                colours: on dark that was a white box with a white label, which
+                is #163. `color-scheme` in tokens.css tells the engine which
+                way to paint the popup it still owns. */}
+            <span className="relative block w-[260px]">
+              <select
+                value={chosenLocale ?? ''}
+                onChange={(event) =>
+                  onChooseLocale(event.target.value === '' ? null : event.target.value)
+                }
+                className="bg-surface-input text-ink border-line-subtle w-full appearance-none rounded border py-1.5 pr-8 pl-2.5 text-[12.5px] outline-none"
+              >
+                <option value="">{i18n.t('settings.language.system')}</option>
+                {offeredLocales().map((locale) => (
+                  /* The language's own name for itself, never translated: a
+                     reader looking for their language cannot find it under a
+                     name written in one they do not read. */
+                  <option key={locale.tag} value={locale.tag}>
+                    {locale.name}
+                  </option>
+                ))}
+              </select>
+              <svg
+                viewBox="0 0 24 24"
+                className="text-ink-faint pointer-events-none absolute top-1/2 right-2.5 h-3.5 w-3.5 -translate-y-1/2"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </span>
             <span className="text-ink-faint text-[11px] leading-snug">
               {i18n.t('settings.language.hint')}
             </span>
           </label>
 
-          <fieldset className="flex flex-col gap-1.5">
-            <legend className="text-ink pb-1.5 text-[12.5px] font-medium">
+          <fieldset className="m-0 flex min-w-0 flex-col gap-1.5 border-0 p-0">
+            <legend className="text-ink p-0 pb-1.5 text-[12.5px] font-medium">
               {i18n.t('settings.decorations')}
             </legend>
 
