@@ -209,6 +209,12 @@ export function App(): JSX.Element {
     readonly entry: Focus | null;
     readonly at: { readonly x: number; readonly y: number };
   } | null>(null);
+  /* The list of saved hosts, opened from a group's `+`, and which rectangle
+     asked for it. */
+  const [addMenu, setAddMenu] = useState<{
+    readonly group: number;
+    readonly at: { readonly x: number; readonly y: number };
+  } | null>(null);
   /* A paste held back for an answer, and the session that asked. Held here
      rather than inside the terminal so it renders in that session's panel the
      way every other question does, per ADR-0015. */
@@ -519,19 +525,46 @@ export function App(): JSX.Element {
     [groups, entries, attentionId, abandon, disconnect],
   );
 
-  /* The `+` on a group's strip. The form lands in the group whose `+` was
-     pressed, which is not always the one holding the focus.
+  /* Putting a saved host in a particular rectangle.
+     What the `+` on a group's strip is for. The first version of it opened the
+     host form, which is what somebody wants perhaps once; what they want in
+     front of an empty rectangle is one of the hosts they already have.
 
-     `moveEntry` and not `placeEntry`, which is the difference between this and
-     the sidebar's `+`. There is one new-session form and not one per group
-     (ADR-0017, #96), so pressing this while it is open in another rectangle
-     has to bring it here. `placeEntry` would refuse and move only the focus,
-     and a button whose visible effect is somewhere else reads as one that is
+     The group is claimed before the connection exists. `held` is a hint and
+     `resolveGroups` simply does not draw an entry that is not open yet, so the
+     session appears here rather than wherever the focus happened to be when
+     the host finally answered. */
+  const openHere = useCallback(
+    (sessionId: string, group: number): void => {
+      const live = sessions.find((entry) => entry.session.id === sessionId);
+      if (live === undefined) return;
+
+      const mine: Focus = { kind: 'session', sessionId };
+      setHeld((current) => moveEntry(current, mine, group));
+      setSelected(sessionId);
+      setFocus(mine);
+
+      /* Already open, or already on its way. Both only move; a second connect
+         to the same host is two sockets with the first orphaned. */
+      if (live.handle !== null) return;
+      if (attempt !== null && attempt.sessionId === sessionId && isInProgress(attempt.stage)) {
+        return;
+      }
+
+      void connect(sessionId, live.session.credentialId);
+    },
+    [sessions, attempt, connect],
+  );
+
+  /* The host form, from the same `+`, at the end of the list of hosts. Still
+     one form and not one per group (ADR-0017, #96), so `moveEntry` rather than
+     `placeEntry`: pressing this while it is open in another rectangle brings
+     it here instead of only moving the focus, which reads as a button that is
      not wired up. */
-  const addIn = useCallback((at: number): void => {
+  const addFormIn = useCallback((group: number): void => {
     const target: EditorTarget = { kind: 'new' };
     setEditors((current) => withEditor(current, target, savedRef.current));
-    setHeld((current) => moveEntry(current, { kind: 'editor', target }, at));
+    setHeld((current) => moveEntry(current, { kind: 'editor', target }, group));
     setFocus({ kind: 'editor', target });
   }, []);
 
@@ -933,6 +966,35 @@ export function App(): JSX.Element {
      the bar and a strip cannot disagree about a session's name. */
   const activeIdentity = activeId === null ? null : (paneLabels.get(activeId) ?? null);
 
+  /* What the `+` offers: every saved host, in the order the sidebar lists
+     them, and the form at the end. A host already open is offered too, because
+     from an empty rectangle "bring that one here" is the same gesture as
+     "open that one here" and the strip cannot know which the person meant. */
+  const addMenuItems = useMemo<readonly GroupMenuItem[]>(() => {
+    if (addMenu === null) return [];
+
+    const items: GroupMenuItem[] = sessions.map((live) => ({
+      id: `open:${live.session.id}`,
+      label: live.session.name,
+      detail: `${live.session.user}@${live.session.host}`,
+      run: () => {
+        openHere(live.session.id, addMenu.group);
+        setAddMenu(null);
+      },
+    }));
+
+    items.push({
+      id: 'new',
+      label: i18n.t('group.add.new'),
+      run: () => {
+        addFormIn(addMenu.group);
+        setAddMenu(null);
+      },
+    });
+
+    return items;
+  }, [addMenu, sessions, i18n, openHere, addFormIn]);
+
   const pasteBox =
     pendingPaste === null ? null : boxOf({ kind: 'session', sessionId: pendingPaste.sessionId });
   const attemptBox =
@@ -985,20 +1047,32 @@ export function App(): JSX.Element {
              terminal to its group whatever the fit arithmetic rounds to. */
           className="bg-surface-base relative min-w-0 flex-1 overflow-hidden"
         >
-          {/* The groups themselves: a border and a strip. Drawn before the
-              surfaces so the bodies below paint over the empty half of each
-              frame rather than under it. */}
+          {/* Every rectangle is a strip over the body of whichever tab it is
+              showing, empty ones included. ADR-0020 rule 2, and an empty group
+              is where it earns the most: the `+` on its strip is the only
+              thing that rectangle can offer, and it is the thing it is for. */}
           {groups.map((group, at) => {
-            if (group.entries.length === 0) return null;
-
             const shown = shownSession(group);
             const syncing = armed && shown !== null && !muted.has(shown);
+            const empty = group.entries.length === 0;
 
             return (
               <div
                 key={`group-${String(at)}`}
-                className={`bg-surface-terminal absolute flex flex-col overflow-hidden ${
-                  EDGES[groupEdge(layout, at === focusedGroup, syncing)]
+                className={`absolute flex flex-col overflow-hidden ${
+                  !empty
+                    ? `bg-surface-terminal ${EDGES[groupEdge(layout, at === focusedGroup, syncing)]}`
+                    : layout === 'single'
+                      ? /* The whole area, with nothing open in it. The panel
+                           below says so in words; a dashed line around the
+                           entire window would be saying it twice, and on the
+                           first screen anybody meets. */
+                        EDGES.none
+                      : /* One rectangle of a split. Dashed rather than solid
+                           so it reads as somewhere to put a session and not as
+                           a terminal that failed to paint, which is the worry
+                           the empty panel was written for. */
+                        'border-line-subtle border-2 border-dashed'
                 }`}
                 style={frameStyle(group.box)}
               >
@@ -1032,12 +1106,26 @@ export function App(): JSX.Element {
                      the hook, because that is one of the ways unsaved work gets
                      thrown out. */
                   onClose={closeFocus}
-                  onAdd={() => addIn(at)}
+                  onAdd={(point) => setAddMenu({ group: at, at: point })}
                   onMenu={(entry, point) =>
                     setGroupMenu({ group: at, entry, at: point })
                   }
                 />
-                <div className="min-h-0 flex-1" />
+
+                {/* The body is drawn by the surfaces below, which are siblings
+                    of this frame rather than children of it: a terminal that
+                    changed parent on the way between groups would be
+                    remounted, which is what ADR-0014 exists to prevent. The
+                    exception is a rectangle with nothing in it, which has no
+                    surface to draw and says so here. */}
+                <div className="min-h-0 flex-1">
+                  {empty && (
+                    <EmptyPanel
+                      modifier={chrome?.commandModifier ?? 'control'}
+                      variant={layout === 'single' && entries.length === 0 ? 'panel' : 'pane'}
+                    />
+                  )}
+                </div>
               </div>
             );
           })}
@@ -1072,39 +1160,6 @@ export function App(): JSX.Element {
               />
             );
           })}
-
-          {/* A group with nothing in it yet. Dashed rather than solid so it
-              reads as somewhere to put a session and not as a terminal that
-              failed to paint, which is the same worry the empty panel below
-              was written for. It has no strip: there is nothing to name, and
-              the affordances that would live there are #137 step 4. */}
-          {layout !== 'single' &&
-            groups.map((group, at) =>
-              group.entries.length === 0 ? (
-                <div
-                  key={`empty-${String(at)}`}
-                  className="border-line-subtle absolute border-2 border-dashed"
-                  style={frameStyle(group.box)}
-                >
-                  <EmptyPanel modifier={chrome?.commandModifier ?? 'control'} variant="pane" />
-                </div>
-              ) : null,
-            )}
-
-          {/* Nothing open at all. A blank area beside a blank rail is
-              indistinguishable from a window that failed to paint, and it is
-              the first thing a new user meets.
-
-              Only undivided. Splitting with nothing open used to be
-              unreachable, because the palette offered no shape without a
-              session; ADR-0021 made it reachable from the strip, and the empty
-              rectangles above say the same thing better than one panel drawn
-              over all of them. */}
-          {layout === 'single' && entries.length === 0 && attemptSurface === null && (
-            <div className="absolute inset-0">
-              <EmptyPanel modifier={chrome?.commandModifier ?? 'control'} />
-            </div>
-          )}
 
           {editors.map((open) => {
             const mine: Focus = { kind: 'editor', target: open.target };
@@ -1236,6 +1291,15 @@ export function App(): JSX.Element {
           setMuted(new Set());
         }}
       />
+
+      {addMenu !== null && (
+        <GroupMenu
+          items={addMenuItems}
+          at={addMenu.at}
+          label={i18n.t('group.add')}
+          onDismiss={() => setAddMenu(null)}
+        />
+      )}
 
       {groupMenu !== null && (
         <GroupMenu

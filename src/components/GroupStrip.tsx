@@ -67,8 +67,8 @@ interface GroupStripProps {
   readonly onFocus: (focus: Focus) => void;
   /** Closing any tab, whichever kind. The shell knows what each one means. */
   readonly onClose: (focus: Focus) => void;
-  /** Opens a host form as a tab in this group. */
-  readonly onAdd: () => void;
+  /** Opens the list of saved hosts, anchored to the button that asked. */
+  readonly onAdd: (at: { readonly x: number; readonly y: number }) => void;
   /** Opens this group's menu, about one of its tabs, at a point on screen. */
   readonly onMenu: (entry: Focus | null, at: { readonly x: number; readonly y: number }) => void;
 }
@@ -285,7 +285,10 @@ export function GroupStrip({
       <div className="text-ink-faint flex shrink-0 items-center gap-2 pr-2">
         <button
           type="button"
-          onClick={onAdd}
+          onClick={(event) => {
+            const box = event.currentTarget.getBoundingClientRect();
+            onAdd({ x: box.right - 4, y: box.bottom + 2 });
+          }}
           aria-label={i18n.t('group.add')}
           title={i18n.t('group.add')}
           className="hover:text-ink flex h-4 w-4 items-center justify-center"
@@ -295,6 +298,10 @@ export function GroupStrip({
           </svg>
         </button>
 
+        {/* Nothing to do to a rectangle holding nothing. The `+` beside it is
+            the only thing an empty group can offer, and it is the thing it is
+            for. */}
+        {entries.length > 0 && (
         <button
           type="button"
           onClick={(event) => {
@@ -311,6 +318,7 @@ export function GroupStrip({
             <circle cx="18.5" cy="12" r="1.6" />
           </svg>
         </button>
+        )}
       </div>
     </div>
   );
