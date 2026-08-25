@@ -451,9 +451,24 @@ def build_broadcast():
     write("Broadcast.dc.html", page(grid, sb, rail(locked=True, badge="4", accent=T['warn']), st))
 
 # ---------- 6. unknown host key, inside the group that asked
-RANDOMART = ["+----[SHA256]-----+", "|      .oo+*B@X   |", "|     . o.o+o=.o  |",
-             "|      o + .o..   |", "|     . B .  .    |", "|      = S .      |",
-             "|     . = o       |", "|      o + .      |", "|       o E       |", "+-----------------+"]
+# A real picture, from `ssh-keygen -lv` on the key whose fingerprint is
+# pinned in tests/randomart.test.ts. The one drawn here before was invented,
+# and it put the hash label on the top border where OpenSSH puts the key
+# type. An artboard of a screen whose whole job is comparing by eye should
+# not be the one thing on it that was drawn from memory.
+RANDOMART = [
+    "+--[ED25519 256]--+",
+    "|             ..o |",
+    "|   + .        = +|",
+    "|  + = +      . B |",
+    "|   + * . .    + .|",
+    "|    o = S o o o=o|",
+    "|     . = o o B.==|",
+    "|      o . o + Bo.|",
+    "|     .   .   = ++|",
+    "|          .oo E.+|",
+    "+----[SHA256]-----+",
+]
 
 def build_hostkey():
     art = "\n".join(RANDOMART)
