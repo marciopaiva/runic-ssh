@@ -17,6 +17,64 @@ import { describe, expect, it } from 'vitest';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 const tokensFile = join(repoRoot, 'src/styles/tokens.css');
+const canvasFile = join(repoRoot, 'design/canvas/gen.py');
+const entryFile = join(repoRoot, 'src/main.tsx');
+
+/**
+ * The short names the canvas generator uses, against the tokens they were
+ * lifted from.
+ *
+ * `gen.py` says at the top that its palette comes from this file. Nothing made
+ * that true, and for a while it was not: the canvas was rebuilt from the
+ * refined values while the tree still carried the ones before them, so the
+ * record and the application disagreed about what colour the interface is.
+ */
+const CANVAS_NAMES: Readonly<Record<string, string>> = {
+  base: 'surface-base',
+  panel: 'surface-panel',
+  chrome: 'surface-chrome',
+  raised: 'surface-raised',
+  overlay: 'surface-overlay',
+  terminal: 'surface-terminal',
+  input: 'surface-input',
+  line: 'border-subtle',
+  line2: 'border-strong',
+  ink: 'text-primary',
+  ink2: 'text-secondary',
+  muted: 'text-muted',
+  faint: 'text-faint',
+  off: 'text-disabled',
+  accent: 'accent',
+  accent2: 'accent-bright',
+  accentsoft: 'accent-soft',
+  bstart: 'brand-start',
+  bend: 'brand-end',
+  brune: 'brand-rune',
+  ok: 'state-ok',
+  oksoft: 'state-ok-soft',
+  warn: 'state-warn',
+  warnsoft: 'state-warn-soft',
+  danger: 'state-danger',
+  dangertext: 'state-danger-text',
+  dangersoft: 'state-danger-soft',
+};
+
+/** One of `gen.py`'s palette dictionaries, as token name to value. */
+function canvasPalette(name: 'T' | 'LIGHT'): Map<string, string> {
+  const source = readFileSync(canvasFile, 'utf8');
+  const start = source.indexOf(`${name} = dict(`);
+  expect(start, `gen.py has no ${name} palette`).toBeGreaterThan(-1);
+
+  const body = source.slice(start, source.indexOf(')', start));
+  const found = new Map<string, string>();
+
+  for (const [, short, value] of body.matchAll(/(\w+)="(#[0-9a-f]{6})"/g)) {
+    const token = short === undefined ? undefined : CANVAS_NAMES[short];
+    if (token !== undefined && value !== undefined) found.set(`--rs-${token}`, value);
+  }
+
+  return found;
+}
 
 /** Reads one `selector { … }` block. No block here nests, so this is enough. */
 function block(css: string, selector: string): Map<string, string> {
@@ -156,6 +214,37 @@ function withoutComments(source: string): string[] {
 
   return out;
 }
+
+describe('the canvas and the tree', () => {
+  /* The canvas is the record of what the interface looks like and this file is
+     what it actually looks like. When they disagree, whoever is implementing
+     decides and the decision is recorded nowhere, which is the failure ADR-0020
+     was written to end. These two are the only mechanical part of that. */
+  it.each([
+    ['dark', 'T', ':root {'],
+    ['light', 'LIGHT', ":root[data-theme='light']"],
+  ] as const)('paints %s in the colours the canvas draws it in', (_label, palette, selector) => {
+    const drawn = canvasPalette(palette);
+    const defined = block(readFileSync(tokensFile, 'utf8'), selector);
+
+    expect(drawn.size).toBe(Object.keys(CANVAS_NAMES).length);
+
+    const drifted = [...drawn.entries()]
+      .filter(([name, value]) => defined.get(name) !== value)
+      .map(([name, value]) => `${name}: canvas ${value}, tokens ${defined.get(name) ?? 'absent'}`);
+
+    expect(drifted, `the canvas and tokens.css disagree:\n  ${drifted.join('\n  ')}`).toEqual([]);
+  });
+
+  it('does not pin a theme at startup', () => {
+    /* `feat/visual-improvements` set `data-theme` to dark in the entry point so
+       that the composed palette was what ran. Every light token went on being
+       defined and every test above went on passing, and the light theme was
+       unreachable. A theme is chosen by the viewer's system or, when there is
+       one, by a control in settings. Never by the file that mounts the app. */
+    expect(readFileSync(entryFile, 'utf8')).not.toContain('data-theme');
+  });
+});
 
 describe('token usage', () => {
   it('has no literal colour outside the token file', () => {
