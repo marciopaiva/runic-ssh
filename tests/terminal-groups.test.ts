@@ -399,6 +399,24 @@ describe('sending a tab to another group', () => {
     expect(new Set(seen).size).toBe(seen.length);
   });
 
+  it('holds a rectangle for a session that has not opened yet', () => {
+    /* What the `+` on a group's strip rests on. The rectangle is claimed
+       before the connection exists, so the session appears where somebody
+       asked for it rather than wherever the focus happened to be when the host
+       finally answered. `held` is a hint and `resolveGroups` simply declines
+       to draw what is not open, which is what makes the claim free. */
+    const claimed = moveEntry(held([session('a')], []), session('z'), 1);
+
+    expect(ids(resolveGroups('columns', claimed, [session('a')], session('a')))).toEqual([
+      ['a'],
+      [],
+    ]);
+
+    expect(
+      ids(resolveGroups('columns', claimed, [session('a'), session('z')], session('a'))),
+    ).toEqual([['a'], ['z']]);
+  });
+
   it('moves a host form the same way it moves a session', () => {
     const after = moveEntry(held([editor('x')], [session('a')]), editor('x'), 1);
 

@@ -23,6 +23,7 @@ interface GroupMenuProps {
 const WIDTH = 232;
 const ROW = 30;
 const ROW_WITH_DETAIL = 44;
+const MAX_HEIGHT = 320;
 
 /**
  * What can be done to a group, and to the tab that was right-clicked.
@@ -43,8 +44,14 @@ export function GroupMenu({ items, at, label, onDismiss }: GroupMenuProps): JSX.
   const menu = useRef<HTMLDivElement>(null);
   const [focused, setFocused] = useState(0);
 
-  const height =
-    items.reduce((sum, item) => sum + (item.detail === undefined ? ROW : ROW_WITH_DETAIL), 0) + 8;
+  /* Capped, because the list of saved hosts is as long as somebody's fleet.
+     `menuPosition` keeps the box on screen from this number, so the cap has to
+     be the same one the stylesheet applies or the two disagree about where the
+     bottom is. */
+  const height = Math.min(
+    MAX_HEIGHT,
+    items.reduce((sum, item) => sum + (item.detail === undefined ? ROW : ROW_WITH_DETAIL), 0) + 8,
+  );
   const position = menuPosition(
     at,
     { width: WIDTH, height },
@@ -95,7 +102,7 @@ export function GroupMenu({ items, at, label, onDismiss }: GroupMenuProps): JSX.
           items[focused]?.run();
         }
       }}
-      className="bg-surface-overlay border-line-strong fixed z-50 flex flex-col rounded border py-1 shadow-2xl outline-none"
+      className="bg-surface-overlay border-line-strong fixed z-50 flex max-h-[320px] flex-col overflow-y-auto rounded border py-1 shadow-2xl outline-none"
     >
       {items.map((item, index) => (
         <button
