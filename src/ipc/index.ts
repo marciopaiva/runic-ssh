@@ -16,7 +16,7 @@ export {
   setNativeDecorations,
 } from './chrome';
 export type { CommandModifier, WindowChrome, WindowControlsOwner } from './chrome';
-export type { IpcError, IpcErrorCode } from './errors';
+export type { Hop, IpcError, IpcErrorCode } from './errors';
 export { getSettings, setLocale, setTheme } from './settings';
 export {
   authenticateSession,

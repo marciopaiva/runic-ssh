@@ -8,7 +8,7 @@
  * password given to whoever answered.
  */
 
-import type { IpcError, IpcErrorCode } from '../../ipc';
+import type { Hop, IpcError, IpcErrorCode } from '../../ipc';
 
 /** Where a connection attempt is. */
 export type ConnectStage =
@@ -18,7 +18,38 @@ export type ConnectStage =
   | { readonly stage: 'deciding'; readonly decision: HeldDecision }
   /** Waiting on the credential window. */
   | { readonly stage: 'authenticating' }
-  | { readonly stage: 'failed'; readonly code: IpcErrorCode };
+  | {
+      readonly stage: 'failed';
+      readonly code: IpcErrorCode;
+      /** Which host it failed at, or `null` when there was no chain. */
+      readonly hop: Hop | null;
+    };
+
+/**
+ * A failure, and which host in a chain it happened at.
+ */
+export interface ReportedFailure {
+  readonly code: IpcErrorCode;
+  readonly hop: Hop | null;
+}
+
+/**
+ * The code and hop a failure should be reported under.
+ *
+ * A chain failure is reported as the failure that actually happened, at the
+ * host it happened at. Reporting it under `chainFailed` itself would give both
+ * hops the same message and throw away the only thing the wrapper carries.
+ *
+ * The session state machine then sees the inner code, so a bastion that cannot
+ * be reached still marks the session unreachable, which is true: the host
+ * cannot be reached, and the reason is one hop further away than usual.
+ */
+export function reportedFailure(error: IpcError | null): ReportedFailure {
+  if (error === null) return { code: 'sshTransport', hop: null };
+  if (error.code === 'chainFailed') return { code: error.inner.code, hop: error.hop };
+
+  return { code: error.code, hop: null };
+}
 
 /**
  * Whether an attempt is still working, and should say so on screen.

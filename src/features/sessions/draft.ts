@@ -26,6 +26,15 @@ export interface DraftValues {
   readonly port: string;
   readonly user: string;
   readonly group: string;
+  /**
+   * The id of the saved session to reach this host through; empty for none.
+   *
+   * Never validated here. The three ways a reference can be wrong are all
+   * questions about the session list rather than about the string, so the form
+   * offers only what the core will accept and there is nothing left to check.
+   * See `eligibleJumpHosts`.
+   */
+  readonly proxyJump: string;
 }
 
 export const EMPTY_DRAFT: DraftValues = {
@@ -36,6 +45,7 @@ export const EMPTY_DRAFT: DraftValues = {
   port: '22',
   user: '',
   group: '',
+  proxyJump: '',
 };
 
 /**

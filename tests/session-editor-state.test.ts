@@ -23,6 +23,7 @@ function session(overrides: Partial<Session> = {}): Session {
     user: 'deploy',
     group: null,
     credentialId: null,
+    proxyJump: null,
     ...overrides,
   };
 }
@@ -35,6 +36,7 @@ describe('what the form starts with', () => {
       port: '2222',
       user: 'deploy',
       group: 'prod',
+      proxyJump: '',
     });
   });
 

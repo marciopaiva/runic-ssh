@@ -19,6 +19,7 @@ export {
 export type { ConnectStage, HeldDecision, HostKeyVerdict } from './connect';
 export { useConnect } from './use-connect';
 export { EMPTY_DRAFT, LIMITS, invalidFields, parsePort, suggestName } from './draft';
+export { eligibleJumpHosts } from './jump';
 export type { DraftField, DraftValues } from './draft';
 export { MAPPED_FAILURES, describeFailure, stateAfterFailure } from './failure';
 export type { Failure } from './failure';

@@ -2,6 +2,7 @@ import type { JSX } from 'react';
 
 import type { DraftField, DraftValues } from '../features/sessions';
 import { useTranslator } from '../features/settings';
+import type { Session } from '../ipc';
 
 import { SessionForm } from './SessionForm';
 
@@ -14,6 +15,8 @@ interface SessionEditorPanelProps {
   /** Whether something is waiting on an answer about unsaved work. */
   readonly discarding: boolean;
   readonly onChange: (field: keyof DraftValues, value: string) => void;
+  /** The saved hosts this one may be reached through. */
+  readonly jumpHosts: readonly Session[];
   readonly onSubmit: () => void;
   readonly onDelete: () => void;
   readonly onConfirmDiscard: () => void;
@@ -43,6 +46,7 @@ export function SessionEditorPanel({
   wrong,
   discarding,
   onChange,
+  jumpHosts,
   onSubmit,
   onDelete,
   onConfirmDiscard,
@@ -89,6 +93,7 @@ export function SessionEditorPanel({
         values={values}
         wrong={wrong}
         onChange={onChange}
+        jumpHosts={jumpHosts}
         onSubmit={onSubmit}
         /* No delete on a host that was never saved: there is nothing to
            delete, and the button would be asking about the form itself. */

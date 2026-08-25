@@ -7,6 +7,8 @@
 
 import { invoke } from '@tauri-apps/api/core';
 
+import type { Hop } from './errors';
+
 /**
  * An opaque reference to a live connection.
  *
@@ -30,6 +32,13 @@ export interface Session {
    * never read one. See ADR-0004.
    */
   readonly credentialId: string | null;
+  /**
+   * The saved session this host is reached through, if it is behind one.
+   *
+   * An id rather than an address: a bastion is a host in its own right, with
+   * its own key to verify and its own credential. See ADR-0023.
+   */
+  readonly proxyJump: string | null;
 }
 
 /**
@@ -46,6 +55,8 @@ export interface SessionDraft {
   readonly port: number;
   readonly user: string;
   readonly group?: string | null;
+  /** The id of the saved session to reach this host through. */
+  readonly proxyJump?: string | null;
 }
 
 export async function listSessions(): Promise<readonly Session[]> {
@@ -73,6 +84,14 @@ export interface OpenSession {
   readonly name: string;
   /** Whether the connection still needs a credential before it is usable. */
   readonly authenticated: boolean;
+  /**
+   * The name of the bastion this session is carried on, if there is one.
+   *
+   * Absent for an ordinary connection. Which machine the keystrokes travel
+   * through is a fact about the session, and somebody who does not know it is
+   * happening cannot reason about it.
+   */
+  readonly via?: string;
 }
 
 /**
@@ -195,6 +214,14 @@ export interface HostKeyDecisionView {
   readonly host: string;
   readonly port: number;
   readonly keyType: string;
+  /**
+   * Which host in a chain this is asking about.
+   *
+   * The screen has to say so. Two fingerprint prompts in a row, for two
+   * different hosts, are the same prompt to anybody not told which is which,
+   * and the one that gets read is the one rule 3 depends on.
+   */
+  readonly hop: Hop;
   readonly verdict: 'unknown' | 'changed' | 'revoked' | 'certificateRequired';
   /** The fingerprint the host offered. */
   readonly offered: string;

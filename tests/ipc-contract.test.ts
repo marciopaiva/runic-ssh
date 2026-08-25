@@ -206,3 +206,59 @@ describe('the settings view', () => {
     expect(registered).toContain('commands::settings::set_theme');
   });
 });
+
+describe('reaching a host through another one', () => {
+  it('spells the hop the same on both sides', () => {
+    /* The frontend narrows it to two string literals and the core serializes
+       an enum into the same two. Renaming a variant compiles on both sides and
+       leaves a host key prompt that stops saying which host it is asking
+       about, which is the one thing that screen exists to do. */
+    const rust = readFileSync(
+      fileURLToPath(new URL('../src-tauri/src/ssh/connection.rs', import.meta.url)),
+      'utf8',
+    );
+
+    expect(rust).toContain(String.raw`r#""target""#`);
+    expect(rust).toContain(String.raw`r#""bastion""#`);
+
+    const frontend = readFileSync(
+      fileURLToPath(new URL('../src/ipc/errors.ts', import.meta.url)),
+      'utf8',
+    );
+
+    expect(frontend).toContain("export type Hop = 'target' | 'bastion';");
+  });
+
+  it('names the stored field the same on both sides', () => {
+    /* `proxy_jump` with a camelCase rename in Rust, `proxyJump` in the wrapper.
+       A rename on one side alone leaves a session that saves its jump host and
+       loads without one, which reads as a setting that will not stick. */
+    const rust = readFileSync(
+      fileURLToPath(new URL('../src-tauri/src/config/sessions.rs', import.meta.url)),
+      'utf8',
+    );
+
+    expect(rust).toContain('pub proxy_jump: Option<String>');
+    expect(rust).toContain("#[serde(rename_all = \"camelCase\")]");
+
+    const wrapper = readFileSync(
+      fileURLToPath(new URL('../src/ipc/sessions.ts', import.meta.url)),
+      'utf8',
+    );
+
+    expect(wrapper).toContain('readonly proxyJump: string | null;');
+  });
+
+  it('never lets a chain failure swallow a host key decision', () => {
+    /* The interface finds a held decision by the code at the top of the error.
+       A wrapper there would leave a host behind a bastion with no way to have
+       its key accepted at all, so the core is required to say so and to have a
+       test proving it. */
+    const rust = readFileSync(
+      fileURLToPath(new URL('../src-tauri/src/commands/sessions.rs', import.meta.url)),
+      'utf8',
+    );
+
+    expect(rust).toContain('a_host_key_refusal_is_never_wrapped_in_a_chain_failure');
+  });
+});

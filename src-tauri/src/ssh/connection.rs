@@ -566,3 +566,32 @@ impl Connection {
         self.via.is_some()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_hop_crosses_as_the_word_the_frontend_narrows_to() {
+        /* Renaming a variant compiles on both sides and leaves a host key
+        prompt that quietly stops saying which host it is asking about,
+        which is the one thing that screen exists to do. Pinned as a
+        literal here and in `src/ipc/errors.ts`. */
+        assert_eq!(
+            serde_json::to_string(&Hop::Target).expect("serializes"),
+            r#""target""#
+        );
+        assert_eq!(
+            serde_json::to_string(&Hop::Bastion).expect("serializes"),
+            r#""bastion""#
+        );
+    }
+
+    #[test]
+    fn a_direct_connection_is_the_default_hop() {
+        /* So nothing has to special-case the ordinary case, and a hop that was
+        forgotten reads as the host the user asked for rather than as a
+        bastion that does not exist. */
+        assert_eq!(Hop::default(), Hop::Target);
+    }
+}

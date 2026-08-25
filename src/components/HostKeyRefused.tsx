@@ -1,7 +1,9 @@
 import type { JSX } from 'react';
 
 import { useTranslator } from '../features/settings';
+import type { Hop } from '../ipc';
 
+import { JumpHostNotice } from './JumpHostNotice';
 import { SessionSurface, SurfaceAction } from './SessionSurface';
 
 interface HostKeyRefusedProps {
@@ -9,6 +11,8 @@ interface HostKeyRefusedProps {
   readonly fingerprint: string;
   /** Which marker in `known_hosts` refused this. */
   readonly reason: 'revoked' | 'certificateRequired';
+  /** Which host in a chain this is about. */
+  readonly hop: Hop;
   readonly onCancel: () => void;
 }
 
@@ -34,6 +38,7 @@ export function HostKeyRefused({
   host,
   fingerprint,
   reason,
+  hop,
   onCancel,
 }: HostKeyRefusedProps): JSX.Element {
   const i18n = useTranslator();
@@ -68,6 +73,8 @@ export function HostKeyRefused({
         </SurfaceAction>
       }
     >
+      <JumpHostNotice hop={hop} />
+
       <dl className="bg-surface-base border-line-subtle flex flex-col gap-2 rounded-lg border p-3.5 text-[12px]">
         <div className="flex gap-3">
           <dt className="text-ink-muted w-[92px] shrink-0">{i18n.t('hostKey.field.host')}</dt>

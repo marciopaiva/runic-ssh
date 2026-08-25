@@ -2,7 +2,9 @@ import { useState } from 'react';
 import type { JSX } from 'react';
 
 import { useTranslator } from '../features/settings';
+import type { Hop } from '../ipc';
 
+import { JumpHostNotice } from './JumpHostNotice';
 import { Randomart } from './Randomart';
 import { SessionSurface, SurfaceAction } from './SessionSurface';
 
@@ -11,6 +13,8 @@ interface HostKeyPromptProps {
   readonly port: number;
   readonly keyType: string;
   readonly fingerprint: string;
+  /** Which host in a chain this is asking about. */
+  readonly hop: Hop;
   readonly onTrust: () => void;
   readonly onCancel: () => void;
 }
@@ -43,6 +47,7 @@ export function HostKeyPrompt({
   port,
   keyType,
   fingerprint,
+  hop,
   onTrust,
   onCancel,
 }: HostKeyPromptProps): JSX.Element {
@@ -77,6 +82,8 @@ export function HostKeyPrompt({
         </>
       }
     >
+      <JumpHostNotice hop={hop} />
+
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
         <dl className="bg-surface-base border-line-subtle flex min-w-0 flex-1 flex-col gap-3 rounded-lg border p-3.5">
           <Field label={i18n.t('hostKey.field.host')} value={`${host}:${port}`} />

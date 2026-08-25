@@ -2,13 +2,17 @@ import { useState } from 'react';
 import type { JSX } from 'react';
 
 import { useTranslator } from '../features/settings';
+import type { Hop } from '../ipc';
 
+import { JumpHostNotice } from './JumpHostNotice';
 import { SessionSurface, SurfaceAction } from './SessionSurface';
 
 interface HostKeyBlockedProps {
   readonly host: string;
   readonly storedFingerprints: readonly string[];
   readonly offeredFingerprint: string;
+  /** Which host in a chain this is asking about. */
+  readonly hop: Hop;
   readonly onReplace: (confirmation: string) => void;
   readonly onCancel: () => void;
 }
@@ -34,6 +38,7 @@ export function HostKeyBlocked({
   host,
   storedFingerprints,
   offeredFingerprint,
+  hop,
   onReplace,
   onCancel,
 }: HostKeyBlockedProps): JSX.Element {
@@ -85,6 +90,8 @@ export function HostKeyBlocked({
         </>
       }
     >
+      <JumpHostNotice hop={hop} />
+
       <div className="flex flex-col gap-2.5">
         <Fingerprint
           label={i18n.t('hostKey.changed.trusted')}
