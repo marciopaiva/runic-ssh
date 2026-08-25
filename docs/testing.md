@@ -248,6 +248,32 @@ what happened is to read `/proc/<pid>/environ`.
 `import -window <id>` screenshots it and `xdotool` drives it, both with
 `DISPLAY=:99`. Nothing touches the desktop the developer is using.
 
+## Measuring several terminals painting at once
+
+This is issue #123's procedure, and it does **not** need a person driving a
+packaged build. The harness runs from a query parameter and posts its own
+result back, so nothing has to be typed into a window.
+
+```bash
+pnpm vite --port 5199 --strictPort            # a dev server, in one shell
+xvfb-run -n 99 -s "-screen 0 1440x900x24" \
+  /usr/lib/x86_64-linux-gnu/webkit2gtk-4.1/MiniBrowser \
+  "http://localhost:5199/?flood=32"           # in another
+```
+
+`MiniBrowser` ships with `webkit2gtk-4.1` and is the engine Tauri embeds on
+Linux, so this measures the renderer the product actually uses. The result is
+printed by the dev server, under `renderer measurement`.
+
+Xvfb means a software rasteriser, which is what the Linux figures in
+`docs/measurements/terminal-throughput.md` already are. Running it on the real
+display measures a GPU instead, and the two are worth keeping apart.
+
+The run does two things. Flat out says whether there is headroom; paced at the
+transport rate, ten seconds per shape, says whether the window keeps answering,
+which is the question that was actually asked. Take the paced numbers as the
+answer and the flat-out ones as the margin.
+
 ## Verifying the capability set
 
 `capabilities/default.json` names one command per line (ADR-0013), and three of

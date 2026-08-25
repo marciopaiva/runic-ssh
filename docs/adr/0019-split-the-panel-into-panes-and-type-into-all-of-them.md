@@ -184,9 +184,21 @@ change to a path every keystroke takes.
 ADR-0011 measured the renderer against **one** terminal painting, and concluded
 the transport bound is what the decision rests on, to be measured again if that
 bound moves. Per session it has not; in aggregate four panes can deliver four
-times what one could. Nobody has that number. Until somebody does, four panes is
-a limit chosen for the shape of the layout and not for what the renderer was
-shown to take.
+times what one could.
+
+**That number now exists** (#123, measured 2026-08-24, recorded in
+`docs/measurements/terminal-throughput.md`). Four terminals fed at the rate the
+transport actually delivers hold a 16 ms median gap between frames, with the
+worst gap in 620 frames at 24 ms and nothing near the 100 ms where a keystroke
+starts to look dropped. The four-pane limit is justified rather than merely
+chosen for the shape of the layout.
+
+The margin is thinner than the one-terminal figure implied, and that is the part
+worth carrying forward. Drawing falls from 104 MB/s alone to 31 MB/s per
+terminal with four running, so four draw 125 MB/s between them against a
+transport that would ask for 36 to 61. Headroom went from about seven times to
+about two to three. It is still headroom. It is no longer the kind that can
+absorb a raised per session bound without being measured again.
 
 Everything on the tab strip is still one tab per session, so a split of four is
 four tabs and four panes describing the same four things. Whether that reads as
