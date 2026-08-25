@@ -13,6 +13,8 @@ interface SessionsSidebarProps {
   readonly receiving: ReadonlySet<string> | null;
   /** Connected hosts a keystroke does not reach. Empty unless something is armed. */
   readonly spared: ReadonlySet<string>;
+  /** Which host is being dragged towards a rectangle, or `null` when none is. */
+  readonly onDrag: (sessionId: string | null) => void;
   readonly onSelect: (sessionId: string) => void;
   readonly onAdd: () => void;
   /** Opens the row's menu at a point on screen. */
@@ -30,6 +32,7 @@ export function SessionsSidebar({
   selectedId,
   receiving,
   spared,
+  onDrag,
   onSelect,
   onAdd,
   onMenu,
@@ -115,6 +118,23 @@ export function SessionsSidebar({
                   return (
                     <li
                       key={session.id}
+                      /* Dragging a host straight into a rectangle. It is the
+                         same gesture as dragging a tab and it means something
+                         different: this one may not be open at all, so the
+                         shell connects rather than moves. The row keeps its
+                         click, which opens the host wherever the focus is.
+
+                         A payload is set because some engines will not begin a
+                         drag without one, and nothing reads it: what is being
+                         dragged is held in the shell, so nothing dragged in
+                         from outside the window can pose as a host. */
+                      draggable
+                      onDragStart={(event) => {
+                        event.dataTransfer.effectAllowed = 'copyMove';
+                        event.dataTransfer.setData('text/plain', session.name);
+                        onDrag(session.id);
+                      }}
+                      onDragEnd={() => onDrag(null)}
                       className={`group relative flex items-center rounded ${edge}`}
                       /* Right-click is the convention. The button beside it is
                          what somebody finds without knowing the convention. */
