@@ -1,14 +1,19 @@
 import type { JSX } from 'react';
 
 import type { WindowAction, WindowControl } from '../features/chrome';
+import type { Grid } from '../features/terminal';
 import { useTranslator } from '../features/settings';
 
+import { ShapeControl } from './ShapeControl';
 import { WindowControls } from './WindowControls';
 
 interface TitlebarProps {
   readonly controls: readonly WindowControl[];
   /** Space to keep clear at the leading edge for controls the system draws. */
   readonly leadingInset: number;
+  /** How the main area is divided right now. */
+  readonly layout: Grid;
+  readonly onLayout: (kind: Grid) => void;
   readonly onAct: (action: WindowAction) => void;
 }
 
@@ -27,11 +32,23 @@ interface TitlebarProps {
  * than the bar it replaces: the rail below is paid for in width and not in
  * height.
  *
+ * ADR-0021 put the shape control here, at the trailing edge. It is the first
+ * thing to go back into the strip, and it belongs for the reason the tabs do
+ * not: a tab names something inside the main area, and a shape names the main
+ * area itself.
+ *
  * `deep` on the drag region means a drag starting anywhere on the bar moves
  * the window, *except* on a button: Tauri's handler stops at the first
- * clickable element it walks through.
+ * clickable element it walks through. That is what keeps the shape buttons
+ * clickable without the gaps around them having to be marked by hand.
  */
-export function Titlebar({ controls, leadingInset, onAct }: TitlebarProps): JSX.Element {
+export function Titlebar({
+  controls,
+  leadingInset,
+  layout,
+  onLayout,
+  onAct,
+}: TitlebarProps): JSX.Element {
   const i18n = useTranslator();
 
   return (
@@ -79,6 +96,8 @@ export function Titlebar({ controls, leadingInset, onAct }: TitlebarProps): JSX.
           {i18n.t('app.name')}
         </span>
       </div>
+
+      <ShapeControl layout={layout} onChoose={onLayout} />
 
       <WindowControls controls={controls} onAct={onAct} />
     </header>
