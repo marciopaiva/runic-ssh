@@ -20,7 +20,15 @@ interface StatusBarProps {
   readonly modifier: CommandModifier;
   /** How many hosts a keystroke reaches, or `null` when it reaches one. */
   readonly syncing: number | null;
-
+  /**
+   * Whether this session's credential was asked to be kept and refused.
+   *
+   * Here rather than over the terminal because the fact stays true for the
+   * life of the session, and a strip above the panel would push the terminal
+   * down and make it refit for a message. See #167.
+   */
+  readonly credentialUnsaved: boolean;
+  readonly onDismissUnsaved: () => void;
 }
 
 /** A cell, so every item on the bar has the same padding and no more. */
@@ -77,6 +85,8 @@ export function StatusBar({
   size,
   modifier,
   syncing,
+  credentialUnsaved,
+  onDismissUnsaved,
 }: StatusBarProps): JSX.Element {
   const i18n = useTranslator();
   const latency = gradeLatency(stats.latencyMs);
@@ -167,6 +177,29 @@ export function StatusBar({
           moved to the top strip with ADR-0021's argument, which is that a
           switch about the window belongs to the surface that is the window
           rather than among readings that are measurements. */}
+      {/* Said once the session is already open, so it is never in the way of
+          connecting. Dismissible because there is nothing to act on: the
+          secret is gone, correctly, and the next connection will ask again. */}
+      {credentialUnsaved && (
+        <button
+          type="button"
+          onClick={onDismissUnsaved}
+          title={i18n.t('status.credentialUnsaved.detail')}
+          className="text-ink-secondary border-line-subtle hover:text-ink my-1 flex shrink-0 items-center gap-1.5 rounded border px-2"
+        >
+          <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" aria-hidden="true">
+            <path
+              d="M8 1.8 1.5 13.2h13L8 1.8ZM8 6.2v3.4M8 11.4h.01"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          {i18n.t('status.credentialUnsaved')}
+        </button>
+      )}
+
       {syncing !== null && (
         <div
           role="status"

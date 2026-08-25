@@ -248,6 +248,11 @@ export function App(): JSX.Element {
   /* Panes turned off in their own header while the switch is armed. Three of
      four machines in a pool, with the database spared, is the ordinary case. */
   const [muted, setMuted] = useState<ReadonlySet<string>>(new Set());
+  /* Sessions whose credential the user asked to keep and the store refused.
+     Held for the life of the session rather than shown once and forgotten: the
+     fact stays true, and a message that leaves before it is read is the thing
+     ADR-0015 argues against. See #167. */
+  const [unsaved, setUnsaved] = useState<ReadonlySet<string>>(new Set());
 
   const { attempt, connect, trust, abandon } = useConnect({
     onConnecting: (sessionId) => setState(sessionId, 'connecting'),
@@ -262,6 +267,8 @@ export function App(): JSX.Element {
     /* Back to a plain stored host. Nothing was learned about it — the attempt
        was let go, not answered — so anything else would be a claim. */
     onAbandoned: (sessionId) => setState(sessionId, 'saved'),
+    onCredentialRefused: (sessionId) =>
+      setUnsaved((current) => new Set(current).add(sessionId)),
   });
 
   /* The session an unresolved attempt names. It keeps its tab so that the
@@ -1352,6 +1359,15 @@ export function App(): JSX.Element {
         size={size}
         modifier={chrome?.commandModifier ?? 'control'}
         syncing={armed ? receiving.length : null}
+        credentialUnsaved={activeId !== null && unsaved.has(activeId)}
+        onDismissUnsaved={() =>
+          setUnsaved((current) => {
+            if (activeId === null) return current;
+            const next = new Set(current);
+            next.delete(activeId);
+            return next;
+          })
+        }
       />
 
       {groupMenu !== null && (

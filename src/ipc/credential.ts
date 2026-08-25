@@ -24,13 +24,29 @@ export interface CredentialPrompt {
 }
 
 /**
+ * What became of a credential the user asked to keep.
+ *
+ * Returned rather than discarded, which is the whole of #167: a keychain that
+ * refuses must not undo a connection that worked, and the old code was right
+ * about that and then said nothing.
+ *
+ * `refused` covers a locked keyring, a revoked permission, and a keychain that
+ * went away while the application was open. None of those make `canRemember`
+ * false, so the tick box is offered and the "no credential store" copy does not
+ * apply either.
+ */
+export type Keeping = 'notAsked' | 'kept' | 'refused';
+
+/**
  * Opens the prompt, waits for it, and authenticates with the answer.
  *
  * Rejects with `credentialDismissed` when the user cancels or closes the
  * window. That is a cancellation, not a failure, and the interface says so.
+ *
+ * Resolving says what happened to the credential, never what it was.
  */
-export async function authenticateInteractively(handle: SessionHandle): Promise<void> {
-  return invoke<void>('authenticate_interactively', { handle });
+export async function authenticateInteractively(handle: SessionHandle): Promise<Keeping> {
+  return invoke<Keeping>('authenticate_interactively', { handle });
 }
 
 export async function credentialPrompt(request: number): Promise<CredentialPrompt> {

@@ -193,6 +193,8 @@
   "settings.title": "Configuración",
   "shape.choose": "Elegir cómo se divide el área",
   "shape.label": "Cómo se divide el área",
+  "status.credentialUnsaved": "No guardada",
+  "status.credentialUnsaved.detail": "Pidió guardar esta credencial y el llavero del sistema la rechazó. La sesión está conectada; se le pedirá de nuevo la próxima vez. Pulse para descartar.",
   "status.encoding": "Codificación",
   "status.idle": "Sin sesión",
   "status.latency.fair": "Latencia: aceptable",
