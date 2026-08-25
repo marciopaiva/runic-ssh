@@ -85,6 +85,13 @@ written down so the next person does not build it from the picture.
   (#127), and rule 6 of ADR-0020 refuses an icon that switches to nothing. The
   slot arrives with the feature.
 
+This list had a third entry for a while without anybody writing it down, which
+is the failure the list exists to prevent. Nine artboards drew `SYNC OFF` in the
+status bar and nothing built it: the way off lived there and the way on lived
+only in the command palette, so a person driving with a pointer could not arm
+the switch at all. It is built now. What the canvas draws and the tree lacks
+belongs here on the day it is noticed, not on the day somebody trips over it.
+
 That list used to have a second entry, the split control on a group's strip.
 It is gone from both sides now: ADR-0021 decided splitting belongs to the top
 strip, because it changes the whole main area and a button on one group's strip
