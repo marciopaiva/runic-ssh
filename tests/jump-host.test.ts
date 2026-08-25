@@ -11,7 +11,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { reportedFailure } from '../src/features/sessions/connect';
-import { eligibleJumpHosts } from '../src/features/sessions/jump';
+import { eligibleJumpHosts, jumpRole } from '../src/features/sessions/jump';
 import { describeFailure } from '../src/features/sessions/failure';
 import { createTranslator } from '../src/lib/i18n';
 import type { IpcError, Session } from '../src/ipc';
@@ -152,5 +152,70 @@ describe('which hosts may be a jump host', () => {
     ) as Session[];
 
     expect(eligibleJumpHosts(wire, null).map((host) => host.id)).toEqual(['a']);
+  });
+});
+
+describe('saying which hosts are in a chain', () => {
+  const saved = [
+    session('bastion'),
+    session('web-01', { proxyJump: 'bastion' }),
+    session('web-02', { proxyJump: 'bastion' }),
+    session('plain'),
+  ];
+
+  it('marks the host others are reached through', () => {
+    /* A relation, so it is decided by the whole list rather than by the row.
+       Nothing on the bastion's own record says it is one. */
+    expect(jumpRole(session('bastion'), saved)).toEqual({ carries: true, rides: false });
+  });
+
+  it('marks a host that is reached through another', () => {
+    expect(jumpRole(session('web-01', { proxyJump: 'bastion' }), saved)).toEqual({
+      carries: false,
+      rides: true,
+    });
+  });
+
+  it('marks nothing on a host that is in no chain', () => {
+    expect(jumpRole(session('plain'), saved)).toEqual({ carries: false, rides: false });
+  });
+
+  it('reads a host that arrived without the field at all', () => {
+    /* What the core sends for a host that is not behind one: the field is
+       skipped, so it is `undefined` and never `null`. The same shape that made
+       the select disappear from the form. */
+    const wire = JSON.parse(
+      '{"id":"a","name":"a","host":"a.example","port":22,"user":"deploy","group":null,"credentialId":null}',
+    ) as Session;
+
+    expect(jumpRole(wire, [wire]).rides).toBe(false);
+  });
+
+  it('marks both ends when a bastion has been given one of its own', () => {
+    /* A state the file can hold and connecting refuses. The core stops a jump
+       host that is already behind one from being chosen, but nothing stops a
+       host already serving as a bastion from being given one afterwards. The
+       chain is then a hop too long and fails only when somebody connects, so
+       showing both marks is how it becomes visible before then. */
+    const broken = [
+      session('outer'),
+      session('middle', { proxyJump: 'outer' }),
+      session('inner', { proxyJump: 'middle' }),
+    ];
+
+    expect(jumpRole(session('middle', { proxyJump: 'outer' }), broken)).toEqual({
+      carries: true,
+      rides: true,
+    });
+  });
+
+  it('says both marks in every language', () => {
+    for (const locale of ['en', 'pt-BR', 'es']) {
+      const i18n = createTranslator(locale);
+
+      for (const key of ['sessions.jump.carries', 'sessions.jump.rides'] as const) {
+        expect(i18n.t(key), `${locale} ${key}`).not.toBe(key);
+      }
+    }
   });
 });

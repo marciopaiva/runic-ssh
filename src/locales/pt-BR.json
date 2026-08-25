@@ -160,6 +160,8 @@
   "sessions.empty.body": "Adicione um host para conectar. Nada é enviado a lugar nenhum até você fazer isso.",
   "sessions.empty.title": "Nenhuma sessão ainda",
   "sessions.filter": "Filtrar sessões",
+  "sessions.jump.carries": "Outros hosts são alcançados através deste",
+  "sessions.jump.rides": "Alcançado através de outro host",
   "sessions.legend": "ESTADO",
   "sessions.receiving": "{count} RECEBENDO",
   "sessions.spared": "POUPADO",

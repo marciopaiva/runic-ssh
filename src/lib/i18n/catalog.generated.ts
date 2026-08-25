@@ -166,6 +166,8 @@ export const SOURCE_CATALOG = {
   "sessions.empty.body": "Add a host to connect to. Nothing is sent anywhere until you do.",
   "sessions.empty.title": "No sessions yet",
   "sessions.filter": "Filter sessions",
+  "sessions.jump.carries": "Other hosts are reached through this one",
+  "sessions.jump.rides": "Reached through another host",
   "sessions.legend": "STATE",
   "sessions.receiving": "{count} RECEIVING",
   "sessions.spared": "SPARED",

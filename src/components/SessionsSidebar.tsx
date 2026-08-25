@@ -1,9 +1,11 @@
 import type { JSX } from 'react';
 
+import { jumpRole } from '../features/sessions';
 import { groupSessions } from '../features/sessions/state';
 import type { LiveSession } from '../features/sessions/state';
 import { useTranslator } from '../features/settings';
 
+import { JumpMark } from './JumpMark';
 import { SessionMarker } from './SessionMarker';
 
 interface SessionsSidebarProps {
@@ -38,6 +40,10 @@ export function SessionsSidebar({
   onMenu,
 }: SessionsSidebarProps): JSX.Element {
   const i18n = useTranslator();
+  /* Both marks are relations between two saved hosts, so the whole list is
+     what decides them: a host is a jump host because something else names it,
+     which is not a fact its own row carries. */
+  const saved = sessions.map((live) => live.session);
   const groups = groupSessions(sessions);
 
   return (
@@ -152,6 +158,7 @@ export function SessionsSidebar({
                         }`}
                       >
                         <SessionMarker kind={kind} />
+                        <JumpMark role={jumpRole(session, saved)} />
                         <span className="truncate text-[12.5px]">{session.name}</span>
 
                         {reached && (
