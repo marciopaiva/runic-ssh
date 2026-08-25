@@ -216,6 +216,94 @@ one terminal. Run `yes` in two of four panes and watch whether the window stays
 responsive; if it does not, the limit belongs at two panes and the measurement
 belongs in ADR-0019.
 
+### A bastion and a host behind it
+
+Issue #133 needs a target that is genuinely unreachable except through a
+bastion. A fixture where both hosts are reachable from the machine proves
+nothing: a chain that quietly connected direct would pass it.
+
+The topology does the proving. Two containers share a podman network. The
+bastion publishes a port; the target publishes none, and answers to a name that
+only resolves inside that network.
+
+```bash
+podman network create runic-jump
+
+podman build -t runic-test-bastion \
+  --build-arg USERNAME=jump \
+  --build-arg PASSWORD=runic-bastion \
+  --build-arg ROLE=bastion \
+  src-tauri/tests/fixtures/sshd
+
+podman build -t runic-test-target \
+  --build-arg USERNAME=deploy \
+  --build-arg PASSWORD=runic-target \
+  --build-arg ROLE="target behind the bastion" \
+  src-tauri/tests/fixtures/sshd
+
+podman run -d --name runic-test-target \
+  --network runic-jump --network-alias target.internal runic-test-target
+podman run -d --name runic-test-bastion \
+  --network runic-jump -p 2226:2222 runic-test-bastion
+```
+
+| | bastion | target |
+| --- | --- | --- |
+| reached at | `127.0.0.1:2226` | `target.internal:2222`, from the bastion only |
+| user | `jump` | `deploy` |
+| password | `runic-bastion` | `runic-target` |
+
+**The two credentials differ on purpose.** They are the reason the
+`Containerfile` takes build arguments. With one password on both hosts, a chain
+that resolved the target's credential and sent it to the bastion as well would
+connect, and the bug would ship.
+
+Check the topology before trusting a result from it. All three have to hold:
+
+```bash
+getent hosts target.internal            # nothing: the name is the network's, not yours
+ssh-keyscan -p 2226 -t ed25519 127.0.0.1 | ssh-keygen -lf -   # the bastion answers
+podman port runic-test-target           # nothing: the target publishes no port
+```
+
+Then the chain itself, from a throwaway container on the same network, which
+keeps `sshpass` off the machine:
+
+```bash
+podman run --rm --network runic-jump alpine sh -c '
+apk add --no-cache openssh-client sshpass >/dev/null
+O="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5"
+INNER="sshpass -p runic-bastion ssh $O -p 2222 -W %h:%p jump@runic-test-bastion"
+sshpass -p runic-target ssh $O -o "ProxyCommand=$INNER" -p 2222 deploy@target.internal \
+  "cat /home/deploy/README"'
+```
+
+`hello from the target behind the bastion` is the answer. The other half of the
+proof is on the far side: `podman logs runic-test-target` shows the connection
+arriving from the bastion's address on the network, never from the host.
+
+Three things this fixture is for, beyond connecting at all:
+
+* **Two host key prompts in one attempt**, each naming its own host. The two
+  containers have two keys, so the first connection asks twice. The prompt that
+  cannot say which host it is asking about is the one that gets clicked
+  through, and this is where that is visible.
+* **An error that names the hop.** Stop the target, leave the bastion up, and
+  today the chain says `Connection timed out during banner exchange`. That
+  sentence is the whole complaint in #133: it is true of both hosts and useful
+  about neither.
+* **Disconnect order.** `podman logs` on both shows which closed first, and
+  whether the bastion was left open.
+
+A bastion that refuses forwarding is a real configuration and worth having on
+hand: `podman exec runic-test-bastion sh -c "echo 'AllowTcpForwarding no'
+>> /etc/ssh/sshd_config"` and restart it. The chain should fail at the bastion
+and say so.
+
+Host keys survive `podman stop` and `podman start`, because `ssh-keygen -A`
+generates only what is missing and the writable layer persists. They do not
+survive `podman rm`, which is the same trade the single-host fixture makes.
+
 ### On WSL2
 
 Reaching a container in WSL *from a Windows build* is a separate problem:

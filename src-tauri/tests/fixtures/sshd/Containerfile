@@ -1,12 +1,19 @@
 FROM docker.io/library/alpine:latest
 
+# One image, several roles. The jump fixture needs a bastion and a target whose
+# credentials differ, because a chain that reuses one credential for both hops
+# connects perfectly against a fixture where they are the same.
+ARG USERNAME=deploy
+ARG PASSWORD=runic-test
+ARG ROLE="test host"
+
 RUN apk add --no-cache openssh openssh-sftp-server \
- && adduser -D -s /bin/ash deploy \
- && echo 'deploy:runic-test' | chpasswd \
- && mkdir -p /home/deploy/logs /home/deploy/config \
- && echo 'hello from the test host' > /home/deploy/README \
- && head -c 200000 /dev/urandom | base64 > /home/deploy/logs/big.log \
- && chown -R deploy:deploy /home/deploy \
+ && adduser -D -s /bin/ash "$USERNAME" \
+ && echo "$USERNAME:$PASSWORD" | chpasswd \
+ && mkdir -p "/home/$USERNAME/logs" "/home/$USERNAME/config" \
+ && echo "hello from the $ROLE" > "/home/$USERNAME/README" \
+ && head -c 200000 /dev/urandom | base64 > "/home/$USERNAME/logs/big.log" \
+ && chown -R "$USERNAME:$USERNAME" "/home/$USERNAME" \
  && printf '%s\n' \
       'Port 2222' \
       'PasswordAuthentication yes' \
