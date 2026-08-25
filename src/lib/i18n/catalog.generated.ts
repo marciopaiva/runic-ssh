@@ -23,6 +23,7 @@ export const SOURCE_CATALOG = {
   "command.split.sync.detail": "What you type reaches {count} hosts",
   "command.split.sync.off": "Stop typing into every pane",
   "command.split.sync.on": "Type into every pane",
+  "command.split.three": "Split into three columns",
   "command.tab.close": "Close tab",
   "command.tab.next": "Next tab",
   "command.tab.previous": "Previous tab",

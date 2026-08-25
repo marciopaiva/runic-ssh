@@ -94,19 +94,25 @@ disarming itself, and the whole of its Bad section. Its `Revisit this` is
 answered, in the direction it warned against, with the measurement it asked for.
 
 **ADR-0021** said four buttons in the top strip and its own `Revisit this` said
-they fold into one that opens the four if the width ever mattered. Seven is
-that trigger: seven buttons is around 196px of a bar whose remaining job is
-being dragged. The control is now one button showing the shape in use, opening
-the seven.
+they fold into one that opens the four if the width ever mattered. The count is
+that trigger: eight buttons is around 224px of a bar whose remaining job is
+being dragged. The control is now one button showing the shape in use, which
+opens them all.
 
 ### The names changed with it
 
 `Grid` was `single`, `columns`, `rows` and `grid`. `columns` meant two of them
 and stopped being a usable name the moment there were three, so the shapes are
-named for their dimensions: `1x1`, `2x1`, `1x2`, `2x2`, `3x2`, `2x3`, `3x3`,
-columns by rows. The list is the source and the type is derived from it, so a
-shape added there is a shape every caller sees, including the test that walks
-every shape and used to walk a hand written four.
+named for their dimensions, columns by rows. The list is the source and the
+type is derived from it, so a shape added there is a shape every caller sees,
+including the test that walks every shape and used to walk a hand written four.
+
+`3x1` joined the day after this was accepted, on the maintainer's ask, and the
+cost of adding it is the evidence for that sentence: one entry in the list, one
+message in three catalogues, and a glyph that draws itself from the name. It is
+also the shape with the most rows of any that divides the area, 43x34 against
+the 43x15 of three columns by two, which is the same point the table above
+makes about rows being where the chrome is paid.
 
 ## Consequences
 
@@ -123,7 +129,7 @@ hosts. Adding a shape is one entry in one list.
 2. **2x3 gives nine lines** and is offered anyway, because which of the two
    arrangements of six suits the work is not something this document can know.
    Somebody will pick it once, find it cramped, and pick the other.
-3. Seven shapes behind one button is one more click than four shapes in the
+3. Every shape behind one button is one more click than four shapes in the
    open. The shape in use is still readable without opening it, which was the
    reason for buttons in the first place.
 4. The rename touches forty-three call sites in one pass. Nothing persists a
