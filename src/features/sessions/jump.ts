@@ -35,3 +35,33 @@ export function eligibleJumpHosts(
 function hasJumpHost(session: Session): boolean {
   return (session.proxyJump ?? null) !== null;
 }
+
+/**
+ * How a session sits in a chain, if it does at all.
+ *
+ * Static: both answers come from the saved list and neither needs anything to
+ * be connected. That is what makes marking them cheap, and what makes it a
+ * different question from #168, which is about a connection that exists right
+ * now and that nothing on screen admits to.
+ *
+ * Both can be true at once. The core refuses a jump host that is itself behind
+ * one when it is chosen, but nothing stops a host that is already serving as a
+ * bastion from being given one of its own afterwards, which leaves a chain a
+ * hop too long that only fails when somebody connects. Showing both marks is
+ * how that becomes visible before then.
+ */
+export interface JumpRole {
+  /** Other saved hosts are reached through this one. */
+  readonly carries: boolean;
+  /** This host is reached through another. */
+  readonly rides: boolean;
+}
+
+export function jumpRole(session: Session, sessions: readonly Session[]): JumpRole {
+  return {
+    carries: sessions.some((other) => other.proxyJump === session.id),
+    /* Absent and null both mean no. The core skips the field entirely for a
+       host that is not behind one, so what arrives is `undefined`. */
+    rides: (session.proxyJump ?? null) !== null,
+  };
+}
