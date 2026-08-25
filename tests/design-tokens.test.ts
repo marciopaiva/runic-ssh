@@ -102,6 +102,61 @@ describe('token definitions', () => {
   });
 });
 
+/**
+ * The file with its comments blanked, line numbering intact.
+ *
+ * A hex in a comment paints nothing, so it is not what this guard is for. It
+ * matters because an issue reference is indistinguishable from a three-digit
+ * colour: `#123` is both, and every issue number from 100 up would fail this
+ * test for being mentioned. That is a guard training people to ignore it,
+ * which is worse than a comment nobody checked.
+ *
+ * Lines are blanked rather than dropped so a reported line number still points
+ * at the right line.
+ */
+function withoutComments(source: string): string[] {
+  const out: string[] = [];
+  let inBlock = false;
+
+  for (const line of source.split('\n')) {
+    let kept = '';
+    let at = 0;
+
+    while (at < line.length) {
+      if (inBlock) {
+        const close = line.indexOf('*/', at);
+        if (close < 0) {
+          at = line.length;
+        } else {
+          inBlock = false;
+          at = close + 2;
+        }
+        continue;
+      }
+
+      const block = line.indexOf('/*', at);
+      const lineComment = line.indexOf('//', at);
+
+      if (lineComment >= 0 && (block < 0 || lineComment < block)) {
+        kept += line.slice(at, lineComment);
+        break;
+      }
+      if (block >= 0) {
+        kept += line.slice(at, block);
+        inBlock = true;
+        at = block + 2;
+        continue;
+      }
+      kept += line.slice(at);
+      break;
+    }
+
+    out.push(kept);
+  }
+
+  return out;
+}
+
 describe('token usage', () => {
   it('has no literal colour outside the token file', () => {
     const offenders: string[] = [];
@@ -109,7 +164,7 @@ describe('token usage', () => {
     for (const file of sourceFiles(join(repoRoot, 'src'))) {
       if (file === tokensFile) continue;
 
-      const lines = readFileSync(file, 'utf8').split('\n');
+      const lines = withoutComments(readFileSync(file, 'utf8'));
       lines.forEach((line, index) => {
         for (const [hex] of line.matchAll(
           /#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b/g,
@@ -123,5 +178,30 @@ describe('token usage', () => {
       offenders,
       `a literal colour ignores the active theme:\n  ${offenders.join('\n  ')}`,
     ).toEqual([]);
+  });
+
+  /* The guard stopped reading comments so that an issue number would stop
+     failing it. These two say the narrowing went only that far: a hex that
+     paints is still caught, and the thing it was narrowed for is still let
+     through. Without them the next person cannot tell a deliberate exemption
+     from a guard that quietly stopped working. */
+  it('still catches a literal colour in code', () => {
+    const code = withoutComments(
+      ['const bad = "#ff5f6b";', 'const worse = { color: \'#0af\' };'].join('\n'),
+    ).join('\n');
+
+    expect(code).toContain('#ff5f6b');
+    expect(code).toContain('#0af');
+  });
+
+  it('lets an issue reference through, in either comment style', () => {
+    const prose = withoutComments(
+      ['// answered by #123', '/* and by #137 */', 'const fine = 1; // #135'].join('\n'),
+    ).join('\n');
+
+    expect(prose).not.toContain('#123');
+    expect(prose).not.toContain('#137');
+    expect(prose).not.toContain('#135');
+    expect(prose).toContain('const fine = 1;');
   });
 });
