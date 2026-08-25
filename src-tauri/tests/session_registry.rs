@@ -262,9 +262,9 @@ async fn disconnecting_waits_for_the_operation_in_flight() {
 
     tokio::time::sleep(Duration::from_millis(50)).await;
 
-    let taken = registry.take(handle).await;
+    let closed = registry.close(handle).await;
 
-    assert!(taken.is_some(), "the session could not be closed");
+    assert!(closed.is_some(), "the session could not be closed");
     assert!(
         finished.load(Ordering::SeqCst),
         "the socket was taken out from under an operation still using it"
@@ -281,8 +281,8 @@ async fn a_closed_session_stops_answering() {
     a connection nobody holds. */
     let (registry, handle, _input) = open_session().await;
 
-    assert!(registry.take(handle).await.is_some());
-    assert!(registry.take(handle).await.is_none());
+    assert!(registry.close(handle).await.is_some());
+    assert!(registry.close(handle).await.is_none());
     assert!(registry.session_of(handle).await.is_none());
     assert!(registry
         .send_input(handle, Input::Keys(b"ls\n".to_vec()))
@@ -292,6 +292,48 @@ async fn a_closed_session_stops_answering() {
         .with(handle, |busy| async move { (busy, ()) })
         .await
         .is_none());
+}
+
+/// An authenticated connection with no shell attached, ready to be inserted.
+async fn a_second_session() -> (Open, u16, ()) {
+    let (port, host_public) = start_server().await;
+
+    let mut known = KnownHosts::default();
+    known.add(KnownHosts::entry_for(
+        "127.0.0.1",
+        port,
+        host_public.algorithm().as_str(),
+        host_public.to_bytes().expect("the host key encodes"),
+    ));
+
+    let mut connection = connect(
+        Endpoint {
+            host: "127.0.0.1".to_owned(),
+            port,
+        },
+        known,
+    )
+    .await
+    .expect("connects");
+
+    connection
+        .authenticate(
+            USER,
+            Credential::Password(Zeroizing::new(PASSWORD.to_owned())),
+        )
+        .await
+        .expect("authenticates");
+
+    (
+        Open {
+            connection,
+            session_id: "second".to_owned(),
+            user: USER.to_owned(),
+            input: None,
+        },
+        port,
+        (),
+    )
 }
 
 #[tokio::test]
@@ -307,15 +349,12 @@ async fn a_handle_says_whether_it_already_has_a_shell() {
     leaves behind in the map. */
     assert!(registry.has_shell(handle).await);
 
-    /* The same connection as it looks after authenticating and before anyone
-    has asked for a terminal. */
-    let open = registry.take(handle).await.expect("the session is open");
-    let fresh = registry
-        .insert(Open {
-            input: None,
-            ..open
-        })
-        .await;
+    /* A second session, as it looks after authenticating and before anyone has
+    asked for a terminal. Built rather than moved out of the first: since
+    ADR-0024 a connection may be ridden by several sessions, so taking one out
+    of the registry to put it back is no longer a thing that means anything. */
+    let (second, _port, _key) = a_second_session().await;
+    let fresh = registry.insert(second).await;
 
     assert!(
         !registry.has_shell(fresh).await,
@@ -323,8 +362,53 @@ async fn a_handle_says_whether_it_already_has_a_shell() {
          or the first terminal a session opens would be refused"
     );
 
+    /* And the answer follows the entry rather than the connection: attaching
+    input is what makes it true. */
+    let (sender, _receiver) = tokio::sync::mpsc::channel(1);
+    registry.attach_input(fresh, sender).await;
+    assert!(registry.has_shell(fresh).await);
+
+    registry
+        .close(handle)
+        .await
+        .expect("the session is open")
+        .expect("it closes");
     assert!(
         !registry.has_shell(handle).await,
         "a handle that no longer names a session has no shell"
     );
+}
+
+#[tokio::test]
+async fn an_open_session_can_be_ridden_by_name() {
+    /* What makes a chain reuse a bastion instead of opening a second
+    connection to a host it is already logged in to. ADR-0024, #164.
+
+    By saved session id rather than by handle, because the far session knows
+    which host it is reached through and has never seen a handle for it. */
+    let (registry, handle, _input) = open_session().await;
+
+    let session_id = registry
+        .session_of(handle)
+        .await
+        .expect("the handle names a session");
+
+    assert!(
+        registry.shared_of_session(&session_id).await.is_some(),
+        "an open session is findable by the id a jump host reference names"
+    );
+    assert!(
+        registry.shared_of_session("never-opened").await.is_none(),
+        "a session nobody opened is not findable, so a chain opens its own"
+    );
+
+    /* And it stops being findable once it is closed, or a chain would ride a
+    connection that is on its way out. */
+    registry
+        .close(handle)
+        .await
+        .expect("the session is open")
+        .expect("it closes");
+
+    assert!(registry.shared_of_session(&session_id).await.is_none());
 }

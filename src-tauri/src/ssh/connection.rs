@@ -223,16 +223,33 @@ impl client::Handler for HostKeyCheck {
     }
 }
 
+/// A connection several sessions may ride at once.
+///
+/// The mutex is what authentication needs and nothing else does: `russh` takes
+/// `&mut self` only for the authenticate calls, and `&self` for opening
+/// channels, pinging and disconnecting. So a connection is exclusive for as
+/// long as it is proving who it is, and shared for the rest of its life, which
+/// is exactly when it becomes useful as a bastion. ADR-0024.
+///
+/// `None` inside means the connection has been taken to be closed.
+pub type Shared = Arc<tokio::sync::Mutex<Option<Connection>>>;
+
+/// Wraps a connection so it can be shared.
+pub fn share(connection: Connection) -> Shared {
+    Arc::new(tokio::sync::Mutex::new(Some(connection)))
+}
+
 /// A connection whose host key was trusted, before authentication.
 pub struct Connection {
     handle: Handle<HostKeyCheck>,
     /// The bastion this session is carried on, when there is one.
     ///
-    /// Owned rather than referenced, and that is the whole reason the close
-    /// order is not a rule somebody has to remember: the channel dies with the
-    /// connection carrying it, so the bastion has to outlive this session, and
-    /// the way to guarantee that is for this session to hold it.
-    via: Option<Box<Connection>>,
+    /// A share rather than sole ownership, since ADR-0024. The argument of
+    /// ADR-0023 survives it: the channel dies with the connection carrying it,
+    /// so the bastion has to outlive this session, and holding a share is what
+    /// guarantees that. What changed is that several sessions may hold one, and
+    /// the count rather than a single holder decides when it closes.
+    via: Option<Shared>,
 }
 
 /// A chain that could not be completed, handing the bastion back.
@@ -241,7 +258,7 @@ pub struct Connection {
 /// politely. Dropping it here would leave the server logging a broken socket
 /// for a connection that was opened correctly and simply had nowhere to go.
 pub struct ChainFailure {
-    pub bastion: Connection,
+    pub bastion: Shared,
     pub error: ConnectionError,
     pub offered: Option<OfferedKey>,
 }
@@ -356,7 +373,7 @@ fn settle(
 /// credential. That is the property the `ssh -A` pattern this replaces did not
 /// have.
 pub async fn connect_via(
-    bastion: Connection,
+    bastion: Shared,
     endpoint: Endpoint,
     known: KnownHosts,
 ) -> Result<Connection, ChainFailure> {
@@ -370,33 +387,29 @@ pub async fn connect_via(
 /// host ran out of time. The cost is that a chain where both hops stall takes
 /// twice this long to fail, and ADR-0023 accepts that.
 pub async fn connect_via_within(
-    bastion: Connection,
+    bastion: Shared,
     endpoint: Endpoint,
     known: KnownHosts,
     timeout: Duration,
 ) -> Result<Connection, ChainFailure> {
-    /* The originator is loopback rather than this machine's own address. The
-    bastion has no use for it, it is written to the bastion's log, and it
-    describes a network the user did not offer to describe. */
-    let channel = match bastion
-        .handle
-        .channel_open_direct_tcpip(
-            endpoint.host.clone(),
-            u32::from(endpoint.port),
-            "127.0.0.1",
-            0,
-        )
-        .await
-    {
+    /* The bastion is held only while the channel is being opened, which is one
+    round trip. Holding it for the far handshake as well would make every chain
+    through one bastion wait on the slowest of them. */
+    let opened = {
+        let held = bastion.lock().await;
+        match held.as_ref() {
+            /* Taken to be closed while this was waiting its turn. */
+            None => Err(ConnectionError::Transport),
+            Some(carrier) => carrier.open_forward(&endpoint).await,
+        }
+    };
+
+    let channel = match opened {
         Ok(channel) => channel,
-        /* The bastion would not open the channel. That is the target being
-        unreachable *from the bastion*, and it is also exactly what a bastion
-        with `AllowTcpForwarding no` looks like. The two are indistinguishable
-        from here, so this says the thing that is true of both. */
-        Err(_) => {
+        Err(error) => {
             return Err(ChainFailure {
                 bastion,
-                error: ConnectionError::Unreachable,
+                error,
                 offered: None,
             })
         }
@@ -420,7 +433,7 @@ pub async fn connect_via_within(
     match settle(attempt.await, &offered) {
         Ok(handle) => Ok(Connection {
             handle,
-            via: Some(Box::new(bastion)),
+            via: Some(bastion),
         }),
         Err(refusal) => {
             let (error, offered) = *refusal;
@@ -483,7 +496,7 @@ impl Connection {
     /// no terminal to draw on, and programs that check for one behave as if
     /// they were being piped.
     pub async fn open_shell(
-        &mut self,
+        &self,
         columns: u16,
         rows: u16,
     ) -> Result<russh::Channel<russh::client::Msg>, ConnectionError> {
@@ -514,6 +527,35 @@ impl Connection {
         Ok(channel)
     }
 
+    /// Opens a forwarded connection to `endpoint`, from this host.
+    ///
+    /// The primitive a chain is built on, and the one local port forwarding
+    /// will need. Takes `&self`, which is what makes a bastion shareable:
+    /// several sessions may open a channel on one connection at once.
+    ///
+    /// The originator is loopback rather than this machine's own address. The
+    /// bastion has no use for it, it is written to the bastion's log, and it
+    /// describes a network the user did not offer to describe.
+    pub async fn open_forward(
+        &self,
+        endpoint: &Endpoint,
+    ) -> Result<russh::Channel<russh::client::Msg>, ConnectionError> {
+        self.handle
+            .channel_open_direct_tcpip(
+                endpoint.host.clone(),
+                u32::from(endpoint.port),
+                "127.0.0.1",
+                0,
+            )
+            .await
+            /* The bastion would not open the channel. That is the far host
+            being unreachable *from the bastion*, and it is also exactly what a
+            bastion with `AllowTcpForwarding no` looks like. The two are
+            indistinguishable from here, so this says the thing that is true of
+            both. */
+            .map_err(|_| ConnectionError::Unreachable)
+    }
+
     /// Measures the round trip to the host.
     ///
     /// Sends `keepalive@openssh.com` with `want_reply` set and times the
@@ -528,7 +570,7 @@ impl Connection {
     /// server. That is usually what a user wants and never what they asked
     /// for, so the caller decides when to stop — see `should_probe` on the
     /// frontend side.
-    pub async fn round_trip(&mut self) -> Result<Duration, ConnectionError> {
+    pub async fn round_trip(&self) -> Result<Duration, ConnectionError> {
         let sent = Instant::now();
 
         self.handle
@@ -542,10 +584,10 @@ impl Connection {
     /// Closes the connection politely, so the server logs a clean disconnect
     /// rather than a dropped socket.
     ///
-    /// A chain closes from the far end in. The bastion goes last, and it goes
-    /// even when closing the session it carries failed: a bastion left open has
-    /// no tab, no handle and nothing that could ever reach it, and it holds a
-    /// slot against the server's `MaxSessions` until the application restarts.
+    /// A chain closes from the far end in. The far session goes first, and the
+    /// share of the bastion is let go afterwards, which closes it only if
+    /// nothing else is riding it. That is [`close_shared`], and it is where
+    /// ADR-0024's count does the remembering.
     pub async fn disconnect(self) -> Result<(), ConnectionError> {
         let Self { handle, via } = self;
 
@@ -554,8 +596,12 @@ impl Connection {
             .await
             .map_err(|_| ConnectionError::Transport);
 
+        /* Let go of the bastion after the session it carried, and only then.
+        A bastion serving five other sessions must survive this; one serving
+        nobody must not be left holding a slot against the server's
+        `MaxSessions` that no handle can reach. */
         if let Some(bastion) = via {
-            let _ = Box::pin(bastion.disconnect()).await;
+            let _ = Box::pin(close_shared(bastion)).await;
         }
 
         closed
@@ -564,6 +610,25 @@ impl Connection {
     /// Whether this session is carried on a bastion.
     pub fn is_chained(&self) -> bool {
         self.via.is_some()
+    }
+}
+
+/// Lets go of a share, closing the connection if it was the last.
+///
+/// The whole of ADR-0024's lifetime rule, in one function. A connection several
+/// sessions ride is closed by whichever of them leaves last, and none of them
+/// has to know whether it is the last: the count knows.
+pub async fn close_shared(shared: Shared) -> Result<(), ConnectionError> {
+    let Ok(held) = Arc::try_unwrap(shared) else {
+        /* Somebody is still riding it. Letting go of our share is the whole of
+        closing, here. */
+        return Ok(());
+    };
+
+    match held.into_inner() {
+        Some(connection) => Box::pin(connection.disconnect()).await,
+        /* Already taken to be closed by whoever held it before. */
+        None => Ok(()),
     }
 }
 

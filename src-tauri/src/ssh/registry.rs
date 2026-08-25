@@ -16,7 +16,7 @@ use std::sync::Arc;
 
 use tokio::sync::Mutex;
 
-use crate::ssh::connection::Connection;
+use crate::ssh::connection::{close_shared, Connection, Shared};
 use crate::ssh::stats::Counters;
 
 /// An opaque reference to a live connection. Carries no secret and no address.
@@ -67,7 +67,10 @@ pub struct Busy {
 /// throughout.
 struct Entry {
     /// `None` once the session has been taken to be closed.
-    connection: Arc<Mutex<Option<Connection>>>,
+    ///
+    /// A share rather than sole ownership since ADR-0024: a bastion is ridden
+    /// by every session behind it, and the last one to leave closes it.
+    connection: Shared,
     session_id: String,
     user: String,
     input: Option<tokio::sync::mpsc::Sender<crate::ssh::terminal::Input>>,
@@ -98,7 +101,7 @@ impl Registry {
         self.open.lock().await.insert(
             handle,
             Entry {
-                connection: Arc::new(Mutex::new(Some(open.connection))),
+                connection: crate::ssh::connection::share(open.connection),
                 session_id: open.session_id,
                 user: open.user,
                 input: open.input,
@@ -136,22 +139,62 @@ impl Registry {
         Some(result)
     }
 
-    /// Removes a connection, handing it back so the caller can close it
-    /// politely rather than dropping the socket.
+    /// A share of a handle's connection, for work that only needs to read it.
+    ///
+    /// Distinct from [`with`](Self::with), which *takes* the connection out for
+    /// the duration so that authentication can have `&mut`. Anything riding a
+    /// connection sees a hole while it is out, and a latency probe runs every
+    /// few seconds: a bastion that vanished for the length of one would fail a
+    /// chain trying to open a channel at that moment.
+    ///
+    /// Everything except authentication belongs here. `russh` takes `&mut self`
+    /// for the authenticate calls alone.
+    ///
+    /// Hands back the share rather than taking a closure. An async closure over
+    /// a borrowed connection cannot be expressed without boxing its future at
+    /// every call site, and the noise would buy nothing: the caller locks, does
+    /// its one thing, and drops the guard.
+    pub async fn shared(&self, handle: SessionHandle) -> Option<Shared> {
+        let map = self.open.lock().await;
+        Some(Arc::clone(&map.get(&handle)?.connection))
+    }
+
+    /// A share of the connection open for a saved session, if one is.
+    ///
+    /// What lets a chain ride a bastion somebody already opened, instead of
+    /// opening a second connection to a host it is already logged in to.
+    pub async fn shared_of_session(&self, session_id: &str) -> Option<Shared> {
+        let map = self.open.lock().await;
+        map.values()
+            .find(|entry| entry.session_id == session_id)
+            .map(|entry| Arc::clone(&entry.connection))
+    }
+
+    /// Forgets a handle and closes its connection, unless something rides it.
     ///
     /// Waits for an operation already in flight rather than yanking the socket
     /// out from under it. Disconnecting during authentication used to report
     /// success and leave the session running.
-    pub async fn take(&self, handle: SessionHandle) -> Option<Open> {
+    ///
+    /// A bastion serving five other sessions must survive its own tab being
+    /// closed: the handle goes, the entry goes, and the connection stays until
+    /// the last session riding it leaves. Taking it out regardless would leave
+    /// five terminals talking to a socket that had been shut, which is the bug
+    /// ADR-0024's count exists to make impossible.
+    pub async fn close(
+        &self,
+        handle: SessionHandle,
+    ) -> Option<Result<(), crate::ssh::connection::ConnectionError>> {
         let entry = self.open.lock().await.remove(&handle)?;
-        let connection = entry.connection.lock().await.take()?;
 
-        Some(Open {
-            connection,
-            session_id: entry.session_id,
-            user: entry.user,
-            input: entry.input,
-        })
+        /* Waits for an operation already in flight to give the connection back
+        before deciding anything. Removing the entry first means no new one can
+        start, so this waits once and for a bounded time. Yanking the socket
+        during authentication used to report success and leave the session
+        running, and a test holds that line. */
+        drop(entry.connection.lock().await);
+
+        Some(close_shared(entry.connection).await)
     }
 
     /// Records where a session's keystrokes should be sent.
@@ -237,7 +280,7 @@ mod tests {
     #[tokio::test]
     async fn an_unknown_handle_reaches_nothing() {
         let registry = Registry::new();
-        assert!(registry.take(SessionHandle(999)).await.is_none());
+        assert!(registry.close(SessionHandle(999)).await.is_none());
         assert_eq!(registry.count().await, 0);
     }
 }

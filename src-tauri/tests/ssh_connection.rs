@@ -16,7 +16,8 @@ use russh::MethodKind;
 use zeroize::Zeroizing;
 
 use runic_ssh::ssh::connection::{
-    connect, connect_via, connect_within, ConnectionError, Credential, Endpoint, Hop,
+    close_shared, connect, connect_via, connect_within, share, ConnectionError, Credential,
+    Endpoint, Hop, Shared,
 };
 use runic_ssh::ssh::known_hosts::KnownHosts;
 use runic_ssh::ssh::trust::Trust;
@@ -644,7 +645,7 @@ async fn a_chain(forwards: bool) -> Chain {
 
 /// Connects to the bastion and authenticates, which is what `direct-tcpip`
 /// requires before it will open anything.
-async fn open_bastion(chain: &Chain) -> runic_ssh::ssh::connection::Connection {
+async fn open_bastion(chain: &Chain) -> Shared {
     let mut bastion = connect(
         endpoint(chain.bastion_port),
         trusting(chain.bastion_port, &chain.bastion_key),
@@ -660,7 +661,7 @@ async fn open_bastion(chain: &Chain) -> runic_ssh::ssh::connection::Connection {
         .await
         .expect("the bastion accepts its own password");
 
-    bastion
+    share(bastion)
 }
 
 #[tokio::test]
@@ -752,7 +753,7 @@ async fn the_far_host_key_is_checked_through_the_chain() {
 
     /* The bastion comes back rather than being dropped, so it can be closed
     politely instead of leaving a broken socket in the server's log. */
-    failure.bastion.disconnect().await.expect("it closes");
+    close_shared(failure.bastion).await.expect("it closes");
 }
 
 #[tokio::test]
@@ -774,7 +775,7 @@ async fn a_bastion_that_refuses_forwarding_hands_itself_back() {
 
     assert!(matches!(failure.error, ConnectionError::Unreachable));
     assert!(failure.offered.is_none(), "no key was ever offered");
-    failure.bastion.disconnect().await.expect("it closes");
+    close_shared(failure.bastion).await.expect("it closes");
 }
 
 #[tokio::test]
@@ -828,5 +829,140 @@ async fn closing_a_chain_releases_the_bastion() {
             .load(std::sync::atomic::Ordering::Relaxed),
         0,
         "the bastion did not outlive the session it carried"
+    );
+}
+
+/* ------------------------------------------------------------------------ *
+ * One bastion, several hosts behind it. ADR-0024.
+ * ------------------------------------------------------------------------ */
+
+/// Waits for the bastion's live session count to settle, or gives up.
+///
+/// The server drops its handler on its own task, so a count read the instant
+/// after a disconnect is a count read too early.
+async fn settles_at(chain: &Chain, expected: usize) -> usize {
+    let mut waited = std::time::Duration::ZERO;
+    loop {
+        let live = chain
+            .bastion_live
+            .load(std::sync::atomic::Ordering::Relaxed);
+        if live == expected || waited >= std::time::Duration::from_secs(5) {
+            return live;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        waited += std::time::Duration::from_millis(10);
+    }
+}
+
+#[tokio::test]
+async fn two_hosts_behind_one_bastion_cost_it_one_login() {
+    /* The whole of #164. Before this, six hosts behind a bastion meant six
+    connections to it, six authentications, and six entries in the log it
+    exists to produce. */
+    let chain = a_chain(true).await;
+    let bastion = open_bastion(&chain).await;
+
+    let first = connect_via(
+        Arc::clone(&bastion),
+        endpoint(chain.target_port),
+        trusting(chain.target_port, &chain.target_key),
+    )
+    .await
+    .map_err(|failure| failure.error)
+    .expect("the first host is reached");
+
+    let second = connect_via(
+        Arc::clone(&bastion),
+        endpoint(chain.target_port),
+        trusting(chain.target_port, &chain.target_key),
+    )
+    .await
+    .map_err(|failure| failure.error)
+    .expect("the second host is reached over the same bastion");
+
+    assert_eq!(
+        settles_at(&chain, 1).await,
+        1,
+        "one bastion connection carries both"
+    );
+
+    let offered = chain.bastion_saw.lock().expect("the log is readable").len();
+    assert_eq!(offered, 1, "the bastion was authenticated once, not twice");
+
+    first.disconnect().await.expect("the first closes");
+    second.disconnect().await.expect("the second closes");
+    close_shared(bastion).await.expect("the share is let go");
+}
+
+#[tokio::test]
+async fn closing_one_host_leaves_the_others_connected() {
+    /* Seen on the maintainer's machine as the reason not to take the smallest
+    option: a `top` was running on a host behind a bastion whose own tab was
+    closed. Whatever sharing does, it must not break that. */
+    let chain = a_chain(true).await;
+    let bastion = open_bastion(&chain).await;
+
+    let first = connect_via(
+        Arc::clone(&bastion),
+        endpoint(chain.target_port),
+        trusting(chain.target_port, &chain.target_key),
+    )
+    .await
+    .map_err(|failure| failure.error)
+    .expect("the first host is reached");
+
+    let mut second = connect_via(
+        Arc::clone(&bastion),
+        endpoint(chain.target_port),
+        trusting(chain.target_port, &chain.target_key),
+    )
+    .await
+    .map_err(|failure| failure.error)
+    .expect("the second host is reached");
+
+    /* The share the registry would hold for the bastion's own session, let go
+    as if its tab had been closed. */
+    close_shared(bastion).await.expect("the share is let go");
+    first.disconnect().await.expect("the first closes");
+
+    assert_eq!(
+        settles_at(&chain, 1).await,
+        1,
+        "the bastion is still carrying the session that is left"
+    );
+
+    /* And the survivor is not merely counted, it works. */
+    second
+        .authenticate(
+            USER,
+            Credential::Password(Zeroizing::new(PASSWORD.to_owned())),
+        )
+        .await
+        .expect("the surviving session still authenticates through the bastion");
+
+    second.disconnect().await.expect("the last one closes");
+    assert_eq!(
+        settles_at(&chain, 0).await,
+        0,
+        "the last session out closes the bastion"
+    );
+}
+
+#[tokio::test]
+async fn a_bastion_nobody_rides_is_not_left_open() {
+    /* The other half of the count. A share let go by its only holder closes
+    the connection rather than leaving a slot against the server's
+    MaxSessions that no handle can reach. */
+    let chain = a_chain(true).await;
+    let bastion = open_bastion(&chain).await;
+
+    assert_eq!(settles_at(&chain, 1).await, 1);
+
+    close_shared(bastion).await.expect("it closes");
+
+    assert_eq!(
+        settles_at(&chain, 0).await,
+        0,
+        "nothing was left holding it"
     );
 }

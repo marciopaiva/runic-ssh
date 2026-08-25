@@ -19,7 +19,7 @@
 use zeroize::Zeroizing;
 
 use runic_ssh::ssh::connection::{
-    connect, connect_reporting, connect_via, Credential, Endpoint, Hop,
+    close_shared, connect, connect_reporting, connect_via, share, Credential, Endpoint, Hop, Shared,
 };
 use runic_ssh::ssh::known_hosts::KnownHosts;
 use runic_ssh::ssh::trust::Trust;
@@ -198,7 +198,10 @@ fn target_endpoint() -> Endpoint {
 }
 
 /// Connects to the bastion and authenticates, ready to carry a chain.
-async fn open_bastion() -> runic_ssh::ssh::connection::Connection {
+///
+/// Handed back as a share since ADR-0024: a bastion is ridden rather than
+/// owned, and several sessions may hold the same one.
+async fn open_bastion() -> Shared {
     let (_, offered) = connect_reporting(bastion_endpoint(), KnownHosts::default())
         .await
         .err()
@@ -225,7 +228,7 @@ async fn open_bastion() -> runic_ssh::ssh::connection::Connection {
         .await
         .expect("the bastion authenticates");
 
-    bastion
+    share(bastion)
 }
 
 /// Reads the far host's key by reaching it through the bastion once.
@@ -251,7 +254,7 @@ async fn offered_target_key() -> Vec<u8> {
         offered.verdict
     );
 
-    failure.bastion.disconnect().await.expect("it closes");
+    close_shared(failure.bastion).await.expect("it closes");
     offered.key
 }
 
