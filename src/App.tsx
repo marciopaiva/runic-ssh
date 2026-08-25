@@ -145,6 +145,18 @@ function bodyStyle(box: Box): CSSProperties {
   };
 }
 
+/**
+ * What is being dragged towards a rectangle.
+ *
+ * Two things can be, and they are different: a tab is already open somewhere
+ * and moves, a host from the list may not be open at all and is connected. The
+ * drop is one gesture and the answer to it is not, so the difference is
+ * carried here rather than worked out at the moment of landing.
+ */
+type Dragged =
+  | { readonly kind: 'tab'; readonly entry: Focus }
+  | { readonly kind: 'host'; readonly sessionId: string };
+
 /** The session a group is showing, or `null` when it is showing something else. */
 function shownSession(group: Group): string | null {
   const entry = activeEntry(group);
@@ -219,7 +231,7 @@ export function App(): JSX.Element {
      rather than in `dataTransfer`, which is readable by anything the window is
      dropped on and writable by anything dropped into it: a file dragged in
      from a file manager must never be able to look like a tab. */
-  const [dragging, setDragging] = useState<Focus | null>(null);
+  const [dragging, setDragging] = useState<Dragged | null>(null);
   const [dropOver, setDropOver] = useState<number | null>(null);
   /* A paste held back for an answer, and the session that asked. Held here
      rather than inside the terminal so it renders in that session's panel the
@@ -1001,6 +1013,20 @@ export function App(): JSX.Element {
     return items;
   }, [addMenu, sessions, i18n, openHere, addFormIn]);
 
+  /* Where a drag lands. A tab moves, a host from the list opens: `openHere`
+     already knows that one of those is a connection it has to make and the
+     other is one it must not make twice. */
+  const dropInto = useCallback(
+    (dragged: Dragged, group: number): void => {
+      if (dragged.kind === 'tab') moveTo(dragged.entry, group);
+      else openHere(dragged.sessionId, group);
+
+      setDragging(null);
+      setDropOver(null);
+    },
+    [moveTo, openHere],
+  );
+
   const pasteBox =
     pendingPaste === null ? null : boxOf({ kind: 'session', sessionId: pendingPaste.sessionId });
   const attemptBox =
@@ -1034,6 +1060,10 @@ export function App(): JSX.Element {
             selectedId={selected}
             receiving={reaching}
             spared={spared}
+            onDrag={(sessionId) => {
+              setDragging(sessionId === null ? null : { kind: 'host', sessionId });
+              if (sessionId === null) setDropOver(null);
+            }}
             onSelect={activate}
             onAdd={() => openEditor({ kind: 'new' })}
             onMenu={(sessionId, at) => setMenu({ sessionId, at })}
@@ -1088,9 +1118,7 @@ export function App(): JSX.Element {
                 }}
                 onDrop={dragging === null ? undefined : (event) => {
                   event.preventDefault();
-                  moveTo(dragging, at);
-                  setDragging(null);
-                  setDropOver(null);
+                  dropInto(dragging, at);
                 }}
               >
                 <GroupStrip
@@ -1128,7 +1156,7 @@ export function App(): JSX.Element {
                     setGroupMenu({ group: at, entry, at: point })
                   }
                   onDrag={(entry) => {
-                    setDragging(entry);
+                    setDragging(entry === null ? null : { kind: 'tab', entry });
                     if (entry === null) setDropOver(null);
                   }}
                 />
@@ -1294,9 +1322,7 @@ export function App(): JSX.Element {
                 onDragLeave={() => setDropOver((current) => (current === at ? null : current))}
                 onDrop={(event) => {
                   event.preventDefault();
-                  moveTo(dragging, at);
-                  setDragging(null);
-                  setDropOver(null);
+                  dropInto(dragging, at);
                 }}
                 className={`absolute z-20 rounded-sm border-2 border-dashed transition-colors ${
                   dropOver === at
