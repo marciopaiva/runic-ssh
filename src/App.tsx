@@ -215,6 +215,12 @@ export function App(): JSX.Element {
     readonly group: number;
     readonly at: { readonly x: number; readonly y: number };
   } | null>(null);
+  /* A tab being dragged, and the rectangle the pointer is over. Held here
+     rather than in `dataTransfer`, which is readable by anything the window is
+     dropped on and writable by anything dropped into it: a file dragged in
+     from a file manager must never be able to look like a tab. */
+  const [dragging, setDragging] = useState<Focus | null>(null);
+  const [dropOver, setDropOver] = useState<number | null>(null);
   /* A paste held back for an answer, and the session that asked. Held here
      rather than inside the terminal so it renders in that session's panel the
      way every other question does, per ADR-0015. */
@@ -1075,6 +1081,17 @@ export function App(): JSX.Element {
                         'border-line-subtle border-2 border-dashed'
                 }`}
                 style={frameStyle(group.box)}
+                onDragOver={dragging === null ? undefined : (event) => {
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = 'move';
+                  setDropOver(at);
+                }}
+                onDrop={dragging === null ? undefined : (event) => {
+                  event.preventDefault();
+                  moveTo(dragging, at);
+                  setDragging(null);
+                  setDropOver(null);
+                }}
               >
                 <GroupStrip
                   entries={group.entries}
@@ -1110,6 +1127,10 @@ export function App(): JSX.Element {
                   onMenu={(entry, point) =>
                     setGroupMenu({ group: at, entry, at: point })
                   }
+                  onDrag={(entry) => {
+                    setDragging(entry);
+                    if (entry === null) setDropOver(null);
+                  }}
                 />
 
                 {/* The body is drawn by the surfaces below, which are siblings
@@ -1252,6 +1273,38 @@ export function App(): JSX.Element {
               />
             </div>
           )}
+
+          {/* Where a dragged tab can be let go.
+              One per rectangle, and only while something is being dragged.
+              They have to exist as their own elements because a group's body
+              is covered by a terminal, which is a sibling of the frame rather
+              than a child of it (ADR-0014), and xterm has its own opinions
+              about the pointer. Last in document order so they are above
+              everything they cover. */}
+          {dragging !== null &&
+            groups.map((group, at) => (
+              <div
+                key={`drop-${String(at)}`}
+                style={bodyStyle(group.box)}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = 'move';
+                  setDropOver(at);
+                }}
+                onDragLeave={() => setDropOver((current) => (current === at ? null : current))}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  moveTo(dragging, at);
+                  setDragging(null);
+                  setDropOver(null);
+                }}
+                className={`absolute z-20 rounded-sm border-2 border-dashed transition-colors ${
+                  dropOver === at
+                    ? 'border-accent bg-accent-soft/70'
+                    : 'border-line-strong bg-surface-base/25'
+                }`}
+              />
+            ))}
 
           {/* Everything an attempt has to say, inside the group of the session
               it names. ADR-0015, read as ADR-0020 reads it: the group whose

@@ -71,6 +71,8 @@ interface GroupStripProps {
   readonly onAdd: (at: { readonly x: number; readonly y: number }) => void;
   /** Opens this group's menu, about one of its tabs, at a point on screen. */
   readonly onMenu: (entry: Focus | null, at: { readonly x: number; readonly y: number }) => void;
+  /** Which tab is being dragged, or `null` when a drag ends or never began. */
+  readonly onDrag: (entry: Focus | null) => void;
 }
 
 /**
@@ -105,6 +107,7 @@ export function GroupStrip({
   onClose,
   onAdd,
   onMenu,
+  onDrag,
 }: GroupStripProps): JSX.Element {
   const i18n = useTranslator();
 
@@ -171,6 +174,22 @@ export function GroupStrip({
           <div
             key={id}
             role="presentation"
+            /* Dragging a tab into another rectangle. The pointer path only:
+               the menu beside it and the palette are how this is done from a
+               keyboard, and they were built first for that reason.
+
+               A payload is set even though nothing reads it. Some engines
+               refuse to begin a drag without one, and what is being moved is
+               held in the shell rather than in `dataTransfer`, so that
+               something dragged in from outside the window can never be
+               mistaken for a tab. */
+            draggable
+            onDragStart={(event) => {
+              event.dataTransfer.effectAllowed = 'move';
+              event.dataTransfer.setData('text/plain', title);
+              onDrag(entry);
+            }}
+            onDragEnd={() => onDrag(null)}
             /* Right-click is the convention. The button at the trailing edge
                is what somebody finds without knowing the convention, and it
                opens the same menu about whichever tab is showing. */

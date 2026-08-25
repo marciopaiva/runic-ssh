@@ -51,6 +51,29 @@ describe('TypeScript configuration', () => {
   });
 });
 
+describe('the main window', () => {
+  const window = (): Record<string, unknown> => {
+    const conf = JSON.parse(
+      readFileSync(fileURLToPath(new URL('src-tauri/tauri.conf.json', repoRoot)), 'utf8'),
+    ) as { app: { windows: Record<string, unknown>[] } };
+    const main = conf.app.windows[0];
+    expect(main, 'tauri.conf.json declares no window').toBeDefined();
+    return main ?? {};
+  };
+
+  it('leaves drag and drop to the page', () => {
+    /* Not a preference. With the native handler on, which is the default, the
+       operating system's drop target sits over the webview and HTML drag
+       events never reach the document, so a tab cannot be dragged between
+       rectangles however the interface is written.
+
+       It also narrows the window rather than widening it: with this off, a
+       file dropped on Runic is not handed to the core at all. Nothing in
+       `src-tauri/` listened for one, so there was nothing there but surface. */
+    expect(window()['dragDropEnabled']).toBe(false);
+  });
+});
+
 describe('Vite configuration', () => {
   it('refuses to fall back to another dev server port', () => {
     /* `tauri.conf.json` points devUrl at a fixed port. Without strictPort,
