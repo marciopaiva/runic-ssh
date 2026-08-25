@@ -18,7 +18,20 @@ export function eligibleJumpHosts(
   /** The session being edited, or `null` when creating one. */
   editing: string | null,
 ): readonly Session[] {
-  return sessions.filter(
-    (session) => session.id !== editing && session.proxyJump === null,
-  );
+  return sessions.filter((session) => session.id !== editing && !hasJumpHost(session));
+}
+
+/**
+ * Whether a session is reached through another one.
+ *
+ * Absent and null both mean no, and the difference is not academic. The core
+ * skips the field entirely when there is none, so what arrives for an ordinary
+ * host is `undefined` and never `null`, whatever the declared type says. A
+ * strict comparison against `null` here matched nothing, the select found no
+ * eligible hosts, and the control was absent from the form. Every test passed:
+ * they built sessions with the field written out as `null`, which is a shape
+ * the core does not send.
+ */
+function hasJumpHost(session: Session): boolean {
+  return (session.proxyJump ?? null) !== null;
 }

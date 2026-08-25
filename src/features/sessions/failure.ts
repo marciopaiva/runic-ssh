@@ -11,7 +11,7 @@
  * that was written to fill the space.
  */
 
-import type { IpcErrorCode } from '../../ipc';
+import type { Hop, IpcErrorCode } from '../../ipc';
 import type { ConnectionKind } from './state';
 import type { ParameterlessKey } from '../../lib/i18n';
 
@@ -121,7 +121,29 @@ const UNEXPECTED: Failure = {
   retryable: true,
 };
 
-export function describeFailure(code: IpcErrorCode): Failure {
+/**
+ * A jump host has no window to type a credential into.
+ *
+ * ADR-0023 resolves it from the keychain and nowhere else, deliberately. So
+ * the ordinary keychain message, which offers typing it instead, promises a
+ * way out that does not exist at this hop. Saying so is the difference between
+ * a message somebody acts on and one they try twice and give up on. See #165.
+ */
+const WITHOUT_A_KEYCHAIN: ReadonlySet<IpcErrorCode> = new Set<IpcErrorCode>([
+  'keychainUnavailable',
+  'keychainReadFailed',
+  'noSavedCredential',
+]);
+
+export function describeFailure(code: IpcErrorCode, hop: Hop | null = null): Failure {
+  if (hop === 'bastion' && WITHOUT_A_KEYCHAIN.has(code)) {
+    return {
+      title: 'failure.jumpCredential.title',
+      body: 'failure.jumpCredential.body',
+      retryable: false,
+    };
+  }
+
   return FAILURES[code] ?? UNEXPECTED;
 }
 

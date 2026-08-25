@@ -59,6 +59,8 @@
   "failure.hop.bastion": "El fallo ocurrió en el host intermedio, antes de llegar al host que pidió.",
   "failure.hop.target": "Se alcanzó el host intermedio. El fallo ocurrió en el camino desde allí.",
   "failure.host": "Intentó {user}@{host} en el puerto {port}",
+  "failure.jumpCredential.body": "Un host intermedio se autentica desde el llavero del sistema y nunca desde una ventana, así que no hay nada que escribir aquí. Conéctese a él directamente una vez y elija recordar la credencial. Si esta máquina no tiene llavero, todavía no pueden usarse hosts intermedios en ella.",
+  "failure.jumpCredential.title": "El host intermedio no tiene credencial que usar",
   "failure.keyUnreadable.body": "No es una clave en un formato que Runic SSH entienda, o la frase de paso no la abre.",
   "failure.keyUnreadable.title": "No se pudo leer la clave privada",
   "failure.keychain.body": "El llavero del sistema no respondió. Todavía puede conectarse escribiendo la credencial.",

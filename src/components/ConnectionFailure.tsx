@@ -41,7 +41,7 @@ export function ConnectionFailure({
   onDismiss,
 }: ConnectionFailureProps): JSX.Element {
   const i18n = useTranslator();
-  const failure = describeFailure(code);
+  const failure = describeFailure(code, hop);
 
   return (
     <SessionSurface

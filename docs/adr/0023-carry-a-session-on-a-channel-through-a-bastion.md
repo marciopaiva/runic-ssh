@@ -137,6 +137,16 @@ The agent is never forwarded, and nothing of ours runs on the bastion.
 
 **Bad**: A bastion with no saved credential is refused outright, which is a wall
 in front of exactly the person meeting the feature for the first time.
+
+**A machine with no keychain cannot use a jump host at all.** This was found by
+running the built feature rather than by reasoning, and it is worse than the
+paragraph above rather than another way of saying it. `Vault::availability`
+already models a machine with no secret service, and the application already
+degrades there to collecting a credential per connection, which works. Under
+this decision the chain is the one feature that hard-requires a keychain: the
+bastion's credential can only come from one, so on a machine without a secret
+service every chained session fails at the first hop. That is a real
+asymmetry, it is not what the tradeoff above describes, and it is #165.
 `connect_session` now reads the vault, which it never did before, so the command
 that was deliberately credential-free no longer is. `Connection` becomes
 recursive and `disconnect` becomes ordered, which is a new way to leave a
@@ -146,8 +156,11 @@ including re-authenticating the bastion, because there is deliberately no
 can take forty seconds to arrive.
 
 **Follow-up**: #164, reusing one bastion connection across the hosts behind it,
-which this decision makes worse by opening one per session. Option B, once the
-host key and credential screens can say which hop is asking; the condition to
-revisit is somebody having a bastion they cannot save a credential for.
+which this decision makes worse by opening one per session. #165, the machine
+with no keychain, which is the strongest argument for Option B and was not
+known when this was written. Option B itself, once the host key and credential
+screens can say which hop is asking; the conditions to revisit are somebody
+having a bastion they cannot save a credential for, or a machine that cannot
+save one at all.
 Multi-hop chains, if a real configuration turns up that needs them, which
 would revisit the one-hop scope rather than this structure.

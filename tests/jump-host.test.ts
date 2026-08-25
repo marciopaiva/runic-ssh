@@ -74,6 +74,23 @@ describe('reporting a failure that happened in a chain', () => {
     expect(failure.retryable).toBe(false);
   });
 
+  it('does not offer to type a credential the jump host cannot be given', () => {
+    /* ADR-0023 resolves the bastion credential from the keychain and nowhere
+       else, so the ordinary keychain copy ("you can still connect by typing
+       the credential") promises a way out that does not exist at that hop.
+       Found by reading it on screen. See #165. */
+    for (const code of ['keychainUnavailable', 'keychainReadFailed', 'noSavedCredential'] as const) {
+      expect(describeFailure(code, 'bastion').title).toBe('failure.jumpCredential.title');
+      expect(describeFailure(code, 'bastion').retryable).toBe(false);
+    }
+  });
+
+  it('keeps the ordinary keychain message for the host the user asked for', () => {
+    /* There a window does open, so offering it is true. */
+    expect(describeFailure('keychainUnavailable', 'target').title).toBe('failure.keychain.title');
+    expect(describeFailure('keychainUnavailable').title).toBe('failure.keychain.title');
+  });
+
   it('says all of it in every language', () => {
     for (const locale of ['en', 'pt-BR', 'es']) {
       const i18n = createTranslator(locale);
@@ -84,6 +101,8 @@ describe('reporting a failure that happened in a chain', () => {
         'failure.hop.bastion',
         'failure.hop.target',
         'hostKey.hop.bastion',
+        'failure.jumpCredential.title',
+        'failure.jumpCredential.body',
         'session.editor.jumpHost',
         'session.editor.jumpHost.none',
         'session.editor.jumpHostHint',
@@ -119,5 +138,19 @@ describe('which hosts may be a jump host', () => {
 
   it('offers nothing when nothing is saved, so the control can be absent', () => {
     expect(eligibleJumpHosts([], null)).toEqual([]);
+  });
+
+  it('reads a session that arrived without the field at all', () => {
+    /* What the core actually sends. `skip_serializing_if` omits the field for
+       a host that is not behind one, so it arrives `undefined` and never
+       `null`. Comparing strictly against `null` matched nothing, so nothing
+       was eligible and the select never appeared on the form, with every test
+       above still green: they all wrote the field out as `null`, which is a
+       shape the core does not produce. Found by opening the form. */
+    const wire = JSON.parse(
+      '[{"id":"a","name":"a","host":"a.example","port":22,"user":"deploy","group":null,"credentialId":null}]',
+    ) as Session[];
+
+    expect(eligibleJumpHosts(wire, null).map((host) => host.id)).toEqual(['a']);
   });
 });
