@@ -161,6 +161,7 @@
   "sessions.empty.title": "Aún no hay sesiones",
   "sessions.filter": "Filtrar sesiones",
   "sessions.jump.carries": "Otros hosts se alcanzan a través de este",
+  "sessions.jump.direct": "Conectado directamente",
   "sessions.jump.rides": "Alcanzado a través de otro host",
   "sessions.legend": "ESTADO",
   "sessions.receiving": "{count} RECIBIENDO",
