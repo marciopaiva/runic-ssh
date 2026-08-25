@@ -67,10 +67,15 @@ interface GroupStripProps {
   readonly onFocus: (focus: Focus) => void;
   /** Closing any tab, whichever kind. The shell knows what each one means. */
   readonly onClose: (focus: Focus) => void;
-  /** Opens the list of saved hosts, anchored to the button that asked. */
-  readonly onAdd: (at: { readonly x: number; readonly y: number }) => void;
-  /** Opens this group's menu, about one of its tabs, at a point on screen. */
-  readonly onMenu: (entry: Focus | null, at: { readonly x: number; readonly y: number }) => void;
+  /**
+   * Opens this group's menu, about the tab it was asked on.
+   *
+   * Right-click only. The button that used to sit at the trailing edge is
+   * gone: everything it offered is either a drag away or in the palette, and
+   * two icons on every strip is a lot of chrome for a window that can hold
+   * four of them.
+   */
+  readonly onMenu: (entry: Focus, at: { readonly x: number; readonly y: number }) => void;
   /** Which tab is being dragged, or `null` when a drag ends or never began. */
   readonly onDrag: (entry: Focus | null) => void;
 }
@@ -105,7 +110,6 @@ export function GroupStrip({
   onToggleReceiving,
   onFocus,
   onClose,
-  onAdd,
   onMenu,
   onDrag,
 }: GroupStripProps): JSX.Element {
@@ -301,44 +305,6 @@ export function GroupStrip({
 
       <div className="min-w-0 flex-1" />
 
-      <div className="text-ink-faint flex shrink-0 items-center gap-2 pr-2">
-        <button
-          type="button"
-          onClick={(event) => {
-            const box = event.currentTarget.getBoundingClientRect();
-            onAdd({ x: box.right - 4, y: box.bottom + 2 });
-          }}
-          aria-label={i18n.t('group.add')}
-          title={i18n.t('group.add')}
-          className="hover:text-ink flex h-4 w-4 items-center justify-center"
-        >
-          <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" aria-hidden="true">
-            <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-          </svg>
-        </button>
-
-        {/* Nothing to do to a rectangle holding nothing. The `+` beside it is
-            the only thing an empty group can offer, and it is the thing it is
-            for. */}
-        {entries.length > 0 && (
-        <button
-          type="button"
-          onClick={(event) => {
-            const box = event.currentTarget.getBoundingClientRect();
-            onMenu(active, { x: box.right - 4, y: box.bottom + 2 });
-          }}
-          aria-label={i18n.t('group.menu')}
-          title={i18n.t('group.menu')}
-          className="hover:text-ink flex h-4 w-4 items-center justify-center"
-        >
-          <svg viewBox="0 0 24 24" className="h-3 w-3" fill="currentColor" aria-hidden="true">
-            <circle cx="5.5" cy="12" r="1.6" />
-            <circle cx="12" cy="12" r="1.6" />
-            <circle cx="18.5" cy="12" r="1.6" />
-          </svg>
-        </button>
-        )}
-      </div>
     </div>
   );
 }
