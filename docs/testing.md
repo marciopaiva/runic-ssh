@@ -289,9 +289,10 @@ for the same reason:
 cargo test --test against_openssh -- --ignored --nocapture
 ```
 
-Three of the seven need this pair rather than the single host: the far key is
+Four of the eight need this pair rather than the single host: the far key is
 verified through the chain, a shell opens on a host this machine cannot resolve,
-and the bastion's password does not open the host behind it.
+the bastion's password does not open the host behind it, and two hosts ride one
+bastion on two channels of a single authenticated session.
 
 Three things this fixture is for, beyond connecting at all:
 
