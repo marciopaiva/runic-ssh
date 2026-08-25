@@ -8,11 +8,13 @@ use serde::Serialize;
 use tauri::{AppHandle, Manager, Runtime, State};
 
 use crate::config::sessions::{
-    delete_session as remove_session, save_session as store_session, Session, SessionDraft,
-    SessionStore,
+    check_proxy_jump, delete_session as remove_session, save_session as store_session, Session,
+    SessionDraft, SessionStore,
 };
 use crate::error::{Error, IpcError};
-use crate::ssh::connection::{connect_reporting, Credential, Endpoint, OfferedKey};
+use crate::ssh::connection::{
+    connect_reporting, connect_via, Connection, Credential, Endpoint, Hop, OfferedKey,
+};
 use crate::ssh::known_hosts::KnownHosts;
 use crate::ssh::pending::{PendingHostKeys, PendingId};
 use crate::ssh::registry::{Busy, Open, Registry, SessionHandle};
@@ -33,6 +35,13 @@ pub struct OpenSession {
     pub name: String,
     /// Whether the connection still needs a credential before it is usable.
     pub authenticated: bool,
+    /// The name of the bastion this session is carried on, when there is one.
+    ///
+    /// Sent so the interface can say so. Going through another machine is a
+    /// fact about where the keystrokes travel, and a user who does not know it
+    /// is happening cannot reason about it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub via: Option<String>,
 }
 
 fn config_dir<R: Runtime>(app: &AppHandle<R>) -> Result<std::path::PathBuf, Error> {
@@ -78,6 +87,12 @@ pub struct HostKeyDecisionView {
     pub offered: String,
     /// The fingerprints already trusted for this host, if any.
     pub stored: Vec<String>,
+    /// Which host in a chain is being asked about.
+    ///
+    /// The screen has to say so. Two fingerprint prompts in a row, for two
+    /// different hosts, are the same prompt to anybody not told which is which,
+    /// and the one that gets read is the one rule 3 depends on.
+    pub hop: Hop,
 }
 
 /// Describes a host key decision the core is holding.
@@ -112,6 +127,7 @@ pub async fn host_key_decision(
         host: offered.host,
         port: offered.port,
         key_type: offered.key_type,
+        hop: offered.hop,
         verdict: verdict.to_owned(),
         offered: fingerprint,
         stored,
@@ -371,40 +387,161 @@ pub async fn authenticate_with_saved(
     Ok(())
 }
 
+fn endpoint_of(session: &Session) -> Endpoint {
+    Endpoint {
+        host: session.host.clone(),
+        port: session.port,
+    }
+}
+
+fn chain_failure(hop: Hop, inner: IpcError) -> IpcError {
+    IpcError::ChainFailed {
+        hop,
+        inner: Box::new(inner),
+    }
+}
+
+/// Turns a refused connection into what crosses to the webview.
+///
+/// A refusal has to survive the round trip to the interface. What was offered
+/// is kept here, and the webview gets an id for it, never the decision and
+/// never the key.
+///
+/// A host key refusal keeps its own shape whether or not there is a chain. The
+/// interface finds a held decision by the code at the top of the error, so
+/// wrapping this one in a chain failure would leave a host behind a bastion
+/// with no way to accept its key at all. The hop travels inside the decision
+/// instead, which is where the screen that has to name it reads from.
+async fn refusal(
+    pending: &PendingHostKeys,
+    hop: Hop,
+    chained: bool,
+    error: crate::ssh::connection::ConnectionError,
+    offered: Option<OfferedKey>,
+) -> IpcError {
+    let inner = IpcError::from(Box::new(error));
+
+    if let Some(mut offered) = offered {
+        /* Stamped here rather than in the transport, which cannot know what
+        role a connection plays in a chain it was not told about. */
+        offered.hop = hop;
+        let id = pending.remember(offered).await;
+        return IpcError::HostKeyDecision {
+            pending: id,
+            inner: Box::new(inner),
+        };
+    }
+
+    if chained {
+        return chain_failure(hop, inner);
+    }
+
+    inner
+}
+
+/// Opens the chain to a host that is behind a bastion.
+///
+/// The order is fixed and is the whole security content of ADR-0023: the
+/// bastion's key is verified, the bastion is authenticated, the channel is
+/// opened, and only then is the far host's key verified and its credential
+/// used. Rule 3 applies at both hops, and the host that carries the others is
+/// not the one to make an exception for.
+///
+/// Nothing is left open on any failure path. A bastion nobody can reach holds
+/// a slot against the server's `MaxSessions` until the application restarts.
+async fn open_through(
+    pending: &PendingHostKeys,
+    vault: &Vault,
+    bastion: &Session,
+    target: &Session,
+    known: KnownHosts,
+) -> Result<Connection, IpcError> {
+    let mut carrier = match connect_reporting(endpoint_of(bastion), known.clone()).await {
+        Ok(connection) => connection,
+        Err((error, offered)) => {
+            return Err(refusal(pending, Hop::Bastion, true, error, offered).await)
+        }
+    };
+
+    /* ADR-0023: the bastion authenticates from the keychain and never opens a
+    window. A password prompt for the bastion on the way to every host behind
+    it, on a machine crossed dozens of times a day, is what makes somebody stop
+    using the feature. A bastion with nothing saved is refused, and the error
+    says which host it is talking about. */
+    let credential = match vault
+        .resolve(&CredentialId::for_session(&bastion.id))
+        .and_then(|stored| StoredCredential::decode(&stored))
+    {
+        Ok(stored) => from_stored(stored),
+        Err(error) => {
+            let _ = carrier.disconnect().await;
+            return Err(chain_failure(Hop::Bastion, IpcError::from(error)));
+        }
+    };
+
+    if let Err(error) = carrier.authenticate(&bastion.user, credential).await {
+        let _ = carrier.disconnect().await;
+        return Err(chain_failure(Hop::Bastion, IpcError::from(Box::new(error))));
+    }
+
+    match connect_via(carrier, endpoint_of(target), known).await {
+        Ok(connection) => Ok(connection),
+        Err(failure) => {
+            let _ = failure.bastion.disconnect().await;
+            Err(refusal(pending, Hop::Target, true, failure.error, failure.offered).await)
+        }
+    }
+}
+
 /// Opens a connection to a saved session and verifies its host key.
 ///
-/// Returns before authentication: the credential is collected separately, in
-/// its own window, and submitted through [`authenticate_session`]. See
-/// ADR-0008.
+/// Returns before authentication: the credential of the host the user asked
+/// for is collected separately, in its own window, and submitted through
+/// [`authenticate_session`]. See ADR-0008.
+///
+/// A session behind a bastion is the exception, and the only one: the bastion
+/// has to be authenticated before it will open a channel, so its credential is
+/// resolved here. It comes from the keychain and never from a window.
 #[tauri::command]
 pub async fn connect_session<R: Runtime>(
     app: AppHandle<R>,
     registry: State<'_, Registry>,
     pending: State<'_, PendingHostKeys>,
+    vault: State<'_, Vault>,
     session_id: String,
 ) -> Result<OpenSession, IpcError> {
-    let session = saved_session(&app, &session_id)?;
+    let sessions = SessionStore::new(config_dir(&app)?).load()?;
+    let session = sessions
+        .find(&session_id)
+        .cloned()
+        .ok_or(Error::UnknownSession { id: session_id })?;
     let known = known_hosts(&app)?;
 
-    let endpoint = Endpoint {
-        host: session.host.clone(),
-        port: session.port,
-    };
+    let (connection, via) = match session.proxy_jump.clone() {
+        None => (
+            match connect_reporting(endpoint_of(&session), known).await {
+                Ok(connection) => connection,
+                Err((error, offered)) => {
+                    return Err(refusal(&pending, Hop::Target, false, error, offered).await)
+                }
+            },
+            None,
+        ),
+        Some(bastion_id) => {
+            /* Checked again here, and this is the check that counts. The one in
+            `save_session` is immediate feedback on a form; this one runs
+            against the file as it is now, after the bastion may have been
+            deleted or given a jump host of its own. */
+            check_proxy_jump(&sessions, Some(&session.id), Some(&bastion_id))
+                .map_err(|problem| Error::InvalidProxyJump { problem })?;
 
-    let connection = match connect_reporting(endpoint, known).await {
-        Ok(connection) => connection,
-        Err((error, offered)) => {
-            /* A refusal has to survive the round trip to the interface. What
-            was offered is kept here, and the webview gets an id for it —
-            never the decision, and never the key. */
-            if let Some(offered) = offered {
-                let id = pending.remember(offered).await;
-                return Err(IpcError::HostKeyDecision {
-                    pending: id,
-                    inner: Box::new(IpcError::from(Box::new(error))),
-                });
-            }
-            return Err(IpcError::from(Box::new(error)));
+            let bastion = sessions
+                .find(&bastion_id)
+                .cloned()
+                .ok_or(Error::UnknownSession { id: bastion_id })?;
+
+            let connection = open_through(&pending, &vault, &bastion, &session, known).await?;
+            (connection, Some(bastion.name))
         }
     };
 
@@ -422,6 +559,7 @@ pub async fn connect_session<R: Runtime>(
         session_id: session.id,
         name: session.name,
         authenticated: false,
+        via,
     })
 }
 
@@ -565,6 +703,105 @@ mod tests {
             build_credential(None, None, Some("orphan".to_owned())),
             Err(Error::MissingCredential)
         ));
+    }
+
+    /* ---------------------------------------------------------------- *
+     * How a refusal crosses when there is a chain. ADR-0023.
+     * ---------------------------------------------------------------- */
+
+    #[tokio::test]
+    async fn a_host_key_refusal_is_never_wrapped_in_a_chain_failure() {
+        /* The interface finds a held decision by the code at the top of the
+        error. Wrapping this one would leave a host behind a bastion unable to
+        have its key accepted at all, which is rule 3 defeated by a wrapper. */
+        let pending = PendingHostKeys::new();
+
+        let crossed = refusal(
+            &pending,
+            Hop::Target,
+            true,
+            crate::ssh::connection::ConnectionError::HostKeyRejected(Box::new(Trust::Unknown {
+                fingerprint: "SHA256:x".to_owned(),
+                other_types: Vec::new(),
+            })),
+            Some(offered(Trust::Unknown {
+                fingerprint: "SHA256:x".to_owned(),
+                other_types: Vec::new(),
+            })),
+        )
+        .await;
+
+        assert!(matches!(crossed, IpcError::HostKeyDecision { .. }));
+    }
+
+    #[tokio::test]
+    async fn the_hop_is_stamped_on_what_the_prompt_reads() {
+        /* The transport cannot know a connection's role in a chain it was not
+        told about, so the command stamps it. The prompt reads it back by id. */
+        let pending = PendingHostKeys::new();
+
+        let crossed = refusal(
+            &pending,
+            Hop::Bastion,
+            true,
+            crate::ssh::connection::ConnectionError::HostKeyRejected(Box::new(Trust::Unknown {
+                fingerprint: "SHA256:x".to_owned(),
+                other_types: Vec::new(),
+            })),
+            Some(offered(Trust::Unknown {
+                fingerprint: "SHA256:x".to_owned(),
+                other_types: Vec::new(),
+            })),
+        )
+        .await;
+
+        let IpcError::HostKeyDecision { pending: id, .. } = crossed else {
+            panic!("a held decision");
+        };
+
+        let held = pending.describe(id).await.expect("it is held");
+        assert_eq!(held.hop, Hop::Bastion);
+    }
+
+    #[tokio::test]
+    async fn a_chain_failure_says_which_hop_it_happened_at() {
+        let pending = PendingHostKeys::new();
+
+        let crossed = refusal(
+            &pending,
+            Hop::Bastion,
+            true,
+            crate::ssh::connection::ConnectionError::Unreachable,
+            None,
+        )
+        .await;
+
+        assert!(matches!(
+            crossed,
+            IpcError::ChainFailed {
+                hop: Hop::Bastion,
+                ref inner,
+            } if **inner == IpcError::HostUnreachable
+        ));
+    }
+
+    #[tokio::test]
+    async fn a_direct_failure_is_not_dressed_up_as_a_chain() {
+        /* Every session that is not behind a bastion goes through here, so a
+        wrapper leaking onto the ordinary path would change every failure code
+        the interface already handles. */
+        let pending = PendingHostKeys::new();
+
+        let crossed = refusal(
+            &pending,
+            Hop::Target,
+            false,
+            crate::ssh::connection::ConnectionError::Unreachable,
+            None,
+        )
+        .await;
+
+        assert_eq!(crossed, IpcError::HostUnreachable);
     }
 
     fn offered(verdict: Trust) -> OfferedKey {
