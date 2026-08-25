@@ -38,6 +38,10 @@ export interface CommandActions {
   readonly openSettings: () => void;
   /** Divides the panel, or puts it back to one terminal. */
   readonly splitPanel: (kind: Grid) => void;
+  /** Sends whatever is focused to another rectangle. */
+  readonly moveTabToGroup: (at: number) => void;
+  /** Closes every tab in the group holding the focus. */
+  readonly closeGroup: () => void;
   /** Arms or disarms typing into every pane at once. */
   readonly toggleSync: () => void;
 }
@@ -58,6 +62,12 @@ export interface CommandContext {
   readonly syncing: boolean;
   /** How many panes have a session in them. */
   readonly panesFilled: number;
+  /** How many rectangles the current shape has. */
+  readonly groupCount: number;
+  /** Which of them holds the focus, or `-1` when nothing is focused. */
+  readonly focusedGroup: number;
+  /** What the focused tab is called, whichever kind it is. */
+  readonly focusedTitle: string | null;
   readonly actions: CommandActions;
 }
 
@@ -132,6 +142,9 @@ export function actionCommands(context: CommandContext): readonly Command[] {
     layout,
     syncing,
     panesFilled,
+    groupCount,
+    focusedGroup,
+    focusedTitle,
     actions,
   } = context;
   const commands: Command[] = [];
@@ -198,6 +211,30 @@ export function actionCommands(context: CommandContext): readonly Command[] {
       title: i18n.t('command.split.none'),
       keywords: ['split', 'pane', 'dividir', 'painel', 'panel'],
       run: () => actions.splitPanel('single'),
+    });
+  }
+
+  /* Moving a tab is only a thing when there is somewhere to move it to, and
+     only when something is focused to move. Named, because with four
+     rectangles on screen "move the tab" is a question and not an instruction. */
+  if (focusedGroup >= 0 && focusedTitle !== null) {
+    for (let to = 0; to < groupCount; to += 1) {
+      if (to === focusedGroup) continue;
+      commands.push({
+        id: `group:move:${String(to)}`,
+        section: 'actions',
+        title: i18n.t('group.move', { name: focusedTitle, number: String(to + 1) }),
+        keywords: ['group', 'move', 'grupo', 'mover', 'pane'],
+        run: () => actions.moveTabToGroup(to),
+      });
+    }
+
+    commands.push({
+      id: 'group:close',
+      section: 'actions',
+      title: i18n.t('group.close'),
+      keywords: ['group', 'close', 'grupo', 'fechar', 'cerrar', 'pane'],
+      run: actions.closeGroup,
     });
   }
 

@@ -5,7 +5,9 @@ import { ActivityRail } from './components/ActivityRail';
 import { CommandPalette } from './components/CommandPalette';
 import { ConnectingSurface } from './components/ConnectingSurface';
 import { EmptyPanel } from './components/EmptyPanel';
-import { GroupStrip } from './components/GroupStrip';
+import { GroupMenu } from './components/GroupMenu';
+import { GroupStrip, entryTitle } from './components/GroupStrip';
+import type { GroupMenuItem } from './components/GroupMenu';
 import { HostKeyBlocked } from './components/HostKeyBlocked';
 import { ConnectionFailure } from './components/ConnectionFailure';
 import { HostKeyPrompt } from './components/HostKeyPrompt';
@@ -68,6 +70,7 @@ import {
   groupOf,
   inputTargets,
   mountedTerminals,
+  moveEntry,
   placeEntry,
   receivingSessions,
   removeEntry,
@@ -194,6 +197,15 @@ export function App(): JSX.Element {
   /* Which row's menu is open, and where it was opened from. */
   const [menu, setMenu] = useState<{
     readonly sessionId: string;
+    readonly at: { readonly x: number; readonly y: number };
+  } | null>(null);
+  /* A group's menu: which group it belongs to, which of its tabs it is about,
+     and where it was opened from. The tab is carried rather than looked up,
+     because right-clicking a background tab opens this about that tab and not
+     about the one the group happens to be showing. */
+  const [groupMenu, setGroupMenu] = useState<{
+    readonly group: number;
+    readonly entry: Focus | null;
     readonly at: { readonly x: number; readonly y: number };
   } | null>(null);
   /* A paste held back for an answer, and the session that asked. Held here
@@ -418,6 +430,90 @@ export function App(): JSX.Element {
     },
     [forget, attentionId, abandon, disconnect],
   );
+
+  /* Sending a tab to another rectangle by name.
+     Not `focusOn`, which asks `placeEntry`, which deliberately refuses to move
+     anything a group already holds. This is the case that rule was protecting
+     against guessing at, so it says so out loud. */
+  const moveTo = useCallback((entry: Focus, group: number): void => {
+    setHeld((current) => moveEntry(current, entry, group));
+    setFocus(entry);
+
+    const sessionId = focusedSession(entry);
+    if (sessionId !== null) setSelected(sessionId);
+  }, []);
+
+  /* Closing every tab in one group.
+     Not a loop over `closeFocus`. That one reads `entries` from this render to
+     decide what takes the focus next, so four calls in a row would each answer
+     from the same stale list and the last one would win, possibly landing the
+     focus on a tab it had just closed.
+
+     Unsaved work is never thrown out in bulk either. A form holding changes
+     stays where it is and asks, and everything else closes around it. */
+  const closeGroup = useCallback(
+    (at: number): void => {
+      const group = groups[at];
+      if (group === undefined) return;
+
+      const asking = group.entries.filter((entry) => {
+        if (entry.kind !== 'editor') return false;
+        const open = findEditor(editorsRef.current, entry.target);
+        return open !== null && editorDirty(open);
+      });
+      const going = group.entries.filter(
+        (entry) => !asking.some((held_) => sameFocus(held_, entry)),
+      );
+
+      for (const entry of asking) {
+        if (entry.kind !== 'editor') continue;
+        setEditors((current) =>
+          updateEditor(current, entry.target, (editor) => ({ ...editor, discarding: true })),
+        );
+      }
+
+      setHeld((current) => going.reduce((acc, entry) => removeEntry(acc, entry), current));
+
+      /* The question, if one is being asked, so it is on screen when it is
+         asked. Otherwise whatever is left anywhere. */
+      const survivors = entries.filter(
+        (entry) => !going.some((held_) => sameFocus(held_, entry)),
+      );
+      setFocus(asking[0] ?? survivors[0] ?? null);
+
+      for (const entry of going) {
+        if (entry.kind === 'settings') {
+          setSettingsOpen(false);
+          continue;
+        }
+
+        if (entry.kind === 'editor') {
+          setEditors((current) => withoutEditor(current, entry.target));
+          continue;
+        }
+
+        if (attentionId === entry.sessionId) abandon();
+        disconnect(entry.sessionId);
+      }
+    },
+    [groups, entries, attentionId, abandon, disconnect],
+  );
+
+  /* The `+` on a group's strip. The form lands in the group whose `+` was
+     pressed, which is not always the one holding the focus.
+
+     `moveEntry` and not `placeEntry`, which is the difference between this and
+     the sidebar's `+`. There is one new-session form and not one per group
+     (ADR-0017, #96), so pressing this while it is open in another rectangle
+     has to bring it here. `placeEntry` would refuse and move only the focus,
+     and a button whose visible effect is somewhere else reads as one that is
+     not wired up. */
+  const addIn = useCallback((at: number): void => {
+    const target: EditorTarget = { kind: 'new' };
+    setEditors((current) => withEditor(current, target, savedRef.current));
+    setHeld((current) => moveEntry(current, { kind: 'editor', target }, at));
+    setFocus({ kind: 'editor', target });
+  }, []);
 
   /* The gear on the rail, and the palette. Both land here so the tab is opened
      and placed in one move; ADR-0020 keeps it an action rather than a view, so
@@ -707,6 +803,10 @@ export function App(): JSX.Element {
       layout,
       syncing: sync,
       panesFilled: filled,
+      groupCount: groups.length,
+      focusedGroup,
+      focusedTitle:
+        resolvedFocus === null ? null : entryTitle(resolvedFocus, tabs, editorTabs, i18n),
       actions: {
         newSession: () => openEditor({ kind: 'new' }),
         editSession: (sessionId: string) => openEditor({ kind: 'existing', sessionId }),
@@ -715,6 +815,10 @@ export function App(): JSX.Element {
         closeTab: (sessionId: string) => closeFocus({ kind: 'session', sessionId }),
         moveTab: (step) => focusOn(focusAfter(entries, resolvedFocus, step)),
         splitPanel: chooseLayout,
+        moveTabToGroup: (at: number) => {
+          if (resolvedFocus !== null) moveTo(resolvedFocus, at);
+        },
+        closeGroup: () => closeGroup(focusedGroup),
         /* Arming always starts with every pane checked. Inheriting a set
            somebody narrowed for a different pair of hosts is the kind of thing
            this switch must never do. */
@@ -728,7 +832,7 @@ export function App(): JSX.Element {
         openSettings,
       },
     }),
-    [i18n, sessions, tabs, activeId, chosen, maximized, nativeDecorations, act, choose, closeFocus, activate, useNativeDecorations, openSettings, settingsOpen, resolvedFocus, focusOn, entries, chooseLayout, layout, sync, filled, muted, armed, receiving],
+    [i18n, sessions, tabs, activeId, chosen, maximized, nativeDecorations, act, choose, closeFocus, activate, useNativeDecorations, openSettings, settingsOpen, resolvedFocus, focusOn, entries, chooseLayout, layout, sync, filled, muted, armed, receiving, groups, focusedGroup, editorTabs, moveTo, closeGroup],
   );
 
   const sources = useMemo(
@@ -745,6 +849,65 @@ export function App(): JSX.Element {
     () => new Map(sessions.map((live) => [live.session.id, groupLabel(live.session)])),
     [sessions],
   );
+
+  /* What a group's menu offers, built where the state is rather than inside
+     the menu, which is handed a list and knows nothing about groups. */
+  const groupMenuItems = useMemo<readonly GroupMenuItem[]>(() => {
+    if (groupMenu === null) return [];
+
+    const group = groups[groupMenu.group];
+    if (group === undefined) return [];
+
+    const items: GroupMenuItem[] = [];
+    const { entry } = groupMenu;
+
+    if (entry !== null) {
+      for (let to = 0; to < groups.length; to += 1) {
+        if (to === groupMenu.group) continue;
+        items.push({
+          id: `move:${String(to)}`,
+          label: i18n.t('group.move', {
+            name: entryTitle(entry, tabs, editorTabs, i18n),
+            number: String(to + 1),
+          }),
+          run: () => {
+            moveTo(entry, to);
+            setGroupMenu(null);
+          },
+        });
+      }
+    }
+
+    /* How many connections this is about to drop, on the control that drops
+       them. The same shape the broadcast switch uses in the palette: the count
+       belongs where it is read a moment before the decision, not in a dialog
+       afterwards. */
+    const live = group.entries.filter(
+      (candidate) =>
+        candidate.kind === 'session' &&
+        tabs.some((tab) => tab.sessionId === candidate.sessionId && tab.handle !== null),
+    ).length;
+
+    items.push({
+      id: 'close',
+      label: i18n.t('group.close'),
+      ...(live === 0
+        ? {}
+        : {
+            detail:
+              i18n.plural(live) === 'one'
+                ? i18n.t('group.close.detail.one')
+                : i18n.t('group.close.detail.other', { count: String(live) }),
+          }),
+      destructive: true,
+      run: () => {
+        closeGroup(groupMenu.group);
+        setGroupMenu(null);
+      },
+    });
+
+    return items;
+  }, [groupMenu, groups, tabs, editorTabs, i18n, moveTo, closeGroup]);
 
   const pasteBox =
     pendingPaste === null ? null : boxOf({ kind: 'session', sessionId: pendingPaste.sessionId });
@@ -840,6 +1003,10 @@ export function App(): JSX.Element {
                      the hook, because that is one of the ways unsaved work gets
                      thrown out. */
                   onClose={closeFocus}
+                  onAdd={() => addIn(at)}
+                  onMenu={(entry, point) =>
+                    setGroupMenu({ group: at, entry, at: point })
+                  }
                 />
                 <div className="min-h-0 flex-1" />
               </div>
@@ -1033,6 +1200,19 @@ export function App(): JSX.Element {
           setMuted(new Set());
         }}
       />
+
+      {groupMenu !== null && (
+        <GroupMenu
+          items={groupMenuItems}
+          at={groupMenu.at}
+          label={
+            groupMenu.entry === null
+              ? i18n.t('group.tabs', { number: String(groupMenu.group + 1) })
+              : entryTitle(groupMenu.entry, tabs, editorTabs, i18n)
+          }
+          onDismiss={() => setGroupMenu(null)}
+        />
+      )}
 
       {menu !== null &&
         (() => {
