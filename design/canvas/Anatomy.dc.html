@@ -1,0 +1,81 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Manrope", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #22b4ef; text-decoration: none; }
+    a:hover { color: #5ec8f5; }
+    .mono { font-family: "JetBrains Mono", "Cascadia Mono", "SF Mono", ui-monospace, monospace; }
+    .ic { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+    .rail-ic { width: 21px; height: 21px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+    .win { width: 42px; display: flex; align-items: center; justify-content: center; color: #8b9fb8; }
+    .grp { background: #060c14; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+    .strip { height: 28px; flex: none; display: flex; align-items: stretch; background: #0a121e; border-bottom: 1px solid #1a2a40; }
+    .tab { display: flex; align-items: center; gap: 7px; padding: 0 11px; border-right: 1px solid #1a2a40; min-width: 0; }
+    .term { flex: 1; padding: 10px 13px; font-size: 12px; line-height: 1.62; color: #c5d4e8; white-space: pre; overflow: hidden; }
+    .dot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+    .row { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; }
+    .cap { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10.5px; color: #c5d4e8; background: #152536; border: 1px solid #2a4060; border-bottom-width: 2px; border-radius: 4px; padding: 2px 7px; }
+    .grpname { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; }
+    .cur { background: #c5d4e8; color: #060c14; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; background: #070e18; color: #e8f0fa; padding: 40px 46px; overflow: hidden; font-size: 13px;">
+  <div style="display: flex; align-items: baseline; gap: 14px;">
+    <span style="font-size: 22px; font-weight: 700; letter-spacing: -0.01em;">Anatomy</span>
+    <span style="font-size: 12.5px; color: #8b9fb8;">the window, the regions, and the seven rules every surface inherits</span>
+  </div>
+  <div style="height: 1px; background: #1a2a40; margin: 18px 0 26px;"></div>
+  <div style="display: flex; gap: 46px; align-items: flex-start;">
+    <div style="width: 660px; border: 1px solid #2a4060; border-radius: 8px; overflow: hidden;">
+      <div style="width: 100%; height: 46px; background: #0a121e;  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: #8b9fb8;"><span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.09em;">TOP STRIP</span><span class="mono" style="font-size: 10px; opacity: 0.72;">mark &#183; drag &#183; window controls &#183; 36px</span></div>
+      <div style="display: flex; height: 300px; border-top: 1px solid #1a2a40; border-bottom: 1px solid #1a2a40;">
+        <div style="width: 62px; height: 100%; background: #0a121e;  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: #22b4ef;"><span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.09em;">RAIL</span><span class="mono" style="font-size: 10px; opacity: 0.72;">48px</span></div>
+        <div style="width: 1px; background: #1a2a40;"></div>
+        <div style="width: 180px; height: 100%; background: #0c1522;  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: #8b9fb8;"><span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.09em;">SIDEBAR</span><span class="mono" style="font-size: 10px; opacity: 0.72;">280px<br>closable</span></div>
+        <div style="width: 1px; background: #1a2a40;"></div>
+        <div style="flex: 1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: #1a2a40;">
+          <div style="width: 100%; height: 100%; background: #060c14;  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: #22b4ef;"><span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.09em;">GROUP</span><span class="mono" style="font-size: 10px; opacity: 0.72;">strip + body</span></div>
+          <div style="width: 100%; height: 100%; background: #060c14;  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: #5a6f88;"><span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.09em;">GROUP</span><span class="mono" style="font-size: 10px; opacity: 0.72;"></span></div>
+          <div style="width: 100%; height: 100%; background: #060c14;  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: #5a6f88;"><span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.09em;">GROUP</span><span class="mono" style="font-size: 10px; opacity: 0.72;"></span></div>
+          <div style="width: 100%; height: 100%; background: #060c14;  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: #5a6f88;"><span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.09em;">GROUP</span><span class="mono" style="font-size: 10px; opacity: 0.72;"></span></div>
+        </div>
+      </div>
+      <div style="width: 100%; height: 40px; background: #0a121e;  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: #8b9fb8;"><span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.09em;">STATUS BAR</span><span class="mono" style="font-size: 10px; opacity: 0.72;">focused group &#183; broadcast state &#183; 32px</span></div>
+    </div>
+    <div style="flex: 1; display: flex; flex-direction: column; gap: 15px;"><div style="display: flex; gap: 13px;"><span class="mono" style="font-size: 11px; color: #22b4ef; width: 15px; flex: none; padding-top: 1px;">1</span><div><div style="font-size: 12.5px; font-weight: 600; color: #c5d4e8;">One chrome, always</div><div style="font-size: 11.5px; color: #5a6f88; line-height: 1.55; margin-top: 3px;">Top strip, rail and status bar exist on every working screen. Splitting, broadcasting and a host key prompt never swap the window for a different product.</div></div></div><div style="display: flex; gap: 13px;"><span class="mono" style="font-size: 11px; color: #22b4ef; width: 15px; flex: none; padding-top: 1px;">2</span><div><div style="font-size: 12.5px; font-weight: 600; color: #c5d4e8;">A group owns its tabs</div><div style="font-size: 11.5px; color: #5a6f88; line-height: 1.55; margin-top: 3px;">Every rectangle in the main area is a group: a 28px strip of tabs plus the body of the active one. There is no second mechanism naming a rectangle, and no global tab bar.</div></div></div><div style="display: flex; gap: 13px;"><span class="mono" style="font-size: 11px; color: #22b4ef; width: 15px; flex: none; padding-top: 1px;">3</span><div><div style="font-size: 12.5px; font-weight: 600; color: #c5d4e8;">Everything opened is a tab</div><div style="font-size: 11.5px; color: #5a6f88; line-height: 1.55; margin-top: 3px;">A terminal, an SFTP browser, a host form and settings are all tabs in a group. A surface belonging to a session renders in the group whose active tab it is, which is ADR-0015 read for groups.</div></div></div><div style="display: flex; gap: 13px;"><span class="mono" style="font-size: 11px; color: #22b4ef; width: 15px; flex: none; padding-top: 1px;">4</span><div><div style="font-size: 12.5px; font-weight: 600; color: #c5d4e8;">The sidebar is closable, the rail is not</div><div style="font-size: 11.5px; color: #5a6f88; line-height: 1.55; margin-top: 3px;">Closing the sidebar gives 280px to the terminal. The rail stays, so the way back is the icon that closed it.</div></div></div><div style="display: flex; gap: 13px;"><span class="mono" style="font-size: 11px; color: #22b4ef; width: 15px; flex: none; padding-top: 1px;">5</span><div><div style="font-size: 12.5px; font-weight: 600; color: #c5d4e8;">State is shape first, colour second</div><div style="font-size: 11.5px; color: #5a6f88; line-height: 1.55; margin-top: 3px;">Connection state is a marker whose shape carries it. Colour is the second signal, never the only one.</div></div></div><div style="display: flex; gap: 13px;"><span class="mono" style="font-size: 11px; color: #22b4ef; width: 15px; flex: none; padding-top: 1px;">6</span><div><div style="font-size: 12.5px; font-weight: 600; color: #c5d4e8;">Nothing on screen that the backend does not have</div><div style="font-size: 11.5px; color: #5a6f88; line-height: 1.55; margin-top: 3px;">No tags, no global search, no health line, no shortcut that is not bound. The layout reserves room to think, never interface that lies.</div></div></div><div style="display: flex; gap: 13px;"><span class="mono" style="font-size: 11px; color: #22b4ef; width: 15px; flex: none; padding-top: 1px;">7</span><div><div style="font-size: 12.5px; font-weight: 600; color: #c5d4e8;">Safety outranks tidiness</div><div style="font-size: 11.5px; color: #5a6f88; line-height: 1.55; margin-top: 3px;">Armed broadcast pins the rail, marks every receiving tab, and turns the whole top edge of the status bar warn. Those markers survive a closed sidebar.</div></div></div></div>
+  </div>
+  <div style="margin-top: 30px; display: flex; gap: 40px; align-items: flex-start;">
+    <div>
+      <div style="font-size: 10px; font-weight: 700; letter-spacing: 0.11em; color: #5a6f88;">A GROUP, IN DETAIL</div>
+      <div style="margin-top: 11px; width: 420px; border: 1px solid #2a4060; border-radius: 7px; overflow: hidden;">
+        <div class="strip"><div class="tab" style="background: #060c14; border-top: 2px solid #22b4ef; margin-top: -1px;"><span class="dot" style="background: #2fc49e;"></span><span style="font-size: 11.5px; color: #e8f0fa; font-weight: 600;">web-01</span><svg class="ic" viewBox="0 0 24 24" style="width: 11px; height: 11px; color: #5a6f88;"><path d="M6 6l12 12M18 6L6 18"></path></svg></div><div class="tab" style=""><span class="dot" style="background: #2fc49e;"></span><span style="font-size: 11.5px; color: #8b9fb8; ">web-02</span><svg class="ic" viewBox="0 0 24 24" style="width: 11px; height: 11px; color: #3a4f6a;"><path d="M6 6l12 12M18 6L6 18"></path></svg></div><div style="flex: 1;"></div>
+          <div style="display: flex; align-items: center; padding-right: 8px; gap: 7px; color: #5a6f88;"><svg class="ic" viewBox="0 0 24 24" style="width: 12px; height: 12px;"><path d="M12 5v14M5 12h14"></path></svg><svg class="ic" viewBox="0 0 24 24" style="width: 12px; height: 12px;"><rect x="3.5" y="4.5" width="17" height="15" rx="2"></rect><path d="M12 4.5v15"></path></svg><svg class="ic" viewBox="0 0 24 24" style="width: 12px; height: 12px;"><circle cx="5.5" cy="12" r="1.1" fill="currentColor" stroke="none"></circle><circle cx="12" cy="12" r="1.1" fill="currentColor" stroke="none"></circle><circle cx="18.5" cy="12" r="1.1" fill="currentColor" stroke="none"></circle></svg></div></div>
+        <div class="term mono" style="height: 96px;"><span style="color: #2fc49e;">deploy@web-01</span>:<span style="color: #22b4ef;">~</span>$ uptime
+ 09:41:02 up 12 days,  3:18,  load 0.14
+<span style="color: #2fc49e;">deploy@web-01</span>:<span style="color: #22b4ef;">~</span>$ <span class="cur"> </span></div>
+      </div>
+    </div>
+    <div style="flex: 1;">
+      <div style="font-size: 10px; font-weight: 700; letter-spacing: 0.11em; color: #5a6f88;">WHAT THIS AMENDS</div>
+      <div style="margin-top: 11px; display: flex; flex-direction: column; gap: 9px; font-size: 12px; color: #c5d4e8; line-height: 1.55;">
+        <div><span class="mono" style="color: #22b4ef;">ADR-0005</span> &nbsp;keeps its decision to draw our own chrome, and loses the part that put tabs in the titlebar. Tabs live in groups.</div>
+        <div><span class="mono" style="color: #22b4ef;">ADR-0015</span> &nbsp;reads the same with one word moved: a session's surface renders in the group whose active tab it is.</div>
+        <div><span class="mono" style="color: #22b4ef;">ADR-0017</span> &nbsp;is untouched. A host form is still a tab, and so is settings.</div>
+        <div><span class="mono" style="color: #e8b04a;">ADR-0019</span> &nbsp;is the one that pays. A layout stops being slots holding one session and becomes groups holding a list plus an active index, so <span class="mono">layout.ts</span> is rewritten rather than extended.</div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

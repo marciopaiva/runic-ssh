@@ -11,84 +11,127 @@
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; font-family: "Manrope", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
-    a { color: #1ea7e2; text-decoration: none; }
-    a:hover { color: #5bc4f0; }
+    a { color: #22b4ef; text-decoration: none; }
+    a:hover { color: #5ec8f5; }
     .mono { font-family: "JetBrains Mono", "Cascadia Mono", "SF Mono", ui-monospace, monospace; }
     .ic { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+    .rail-ic { width: 21px; height: 21px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+    .win { width: 42px; display: flex; align-items: center; justify-content: center; color: #8b9fb8; }
+    .grp { background: #060c14; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+    .strip { height: 28px; flex: none; display: flex; align-items: stretch; background: #0a121e; border-bottom: 1px solid #1a2a40; }
+    .tab { display: flex; align-items: center; gap: 7px; padding: 0 11px; border-right: 1px solid #1a2a40; min-width: 0; }
+    .term { flex: 1; padding: 10px 13px; font-size: 12px; line-height: 1.62; color: #c5d4e8; white-space: pre; overflow: hidden; }
+    .dot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+    .row { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; }
+    .cap { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10.5px; color: #c5d4e8; background: #152536; border: 1px solid #2a4060; border-bottom-width: 2px; border-radius: 4px; padding: 2px 7px; }
+    .grpname { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; }
+    .cur { background: #c5d4e8; color: #060c14; }
   </style>
 </helmet>
 
-<div style="width: 940px; height: 640px; display: flex; align-items: center; justify-content: center; background: #070d15; overflow: hidden;">
-
-  <div style="width: 620px; display: flex; flex-direction: column; background: #101c2c; border: 1px solid #294060; border-radius: 12px; box-shadow: 0 30px 70px rgba(0,0,0,0.6); color: #e4ecf7; overflow: hidden;">
-
-    <div style="display: flex; align-items: flex-start; gap: 14px; padding: 22px 24px 16px;">
-      <div style="width: 38px; height: 38px; flex: none; display: flex; align-items: center; justify-content: center; border-radius: 10px; background: #17273c; border: 1px solid #294060; color: #56b6ea;">
-        <svg class="ic" viewBox="0 0 16 16" style="width: 19px; height: 19px;"><path d="M8 1.8l5.4 2.2v3.6c0 3.2-2.2 5.6-5.4 6.6-3.2-1-5.4-3.4-5.4-6.6V4z"></path><path d="M8 6.4v2.4M8 10.6v.1"></path></svg>
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #070e18; color: #e8f0fa; overflow: hidden; font-size: 13px;">
+  <div style="height: 36px; flex: none; display: flex; align-items: stretch; background: #0a121e; border-bottom: 1px solid #1a2a40;">
+    <div style="width: 48px; flex: none; display: flex; align-items: center; justify-content: center; border-right: 1px solid #1a2a40;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+        <circle cx="9.5" cy="12" r="7" stroke="#2bb0e8" stroke-width="1.4"></circle>
+        <circle cx="14.5" cy="12" r="7" stroke="#b961e6" stroke-width="1.4"></circle>
+        <path d="M12 6.5v11M12 10l3-2.5M12 14l3 2.5M12 12l-2.6-2.2" stroke="#dbe7f5" stroke-width="1.4" stroke-linecap="round"></path>
+      </svg></div>
+    <div style="flex: 1; min-width: 0; display: flex; align-items: center; padding-left: 14px;">
+      <span style="font-size: 11.5px; font-weight: 700; letter-spacing: 0.13em; color: #5a6f88;">RUNIC SSH</span>
+    </div>
+    <div style="flex: none; display: flex; align-items: stretch; border-left: 1px solid #1a2a40;">
+      <div class="win"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M1.5 5h7"></path></svg></div>
+      <div class="win"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.1"><rect x="1.5" y="1.5" width="7" height="7"></rect></svg></div>
+      <div class="win"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"></path></svg></div>
+    </div>
+  </div>
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+    <div style="width: 48px; flex: none; background: #0a121e; border-right: 1px solid #1a2a40; display: flex; flex-direction: column; align-items: center; padding: 6px 0;">
+      <div style="width: 100%; height: 44px; display: flex; align-items: center; justify-content: center; position: relative; color: #e8f0fa;"><div style="position: absolute; left: 0; top: 8px; bottom: 8px; width: 2px; background: #22b4ef; border-radius: 0 2px 2px 0;"></div><svg class="rail-ic" viewBox="0 0 24 24" style="width: 21px; height: 21px;"><path d="M4 17l5-5-5-5M12 19h8"></path></svg><span class="mono" style="position: absolute; right: 6px; bottom: 7px; min-width: 15px; height: 15px; border-radius: 8px; background: #22b4ef; color: #070e18; font-size: 9.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; padding: 0 4px;">2</span></div>
+      <div style="width: 100%; height: 44px; display: flex; align-items: center; justify-content: center; position: relative; color: #5a6f88;"><svg class="rail-ic" viewBox="0 0 24 24" style="width: 21px; height: 21px;"><path d="M4 6.5h6l1.6 2H20v9.5H4z"></path><path d="M12 11.5v4M10 13.5l2-2 2 2"></path></svg></div>
+      <div style="flex: 1;"></div>
+      <div style="width: 100%; height: 44px; display: flex; align-items: center; justify-content: center; position: relative; color: #5a6f88;"><svg class="rail-ic" viewBox="0 0 24 24" style="width: 21px; height: 21px;"><circle cx="12" cy="12" r="3.1"></circle><path d="M12 3.5v2.2M12 18.3v2.2M20.5 12h-2.2M5.7 12H3.5M18 6l-1.6 1.6M7.6 16.4L6 18M18 18l-1.6-1.6M7.6 7.6L6 6"></path></svg></div>
+    </div>
+    <div style="width: 280px; flex: none; background: #0c1522; border-right: 1px solid #1a2a40; display: flex; flex-direction: column;">
+      <div style="padding: 12px; display: flex; flex-direction: column; gap: 10px; border-bottom: 1px solid #1a2a40;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.12em; color: #5a6f88;">SESSIONS</span>
+          <div style="display: flex; align-items: center; gap: 9px; color: #8b9fb8;"><svg class="ic" viewBox="0 0 24 24" style="width: 14px; height: 14px;"><rect x="3.5" y="5.5" width="12" height="13" rx="2"></rect><path d="M6.5 10l2.5 2.5-2.5 2.5M19 5v6M22 8h-6"></path></svg><svg class="ic" viewBox="0 0 24 24" style="width: 14px; height: 14px;"><path d="M3.5 6.5h5.5l1.5 2h6.5"></path><path d="M3.5 6.5v11h11"></path><path d="M19 12v6M22 15h-6"></path></svg><svg class="ic" viewBox="0 0 24 24" style="width: 14px; height: 14px;"><path d="M5 9l4-4 4 4M5 19l4-4 4 4M16 7h4M16 17h4"></path></svg><svg class="ic" viewBox="0 0 24 24" style="width: 14px; height: 14px;"><circle cx="5.5" cy="12" r="1.1" fill="currentColor" stroke="none"></circle><circle cx="12" cy="12" r="1.1" fill="currentColor" stroke="none"></circle><circle cx="18.5" cy="12" r="1.1" fill="currentColor" stroke="none"></circle></svg></div>
+        </div>
+        <div style="height: 32px; background: #0e1b2c; border: 1px solid #1a2a40; border-radius: 6px; display: flex; align-items: center; gap: 8px; padding: 0 10px;">
+          <svg class="ic" viewBox="0 0 24 24" style="width: 14px; height: 14px; color: #5a6f88;"><circle cx="10.5" cy="10.5" r="6"></circle><path d="M15 15l4.5 4.5"></path></svg><span style="font-size: 12px; color: #5a6f88;">Filter sessions</span>
+        </div>
       </div>
-      <div style="display: flex; flex-direction: column; gap: 5px; flex-grow: 1;">
-        <span style="font-size: 17px; font-weight: 700; letter-spacing: -0.015em;">Unknown host key</span>
-        <span style="font-size: 13px; line-height: 1.5; color: #93a7bf; text-wrap: pretty;">Runic SSH has never connected to <span style="color: #e4ecf7; font-weight: 600;">stg-app</span> before. Confirm the fingerprint through a channel you already trust — not through this connection.</span>
+      <div style="flex: 1; padding: 8px; display: flex; flex-direction: column; gap: 4px; overflow: hidden;">
+<div style="display: flex; align-items: center; gap: 6px; padding: 4px 6px; color: #8b9fb8;"><svg class="ic" viewBox="0 0 24 24" style="width: 11px; height: 11px;"><path d="M9 6l6 6-6 6"></path></svg><span class="grpname">PRODUCTION</span><span class="mono" style="margin-left: auto; font-size: 9.5px; color: #3a4f6a; background: #152536; border-radius: 4px; padding: 1px 6px;">3</span></div>
+<div class="row" style="background: #152536; border-radius: 6px;"><span class="dot" style="background: #2fc49e; margin-top: 4px;"></span><div style="min-width: 0; flex: 1;"><div style="font-size: 12.5px; color: #e8f0fa; font-weight: 600;">web-01</div><div class="mono" style="font-size: 10.5px; color: #5a6f88; margin-top: 2px;">deploy@10.4.1.20</div></div></div>
+<div class="row" style=""><span class="dot" style="border: 1.5px solid #3a4f6a; box-sizing: border-box; margin-top: 4px;"></span><div style="min-width: 0; flex: 1;"><div style="font-size: 12.5px; color: #c5d4e8; ">web-02</div><div class="mono" style="font-size: 10.5px; color: #3a4f6a; margin-top: 2px;">deploy@10.4.1.21</div></div></div>
+<div class="row" style=""><span class="dot" style="border: 1.5px solid #3a4f6a; box-sizing: border-box; margin-top: 4px;"></span><div style="min-width: 0; flex: 1;"><div style="font-size: 12.5px; color: #c5d4e8; ">db-prod</div><div class="mono" style="font-size: 10.5px; color: #3a4f6a; margin-top: 2px;">postgres@10.4.1.31</div></div></div>
+<div style="height: 8px;"></div>
+<div style="display: flex; align-items: center; gap: 6px; padding: 4px 6px; color: #8b9fb8;"><svg class="ic" viewBox="0 0 24 24" style="width: 11px; height: 11px;"><path d="M9 6l6 6-6 6"></path></svg><span class="grpname">STAGING</span><span class="mono" style="margin-left: auto; font-size: 9.5px; color: #3a4f6a; background: #152536; border-radius: 4px; padding: 1px 6px;">2</span></div>
+<div class="row" style=""><span class="dot" style="border: 1.5px solid #3a4f6a; box-sizing: border-box; margin-top: 4px;"></span><div style="min-width: 0; flex: 1;"><div style="font-size: 12.5px; color: #c5d4e8; ">stg-app</div><div class="mono" style="font-size: 10.5px; color: #3a4f6a; margin-top: 2px;">deploy@10.9.0.5</div></div></div>
+<div class="row" style=""><span class="dot" style="border: 1.5px solid #3a4f6a; box-sizing: border-box; margin-top: 4px;"></span><div style="min-width: 0; flex: 1;"><div style="font-size: 12.5px; color: #c5d4e8; ">stg-db</div><div class="mono" style="font-size: 10.5px; color: #3a4f6a; margin-top: 2px;">postgres@10.9.0.6</div></div></div>
       </div>
     </div>
-
-    <div style="display: flex; gap: 14px; padding: 0 24px 18px;">
-      <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 12px; padding: 14px; background: #0b1420; border: 1px solid #1d2f47; border-radius: 9px;">
-        <div style="display: flex; flex-direction: column; gap: 5px;">
-          <span style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.09em; color: #5d7189;">HOST</span>
-          <span class="mono" style="font-size: 12.5px; color: #c8d6e8;">stg-app.internal <span style="color: #5d7189;">·</span> 10.9.1.4:22</span>
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 5px;">
-          <span style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.09em; color: #5d7189;">KEY TYPE</span>
-          <span class="mono" style="font-size: 12.5px; color: #c8d6e8;">ssh-ed25519 <span style="color: #5d7189;">·</span> 256 bits</span>
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 6px;">
-          <span style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.09em; color: #5d7189;">SHA256 FINGERPRINT</span>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span class="mono" style="font-size: 12.5px; font-weight: 700; line-height: 1.45; color: #56b6ea; word-break: break-all;">9pOtVv2b+jZ0k1sQ8kAeRr8x<br>kQXbY0aFq3tS1nGm2Lw</span>
-            <svg class="ic" viewBox="0 0 16 16" style="color: #5d7189; align-self: flex-start; margin-top: 2px;"><rect x="5.5" y="5.5" width="8" height="8" rx="1.4"></rect><path d="M10.5 5.5V3.9a1.4 1.4 0 00-1.4-1.4H3.9a1.4 1.4 0 00-1.4 1.4v5.2a1.4 1.4 0 001.4 1.4h1.6"></path></svg>
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: #070e18;">
+      <div style="flex: 1; min-height: 0; display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: 1px; background: #1a2a40;"><div class="grp" style=""><div class="strip"><div class="tab" style="background: #060c14; border-top: 2px solid #22b4ef; margin-top: -1px;"><span class="dot" style="background: #2fc49e;"></span><span style="font-size: 11.5px; color: #e8f0fa; font-weight: 600;">web-01</span><svg class="ic" viewBox="0 0 24 24" style="width: 11px; height: 11px; color: #5a6f88;"><path d="M6 6l12 12M18 6L6 18"></path></svg></div><div style="flex: 1;"></div><div style="display: flex; align-items: center; padding-right: 8px; gap: 7px; color: #5a6f88;"><svg class="ic" viewBox="0 0 24 24" style="width: 12px; height: 12px;"><path d="M12 5v14M5 12h14"></path></svg><svg class="ic" viewBox="0 0 24 24" style="width: 12px; height: 12px;"><rect x="3.5" y="4.5" width="17" height="15" rx="2"></rect><path d="M12 4.5v15"></path></svg><svg class="ic" viewBox="0 0 24 24" style="width: 12px; height: 12px;"><circle cx="5.5" cy="12" r="1.1" fill="currentColor" stroke="none"></circle><circle cx="12" cy="12" r="1.1" fill="currentColor" stroke="none"></circle><circle cx="18.5" cy="12" r="1.1" fill="currentColor" stroke="none"></circle></svg></div></div><div class="term mono"><span style="color: #2fc49e;">deploy@web-01</span>:<span style="color: #22b4ef;">~</span>$ tail -f /var/log/syslog
+Aug 24 09:41:02 web-01 systemd[1]: Started Session 4812
+Aug 24 09:41:15 web-01 site-web[1841]: job 8812 queued
+<span class="cur"> </span></div></div><div class="grp" style=""><div class="strip"><div class="tab" style="background: #060c14; border-top: 2px solid #22b4ef; margin-top: -1px;"><span class="dot" style="border: 1.5px solid #e8b04a; box-sizing: border-box;"></span><span style="font-size: 11.5px; color: #e8f0fa; font-weight: 600;">log-01</span><svg class="ic" viewBox="0 0 24 24" style="width: 11px; height: 11px; color: #5a6f88;"><path d="M6 6l12 12M18 6L6 18"></path></svg></div><div style="flex: 1;"></div></div>        <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 30px;">
+          <div style="width: 660px; background: #0e1a2a; border: 1px solid #2a4060; border-radius: 10px; overflow: hidden;">
+            <div style="display: flex; align-items: center; gap: 11px; padding: 16px 22px; border-bottom: 1px solid #1a2a40;">
+              <svg class="ic" viewBox="0 0 24 24" style="width: 17px; height: 17px; color: #e8b04a;"><path d="M12 3.5l7 3v5.5c0 4.2-2.9 7.3-7 8.5-4.1-1.2-7-4.3-7-8.5V6.5z"></path></svg>
+              <span style="font-size: 15px; font-weight: 700;">Unknown host key</span>
+            </div>
+            <div style="padding: 20px 22px;">
+              <div style="font-size: 12.5px; color: #c5d4e8; line-height: 1.6;">Runic SSH has never connected to log-01 before. Confirm the fingerprint through a channel you already trust, not through this connection.</div>
+              <div style="display: flex; gap: 22px; margin-top: 20px;">
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 14px;">
+                  <div><div style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.11em; color: #5a6f88;">HOST</div>
+                  <div class="mono" style="font-size: 12.5px; color: #e8f0fa; margin-top: 5px;">log-01 &#183; 10.4.1.60:22</div></div>
+                  <div><div style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.11em; color: #5a6f88;">KEY TYPE</div>
+                  <div class="mono" style="font-size: 12.5px; color: #e8f0fa; margin-top: 5px;">ssh-ed25519</div></div>
+                  <div><div style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.11em; color: #5a6f88;">SHA256 FINGERPRINT</div>
+                  <div class="mono" style="font-size: 12.5px; color: #5ec8f5; margin-top: 5px; word-break: break-all;">SHA256:9pJk2vQr7Xf1mNbT4wLd8sYcE0hGuA3iZoRxV6nKqMs</div></div>
+                </div>
+                <div>
+                  <div style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.11em; color: #5a6f88;">RANDOMART</div>
+                  <pre class="mono" style="margin: 5px 0 0; font-size: 10px; line-height: 1.25; color: #8b9fb8; background: #060c14; border: 1px solid #1a2a40; border-radius: 6px; padding: 8px 10px;">+----[SHA256]-----+
+|      .oo+*B@X   |
+|     . o.o+o=.o  |
+|      o + .o..   |
+|     . B .  .    |
+|      = S .      |
+|     . = o       |
+|      o + .      |
+|       o E       |
++-----------------+</pre>
+                </div>
+              </div>
+              <div style="display: flex; align-items: flex-start; gap: 11px; margin-top: 20px; padding: 13px 15px; background: #070e18; border: 1px solid #1a2a40; border-radius: 8px;">
+                <span style="width: 15px; height: 15px; border: 1.5px solid #2a4060; border-radius: 4px; flex: none; margin-top: 1px;"></span>
+                <div><div style="font-size: 12.5px; color: #c5d4e8; font-weight: 600;">I verified this fingerprint out of band</div>
+                <div style="font-size: 11.5px; color: #5a6f88; margin-top: 4px;">From the provider console, a configuration repository, or someone who runs the host.</div></div>
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px; padding: 15px 22px; border-top: 1px solid #1a2a40; background: #070e18;">
+              <span style="font-size: 11.5px; color: #5a6f88;">Saved to known_hosts</span>
+              <div style="flex: 1;"></div>
+              <span style="font-size: 12.5px; color: #8b9fb8; border: 1px solid #1a2a40; border-radius: 6px; padding: 8px 20px;">Cancel</span>
+              <span style="font-size: 12.5px; font-weight: 600; color: #3a4f6a; background: #152536; border-radius: 6px; padding: 8px 20px;">Trust and connect</span>
+            </div>
           </div>
-        </div>
-      </div>
-
-      <div style="width: 194px; flex: none; display: flex; flex-direction: column; gap: 8px; padding: 14px; background: #0b1420; border: 1px solid #1d2f47; border-radius: 9px;">
-        <span style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.09em; color: #5d7189;">RANDOMART</span>
-        <pre class="mono" style="margin: 0; font-size: 10.5px; line-height: 1.32; color: #7e93ad;">+--[ED25519 256]--+
-|    .o+.         |
-|   . +o.         |
-|    o.= .        |
-|   . B.+ .       |
-|    = *.S..      |
-|   . B.o.=o      |
-|    o.+.o.+o     |
-|     o..o.+E.    |
-|      .oo=+..    |
-+----[SHA256]-----+</pre>
-      </div>
+        </div></div></div>
     </div>
-
-    <div style="display: flex; align-items: flex-start; gap: 10px; margin: 0 24px 18px; padding: 12px 14px; background: #131f18; border: 1px solid #24402e; border-radius: 9px;">
-      <div style="width: 16px; height: 16px; flex: none; margin-top: 1px; border: 1.5px solid #4a6b57; border-radius: 4px;"></div>
-      <div style="display: flex; flex-direction: column; gap: 3px;">
-        <span style="font-size: 12.5px; font-weight: 600; color: #d6e6dc;">I verified this fingerprint out of band</span>
-        <span style="font-size: 11.5px; line-height: 1.45; color: #7f9c8c;">From the provider console, a configuration repository, or someone who runs the host.</span>
-      </div>
-    </div>
-
-    <div style="display: flex; flex-direction: column; gap: 10px; padding: 13px 24px 16px; background: #0d1725; border-top: 1px solid #1d2f47;">
-      <span style="font-size: 11.5px; color: #5d7189;">Saved to <span class="mono">known_hosts</span></span>
-      <div style="display: flex; align-items: center; justify-content: flex-end; gap: 10px;">
-      <div style="display: flex; align-items: center; justify-content: center; height: 34px; padding: 0 16px; border-radius: 7px; border: 1px solid #294060; color: #c8d6e8; font-size: 12.5px; font-weight: 600;">Cancel</div>
-      <div style="display: flex; align-items: center; justify-content: center; height: 34px; padding: 0 16px; border-radius: 7px; color: #5d7189; font-size: 12.5px; font-weight: 600;">Connect once</div>
-        <div style="display: flex; align-items: center; justify-content: center; height: 34px; padding: 0 18px; border-radius: 7px; background: #16293d; border: 1px solid #23405e; color: #55708f; font-size: 12.5px; font-weight: 700;">Trust and connect</div>
-      </div>
-    </div>
+  </div>
+  <div style="height: 32px; flex: none; display: flex; align-items: center; gap: 15px; padding: 0 12px; background: #0a121e; border-top: 1px solid #1a2a40;">
+    <div style="display: flex; align-items: center; gap: 7px;"><span class="dot" style="border: 1.5px solid #e8b04a; box-sizing: border-box;"></span><span style="font-size: 11px; color: #e8b04a;">Waiting on you</span></div>
+    <span style="width: 1px; height: 14px; background: #1a2a40;"></span>
+    <span style="font-size: 11px; color: #8b9fb8;">log-01 &#183; key not yet trusted</span>
+    <div style="flex: 1;"></div>
+    <span style="font-size: 11px; color: #5a6f88;">SYNC OFF</span>
   </div>
 </div>
 </x-dc>
-
-<script data-dc-script data-props='{"$preview":{"width":940,"height":640}}'>
-class Component extends DCLogic {}
-</script>
 </body>
 </html>
