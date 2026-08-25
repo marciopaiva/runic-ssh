@@ -20,6 +20,28 @@ use crate::ssh::credentials::{Answer, CredentialPrompt, CredentialRequests, Requ
 use crate::ssh::registry::{Busy, Registry, SessionHandle};
 use crate::vault::{Availability, Vault};
 
+/// What became of a credential the user asked to keep.
+///
+/// Returned rather than discarded, which is the whole of #167. A keychain that
+/// refuses must not undo a connection that worked, and the old code was right
+/// about that and then said nothing, so the box went on being ticked to no
+/// effect for as long as somebody had patience.
+///
+/// Deliberately not an error. The session is authenticated, the user has what
+/// they asked for, and failing the call over a convenience would be worse than
+/// the thing it is reporting.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Keeping {
+    /// The user did not ask for it to be kept.
+    NotAsked,
+    Kept,
+    /// The user asked and the store refused. Covers a locked keyring, a
+    /// revoked permission, and a keychain that went away while the application
+    /// was open, none of which `Availability` reports as unavailable.
+    Refused,
+}
+
 /// The label the prompt window is created under.
 pub const CREDENTIAL_WINDOW: &str = "credential";
 
@@ -43,7 +65,7 @@ pub async fn authenticate_interactively<R: Runtime>(
     requests: State<'_, CredentialRequests>,
     vault: State<'_, Vault>,
     handle: SessionHandle,
-) -> Result<(), IpcError> {
+) -> Result<Keeping, IpcError> {
     let session_id = registry
         .session_of(handle)
         .await
@@ -103,14 +125,18 @@ pub async fn authenticate_interactively<R: Runtime>(
 
     outcome.map_err(Box::new)?;
 
-    if let Some(secret) = keepsake {
-        /* A keychain that refuses must not undo a connection that worked. The
-        session is authenticated either way; the interface can offer to save
-        again. */
-        let _ = persist_credential(&app, &vault, &session_id, &secret);
-    }
+    /* A keychain that refuses must not undo a connection that worked: the
+    session is authenticated either way. But it is reported rather than
+    swallowed, because a tick box that does nothing and says nothing is worse
+    than one that is not offered. */
+    let Some(secret) = keepsake else {
+        return Ok(Keeping::NotAsked);
+    };
 
-    Ok(())
+    match persist_credential(&app, &vault, &session_id, &secret) {
+        Ok(()) => Ok(Keeping::Kept),
+        Err(_) => Ok(Keeping::Refused),
+    }
 }
 
 /// What the prompt window renders.
@@ -303,5 +329,33 @@ mod tests {
         /* ADR-0008 rests on this window loading its own document. Loading
         index.html would put the terminal in the same context as the secret. */
         assert!(prompt_url(RequestId::default_for_test(0)).starts_with("credential.html"));
+    }
+
+    #[test]
+    fn what_became_of_the_credential_crosses_as_three_words() {
+        /* Pinned as a literal on both sides. Renaming a variant compiles in
+        both languages and leaves the interface silent about a save that did
+        not happen, which is the defect this enum exists to end (#167). */
+        assert_eq!(
+            serde_json::to_string(&Keeping::NotAsked).expect("serializes"),
+            r#""notAsked""#
+        );
+        assert_eq!(
+            serde_json::to_string(&Keeping::Kept).expect("serializes"),
+            r#""kept""#
+        );
+        assert_eq!(
+            serde_json::to_string(&Keeping::Refused).expect("serializes"),
+            r#""refused""#
+        );
+    }
+
+    #[test]
+    fn a_refused_save_is_not_an_error() {
+        /* The session is authenticated. Failing the call over a convenience
+        would take down a connection that worked, which is worse than the
+        thing being reported. */
+        let refused: Result<Keeping, IpcError> = Ok(Keeping::Refused);
+        assert!(refused.is_ok());
     }
 }

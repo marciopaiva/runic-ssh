@@ -193,6 +193,8 @@
   "settings.title": "Configurações",
   "shape.choose": "Escolher como a área é dividida",
   "shape.label": "Como a área é dividida",
+  "status.credentialUnsaved": "Não salva",
+  "status.credentialUnsaved.detail": "Você pediu para guardar esta credencial e o keychain do sistema recusou. A sessão está conectada; ela será pedida de novo na próxima vez. Clique para dispensar.",
   "status.encoding": "Codificação",
   "status.idle": "Sem sessão",
   "status.latency.fair": "Latência: razoável",

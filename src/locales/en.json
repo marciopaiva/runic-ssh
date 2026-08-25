@@ -193,6 +193,8 @@
   "settings.title": "Settings",
   "shape.choose": "Choose how the area is divided",
   "shape.label": "How the area is divided",
+  "status.credentialUnsaved": "Not saved",
+  "status.credentialUnsaved.detail": "You asked to keep this credential and the system keychain refused. The session is connected; you will be asked again next time. Click to dismiss.",
   "status.encoding": "Encoding",
   "status.idle": "No session",
   "status.latency.fair": "Latency: fair",

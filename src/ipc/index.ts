@@ -5,7 +5,7 @@ export {
   dismissCredential,
   submitCredential,
 } from './credential';
-export type { CredentialPrompt } from './credential';
+export type { CredentialPrompt, Keeping } from './credential';
 export {
   closeWindow,
   isWindowMaximized,

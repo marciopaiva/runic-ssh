@@ -262,3 +262,55 @@ describe('reaching a host through another one', () => {
     expect(rust).toContain('a_host_key_refusal_is_never_wrapped_in_a_chain_failure');
   });
 });
+
+describe('what became of a credential the user asked to keep', () => {
+  const credential = readFileSync(
+    fileURLToPath(new URL('../src-tauri/src/commands/credential.rs', import.meta.url)),
+    'utf8',
+  );
+
+  it('is spelled the same on both sides', () => {
+    expect(credential).toContain(String.raw`r#""notAsked""#`);
+    expect(credential).toContain(String.raw`r#""kept""#`);
+    expect(credential).toContain(String.raw`r#""refused""#`);
+
+    const wrapper = readFileSync(
+      fileURLToPath(new URL('../src/ipc/credential.ts', import.meta.url)),
+      'utf8',
+    );
+
+    expect(wrapper).toContain("export type Keeping = 'notAsked' | 'kept' | 'refused';");
+  });
+
+  it('is never discarded again', () => {
+    /* This is #167 in one line. The save result was thrown away with
+       `let _ =`, so a refused write was silent and the tick box went on being
+       offered to no effect. The comment beside it said the interface could
+       offer to save again, and nothing ever did. */
+    expect(credential).not.toContain('let _ = persist_credential');
+    expect(credential).toContain('Ok(Keeping::Refused)');
+  });
+
+  it('does not fail the connection over it', () => {
+    /* The session authenticated. Taking it down because a convenience failed
+       is worse than the thing being reported, so this crosses as a value on
+       the success path and never as an error. */
+    expect(credential).toContain('Result<Keeping, IpcError>');
+    expect(credential).toContain('a_refused_save_is_not_an_error');
+  });
+
+  it('has copy for it in every language', () => {
+    for (const locale of ['en', 'pt-BR', 'es']) {
+      const catalogue = JSON.parse(
+        readFileSync(
+          fileURLToPath(new URL(`../src/locales/${locale}.json`, import.meta.url)),
+          'utf8',
+        ),
+      ) as Record<string, string>;
+
+      for (const key of ['status.credentialUnsaved', 'status.credentialUnsaved.detail']) {
+        expect(catalogue[key], `${locale} ${key}`).toBeTruthy();
+      }
+    }
+  });
+});

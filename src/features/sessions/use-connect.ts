@@ -56,6 +56,14 @@ interface Wiring {
    * SYN, where the state is visible for the two minutes it takes to fail.
    */
   readonly onAbandoned: (sessionId: string) => void;
+  /**
+   * Called when the user asked to keep a credential and the store refused.
+   *
+   * Never a failure: the session is open and usable, and only the convenience
+   * did not happen. But it is said, because a tick box that does nothing and
+   * says nothing is worse than one that is not offered at all. See #167.
+   */
+  readonly onCredentialRefused: (sessionId: string) => void;
 }
 
 export function useConnect(wiring: Wiring): ConnectState {
@@ -73,7 +81,7 @@ export function useConnect(wiring: Wiring): ConnectState {
    * it has no tab, so nothing could ever reach it, and leaving it open holds a
    * channel on the server that nobody can see. */
   const generation = useRef(0);
-  const { onOpened, onConnecting, onFailed, onAbandoned } = wiring;
+  const { onOpened, onConnecting, onFailed, onAbandoned, onCredentialRefused } = wiring;
 
   const current = useCallback((mine: number): boolean => generation.current === mine, []);
 
@@ -131,19 +139,21 @@ export function useConnect(wiring: Wiring): ConnectState {
       }
 
       try {
-        await authenticateInteractively(handle);
+        const keeping = await authenticateInteractively(handle);
         if (!current(mine)) {
           void disconnectSession(handle);
           return;
         }
         setAttempt(null);
         onOpened(sessionId, handle);
+        /* After the session is open, never instead of it. */
+        if (keeping === 'refused') onCredentialRefused(sessionId);
       } catch (rejection) {
         void disconnectSession(handle);
         fail(sessionId, reportedFailure(asIpcError(rejection) ?? null), mine);
       }
     },
-    [fail, onOpened, current],
+    [fail, onOpened, onCredentialRefused, current],
   );
 
   const attemptConnect = useCallback(
