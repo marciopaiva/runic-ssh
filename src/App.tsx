@@ -994,20 +994,6 @@ export function App(): JSX.Element {
         leadingInset={chrome?.leadingInset ?? 0}
         layout={layout}
         onLayout={chooseLayout}
-        syncing={armed ? receiving.length : null}
-        /* Absent undivided, refusing when there is nowhere for it to reach.
-           `filled` counts rectangles holding something, and the switch reaches
-           the active tab of each, so two of them is the least that is a
-           broadcast rather than an ordinary keystroke. */
-        canSync={layout === '1x1' ? null : filled > 1}
-        onStartSync={() => {
-          setMuted(new Set());
-          setSync(true);
-        }}
-        onStopSync={() => {
-          setSync(false);
-          setMuted(new Set());
-        }}
         onAct={act}
       />
 
@@ -1103,18 +1089,35 @@ export function App(): JSX.Element {
                       ? i18n.t('tabs.label')
                       : i18n.t('group.tabs', { number: String(at + 1) })
                   }
-                  /* Absent unless something is being broadcast: a control for
-                     a state that does not exist decides nothing. */
-                  receiving={sync && shown !== null && layout !== '1x1' ? !muted.has(shown) : null}
-                  onToggleReceiving={() =>
+                  /* Refusing on an undivided window and on one where arming
+                     would reach nowhere: a broadcast to a single rectangle
+                     sends exactly where an ordinary keystroke goes. */
+                  sync={
+                    layout === '1x1' || filled < 2
+                      ? 'unavailable'
+                      : sync && shown !== null && !muted.has(shown)
+                        ? 'on'
+                        : 'off'
+                  }
+                  onToggleSync={() => {
+                    /* The first press arms, and arming has always started with
+                       every rectangle receiving. Pressing one while armed
+                       takes that rectangle out, or puts it back. */
+                    if (!sync) {
+                      setMuted(new Set());
+                      setSync(true);
+                      return;
+                    }
+
+                    if (shown === null) return;
+
                     setMuted((current) => {
-                      if (shown === null) return current;
                       const next = new Set(current);
                       if (next.has(shown)) next.delete(shown);
                       else next.add(shown);
                       return next;
-                    })
-                  }
+                    });
+                  }}
                   onFocus={focusOn}
                   /* One handler for every strip. Closing an editor goes through
                      the hook, because that is one of the ways unsaved work gets

@@ -105,15 +105,23 @@ which case the four buttons fold into one that opens the four.
 shapes is around 224px of a bar whose remaining job is being dragged. The
 control is one button showing the shape in use, which opens them all.
 
-**And the reason took a second control with it.** The switch for typing into
-every rectangle at once moved here from the status bar, on the maintainer's
-reading that a bar of measurements is the wrong place for a control. The
-argument this document makes about the shape is the same one: that switch is
-about the window, and the top strip is the only surface that is. The status bar
-keeps what it is good at, which is the whole top edge turning warn and saying
-how many hosts are on the receiving end.
+**And the reason took a second control with it, for a day.** The switch for
+typing into every rectangle at once moved here from the status bar, on the
+maintainer's reading that a bar of measurements is the wrong place for a
+control. The argument seemed to be this document's own: that switch is about
+the window, and the top strip is the only surface that is.
 
-That amends ADR-0020, which listed the count **and the way off** as the status
-bar's job while a broadcast is armed. It keeps the count. The way off is beside
-the way on now, which is a pair that should not have been split across two
-edges of the window in the first place.
+**It was wrong, and it moved again the next day.** The switch is now at the
+trailing edge of every group's own strip, which is the placement this document
+refused for the shape control. The two are not alike, and the difference is
+the whole of it: **this control means something per rectangle.** Which of them
+receive what you type is a real question about each one. Which shape the area
+is divided into is not a question about any of them. A control repeated four
+times that means one thing four times is what this document refused. Four
+switches that each decide a different rectangle read as four switches because
+that is what they are.
+
+What is left of the move through the top strip is the correction to ADR-0020,
+which listed the count **and the way off** as the status bar's job. The bar
+keeps the count and the whole top edge turning warn. The way off is beside the
+way on, on the strip of the rectangle it is about.

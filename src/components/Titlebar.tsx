@@ -5,7 +5,6 @@ import type { Grid } from '../features/terminal';
 import { useTranslator } from '../features/settings';
 
 import { ShapeControl } from './ShapeControl';
-import { SyncControl } from './SyncControl';
 import { WindowControls } from './WindowControls';
 
 interface TitlebarProps {
@@ -15,12 +14,6 @@ interface TitlebarProps {
   /** How the main area is divided right now. */
   readonly layout: Grid;
   readonly onLayout: (kind: Grid) => void;
-  /** How many hosts a keystroke reaches, or `null` when it reaches one. */
-  readonly syncing: number | null;
-  /** Whether the switch is worth offering, and whether it can act. */
-  readonly canSync: boolean | null;
-  readonly onStartSync: () => void;
-  readonly onStopSync: () => void;
   readonly onAct: (action: WindowAction) => void;
 }
 
@@ -58,10 +51,6 @@ export function Titlebar({
   leadingInset,
   layout,
   onLayout,
-  syncing,
-  canSync,
-  onStartSync,
-  onStopSync,
   onAct,
 }: TitlebarProps): JSX.Element {
   const i18n = useTranslator();
@@ -111,13 +100,6 @@ export function Titlebar({
           {i18n.t('app.name')}
         </span>
       </div>
-
-      <SyncControl
-        syncing={syncing}
-        canSync={canSync}
-        onStart={onStartSync}
-        onStop={onStopSync}
-      />
 
       <ShapeControl layout={layout} onChoose={onLayout} />
 

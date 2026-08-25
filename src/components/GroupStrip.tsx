@@ -8,6 +8,8 @@ import type { Translator } from '../lib/i18n';
 import { useTranslator } from '../features/settings';
 
 import { SessionMarker } from './SessionMarker';
+import { SyncToggle } from './SyncToggle';
+import type { SyncState } from './SyncToggle';
 
 /** What a tab says it is, for a session, a host form or the settings page. */
 export interface EditorTab {
@@ -58,12 +60,9 @@ interface GroupStripProps {
   readonly dense: boolean;
   /** What this strip is called, for a screen reader walking four of them. */
   readonly label: string;
-  /**
-   * Whether this group takes what is typed elsewhere, or `null` when nothing
-   * is being broadcast and the question does not arise.
-   */
-  readonly receiving: boolean | null;
-  readonly onToggleReceiving: () => void;
+  /** What this rectangle does with what you type. */
+  readonly sync: SyncState;
+  readonly onToggleSync: () => void;
   readonly onFocus: (focus: Focus) => void;
   /** Closing any tab, whichever kind. The shell knows what each one means. */
   readonly onClose: (focus: Focus) => void;
@@ -92,10 +91,12 @@ interface GroupStripProps {
  * group holds `Focus` values and that union already covered a session, a host
  * form and the settings surface.
  *
- * The checkbox is not decoration. While typing is synchronised it is the
- * control that spares this group, and it lives on the tab that would receive
- * rather than beside the rectangle, because the receiving thing is the active
- * tab and not the rectangle around it.
+ * The switch at the trailing edge is not decoration. It is the one control
+ * that decides where a keystroke lands, and it is here rather than in the top
+ * strip because it means something per rectangle: which of them receive is a
+ * real question about each one. A control repeated on four strips that means
+ * one thing four times is what ADR-0021 refused for the shape; this reads as
+ * four switches because it is four switches.
  */
 export function GroupStrip({
   entries,
@@ -106,8 +107,8 @@ export function GroupStrip({
   labels,
   dense,
   label,
-  receiving,
-  onToggleReceiving,
+  sync,
+  onToggleSync,
   onFocus,
   onClose,
   onMenu,
@@ -205,43 +206,6 @@ export function GroupStrip({
               showing ? 'bg-surface-terminal border-t-2 border-t-accent' : 'hover:bg-surface-raised/40'
             }`}
           >
-            {/* The one control that decides where a keystroke lands. It sits
-                ahead of the name so a glance down the strip reads the marks
-                and not the hostnames.
-
-                A square that fills rather than a browser checkbox, which is
-                what the canvas drew and what this should have been: a form
-                control in a tab strip reads as a form, and this is a safety
-                marker that happens to be clickable. `aria-checked` on a button
-                says the same thing to a screen reader that the input did. */}
-            {showing && receiving !== null && (
-              <button
-                type="button"
-                role="checkbox"
-                aria-checked={receiving}
-                onClick={onToggleReceiving}
-                title={i18n.t('terminal.pane.sync')}
-                aria-label={i18n.t('terminal.pane.sync')}
-                className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center ${
-                  receiving ? 'text-warn' : 'text-ink-disabled hover:text-ink-faint'
-                }`}
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  className="h-3.5 w-3.5"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.4"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <rect x="3.5" y="3.5" width="17" height="17" rx="4" />
-                  {receiving && <path d="M8 12l3 3 5-6" />}
-                </svg>
-              </button>
-            )}
-
             <button
               type="button"
               role="tab"
@@ -328,6 +292,12 @@ export function GroupStrip({
 
       <div className="min-w-0 flex-1" />
 
+      {/* At the end of the strip of the rectangle it decides for. It was a
+          square on the active tab, which meant it appeared only once something
+          was armed, and nothing anywhere could arm it but the palette. */}
+      <div className="flex shrink-0 items-center pr-2">
+        <SyncToggle state={sync} onToggle={onToggleSync} />
+      </div>
     </div>
   );
 }
