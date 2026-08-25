@@ -21,6 +21,7 @@ import {
   gridCount,
   groupOf,
   inputTargets,
+  moveEntry,
   placeEntry,
   receivingSessions,
   removeEntry,
@@ -349,5 +350,63 @@ describe('taking something off a strip', () => {
     const after = removeEntry(held([session('a'), SETTINGS]), SETTINGS);
 
     expect(ids(after)).toEqual([['a']]);
+  });
+});
+
+describe('sending a tab to another group', () => {
+  it('takes it out of the group it was in', () => {
+    const after = moveEntry(held([session('a'), session('b')], [session('c')]), session('b'), 1);
+
+    expect(ids(after)).toEqual([['a'], ['c', 'b']]);
+  });
+
+  it('shows what was moved, or the move is invisible', () => {
+    const after = moveEntry(held([session('a'), session('b')], [session('c')]), session('b'), 1);
+
+    expect(activeEntry(after[1] ?? { entries: [], activeAt: -1 })).toEqual(session('b'));
+  });
+
+  it('leaves the group it left showing something', () => {
+    const before = [
+      { entries: [session('a'), session('b')], activeAt: 1 },
+      { entries: [session('c')], activeAt: 0 },
+    ];
+    const after = moveEntry(before, session('b'), 1);
+
+    expect(activeEntry(after[0] ?? { entries: [], activeAt: -1 })).toEqual(session('a'));
+  });
+
+  it('does nothing when it is already there', () => {
+    const before = held([session('a')], [session('b')]);
+
+    expect(moveEntry(before, session('b'), 1)).toBe(before);
+  });
+
+  it('refuses a group that does not exist', () => {
+    const before = held([session('a')], [session('b')]);
+
+    expect(moveEntry(before, session('a'), 4)).toBe(before);
+    expect(moveEntry(before, session('a'), -1)).toBe(before);
+  });
+
+  it('never leaves the same tab in two rectangles', () => {
+    /* Two React children with one key is one xterm silently reusing another's,
+       which is the property the whole model is arranged around. */
+    const after = moveEntry(held([session('a'), session('b')], [session('c')]), session('a'), 1);
+    const seen = after.flatMap((group) => group.entries.map((entry) => JSON.stringify(entry)));
+
+    expect(new Set(seen).size).toBe(seen.length);
+  });
+
+  it('moves a host form the same way it moves a session', () => {
+    const after = moveEntry(held([editor('x')], [session('a')]), editor('x'), 1);
+
+    expect(ids(after)).toEqual([[], ['a', 'editor']]);
+  });
+
+  it('empties the group it was the only tab of', () => {
+    const after = moveEntry(held([session('a')], [session('b')]), session('a'), 1);
+
+    expect(after[0]?.activeAt).toBe(-1);
   });
 });

@@ -51,6 +51,8 @@ function actions(): CommandActions & { readonly calls: string[] } {
     chooseLocale: (locale) => calls.push(`locale:${locale ?? 'system'}`),
     useNativeDecorations: (native) => calls.push(`decorations:${native}`),
     splitPanel: (kind) => calls.push(`split:${kind}`),
+    moveTabToGroup: (at) => calls.push(`group:move:${at}`),
+    closeGroup: () => calls.push('group:close'),
     toggleSync: () => calls.push('sync'),
   };
 }
@@ -67,6 +69,9 @@ function context(overrides: Partial<CommandContext> = {}): CommandContext {
     layout: 'single',
     syncing: false,
     panesFilled: 0,
+    groupCount: 1,
+    focusedGroup: -1,
+    focusedTitle: null,
     actions: actions(),
     ...overrides,
   };
@@ -357,6 +362,55 @@ describe('what the palette offers', () => {
     );
 
     expect(titles).toContain('Minimizar janela');
+  });
+});
+
+describe('moving a tab between groups', () => {
+  function ids(over: Parameters<typeof context>[0]): readonly string[] {
+    return actionCommands(context(over)).map((entry) => entry.id);
+  }
+
+  const focused = { focusedGroup: 0, focusedTitle: 'web-01' } as const;
+
+  it('offers nothing with nothing focused', () => {
+    expect(ids({ groupCount: 4 }).filter((id) => id.startsWith('group:'))).toEqual([]);
+  });
+
+  it('offers every rectangle but the one it is in', () => {
+    const offered = ids({ ...focused, groupCount: 4 });
+
+    expect(offered).toContain('group:move:1');
+    expect(offered).toContain('group:move:3');
+    expect(offered).not.toContain('group:move:0');
+  });
+
+  it('offers no move with one rectangle', () => {
+    expect(ids({ ...focused, groupCount: 1 }).filter((id) => id.startsWith('group:move'))).toEqual(
+      [],
+    );
+  });
+
+  it('names the tab, because with four rectangles the move is a question', () => {
+    const entry = actionCommands(context({ ...focused, groupCount: 2 })).find(
+      (command) => command.id === 'group:move:1',
+    );
+
+    expect(entry?.title).toContain('web-01');
+    expect(entry?.title).toContain('2');
+  });
+
+  it('offers closing the group whenever one is focused', () => {
+    expect(ids({ ...focused, groupCount: 1 })).toContain('group:close');
+    expect(ids({ groupCount: 4 })).not.toContain('group:close');
+  });
+
+  it('runs the move it names', () => {
+    const act = actions();
+    actionCommands(context({ ...focused, groupCount: 2, actions: act }))
+      .find((entry) => entry.id === 'group:move:1')
+      ?.run();
+
+    expect(act.calls).toEqual(['group:move:1']);
   });
 });
 
