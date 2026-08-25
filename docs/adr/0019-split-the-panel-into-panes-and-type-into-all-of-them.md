@@ -212,3 +212,9 @@ that works today is the palette's own capture listener. Per-pane opt-in for the
 switch, if "all of them" turns out to chafe. Revisit the four-pane limit when
 somebody measures four terminals painting at once, and lower it to two if the
 measurement says so rather than raising it because nothing has broken yet.
+
+**The limit was revisited and raised** (ADR-0022, measured 2026-08-25). Six and
+nine are offered. Nothing stutters at nine, and the throughput headroom this
+document was protecting is spent somewhere between six and nine terminals all
+busy at once, so nine is offered on a stated assumption about what it gets used
+for rather than on a measurement. That assumption is written down there.

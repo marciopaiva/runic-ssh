@@ -17,6 +17,7 @@ import type { Translator } from '../../lib/i18n';
 import type { WindowAction } from '../chrome';
 import type { Tab } from '../chrome';
 import type { LiveSession } from '../sessions';
+import { GRIDS, SHAPE_LABEL } from '../terminal';
 import type { Grid } from '../terminal';
 
 import type { Command } from './registry';
@@ -181,36 +182,31 @@ export function actionCommands(context: CommandContext): readonly Command[] {
   /* One open session is enough. Splitting first and connecting into the empty
      pane is the ordinary way round, since picking a tab fills an empty pane
      before it replaces the focused one. With nothing open at all there is no
-     panel to divide, and the entry would be a shape with two holes in it. */
-  if (tabs.length > 0) {
-    const shapes: readonly (readonly [
-      Grid,
-      'command.split.columns' | 'command.split.rows' | 'command.split.grid',
-    ])[] = [
-      ['columns', 'command.split.columns'],
-      ['rows', 'command.split.rows'],
-      ['grid', 'command.split.grid'],
-    ];
+     panel to divide, and the entry would be a shape with two holes in it.
 
-    for (const [kind, label] of shapes) {
-      if (kind === layout) continue;
+     Every shape but the one in use, from the same list the control in the top
+     strip draws, so the two cannot come to offer different sets. */
+  if (tabs.length > 0) {
+    for (const kind of GRIDS) {
+      if (kind === layout || kind === '1x1') continue;
+
       commands.push({
         id: `split:${kind}`,
         section: 'actions',
-        title: i18n.t(label),
-        keywords: ['split', 'pane', 'dividir', 'painel', 'panel'],
+        title: i18n.t(SHAPE_LABEL[kind]),
+        keywords: ['split', 'pane', 'dividir', 'painel', 'panel', kind],
         run: () => actions.splitPanel(kind),
       });
     }
   }
 
-  if (layout !== 'single') {
+  if (layout !== '1x1') {
     commands.push({
       id: 'split:none',
       section: 'actions',
       title: i18n.t('command.split.none'),
       keywords: ['split', 'pane', 'dividir', 'painel', 'panel'],
-      run: () => actions.splitPanel('single'),
+      run: () => actions.splitPanel('1x1'),
     });
   }
 
