@@ -1,46 +1,29 @@
 import { useEffect, useState } from 'react';
-import type { JSX } from 'react';
+import type { CSSProperties, JSX } from 'react';
 
 import type { SessionHandle } from '../ipc';
 import { useTerminal } from '../features/terminal/use-terminal';
 import type { TerminalSize } from '../features/terminal/use-terminal';
-import type { Box, GroupLabel } from '../features/terminal';
 import { useTranslator } from '../features/settings';
-
-/**
- * What the edge of a pane says about it.
- *
- * `none` is a panel with one terminal in it, drawn exactly as it was before
- * there were panes. `synced` is the loud one, and it is a safety marker rather
- * than decoration: it is the only thing on screen saying that what you type
- * reaches more than the host you are looking at.
- */
-export type PaneEdge = 'none' | 'idle' | 'focused' | 'synced';
-
-const EDGES: Readonly<Record<PaneEdge, string>> = {
-  none: '',
-  idle: 'border-2 border-line-subtle',
-  focused: 'border-2 border-accent',
-  synced: 'border-2 border-warn',
-};
 
 interface TerminalViewProps {
   readonly handle: SessionHandle | null;
-  /** Whether this session is in a pane at all. */
+  /** Whether this session is the active tab of a group. */
   readonly visible: boolean;
   /** Whether this is the pane the keyboard and the status bar belong to. */
   readonly focused: boolean;
-  /** The rectangle of the panel this pane occupies. */
-  readonly box: Box;
-  readonly edge: PaneEdge;
-  /** What this pane says it is, or `null` when the panel holds one terminal. */
-  readonly label: GroupLabel | null;
   /**
-   * Whether this pane takes what is typed elsewhere, or `null` when nothing is
-   * being broadcast and the question does not arise.
+   * Where to draw, decided by the shell.
+   *
+   * A rectangle rather than a class because it is a percentage of the main
+   * area with the group's strip and border taken off it, and there is no
+   * utility for "half of whatever this panel is, less 30 pixels".
    */
-  readonly receiving: boolean | null;
-  readonly onToggleReceiving: () => void;
+  readonly frame: CSSProperties;
+  /** This surface's own id, which its tab points `aria-controls` at. */
+  readonly id: string;
+  /** The tab that names it. */
+  readonly labelledBy: string;
   /** Raised when the pointer or the keyboard lands inside this pane. */
   readonly onPaneFocus: () => void;
   /** Reports the grid the remote pty was last told about. */
@@ -69,19 +52,23 @@ interface TerminalViewProps {
  * hidden terminal keeps its real dimensions, so a window resize reaches every
  * session and not only the one being looked at.
  *
- * That is also why a hidden terminal is handed the whole panel as its box and
- * not the pane it last sat in: it goes on measuring something real, and it is
+ * That is also why a hidden terminal is handed the whole area as its frame and
+ * not the group it last sat in: it goes on measuring something real, and it is
  * given its rectangle on the way back in.
+ *
+ * It draws no header of its own. ADR-0020 gave that job to the group's strip.
+ * The strip and the header were two objects answering one question, which
+ * session is this rectangle, and nothing failed when they disagreed. A
+ * terminal is a mounted body and nothing else, which is also what lets it move
+ * between groups without being remounted.
  */
 export function TerminalView({
   handle,
   visible,
   focused,
-  box,
-  edge,
-  label,
-  receiving,
-  onToggleReceiving,
+  frame,
+  id,
+  labelledBy,
   onPaneFocus,
   onSize,
   modifier,
@@ -110,60 +97,18 @@ export function TerminalView({
 
   return (
     <section
+      id={id}
+      role="tabpanel"
+      aria-labelledby={labelledBy}
       className={`bg-surface-terminal absolute flex flex-col overflow-hidden ${
-        EDGES[edge]
-      } ${visible ? '' : 'invisible pointer-events-none'}`}
-      /* Inline because the rectangle is a percentage that changes with the
-         layout, and there is no class for "half of whatever this panel is". */
-      style={{
-        left: `${box.left}%`,
-        top: `${box.top}%`,
-        width: `${box.width}%`,
-        height: `${box.height}%`,
-      }}
+        visible ? '' : 'invisible pointer-events-none'
+      }`}
+      style={frame}
       aria-hidden={visible ? undefined : true}
-      aria-label={label?.name}
       /* React's `onFocus` is `focusin`, so this catches the click that lands
          inside xterm as well as a tab into it. */
       onFocus={onPaneFocus}
     >
-      {/* Which host this rectangle is. Absent with one terminal, where the tab
-          strip already answers it. Present with more, because otherwise the
-          only thing on screen naming the host is the shell prompt, and a
-          prompt says whatever the remote end put in `PS1`, a bad thing to be
-          reading a moment before running one command on all of them.
-
-          It is also where the focus marker lives. With typing synchronised
-          every pane carries the same warning edge on purpose, which leaves the
-          border with nothing left to say about focus, and the status bar is
-          describing one pane without anything pointing at it. */}
-      {label !== null && (
-        <div className="border-line-subtle bg-surface-chrome flex h-[28px] shrink-0 items-center gap-2 border-b px-3">
-          {/* Only while something is being broadcast. Off screen it would be a
-              control for a state that does not exist, and this row is read at
-              a glance rather than studied. */}
-          {receiving !== null && (
-            <input
-              type="checkbox"
-              checked={receiving}
-              onChange={onToggleReceiving}
-              title={i18n.t('terminal.pane.sync')}
-              aria-label={i18n.t('terminal.pane.sync')}
-              className="accent-warn h-3 w-3 shrink-0 cursor-pointer"
-            />
-          )}
-          <span className="text-ink-secondary truncate text-[12px] font-semibold">
-            {label.name}
-          </span>
-          <span className="text-ink-faint truncate font-mono text-[11px]">{label.where}</span>
-          <span className="flex-1" />
-          {focused && (
-            <span className="text-ink-secondary font-mono text-[10px] font-bold tracking-[0.08em]">
-              {i18n.t('terminal.pane.focused')}
-            </span>
-          )}
-        </div>
-      )}
       {/* The padding is on this wrapper and not on the element xterm owns.
           FitAddon measures the parent it is opened into, and the rows it
           derives from that measurement are laid out over the padding rather

@@ -7,8 +7,10 @@ export {
   focusAfter,
   focusAfterClosing,
   focusedSession,
+  panelElementId,
   resolveFocus,
   sameFocus,
   stripEntries,
+  tabElementId,
 } from './focus';
 export type { Focus } from './focus';

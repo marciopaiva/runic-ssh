@@ -199,6 +199,39 @@ export function placeEntry(
 }
 
 /**
+ * Takes an entry out of whichever group held it.
+ *
+ * `resolveGroups` already refuses to draw an entry that is no longer open, so
+ * this is not about what is on screen. It is about what is remembered. A
+ * closed tab left behind keeps its place, and reopening the same host form
+ * puts it back in a rectangle nobody is looking at rather than in the one
+ * being worked in, which reads as the window deciding on its own.
+ *
+ * A session that drops on its own is not closed by anybody and does not come
+ * through here. That one keeps its place on purpose: reconnecting puts it back
+ * where it was.
+ */
+export function removeEntry(
+  held: readonly HeldGroup[],
+  entry: Focus,
+): readonly HeldGroup[] {
+  return held.map((group) => {
+    const at = group.entries.findIndex((candidate) => sameFocus(candidate, entry));
+    if (at < 0) return group;
+
+    const entries = group.entries.filter((_, index) => index !== at);
+    if (entries.length === 0) return { entries, activeAt: -1 };
+
+    /* The group goes on showing what it was showing. Unless that was the one
+       leaving: then the neighbour to the right, falling back to the left,
+       which is the rule the strip has followed since there was one. */
+    if (group.activeAt === at) return { entries, activeAt: Math.min(at, entries.length - 1) };
+
+    return { entries, activeAt: group.activeAt > at ? group.activeAt - 1 : group.activeAt };
+  });
+}
+
+/**
  * The sessions a keystroke would reach if the switch were armed.
  *
  * The active entry of each group, less the ones turned off in their own strip,

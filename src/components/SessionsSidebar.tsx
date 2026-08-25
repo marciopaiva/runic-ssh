@@ -34,7 +34,7 @@ export function SessionsSidebar({
   return (
     <nav
       aria-label={i18n.t('sessions.title')}
-      className="bg-surface-panel border-line-subtle flex h-full w-[264px] shrink-0 flex-col border-r"
+      className="bg-surface-panel border-line-subtle flex h-full w-[280px] shrink-0 flex-col border-r"
     >
       <header className="flex items-center justify-between px-3.5 pt-3.5 pb-2.5">
         <span className="text-ink-faint text-[10.5px] font-bold tracking-[0.1em]">

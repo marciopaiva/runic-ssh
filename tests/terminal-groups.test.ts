@@ -23,6 +23,7 @@ import {
   inputTargets,
   placeEntry,
   receivingSessions,
+  removeEntry,
   resolveGroups,
 } from '../src/features/terminal/groups';
 import type { HeldGroup } from '../src/features/terminal/groups';
@@ -287,5 +288,66 @@ describe('finding a group', () => {
   it('says nothing holds it rather than guessing', () => {
     expect(groupOf(held([session('web-01')]), session('missing'))).toBe(-1);
     expect(groupOf(held([session('web-01')]), null)).toBe(-1);
+  });
+});
+
+describe('taking something off a strip', () => {
+  it('removes the entry from the group that held it', () => {
+    const after = removeEntry(held([session('a'), session('b')], [session('c')]), session('b'));
+
+    expect(ids(after)).toEqual([['a'], ['c']]);
+  });
+
+  it('leaves a group that never held it alone', () => {
+    const before = held([session('a')], [session('b')]);
+    const after = removeEntry(before, session('z'));
+
+    expect(ids(after)).toEqual(ids(before));
+  });
+
+  it('empties a group down to no active entry', () => {
+    const after = removeEntry(held([session('a')]), session('a'));
+
+    expect(after[0]?.entries).toEqual([]);
+    expect(after[0]?.activeAt).toBe(-1);
+  });
+
+  it('goes on showing what it was showing when another tab leaves', () => {
+    /* Closing a background tab must not move the one on screen. Somebody
+       dismissing a form they are not looking at should not lose their place. */
+    const before = [{ entries: [session('a'), session('b'), session('c')], activeAt: 2 }];
+    const after = removeEntry(before, session('a'));
+
+    expect(activeEntry(after[0] ?? { entries: [], activeAt: -1 })).toEqual(session('c'));
+  });
+
+  it('falls to the neighbour on the right when the shown tab leaves', () => {
+    const before = [{ entries: [session('a'), session('b'), session('c')], activeAt: 1 }];
+    const after = removeEntry(before, session('b'));
+
+    expect(activeEntry(after[0] ?? { entries: [], activeAt: -1 })).toEqual(session('c'));
+  });
+
+  it('falls to the left when the shown tab was the last one', () => {
+    const before = [{ entries: [session('a'), session('b')], activeAt: 1 }];
+    const after = removeEntry(before, session('b'));
+
+    expect(activeEntry(after[0] ?? { entries: [], activeAt: -1 })).toEqual(session('a'));
+  });
+
+  it('forgets a form so reopening it lands where the work is', () => {
+    /* The reason this function exists. `placeEntry` refuses to move something
+       a group already holds, so a closed tab left behind would come back in a
+       rectangle nobody chose. */
+    const closed = removeEntry(held([session('a'), editor('x')], [session('b')]), editor('x'));
+    const reopened = placeEntry(closed, 1, editor('x'));
+
+    expect(ids(reopened)).toEqual([['a'], ['b', 'editor']]);
+  });
+
+  it('takes settings off the strip the same way', () => {
+    const after = removeEntry(held([session('a'), SETTINGS]), SETTINGS);
+
+    expect(ids(after)).toEqual([['a']]);
   });
 });
