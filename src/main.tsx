@@ -2,7 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { App } from './App';
-import { LocaleProvider } from './features/settings';
+import { SettingsProvider } from './features/settings';
 import './styles.css';
 
 const container = document.getElementById('root');
@@ -47,9 +47,9 @@ if (flood !== null) {
 } else {
   createRoot(container).render(
     <StrictMode>
-      <LocaleProvider>
+      <SettingsProvider>
         <App />
-      </LocaleProvider>
+      </SettingsProvider>
     </StrictMode>,
   );
 }
