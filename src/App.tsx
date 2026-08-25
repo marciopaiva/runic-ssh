@@ -221,12 +221,6 @@ export function App(): JSX.Element {
     readonly entry: Focus | null;
     readonly at: { readonly x: number; readonly y: number };
   } | null>(null);
-  /* The list of saved hosts, opened from a group's `+`, and which rectangle
-     asked for it. */
-  const [addMenu, setAddMenu] = useState<{
-    readonly group: number;
-    readonly at: { readonly x: number; readonly y: number };
-  } | null>(null);
   /* A tab being dragged, and the rectangle the pointer is over. Held here
      rather than in `dataTransfer`, which is readable by anything the window is
      dropped on and writable by anything dropped into it: a file dragged in
@@ -573,18 +567,6 @@ export function App(): JSX.Element {
     },
     [sessions, attempt, connect],
   );
-
-  /* The host form, from the same `+`, at the end of the list of hosts. Still
-     one form and not one per group (ADR-0017, #96), so `moveEntry` rather than
-     `placeEntry`: pressing this while it is open in another rectangle brings
-     it here instead of only moving the focus, which reads as a button that is
-     not wired up. */
-  const addFormIn = useCallback((group: number): void => {
-    const target: EditorTarget = { kind: 'new' };
-    setEditors((current) => withEditor(current, target, savedRef.current));
-    setHeld((current) => moveEntry(current, { kind: 'editor', target }, group));
-    setFocus({ kind: 'editor', target });
-  }, []);
 
   /* The gear on the rail, and the palette. Both land here so the tab is opened
      and placed in one move; ADR-0020 keeps it an action rather than a view, so
@@ -984,35 +966,6 @@ export function App(): JSX.Element {
      the bar and a strip cannot disagree about a session's name. */
   const activeIdentity = activeId === null ? null : (paneLabels.get(activeId) ?? null);
 
-  /* What the `+` offers: every saved host, in the order the sidebar lists
-     them, and the form at the end. A host already open is offered too, because
-     from an empty rectangle "bring that one here" is the same gesture as
-     "open that one here" and the strip cannot know which the person meant. */
-  const addMenuItems = useMemo<readonly GroupMenuItem[]>(() => {
-    if (addMenu === null) return [];
-
-    const items: GroupMenuItem[] = sessions.map((live) => ({
-      id: `open:${live.session.id}`,
-      label: live.session.name,
-      detail: `${live.session.user}@${live.session.host}`,
-      run: () => {
-        openHere(live.session.id, addMenu.group);
-        setAddMenu(null);
-      },
-    }));
-
-    items.push({
-      id: 'new',
-      label: i18n.t('group.add.new'),
-      run: () => {
-        addFormIn(addMenu.group);
-        setAddMenu(null);
-      },
-    });
-
-    return items;
-  }, [addMenu, sessions, i18n, openHere, addFormIn]);
-
   /* Where a drag lands. A tab moves, a host from the list opens: `openHere`
      already knows that one of those is a connection it has to make and the
      other is one it must not make twice. */
@@ -1083,10 +1036,11 @@ export function App(): JSX.Element {
              terminal to its group whatever the fit arithmetic rounds to. */
           className="bg-surface-base relative min-w-0 flex-1 overflow-hidden"
         >
-          {/* Every rectangle is a strip over the body of whichever tab it is
-              showing, empty ones included. ADR-0020 rule 2, and an empty group
-              is where it earns the most: the `+` on its strip is the only
-              thing that rectangle can offer, and it is the thing it is for. */}
+          {/* A strip names the tabs a rectangle holds, so one holding none
+              draws none. It carried a `+` for a while, which was the only
+              thing an empty group could offer; a host is dragged straight into
+              it now, and a bar with nothing in it is 28px of chrome saying
+              nothing. */}
           {groups.map((group, at) => {
             const shown = shownSession(group);
             const syncing = armed && shown !== null && !muted.has(shown);
@@ -1121,6 +1075,7 @@ export function App(): JSX.Element {
                   dropInto(dragging, at);
                 }}
               >
+                {!empty && (
                 <GroupStrip
                   entries={group.entries}
                   active={activeEntry(group)}
@@ -1151,7 +1106,6 @@ export function App(): JSX.Element {
                      the hook, because that is one of the ways unsaved work gets
                      thrown out. */
                   onClose={closeFocus}
-                  onAdd={(point) => setAddMenu({ group: at, at: point })}
                   onMenu={(entry, point) =>
                     setGroupMenu({ group: at, entry, at: point })
                   }
@@ -1160,6 +1114,7 @@ export function App(): JSX.Element {
                     if (entry === null) setDropOver(null);
                   }}
                 />
+                )}
 
                 {/* The body is drawn by the surfaces below, which are siblings
                     of this frame rather than children of it: a terminal that
@@ -1313,7 +1268,9 @@ export function App(): JSX.Element {
             groups.map((group, at) => (
               <div
                 key={`drop-${String(at)}`}
-                style={bodyStyle(group.box)}
+                /* The whole rectangle when it is empty, because there is no
+                   strip above it to leave room for. */
+                style={group.entries.length === 0 ? frameStyle(group.box) : bodyStyle(group.box)}
                 onDragOver={(event) => {
                   event.preventDefault();
                   event.dataTransfer.dropEffect = 'move';
@@ -1370,15 +1327,6 @@ export function App(): JSX.Element {
           setMuted(new Set());
         }}
       />
-
-      {addMenu !== null && (
-        <GroupMenu
-          items={addMenuItems}
-          at={addMenu.at}
-          label={i18n.t('group.add')}
-          onDismiss={() => setAddMenu(null)}
-        />
-      )}
 
       {groupMenu !== null && (
         <GroupMenu
