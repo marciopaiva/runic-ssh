@@ -11,6 +11,7 @@
         "resizable": true,
         "center": true,
         "decorations": true,
+        "dragDropEnabled": false,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true
       }
