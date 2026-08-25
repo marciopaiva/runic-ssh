@@ -1,6 +1,6 @@
 # ADR-0024: Share one bastion across the hosts behind it
 
-* **Status**: Proposed
+* **Status**: Accepted
 * **Date**: 2026-08-25
 
 Amends ADR-0023. The ownership argument it makes is kept and widened; the
@@ -125,6 +125,21 @@ provable by reading a type, and shared ownership is a weaker claim than sole
 ownership even when it is the correct one. It also means `Arc::try_unwrap` is
 load-bearing: a share leaked anywhere, into a task or a cache, is a connection
 that never closes and that nothing reports.
+
+## Where a bastion a chain opened lives
+
+Decided while planning, and not in the options above because it only becomes a
+question once bastions are shared: a chain that has to open a bastion registers
+it as the saved session it is, rather than holding it privately.
+
+Otherwise the second chain to the same bastion cannot find the first one's, and
+the sharing this decision exists for would only work when the user happened to
+open the bastion themselves. It also stops the core holding a connection it
+cannot name, which is half of #168.
+
+It does not put a tab on the strip. Tabs come from the frontend being told a
+session opened, and nothing tells it about a bastion nobody asked for. What the
+interface should show is #168 and is deliberately still open.
 
 ## Consequences
 

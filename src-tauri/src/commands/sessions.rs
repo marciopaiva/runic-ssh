@@ -4,6 +4,8 @@
 //! module, and maps the failure — the logic they call is testable without a
 //! webview, which is the arrangement `docs/architecture.md` asks for.
 
+use std::sync::Arc;
+
 use serde::Serialize;
 use tauri::{AppHandle, Manager, Runtime, State};
 
@@ -13,7 +15,8 @@ use crate::config::sessions::{
 };
 use crate::error::{Error, IpcError};
 use crate::ssh::connection::{
-    connect_reporting, connect_via, Connection, Credential, Endpoint, Hop, OfferedKey,
+    close_shared, connect_reporting, connect_via, share, Connection, Credential, Endpoint, Hop,
+    OfferedKey, Shared,
 };
 use crate::ssh::known_hosts::KnownHosts;
 use crate::ssh::pending::{PendingHostKeys, PendingId};
@@ -451,12 +454,43 @@ async fn refusal(
 /// a slot against the server's `MaxSessions` until the application restarts.
 async fn open_through(
     pending: &PendingHostKeys,
+    registry: &Registry,
     vault: &Vault,
     bastion: &Session,
     target: &Session,
     known: KnownHosts,
 ) -> Result<Connection, IpcError> {
-    let mut carrier = match connect_reporting(endpoint_of(bastion), known.clone()).await {
+    /* A bastion already open is ridden rather than opened again. ADR-0024, and
+    the reason a machine with no keychain can still reach a host behind one: the
+    credential was used when that connection was made and is not needed twice.
+    Six hosts behind a bastion cost it one login, not six. */
+    let carrier = match registry.shared_of_session(&bastion.id).await {
+        Some(open) => open,
+        None => open_bastion(pending, vault, bastion, known.clone()).await?,
+    };
+
+    match connect_via(Arc::clone(&carrier), endpoint_of(target), known).await {
+        Ok(connection) => Ok(connection),
+        Err(failure) => {
+            /* Letting go of our share. It closes only if nothing else was
+            riding it, which is the whole of the lifetime rule. */
+            let _ = close_shared(carrier).await;
+            Err(refusal(pending, Hop::Target, true, failure.error, failure.offered).await)
+        }
+    }
+}
+
+/// Opens and authenticates a bastion nobody had open.
+///
+/// Registered by the caller so the next chain to the same host finds it, rather
+/// than the core holding a connection it cannot name.
+async fn open_bastion(
+    pending: &PendingHostKeys,
+    vault: &Vault,
+    bastion: &Session,
+    known: KnownHosts,
+) -> Result<Shared, IpcError> {
+    let mut carrier = match connect_reporting(endpoint_of(bastion), known).await {
         Ok(connection) => connection,
         Err((error, offered)) => {
             return Err(refusal(pending, Hop::Bastion, true, error, offered).await)
@@ -484,13 +518,7 @@ async fn open_through(
         return Err(chain_failure(Hop::Bastion, IpcError::from(Box::new(error))));
     }
 
-    match connect_via(carrier, endpoint_of(target), known).await {
-        Ok(connection) => Ok(connection),
-        Err(failure) => {
-            let _ = failure.bastion.disconnect().await;
-            Err(refusal(pending, Hop::Target, true, failure.error, failure.offered).await)
-        }
-    }
+    Ok(share(carrier))
 }
 
 /// Opens a connection to a saved session and verifies its host key.
@@ -540,7 +568,8 @@ pub async fn connect_session<R: Runtime>(
                 .cloned()
                 .ok_or(Error::UnknownSession { id: bastion_id })?;
 
-            let connection = open_through(&pending, &vault, &bastion, &session, known).await?;
+            let connection =
+                open_through(&pending, &registry, &vault, &bastion, &session, known).await?;
             (connection, Some(bastion.name))
         }
     };
@@ -598,8 +627,14 @@ pub async fn disconnect_session(
     registry: State<'_, Registry>,
     handle: SessionHandle,
 ) -> Result<(), IpcError> {
-    let open = registry.take(handle).await.ok_or(Error::UnknownHandle)?;
-    open.connection.disconnect().await.map_err(Box::new)?;
+    /* Closes the connection only when nothing else is riding it. A bastion
+    serving five other sessions survives its own tab being closed, which is
+    ADR-0024 and is what somebody watching the screen already expects. */
+    registry
+        .close(handle)
+        .await
+        .ok_or(Error::UnknownHandle)?
+        .map_err(Box::new)?;
     Ok(())
 }
 

@@ -8,7 +8,7 @@ use tauri::{AppHandle, Emitter, Runtime, State};
 use tokio::sync::mpsc;
 
 use crate::error::{Error, IpcError};
-use crate::ssh::registry::{Busy, Registry, SessionHandle};
+use crate::ssh::registry::{Registry, SessionHandle};
 use crate::ssh::stats::Transfer;
 use crate::ssh::terminal::{pump, Input, OutputBatch, Sink};
 
@@ -96,14 +96,14 @@ pub async fn open_terminal<R: Runtime>(
         return Err(Error::TerminalAlreadyOpen.into());
     }
 
-    let channel = registry
-        .with(handle, |mut busy: Busy| async move {
-            let result = busy.connection.open_shell(columns, rows).await;
-            (busy, result)
-        })
-        .await
-        .ok_or(Error::UnknownHandle)?
-        .map_err(Box::new)?;
+    let shared = registry.shared(handle).await.ok_or(Error::UnknownHandle)?;
+    let channel = {
+        let held = shared.lock().await;
+        let connection = held.as_ref().ok_or(Error::UnknownHandle)?;
+        Some(connection.open_shell(columns, rows).await)
+    }
+    .ok_or(Error::UnknownHandle)?
+    .map_err(Box::new)?;
 
     let (sender, receiver) = mpsc::channel(INPUT_QUEUE);
     registry.attach_input(handle, sender).await;
@@ -220,13 +220,13 @@ pub async fn session_stats(
         .ok_or(Error::UnknownHandle)?
         .snapshot();
 
-    let latency = registry
-        .with(handle, |mut busy: Busy| async move {
-            let result = busy.connection.round_trip().await;
-            (busy, result)
-        })
-        .await
-        .ok_or(Error::UnknownHandle)?;
+    let shared = registry.shared(handle).await.ok_or(Error::UnknownHandle)?;
+    let latency = {
+        let held = shared.lock().await;
+        let connection = held.as_ref().ok_or(Error::UnknownHandle)?;
+        Some(connection.round_trip().await)
+    }
+    .ok_or(Error::UnknownHandle)?;
 
     Ok(SessionStats {
         transfer,
