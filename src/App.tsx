@@ -1322,6 +1322,15 @@ export function App(): JSX.Element {
         size={size}
         modifier={chrome?.commandModifier ?? 'control'}
         syncing={armed ? receiving.length : null}
+        /* Absent undivided, refusing when there is nowhere for it to reach.
+           `filled` counts rectangles holding something, and the switch reaches
+           the active tab of each, so two of them is the least that is a
+           broadcast rather than an ordinary keystroke. */
+        canSync={layout === '1x1' ? null : filled > 1}
+        onStartSync={() => {
+          setMuted(new Set());
+          setSync(true);
+        }}
         onStopSync={() => {
           setSync(false);
           setMuted(new Set());
