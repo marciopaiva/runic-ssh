@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, JSX } from 'react';
 
+import { ActivityRail } from './components/ActivityRail';
 import { CommandPalette } from './components/CommandPalette';
 import { ConnectingSurface } from './components/ConnectingSurface';
 import { EmptyPanel } from './components/EmptyPanel';
+import { GroupStrip } from './components/GroupStrip';
 import { HostKeyBlocked } from './components/HostKeyBlocked';
 import { ConnectionFailure } from './components/ConnectionFailure';
 import { HostKeyPrompt } from './components/HostKeyPrompt';
@@ -18,7 +20,19 @@ import { TerminalView } from './components/TerminalView';
 import { Titlebar } from './components/Titlebar';
 import { actionCommands, sessionCommands, usePalette } from './features/commands';
 import type { CommandContext } from './features/commands';
-import { focusAfter, focusAfterClosing, focusedSession, openTabs, resolveFocus, sameFocus, stripEntries, useChrome, windowControls } from './features/chrome';
+import {
+  focusAfter,
+  focusAfterClosing,
+  focusedSession,
+  openTabs,
+  panelElementId,
+  resolveFocus,
+  sameFocus,
+  stripEntries,
+  tabElementId,
+  useChrome,
+  windowControls,
+} from './features/chrome';
 import type { Focus } from './features/chrome';
 import {
   editorDirty,
@@ -56,36 +70,50 @@ import {
   mountedTerminals,
   placeEntry,
   receivingSessions,
+  removeEntry,
   resolveGroups,
 } from './features/terminal';
-import type { Box, Grid, HeldGroup } from './features/terminal';
-import type { PaneEdge } from './components/TerminalView';
+import type { Box, Grid, Group, HeldGroup } from './features/terminal';
 import type { TerminalSize } from './features/terminal/use-terminal';
 
-/** The element the tabs switch between. Named once, referenced from both ends. */
-const TERMINAL_PANEL = 'terminal-panel';
+/**
+ * A group's tab strip, and the border around the whole group.
+ *
+ * Both are wanted as numbers rather than classes because a group's body is a
+ * percentage of the main area with these taken off it, and there is no utility
+ * for "half of whatever this panel is, less thirty pixels".
+ */
+const STRIP_HEIGHT = 28;
+const GROUP_EDGE = 2;
 
 /**
- * What a group's edge should say.
+ * What the border around a group says about it.
  *
- * Nothing at all when the area holds one group, so a window that has not been
- * split looks exactly as it did before groups existed. `synced` wins over
- * focus: with the switch armed every group on screen is a destination, and
- * which one holds the keyboard is the less urgent fact.
+ * `none` is the window that has not been split, and it is a border in the same
+ * colour as the group rather than no border at all: the terminal inside is
+ * positioned against these numbers, so a shape that appears on splitting would
+ * move every terminal by two pixels.
+ *
+ * `synced` wins over focus. With the switch armed every group on screen is a
+ * destination, and which one holds the keyboard is the less urgent fact.
  */
-function paneEdge(
-  layout: Grid,
-  onScreen: boolean,
-  focused: boolean,
-  syncing: boolean,
-): PaneEdge {
-  if (layout === 'single' || !onScreen) return 'none';
+type GroupEdge = 'none' | 'idle' | 'focused' | 'synced';
+
+const EDGES: Readonly<Record<GroupEdge, string>> = {
+  none: 'border-2 border-transparent',
+  idle: 'border-2 border-line-subtle',
+  focused: 'border-2 border-accent',
+  synced: 'border-2 border-warn',
+};
+
+function groupEdge(layout: Grid, focused: boolean, syncing: boolean): GroupEdge {
+  if (layout === 'single') return 'none';
   if (syncing) return 'synced';
   return focused ? 'focused' : 'idle';
 }
 
-/** A pane's rectangle, as the browser wants it. Percentages of the panel. */
-function paneStyle(box: Box): CSSProperties {
+/** A group's rectangle, border included. Percentages of the main area. */
+function frameStyle(box: Box): CSSProperties {
   return {
     left: `${box.left}%`,
     top: `${box.top}%`,
@@ -95,22 +123,57 @@ function paneStyle(box: Box): CSSProperties {
 }
 
 /**
+ * Where a group's active tab draws: inside the border, below the strip.
+ *
+ * Not a child of the group. A terminal that changed parent on the way from one
+ * group to the next would be unmounted and mounted again, which is precisely
+ * what ADR-0014 exists to prevent, so every surface is a sibling positioned by
+ * arithmetic instead.
+ */
+function bodyStyle(box: Box): CSSProperties {
+  const top = STRIP_HEIGHT + GROUP_EDGE;
+
+  return {
+    left: `calc(${box.left}% + ${GROUP_EDGE}px)`,
+    top: `calc(${box.top}% + ${top}px)`,
+    width: `calc(${box.width}% - ${GROUP_EDGE * 2}px)`,
+    height: `calc(${box.height}% - ${top + GROUP_EDGE}px)`,
+  };
+}
+
+/** The session a group is showing, or `null` when it is showing something else. */
+function shownSession(group: Group): string | null {
+  const entry = activeEntry(group);
+  return entry?.kind === 'session' ? entry.sessionId : null;
+}
+
+/**
  * The application shell.
+ *
+ * ADR-0020 fixed the anatomy: a 36px top strip of mark, drag surface and
+ * window controls; a rail of activities that never closes; the session list
+ * beside it, which does; and a main area of groups, each one a strip of tabs
+ * over the body of whichever tab it is showing.
+ *
+ * The three surfaces the window can open are one kind of thing here. A
+ * terminal, a host form and the settings page are all `Focus` values, all held
+ * by a group, and all positioned by the same arithmetic. That is rule 3, and
+ * it cost nothing because the union predates the rule.
  *
  * The titlebar is the window's own, per ADR-0005. The palette reaches
  * everything through one registry, which is why it exists this early: a
  * registry added after the fact only ever sees the parts somebody remembered
  * to register.
- *
- * The tab strip is empty until something connects, which nothing in the
- * interface does yet — a tab means an open channel, and opening one needs the
- * credential prompt from ADR-0008.
  */
 export function App(): JSX.Element {
   const { sessions, setState, attach, reload } = useSessions();
   const { chrome, maximized, act, refused, nativeDecorations, useNativeDecorations } = useChrome();
   const { i18n, chosen, choose } = useLocale();
   const [selected, setSelected] = useState<string | null>(null);
+  /* Whether the session list is beside the rail. ADR-0020 rule 4: this closes
+     and the rail does not, so the icon that closed it is the way back and the
+     window has no state where the list is gone with nothing offering it. */
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   /* What the strip is pointing at. A union rather than a session id with a
      reserved value for settings — see `features/chrome/focus.ts`. */
   const [focus, setFocus] = useState<Focus | null>(null);
@@ -188,17 +251,13 @@ export function App(): JSX.Element {
   const stats = useSessionStats(activeHandle);
   /* One terminal per open session, kept mounted across tab switches. */
   const mounted = useMemo(() => mountedTerminals(tabs), [tabs]);
-  /* Only sessions go in a group for now. A host form and the settings surface
-     still take the whole area, which is what they do today; ADR-0020 moves
-     them into groups along with the chrome rather than here, so that this step
-     changes the model and not what is on screen. */
-  const openSessions = useMemo(
-    () => tabs.map((tab): Focus => ({ kind: 'session', sessionId: tab.sessionId })),
-    [tabs],
-  );
+  /* Everything on the strip goes in a group, not only the sessions: a host
+     form and the settings page are tabs like any other, so a question about
+     one host can sit in one rectangle while the terminals around it stay
+     readable. That is ADR-0020 rule 3, and `Focus` already said it. */
   const groups = useMemo(
-    () => resolveGroups(layout, held, openSessions, resolvedFocus),
-    [layout, held, openSessions, resolvedFocus],
+    () => resolveGroups(layout, held, entries, resolvedFocus),
+    [layout, held, entries, resolvedFocus],
   );
   const focusedGroup = groupOf(groups, resolvedFocus);
   const filled = groups.filter((group) => group.entries.length > 0).length;
@@ -210,12 +269,7 @@ export function App(): JSX.Element {
   /* Nobody inherits a broadcast they did not arm. Moving the focus within a
      group leaves this alone; changing which hosts are showing does not, and
      with groups that includes flipping to another tab of the same group. */
-  const paneKey = groups
-    .map((group) => {
-      const entry = activeEntry(group);
-      return entry?.kind === 'session' ? entry.sessionId : '';
-    })
-    .join('\u0000');
+  const paneKey = groups.map((group) => shownSession(group) ?? '').join('\u0000');
   const lastPaneKey = useRef(paneKey);
   useEffect(() => {
     if (lastPaneKey.current === paneKey) return;
@@ -230,9 +284,12 @@ export function App(): JSX.Element {
      up pointing at a session the panel is not drawing. */
   const focusOn = useCallback(
     (next: Focus | null): void => {
-      const sessionId = focusedSession(next);
-      if (next !== null && sessionId !== null) {
+      if (next !== null) {
         setHeld((current) => placeEntry(current, focusedGroup < 0 ? 0 : focusedGroup, next));
+      }
+
+      const sessionId = focusedSession(next);
+      if (sessionId !== null) {
         /* The sidebar highlight follows too. It only ever moved on connecting,
            so looking at one session while the sidebar pointed at another was
            always possible and was hard to notice with one panel on screen. It
@@ -241,6 +298,7 @@ export function App(): JSX.Element {
            costs nothing and stops the two disagreeing. */
         setSelected(sessionId);
       }
+
       setFocus(next);
     },
     [focusedGroup],
@@ -268,11 +326,8 @@ export function App(): JSX.Element {
      session sitting behind another has no box and its questions wait until it
      is showing. */
   const boxOf = useCallback(
-    (sessionId: string): Box | null => {
-      const group = groups.find((candidate) => {
-        const entry = activeEntry(candidate);
-        return entry?.kind === 'session' && entry.sessionId === sessionId;
-      });
+    (entry: Focus): Box | null => {
+      const group = groups.find((candidate) => sameFocus(activeEntry(candidate), entry));
       return group?.box ?? null;
     },
     [groups],
@@ -309,9 +364,21 @@ export function App(): JSX.Element {
     [sessions, attach, setState],
   );
 
+  /* Taking a tab off the strip also takes it out of the group that held it.
+     Without this the group remembers a tab nobody can see, and reopening the
+     same host form puts it back in a rectangle nobody chose rather than in the
+     one being worked in. */
+  const forget = useCallback(
+    (target: Focus): void => {
+      setHeld((current) => removeEntry(current, target));
+      setFocus(focusAfterClosing(entries, target));
+    },
+    [entries],
+  );
+
   /* Closing any tab, whichever kind it is. One handler because the strip is
-     one ring: the titlebar should not have to know that a session disconnects,
-     an editor may have unsaved work, and settings just goes away. */
+     one ring: a group should not have to know that a session disconnects, an
+     editor may have unsaved work, and settings just goes away. */
   const closeFocus = useCallback(
     (target: Focus): void => {
       if (target.kind === 'editor') {
@@ -329,12 +396,12 @@ export function App(): JSX.Element {
           return;
         }
 
-        setFocus(focusAfterClosing(entries, target));
+        forget(target);
         setEditors((current) => withoutEditor(current, target.target));
         return;
       }
 
-      setFocus(focusAfterClosing(entries, target));
+      forget(target);
 
       if (target.kind === 'settings') {
         setSettingsOpen(false);
@@ -349,13 +416,16 @@ export function App(): JSX.Element {
       if (attentionId === target.sessionId) abandon();
       disconnect(target.sessionId);
     },
-    [entries, attentionId, abandon, disconnect],
+    [forget, attentionId, abandon, disconnect],
   );
 
+  /* The gear on the rail, and the palette. Both land here so the tab is opened
+     and placed in one move; ADR-0020 keeps it an action rather than a view, so
+     it takes no marker on the rail and leaves the sidebar alone. */
   const openSettings = useCallback((): void => {
     setSettingsOpen(true);
-    setFocus({ kind: 'settings' });
-  }, []);
+    focusOn({ kind: 'settings' });
+  }, [focusOn]);
 
   /* Shown in the main area rather than as a toast: the user just clicked the
      session and is looking at exactly this space, and a message that
@@ -552,7 +622,7 @@ export function App(): JSX.Element {
            Editing a host that already existed leaves the tab open, because
            there the name on it stays true. */
         if (target.kind === 'new') {
-          setFocus(focusAfterClosing(entries, { kind: 'editor', target }));
+          forget({ kind: 'editor', target });
           setEditors((current) => withoutEditor(current, target));
           return;
         }
@@ -560,7 +630,7 @@ export function App(): JSX.Element {
         setEditors((current) => updateEditor(current, target, () => settled(stored)));
       });
     },
-    [saved, save, entries],
+    [saved, save, forget],
   );
 
   const removeIn = useCallback(
@@ -568,10 +638,10 @@ export function App(): JSX.Element {
       if (target.kind === 'new') return;
 
       remove(target.sessionId);
-      setFocus(focusAfterClosing(entries, { kind: 'editor', target }));
+      forget({ kind: 'editor', target });
       setEditors((current) => withoutEditor(current, target));
     },
-    [remove, entries],
+    [remove, forget],
   );
 
   const discardIn = useCallback(
@@ -583,20 +653,22 @@ export function App(): JSX.Element {
         return;
       }
 
-      setFocus(focusAfterClosing(entries, { kind: 'editor', target }));
+      forget({ kind: 'editor', target });
       setEditors((current) => withoutEditor(current, target));
     },
-    [entries],
+    [forget],
   );
 
-  /* Opening the form is what puts its tab on the strip: the sidebar's `+` and
-     the row menu's Edit both land here rather than each knowing about tabs. */
+  /* Opening the form is what puts its tab in a group: the sidebar's `+` and
+     the row menu's Edit both land here rather than each knowing about tabs.
+     Through `focusOn`, so the form appears in the rectangle being worked in
+     and not in whichever one the resolver would have picked. */
   const openEditor = useCallback(
     (target: EditorTarget): void => {
       setEditors((current) => withEditor(current, target, savedRef.current));
-      setFocus({ kind: 'editor', target });
+      focusOn({ kind: 'editor', target });
     },
-    [],
+    [focusOn],
   );
 
   const chooseFromMenu = useCallback(
@@ -674,88 +746,126 @@ export function App(): JSX.Element {
     [sessions],
   );
 
-  const pasteBox = pendingPaste === null ? null : boxOf(pendingPaste.sessionId);
-  const attemptBox = attempt === null ? null : boxOf(attempt.sessionId);
+  const pasteBox =
+    pendingPaste === null ? null : boxOf({ kind: 'session', sessionId: pendingPaste.sessionId });
+  const attemptBox =
+    attempt === null ? null : boxOf({ kind: 'session', sessionId: attempt.sessionId });
 
   return (
     <div className="flex h-full flex-col">
       <Titlebar
-        entries={entries}
-        tabs={tabs}
-        focus={resolvedFocus}
-        editorTabs={editorTabs}
         /* Until the core answers, the bar draws without controls. It is the
            same height either way, so nothing below it moves. */
         controls={chrome === null ? [] : windowControls(chrome, maximized)}
         leadingInset={chrome?.leadingInset ?? 0}
-        panelId={TERMINAL_PANEL}
-        onFocus={focusOn}
-        /* One handler for the whole strip. Closing an editor goes through the
-           hook, because that is one of the ways unsaved work gets thrown out. */
-        onClose={closeFocus}
         onAct={act}
       />
 
       <div className="flex min-h-0 flex-1">
-        <SessionsSidebar
-          sessions={sessions}
-          selectedId={selected}
-          onSelect={activate}
-          onAdd={() => openEditor({ kind: 'new' })}
-          onMenu={(sessionId, at) => setMenu({ sessionId, at })}
+        <ActivityRail
+          sidebarOpen={sidebarOpen}
+          openCount={tabs.length}
+          settingsOpen={settingsOpen}
+          onToggleSidebar={() => setSidebarOpen((open) => !open)}
+          onOpenSettings={openSettings}
         />
-        {/* `relative` is what the terminals are positioned against. They are
-            stacked rather than swapped: one per session, only the active one
-            visible, so switching tabs neither destroys an xterm nor makes the
-            core open a second shell to replace it — ADR-0014. */}
+
+        {sidebarOpen && (
+          <SessionsSidebar
+            sessions={sessions}
+            selectedId={selected}
+            onSelect={activate}
+            onAdd={() => openEditor({ kind: 'new' })}
+            onMenu={(sessionId, at) => setMenu({ sessionId, at })}
+          />
+        )}
+
+        {/* `relative` is what every group and every surface is positioned
+            against. Surfaces are stacked rather than swapped: one per session
+            and one per open form, only the ones a group is showing visible, so
+            switching tabs neither destroys an xterm nor loses a half-typed
+            host. ADR-0014. */}
         <main
-          id={TERMINAL_PANEL}
-          role="tabpanel"
           /* `overflow-hidden` is not tidying. xterm sizes its screen to a whole
              number of rows, and the remainder — up to one cell height — is
              painted past the bottom of this box and over the status bar, which
              is where the bar appeared to be cut off. Clipping here bounds the
-             terminal to its panel whatever the fit arithmetic rounds to. */
-          className="bg-surface-terminal relative min-w-0 flex-1 overflow-hidden"
+             terminal to its group whatever the fit arithmetic rounds to. */
+          className="bg-surface-base relative min-w-0 flex-1 overflow-hidden"
         >
+          {/* The groups themselves: a border and a strip. Drawn before the
+              surfaces so the bodies below paint over the empty half of each
+              frame rather than under it. */}
+          {groups.map((group, at) => {
+            if (group.entries.length === 0) return null;
+
+            const shown = shownSession(group);
+            const syncing = armed && shown !== null && !muted.has(shown);
+
+            return (
+              <div
+                key={`group-${String(at)}`}
+                className={`bg-surface-terminal absolute flex flex-col overflow-hidden ${
+                  EDGES[groupEdge(layout, at === focusedGroup, syncing)]
+                }`}
+                style={frameStyle(group.box)}
+              >
+                <GroupStrip
+                  entries={group.entries}
+                  active={activeEntry(group)}
+                  focus={resolvedFocus}
+                  tabs={tabs}
+                  editorTabs={editorTabs}
+                  labels={paneLabels}
+                  dense={layout !== 'single'}
+                  label={
+                    layout === 'single'
+                      ? i18n.t('tabs.label')
+                      : i18n.t('group.tabs', { number: String(at + 1) })
+                  }
+                  /* Absent unless something is being broadcast: a control for
+                     a state that does not exist decides nothing. */
+                  receiving={sync && shown !== null && layout !== 'single' ? !muted.has(shown) : null}
+                  onToggleReceiving={() =>
+                    setMuted((current) => {
+                      if (shown === null) return current;
+                      const next = new Set(current);
+                      if (next.has(shown)) next.delete(shown);
+                      else next.add(shown);
+                      return next;
+                    })
+                  }
+                  onFocus={focusOn}
+                  /* One handler for every strip. Closing an editor goes through
+                     the hook, because that is one of the ways unsaved work gets
+                     thrown out. */
+                  onClose={closeFocus}
+                />
+                <div className="min-h-0 flex-1" />
+              </div>
+            );
+          })}
+
           {mounted.map((terminal) => {
+            const mine: Focus = { kind: 'session', sessionId: terminal.sessionId };
             /* Showing means being the active tab of a group. A session in a
                group's background is mounted and hidden exactly the way an
                inactive tab has always been. */
-            const at = groups.findIndex((group) => {
-              const entry = activeEntry(group);
-              return entry?.kind === 'session' && entry.sessionId === terminal.sessionId;
-            });
-            const onScreen = at >= 0;
+            const box = boxOf(mine);
             const isFocused = terminal.sessionId === activeId;
 
             return (
               <TerminalView
                 key={terminal.sessionId}
                 handle={terminal.handle}
-                visible={onScreen}
+                visible={box !== null}
                 focused={isFocused}
                 /* Off screen it keeps the whole area, so `FitAddon` and the
                    resize observer go on measuring something real. ADR-0014. */
-                box={groups[at]?.box ?? WHOLE_AREA}
-                edge={paneEdge(layout, onScreen, isFocused, armed && !muted.has(terminal.sessionId))}
-                label={
-                  layout === 'single' || !onScreen
-                    ? null
-                    : (paneLabels.get(terminal.sessionId) ?? null)
-                }
-                /* Absent unless something is being broadcast, and absent off
-                   screen: a control for a pane nobody can see decides nothing. */
-                receiving={sync && onScreen && layout !== 'single' ? !muted.has(terminal.sessionId) : null}
-                onToggleReceiving={() =>
-                  setMuted((current) => {
-                    const next = new Set(current);
-                    if (next.has(terminal.sessionId)) next.delete(terminal.sessionId);
-                    else next.add(terminal.sessionId);
-                    return next;
-                  })
-                }
-                onPaneFocus={() => focusOn({ kind: 'session', sessionId: terminal.sessionId })}
+                frame={bodyStyle(box ?? WHOLE_AREA)}
+                id={panelElementId(mine)}
+                labelledBy={tabElementId(mine)}
+                onPaneFocus={() => focusOn(mine)}
                 onSize={setSize}
                 modifier={chrome?.commandModifier ?? 'control'}
                 onPasteNeedsConfirming={(text) =>
@@ -767,24 +877,25 @@ export function App(): JSX.Element {
             );
           })}
 
-          {/* A slot with nothing in it yet. Dashed rather than solid so it
+          {/* A group with nothing in it yet. Dashed rather than solid so it
               reads as somewhere to put a session and not as a terminal that
               failed to paint, which is the same worry the empty panel below
-              was written for. */}
+              was written for. It has no strip: there is nothing to name, and
+              the affordances that would live there are #137 step 4. */}
           {layout !== 'single' &&
             groups.map((group, at) =>
               group.entries.length === 0 ? (
                 <div
-                  key={`slot-${String(at)}`}
+                  key={`empty-${String(at)}`}
                   className="border-line-subtle absolute border-2 border-dashed"
-                  style={paneStyle(group.box)}
+                  style={frameStyle(group.box)}
                 >
                   <EmptyPanel modifier={chrome?.commandModifier ?? 'control'} variant="pane" />
                 </div>
               ) : null,
             )}
 
-          {/* Nothing open at all. A blank panel beside a blank tab strip is
+          {/* Nothing open at all. A blank area beside a blank rail is
               indistinguishable from a window that failed to paint, and it is
               the first thing a new user meets. */}
           {entries.length === 0 && attemptSurface === null && (
@@ -795,19 +906,24 @@ export function App(): JSX.Element {
 
           {editors.map((open) => {
             const mine: Focus = { kind: 'editor', target: open.target };
-            const showing = sameFocus(resolvedFocus, mine);
+            const box = boxOf(mine);
 
             return (
-              /* One panel per open form, all mounted, only the focused one
-                 visible — the same trick the terminals use. A half-typed host
-                 survives a glance at a session and is still there on the way
-                 back, and now so does the *other* half-typed host. */
+              /* One panel per open form, all mounted, only the ones a group is
+                 showing visible, the same trick the terminals use. A
+                 half-typed host survives a glance at a session and is still
+                 there on the way back, and now so does the *other* half-typed
+                 host. */
               <div
                 key={editorKey(open.target)}
-                className={`absolute inset-0 overflow-y-auto ${
-                  showing ? '' : 'invisible pointer-events-none'
+                id={panelElementId(mine)}
+                role="tabpanel"
+                aria-labelledby={tabElementId(mine)}
+                className={`absolute overflow-y-auto ${
+                  box === null ? 'invisible pointer-events-none' : ''
                 }`}
-                aria-hidden={showing ? undefined : true}
+                style={bodyStyle(box ?? WHOLE_AREA)}
+                aria-hidden={box === null ? true : undefined}
               >
                 <SessionEditorPanel
                   title={
@@ -828,31 +944,41 @@ export function App(): JSX.Element {
             );
           })}
 
-          {settingsOpen && (
-            /* Mounted for as long as the tab is on the strip, and hidden the
-               same way the terminals are, so the section you were reading is
-               still the section you come back to. */
-            <div
-              className={`absolute inset-0 ${
-                resolvedFocus?.kind === 'settings' ? '' : 'invisible pointer-events-none'
-              }`}
-              aria-hidden={resolvedFocus?.kind === 'settings' ? undefined : true}
-            >
-              <SettingsPanel
-                chosenLocale={chosen}
-                onChooseLocale={(locale) => void choose(locale)}
-                nativeDecorations={nativeDecorations}
-                onUseNativeDecorations={useNativeDecorations}
-              />
-            </div>
-          )}
+          {settingsOpen &&
+            (() => {
+              const mine: Focus = { kind: 'settings' };
+              const box = boxOf(mine);
 
-          {/* A paste waiting on an answer, in the pane of the session that
+              return (
+                /* Mounted for as long as the tab is on a strip, and hidden the
+                   same way the terminals are, so the section you were reading
+                   is still the section you come back to. */
+                <div
+                  id={panelElementId(mine)}
+                  role="tabpanel"
+                  aria-labelledby={tabElementId(mine)}
+                  className={`absolute overflow-y-auto ${
+                    box === null ? 'invisible pointer-events-none' : ''
+                  }`}
+                  style={bodyStyle(box ?? WHOLE_AREA)}
+                  aria-hidden={box === null ? true : undefined}
+                >
+                  <SettingsPanel
+                    chosenLocale={chosen}
+                    onChooseLocale={(locale) => void choose(locale)}
+                    nativeDecorations={nativeDecorations}
+                    onUseNativeDecorations={useNativeDecorations}
+                  />
+                </div>
+              );
+            })()}
+
+          {/* A paste waiting on an answer, in the group of the session that
               asked. Ahead of the attempt surface in document order because a
               session with a terminal to paste into is not one that has an
               attempt still running. */}
           {pendingPaste !== null && pasteBox !== null && (
-            <div className="absolute" style={paneStyle(pasteBox)}>
+            <div className="absolute" style={bodyStyle(pasteBox)}>
               <PasteConfirm
                 text={pendingPaste.text}
                 hosts={inputTargets(groups, pendingPaste.sessionId, sync, muted).length}
@@ -870,14 +996,15 @@ export function App(): JSX.Element {
             </div>
           )}
 
-          {/* Everything an attempt has to say, inside the pane of the session
-              it names — ADR-0015. Positioned and last in document order so it
-              paints over that session's terminal, and bounded to that pane, so
-              a question about one session cannot cover another. Absent
-              entirely when its session is in no pane: there is nowhere honest
-              to draw it, and the tab is still on the strip. */}
+          {/* Everything an attempt has to say, inside the group of the session
+              it names. ADR-0015, read as ADR-0020 reads it: the group whose
+              active tab that session is. Positioned and last in document order
+              so it paints over that session's terminal, and bounded to that
+              group, so a question about one session cannot cover another.
+              Absent entirely when its session is showing nowhere: there is no
+              honest place to draw it, and the tab is still on a strip. */}
           {attempt !== null && attemptSurface !== null && attemptBox !== null && (
-            <div className="absolute" style={paneStyle(attemptBox)}>
+            <div className="absolute" style={bodyStyle(attemptBox)}>
               {attemptSurface}
             </div>
           )}

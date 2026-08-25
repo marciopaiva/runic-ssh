@@ -13,6 +13,7 @@ export {
   inputTargets,
   placeEntry,
   receivingSessions,
+  removeEntry,
   resolveGroups,
 } from './groups';
 export type { Box, Grid, Group, GroupLabel, HeldGroup } from './groups';

@@ -130,3 +130,32 @@ export function focusAfterClosing(
 
 /** Kept for the session-only ring the sidebar still walks. */
 export { tabAfter };
+
+/**
+ * The DOM id of the tab a focus is drawn as.
+ *
+ * Stable across renders and unique across the window, because an entry lives
+ * in exactly one group. Both ends need it: the strip sets it, and moving focus
+ * by keyboard has to find the button it just switched to.
+ */
+export function tabElementId(focus: Focus): string {
+  if (focus.kind === 'settings') return 'settings-tab';
+  if (focus.kind === 'editor') {
+    return focus.target.kind === 'new' ? 'editor-tab-new' : `editor-tab-${focus.target.sessionId}`;
+  }
+
+  return `session-tab-${focus.sessionId}`;
+}
+
+/**
+ * The DOM id of the surface that tab switches to.
+ *
+ * Derived from the tab's own id rather than invented separately, so the two
+ * cannot drift. This exists because groups made one shared panel wrong: four
+ * strips all pointing `aria-controls` at the main area would tell a screen
+ * reader that every tab switches the same region, which stopped being true the
+ * moment the area was divided.
+ */
+export function panelElementId(focus: Focus): string {
+  return `panel-${tabElementId(focus)}`;
+}
