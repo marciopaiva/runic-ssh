@@ -59,6 +59,8 @@
   "failure.hop.bastion": "A falha foi no host intermediário, antes de chegar ao host que você pediu.",
   "failure.hop.target": "O host intermediário foi alcançado. A falha foi no caminho a partir dele.",
   "failure.host": "Tentou {user}@{host} na porta {port}",
+  "failure.jumpCredential.body": "Um host intermediário se autentica pelo keychain do sistema e nunca por uma janela, então não há nada para digitar aqui. Conecte nele diretamente uma vez e escolha lembrar a credencial. Se esta máquina não tiver keychain nenhum, ainda não é possível usar hosts intermediários nela.",
+  "failure.jumpCredential.title": "O host intermediário não tem credencial para usar",
   "failure.keyUnreadable.body": "Não é uma chave em formato que o Runic SSH entenda, ou a frase secreta não a abre.",
   "failure.keyUnreadable.title": "A chave privada não pôde ser lida",
   "failure.keychain.body": "O chaveiro do sistema não respondeu. Você ainda pode conectar digitando a credencial.",

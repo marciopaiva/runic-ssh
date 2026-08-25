@@ -88,7 +88,10 @@ export function SessionSurface({
 
         <div className="border-line-subtle flex items-end gap-3 border-t pt-3.5">
           {note !== undefined && <span className="text-ink-faint text-[11.5px]">{note}</span>}
-          <div className="ml-auto flex items-center gap-2.5">{actions}</div>
+          {/* Never compressed by the note beside it. A two-line note used to
+              squeeze these until the label wrapped inside the button, which is
+              a broken control rather than a tight one. */}
+          <div className="ml-auto flex shrink-0 items-center gap-2.5">{actions}</div>
         </div>
       </section>
     </div>

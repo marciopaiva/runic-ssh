@@ -65,6 +65,8 @@ export const SOURCE_CATALOG = {
   "failure.hop.bastion": "This failed at the jump host, before the host you asked for was reached.",
   "failure.hop.target": "The jump host was reached. This failed on the way from there.",
   "failure.host": "Tried {user}@{host} on port {port}",
+  "failure.jumpCredential.body": "A jump host authenticates from the system keychain and never from a window, so there is nothing to type here. Connect to it directly once and choose to remember the credential. If this machine has no keychain at all, jump hosts cannot be used on it yet.",
+  "failure.jumpCredential.title": "The jump host has no credential to use",
   "failure.keyUnreadable.body": "It is not a key in a format Runic SSH understands, or the passphrase does not open it.",
   "failure.keyUnreadable.title": "The private key could not be read",
   "failure.keychain.body": "The system keychain did not answer. You can still connect by typing the credential.",
