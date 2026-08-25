@@ -77,18 +77,19 @@ card right and the surface around it wrong. They are drawn in place here.
 
 ## What is drawn here and not built
 
-The canvas is the record of the anatomy, not a checklist of the tree. Two
-things it draws deliberately have no code behind them, and this is where that
-is written down so the next person does not build them from the picture.
+The canvas is the record of the anatomy, not a checklist of the tree. One
+thing it draws deliberately has no code behind it, and this is where that is
+written down so the next person does not build it from the picture.
 
 * **SFTP.** `Sftp.dc.html` and the rail's second icon. The feature has no code
   (#127), and rule 6 of ADR-0020 refuses an icon that switches to nothing. The
   slot arrives with the feature.
-* **The split control on a group's strip.** The strip is drawn with three
-  trailing controls and only two are built. Splitting is global in this model,
-  and a button on one group's strip implies a per-group split the fixed shapes
-  cannot express. Where that control belongs is an open question rather than a
-  missing implementation.
+
+That list used to have a second entry, the split control on a group's strip.
+It is gone from both sides now: ADR-0021 decided splitting belongs to the top
+strip, because it changes the whole main area and a button on one group's strip
+reads as splitting that rectangle. The generator draws it there, the strip
+draws two trailing controls rather than three, and #152 built it.
 
 ## What is not here yet
 

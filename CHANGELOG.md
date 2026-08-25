@@ -49,10 +49,28 @@ with the caveat that anything below 1.0 may break, and this project intends to.
   lines and bracketed pastes included. Bracketed paste stops the remote shell
   running the lines; nothing stops a paste reaching four machines because the
   wrong group had focus.
+- **Randomart beside the host key fingerprint**, drawn the way `ssh-keygen -lv`
+  draws it. Its whole value is being the same picture, since the way it gets
+  used is comparing what is on screen against what OpenSSH printed somewhere
+  you already trust, so the tests pin twelve pictures captured from the real
+  command rather than twelve this code produced.
+- **The status bar says which host it is describing**, from the same label a
+  tab carries, so the two cannot come to call one session by two names.
+- **The main area can be divided with a pointer** (ADR-0021). Four shapes at
+  the trailing edge of the top strip, which is the only surface in the window
+  that belongs to the window rather than to something inside it.
 - **Four terminals painting at once has been measured** (#123). Fed at the rate
   the transport actually delivers, they hold a 16 ms median gap between frames,
   with the worst gap in 620 frames at 24 ms. The four-rectangle limit rests on
   a number now rather than on a guess.
+
+### Changed
+
+- **The interface palette is the denser navy and cyan** the design canvas has
+  been drawn in since ADR-0020. The canvas said its colours came from the token
+  file and the token file still carried what came before them, so the record
+  and the application disagreed about what colour the product is. A test reads
+  the canvas generator and fails when they drift again.
 
 ### Fixed
 
@@ -72,9 +90,8 @@ with the caveat that anything below 1.0 may break, and this project intends to.
   and the sidebar is where that one is read.
 - Groups hold sessions that are already connected. A second terminal on a host
   you are already on is not possible yet, and would need a second connection.
-- No draggable divider, no keyboard shortcut for splitting or for moving between
-  groups, and no pointer control for splitting at all. The command palette is
-  the only way to divide the main area.
+- No draggable divider, and no keyboard shortcut for splitting or for moving
+  between groups. Both go through the command palette.
 - SFTP has no code behind it, so the rail carries one view rather than the three
   the design canvas draws. The icon arrives with the feature.
 - The screenshots below the feature list are of the previous anatomy, taken

@@ -88,7 +88,10 @@ ICON = dict(
     chev='<path d="M9 6l6 6-6 6"></path>',
     check='<path d="M20 6L9 17l-5-5"></path>',
     lock='<rect x="5" y="11" width="14" height="9.5" rx="1.6"></rect><path d="M8 11V7.6a4 4 0 018 0V11"></path>',
-    split='<rect x="3.5" y="4.5" width="17" height="15" rx="2"></rect><path d="M12 4.5v15"></path>',
+    shape_single='<rect x="3.5" y="5.5" width="17" height="13" rx="2"></rect>',
+    shape_columns='<rect x="3.5" y="5.5" width="17" height="13" rx="2"></rect><path d="M12 5.5v13"></path>',
+    shape_rows='<rect x="3.5" y="5.5" width="17" height="13" rx="2"></rect><path d="M3.5 12h17"></path>',
+    shape_grid='<rect x="3.5" y="5.5" width="17" height="13" rx="2"></rect><path d="M12 5.5v13M3.5 12h17"></path>',
     shield='<path d="M12 3.5l7 3v5.5c0 4.2-2.9 7.3-7 8.5-4.1-1.2-7-4.3-7-8.5V6.5z"></path>',
 )
 
@@ -97,12 +100,28 @@ def ic(name, size=14, color=None, cls="ic", extra=""):
     if color: st += f" color: {color};"
     return f'<svg class="{cls}" viewBox="0 0 24 24" style="{st}{extra}">{ICON[name]}</svg>'
 
-def top_strip():
+def shapes(active="single"):
+    """ADR-0021: the shape control lives here, and not on a group's strip. It
+    changes the whole main area, and the top strip is the only surface in the
+    window that belongs to the window rather than to something inside it."""
+    out = []
+    for key in ("single", "columns", "rows", "grid"):
+        on = key == active
+        bg = f'background: {T["raised"]};' if on else ''
+        color = T['accent'] if on else T['faint']
+        out.append(f'<div style="width: 28px; height: 24px; border-radius: 4px; {bg}'
+                   f' display: flex; align-items: center; justify-content: center; color: {color};">'
+                   f'{ic("shape_" + key, 16)}</div>')
+    return ('<div style="flex: none; display: flex; align-items: center; gap: 2px; padding-right: 8px;">'
+            + "".join(out) + '</div>')
+
+def top_strip(active_shape="single"):
     return f"""  <div style="height: 36px; flex: none; display: flex; align-items: stretch; background: {T['chrome']}; border-bottom: 1px solid {T['line']};">
     <div style="width: 48px; flex: none; display: flex; align-items: center; justify-content: center; border-right: 1px solid {T['line']};">{MARK}</div>
     <div style="flex: 1; min-width: 0; display: flex; align-items: center; padding-left: 14px;">
       <span style="font-size: 11.5px; font-weight: 700; letter-spacing: 0.13em; color: {T['faint']};">RUNIC SSH</span>
     </div>
+    {shapes(active_shape)}
     <div style="flex: none; display: flex; align-items: stretch; border-left: 1px solid {T['line']};">
       <div class="win"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M1.5 5h7"></path></svg></div>
       <div class="win"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.1"><rect x="1.5" y="1.5" width="7" height="7"></rect></svg></div>
@@ -171,8 +190,11 @@ def tab(name, sub=None, state="idle", dot="ok", icon=None, close=True, accent=No
 def strip(tabs, actions=True, extra=""):
     acts = ""
     if actions:
+        # Two, not three. The split icon this used to draw moved to the top
+        # strip in ADR-0021: splitting is global, and a control on one group's
+        # strip reads as splitting that rectangle.
         acts = (f'<div style="display: flex; align-items: center; padding-right: 8px; gap: 7px; color: {T["faint"]};">'
-                f'{ic("plus", 12)}{ic("split", 12)}{ic("dots", 12)}</div>')
+                f'{ic("plus", 12)}{ic("dots", 12)}</div>')
     return f'<div class="strip">{"".join(tabs)}<div style="flex: 1;"></div>{extra}{acts}</div>'
 
 def group(strip_html, body_html, border=None):
@@ -266,7 +288,7 @@ def stat_text(s, color=None, mono=True):
 def sep():
     return f'    <span style="width: 1px; height: 14px; background: {T["line"]};"></span>'
 
-def page(body, sidebar_html=None, rail_html=None, status_html=None):
+def page(body, sidebar_html=None, rail_html=None, status_html=None, shape="single"):
     mid = (rail_html or rail()) + ("\n" + sidebar_html if sidebar_html else "") + f"""
     <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: {T['base']};">
 {body}
@@ -274,7 +296,7 @@ def page(body, sidebar_html=None, rail_html=None, status_html=None):
     return (HEAD +
             f"""
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
-{top_strip()}
+{top_strip(shape)}
   <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
 {mid}
   </div>
@@ -394,7 +416,7 @@ def build_groups():
             f' grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 1px; background: {T["line"]};">{g1}{g2}{g3}{g4}</div>')
     st = status(stat_session("deploy@10.4.1.20") + "\n" + sep() + "\n" + stat_text("114 x 20") + "\n" + stat_text("14 ms"),
                 stat_text("6 sessions in 4 groups", T['faint']) + "\n" + sep() + "\n" + stat_text("SYNC OFF", T['faint'], mono=False))
-    write("Groups.dc.html", page(grid, None, rail(badge="6"), st))
+    write("Groups.dc.html", page(grid, None, rail(badge="6"), st, shape="grid"))
 
 # ---------- 4. sidebar closed
 def build_collapsed():
@@ -448,7 +470,7 @@ def build_broadcast():
     st = status_warn(stat_session("deploy@10.4.1.20") + "\n" + sep() + "\n" + stat_text("74 x 42") + "\n" + stat_text("14 ms"),
                      f'    <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: {T["warnsoft"]}; background: {T["warn"]}; border-radius: 4px; padding: 4px 10px;">TYPING INTO 2 HOSTS</span>\n'
                      f'    <span style="font-size: 11px; color: {T["warn"]}; border: 1px solid {T["warn"]}; border-radius: 4px; padding: 3px 10px;">Turn off</span>')
-    write("Broadcast.dc.html", page(grid, sb, rail(locked=True, badge="4", accent=T['warn']), st))
+    write("Broadcast.dc.html", page(grid, sb, rail(locked=True, badge="4", accent=T['warn']), st, shape="columns"))
 
 # ---------- 6. unknown host key, inside the group that asked
 # A real picture, from `ssh-keygen -lv` on the key whose fingerprint is
@@ -738,7 +760,7 @@ def build_anatomy():
       <div style="font-size: 10px; font-weight: 700; letter-spacing: 0.11em; color: {T['faint']};">A GROUP, IN DETAIL</div>
       <div style="margin-top: 11px; width: 420px; border: 1px solid {T['line2']}; border-radius: 7px; overflow: hidden;">
         <div class="strip">{tab('web-01', state='on')}{tab('web-02')}<div style="flex: 1;"></div>
-          <div style="display: flex; align-items: center; padding-right: 8px; gap: 7px; color: {T['faint']};">{ic('plus', 12)}{ic('split', 12)}{ic('dots', 12)}</div></div>
+          <div style="display: flex; align-items: center; padding-right: 8px; gap: 7px; color: {T['faint']};">{ic('plus', 12)}{ic('dots', 12)}</div></div>
         <div class="term mono" style="height: 96px;">{prompt('deploy', 'web-01', 'uptime')}
  09:41:02 up 12 days,  3:18,  load 0.14
 {prompt('deploy', 'web-01')}{CURSOR}</div>
@@ -980,7 +1002,7 @@ def build_palette():
               {prow('ssh', 'db-prod', 'postgres@10.4.1.31')}
               {sect('ACTIONS')}
               {prow('newsession', 'New session', '')}
-              {prow('split', 'Divide into two columns', '')}
+              {prow('shape_columns', 'Split into two columns', '')}
               {prow('gear', 'Settings', '')}
             </div>
           </div>

@@ -79,6 +79,9 @@ carries your keys.
   receive. While it is armed the status bar's top edge, every receiving group,
   every receiving tab and the host list all say so, because the switch is a
   safety decision and not a convenience.
+- **The fingerprint drawn as randomart**, the same picture `ssh-keygen -lv`
+  draws, so a check against something you already trust is a check and not a
+  comparison of two different pictures.
 - **Saved hosts**, grouped, each edited on its own tab.
 - **A command palette** on `Ctrl+Shift+P`.
 - **Light and dark**, from one token set, following the system.
