@@ -25,6 +25,7 @@ import {
   placeEntry,
   receivingSessions,
   removeEntry,
+  sparedSessions,
   resolveGroups,
 } from '../src/features/terminal/groups';
 import type { HeldGroup } from '../src/features/terminal/groups';
@@ -408,5 +409,45 @@ describe('sending a tab to another group', () => {
     const after = moveEntry(held([session('a')], [session('b')]), session('a'), 1);
 
     expect(after[0]?.activeAt).toBe(-1);
+  });
+});
+
+describe('which connected hosts are being spared', () => {
+  it('spares a session turned off in its own strip', () => {
+    const groups = held([session('a')], [session('b')]);
+    const reaching = receivingSessions(groups, new Set(['b']));
+
+    expect(sparedSessions(['a', 'b'], reaching)).toEqual(['b']);
+  });
+
+  it('spares a session sitting behind another in the same group', () => {
+    /* The rule ADR-0020 introduced. It is connected, it is not receiving, and
+       the main area gives no sign of it: the tab in front is the one on
+       screen. The sidebar is the only place this can be read. */
+    const groups = [{ entries: [session('a'), session('b')], activeAt: 0 }];
+    const reaching = receivingSessions(groups, NONE);
+
+    expect(sparedSessions(['a', 'b'], reaching)).toEqual(['b']);
+  });
+
+  it('spares a session that is in no group at all', () => {
+    const reaching = receivingSessions(held([session('a')]), NONE);
+
+    expect(sparedSessions(['a', 'z'], reaching)).toEqual(['z']);
+  });
+
+  it('spares nothing when every connected host is receiving', () => {
+    const reaching = receivingSessions(held([session('a')], [session('b')]), NONE);
+
+    expect(sparedSessions(['a', 'b'], reaching)).toEqual([]);
+  });
+
+  it('says nothing about a host that is not connected', () => {
+    /* `connected` is the list handed in. A saved host nobody has opened is
+       not being spared from anything, and marking it would make the word
+       mean two things. */
+    const reaching = receivingSessions(held([session('a')]), NONE);
+
+    expect(sparedSessions(['a'], reaching)).toEqual([]);
   });
 });

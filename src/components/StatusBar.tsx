@@ -83,7 +83,13 @@ export function StatusBar({
   return (
     <footer
       aria-label={i18n.t('status.state')}
-      className="bg-surface-chrome border-line-subtle text-ink-muted flex h-[27px] shrink-0 items-stretch border-t text-[11.5px]"
+      /* The whole top edge, not a badge on it. ADR-0020 asks for the bar
+         itself to say that typing is leaving this pane, because a marker
+         somewhere on a bar is something the eye learns to stop seeing and an
+         edge across the window is not. */
+      className={`bg-surface-chrome text-ink-muted flex h-[27px] shrink-0 items-stretch text-[11.5px] ${
+        syncing === null ? 'border-line-subtle border-t' : 'border-warn border-t-2'
+      }`}
     >
       <Cell title={i18n.t('status.state')}>
         <>
