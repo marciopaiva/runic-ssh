@@ -209,11 +209,17 @@ describe('saying which hosts are in a chain', () => {
     });
   });
 
-  it('says both marks in every language', () => {
+  it('says all three marks in every language', () => {
+    /* Three shapes of one family, so a screen reader gets three sentences
+       rather than one and two silences. */
     for (const locale of ['en', 'pt-BR', 'es']) {
       const i18n = createTranslator(locale);
 
-      for (const key of ['sessions.jump.carries', 'sessions.jump.rides'] as const) {
+      for (const key of [
+        'sessions.jump.carries',
+        'sessions.jump.rides',
+        'sessions.jump.direct',
+      ] as const) {
         expect(i18n.t(key), `${locale} ${key}`).not.toBe(key);
       }
     }

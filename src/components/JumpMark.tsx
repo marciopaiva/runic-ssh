@@ -27,10 +27,29 @@ interface JumpMarkProps {
 export function JumpMark({ role }: JumpMarkProps): JSX.Element | null {
   const i18n = useTranslator();
 
-  /* The slot is there whether or not it holds anything. Returning nothing left
-     every host outside a chain with its name twelve pixels to the left of the
-     others, which turns a list somebody scans into one they have to read. */
-  if (!role.carries && !role.rides) return <span className="w-3 shrink-0" aria-hidden="true" />;
+  /* Three shapes of one family, all about the path a connection takes: a
+     straight line goes there, a fork sends others on, a turn arrives from
+     somewhere else. The straight one is drawn at the quietest weight the
+     palette has, because most hosts connect directly and a mark on almost
+     every row stops being a mark. The fork is the only coloured thing in the
+     column, so it still finds the eye first. */
+  if (!role.carries && !role.rides) {
+    return (
+      <svg
+        viewBox="0 0 16 16"
+        className="text-ink-disabled w-3 shrink-0"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        role="img"
+        aria-label={i18n.t('sessions.jump.direct')}
+      >
+        <path d="M2 8h9M10 5.5 12.5 8 10 10.5" />
+      </svg>
+    );
+  }
 
   return (
     <span className="flex w-3 shrink-0 items-center justify-center gap-0.5">

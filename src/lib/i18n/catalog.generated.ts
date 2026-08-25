@@ -167,6 +167,7 @@ export const SOURCE_CATALOG = {
   "sessions.empty.title": "No sessions yet",
   "sessions.filter": "Filter sessions",
   "sessions.jump.carries": "Other hosts are reached through this one",
+  "sessions.jump.direct": "Connected to directly",
   "sessions.jump.rides": "Reached through another host",
   "sessions.legend": "STATE",
   "sessions.receiving": "{count} RECEIVING",
