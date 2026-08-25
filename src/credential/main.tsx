@@ -1,7 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
-import { LocaleProvider } from '../features/settings';
+import { SettingsProvider } from '../features/settings';
 import '../styles.css';
 
 import { CredentialWindow } from './CredentialWindow';
@@ -40,8 +40,8 @@ function requestFromUrl(): number | null {
 
 createRoot(container).render(
   <StrictMode>
-    <LocaleProvider>
+    <SettingsProvider>
       <CredentialWindow request={requestFromUrl()} />
-    </LocaleProvider>
+    </SettingsProvider>
   </StrictMode>,
 );

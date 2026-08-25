@@ -1,7 +1,12 @@
 import type { JSX } from 'react';
 
 import { useTranslator } from '../features/settings';
+import type { Theme } from '../ipc';
 import { offeredLocales } from '../lib/i18n/locales';
+
+/* In the order the canvas draws them, which is the order they were argued in:
+   the default first, then the two that override it. */
+const THEMES: readonly Theme[] = ['system', 'light', 'dark'];
 
 interface SettingsPanelProps {
   /** The chosen locale tag, or `null` while following the system. */
@@ -10,6 +15,9 @@ interface SettingsPanelProps {
   /** Whether the window manager is drawing the title bar (ADR-0005). */
   readonly nativeDecorations: boolean;
   readonly onUseNativeDecorations: (native: boolean) => void;
+  /** The chosen palette, or `'system'` while following the desktop. */
+  readonly theme: Theme;
+  readonly onChooseTheme: (theme: Theme) => void;
 }
 
 /**
@@ -34,6 +42,8 @@ export function SettingsPanel({
   onChooseLocale,
   nativeDecorations,
   onUseNativeDecorations,
+  theme,
+  onChooseTheme,
 }: SettingsPanelProps): JSX.Element {
   const i18n = useTranslator();
 
@@ -49,6 +59,38 @@ export function SettingsPanel({
               {i18n.t('settings.appearance.lead')}
             </p>
           </div>
+
+          <fieldset className="flex flex-col gap-1.5">
+            <legend className="text-ink pb-1.5 text-[12.5px] font-medium">
+              {i18n.t('settings.theme')}
+            </legend>
+
+            {/* Radios drawn as the segmented control the canvas draws, rather
+                than buttons that look like one. The input is what carries the
+                group to a keyboard and a screen reader; hiding it and painting
+                its label keeps both. */}
+            <div className="flex gap-2">
+              {THEMES.map((option) => (
+                <label key={option} className="cursor-pointer">
+                  <input
+                    type="radio"
+                    name="theme"
+                    value={option}
+                    checked={theme === option}
+                    onChange={() => onChooseTheme(option)}
+                    className="peer sr-only"
+                  />
+                  <span className="border-line-subtle text-ink-secondary peer-checked:border-accent peer-checked:bg-accent-soft peer-checked:text-ink peer-focus-visible:outline-accent block rounded border px-4 py-1.5 text-[12.5px] peer-checked:font-semibold peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2">
+                    {i18n.t(`settings.theme.${option}`)}
+                  </span>
+                </label>
+              ))}
+            </div>
+
+            <span className="text-ink-faint text-[11px] leading-snug">
+              {i18n.t('settings.theme.hint')}
+            </span>
+          </fieldset>
 
           <label className="flex flex-col gap-1.5">
             <span className="text-ink text-[12.5px] font-medium">

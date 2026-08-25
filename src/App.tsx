@@ -60,7 +60,7 @@ import type { DraftValues, EditorTarget, OpenEditor, SessionAction } from './fea
 import { preparePaste } from './features/terminal/clipboard';
 import { deleteSession, disconnectSession, saveSession, sendInput } from './ipc';
 import type { Session, SessionDraft } from './ipc';
-import { useLocale } from './features/settings';
+import { useLocale, useTheme } from './features/settings';
 import { useSessionStats } from './features/status';
 import {
   WHOLE_AREA,
@@ -185,6 +185,7 @@ export function App(): JSX.Element {
   const { sessions, setState, attach, reload } = useSessions();
   const { chrome, maximized, act, refused, nativeDecorations, useNativeDecorations } = useChrome();
   const { i18n, chosen, choose } = useLocale();
+  const { theme, chooseTheme } = useTheme();
   const [selected, setSelected] = useState<string | null>(null);
   /* Whether the session list is beside the rail. ADR-0020 rule 4: this closes
      and the rail does not, so the icon that closed it is the way back and the
@@ -1245,6 +1246,8 @@ export function App(): JSX.Element {
                     chosenLocale={chosen}
                     onChooseLocale={(locale) => void choose(locale)}
                     nativeDecorations={nativeDecorations}
+                    theme={theme}
+                    onChooseTheme={(next) => void chooseTheme(next)}
                     onUseNativeDecorations={useNativeDecorations}
                   />
                 </div>

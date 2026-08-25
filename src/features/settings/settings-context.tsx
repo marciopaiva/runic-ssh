@@ -1,9 +1,13 @@
 /**
- * The active language, and the ability to change it.
+ * The preferences the whole window reads: the active language and the palette.
  *
  * State and effects live here rather than in a component, per section 6.
- * Changing the language re-renders; it never reloads, which is the third thing
- * issue #13 asks for.
+ * Changing either re-renders; neither reloads, which is the third thing issue
+ * #13 asks for.
+ *
+ * One provider for both, and one `getSettings()` on mount, because they are one
+ * struct in one file on disk. Two providers reading it would be two round trips
+ * at launch and two places to notice it failed.
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
@@ -14,23 +18,34 @@ import type { Translator } from '../../lib/i18n';
 /* From the module rather than the barrel: this provider is mounted in the
    credential window too, and the barrel would drag the terminal wrappers in
    with it. See tests/credential-window.test.ts. */
-import { getSettings, setLocale as persistLocale } from '../../ipc/settings';
+import {
+  getSettings,
+  setLocale as persistLocale,
+  setTheme as persistTheme,
+} from '../../ipc/settings';
+import type { Theme } from '../../ipc/settings';
 
+import { applyTheme } from './apply-theme';
 import { detectLocale, systemPreferences } from './detect-locale';
 
-interface LocaleValue {
+interface SettingsValue {
   readonly i18n: Translator;
   /** `null` while the language follows the operating system. */
   readonly chosen: string | null;
   /** Persists a choice, or clears it with `null` to follow the system again. */
   readonly choose: (locale: string | null) => Promise<void>;
+  /** `'system'` while the palette follows the desktop. */
+  readonly theme: Theme;
+  /** Persists a palette, or `'system'` to follow the desktop again. */
+  readonly chooseTheme: (theme: Theme) => Promise<void>;
 }
 
-const LocaleContext = createContext<LocaleValue | undefined>(undefined);
+const SettingsContext = createContext<SettingsValue | undefined>(undefined);
 
-export function LocaleProvider({ children }: { children: ReactNode }): JSX.Element {
+export function SettingsProvider({ children }: { children: ReactNode }): JSX.Element {
   const [chosen, setChosen] = useState<string | null>(null);
   const [active, setActive] = useState<string>(DEFAULT_LOCALE);
+  const [theme, setTheme] = useState<Theme>('system');
 
   useEffect(() => {
     let cancelled = false;
@@ -44,10 +59,12 @@ export function LocaleProvider({ children }: { children: ReactNode }): JSX.Eleme
         if (cancelled) return;
         setChosen(settings.locale);
         if (settings.locale !== null) setActive(settings.locale);
+        setTheme(settings.theme);
       } catch {
         /* A settings file that cannot be read is not a reason to refuse to
-           start. The system language is a correct answer, and the failure
-           surfaces where the user can act on it once settings has a screen. */
+           start. The system language and the system palette are both correct
+           answers, and the failure surfaces where the user can act on it once
+           settings has a screen. */
       }
     };
 
@@ -57,29 +74,51 @@ export function LocaleProvider({ children }: { children: ReactNode }): JSX.Eleme
     };
   }, []);
 
+  /* The window starts with no attribute, which is the system palette, and
+     settles onto the stored one when it arrives. A choice that differs from the
+     desktop therefore shows the desktop's palette for the length of one IPC
+     call. Painting nothing until settings load would be a blank window instead,
+     which is worse. */
+  useEffect(() => {
+    applyTheme(document.documentElement, theme);
+  }, [theme]);
+
   const choose = useCallback(async (locale: string | null): Promise<void> => {
     const settings = await persistLocale(locale);
     setChosen(settings.locale);
     setActive(settings.locale ?? detectLocale(systemPreferences()));
   }, []);
 
-  const value = useMemo<LocaleValue>(
-    () => ({ i18n: createTranslator(active), chosen, choose }),
-    [active, chosen, choose],
+  const chooseTheme = useCallback(async (next: Theme): Promise<void> => {
+    const settings = await persistTheme(next);
+    setTheme(settings.theme);
+  }, []);
+
+  const value = useMemo<SettingsValue>(
+    () => ({ i18n: createTranslator(active), chosen, choose, theme, chooseTheme }),
+    [active, chosen, choose, theme, chooseTheme],
   );
 
-  return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
+  return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }
 
-export function useLocale(): LocaleValue {
-  const value = useContext(LocaleContext);
+function useSettings(): SettingsValue {
+  const value = useContext(SettingsContext);
   if (value === undefined) {
-    throw new Error('useLocale was called outside LocaleProvider');
+    throw new Error('a settings hook was called outside SettingsProvider');
   }
   return value;
 }
 
+export function useLocale(): Pick<SettingsValue, 'i18n' | 'chosen' | 'choose'> {
+  return useSettings();
+}
+
+export function useTheme(): Pick<SettingsValue, 'theme' | 'chooseTheme'> {
+  return useSettings();
+}
+
 /** The common case: a component that only needs to render text. */
 export function useTranslator(): Translator {
-  return useLocale().i18n;
+  return useSettings().i18n;
 }
