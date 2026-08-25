@@ -20,16 +20,7 @@ interface StatusBarProps {
   readonly modifier: CommandModifier;
   /** How many hosts a keystroke reaches, or `null` when it reaches one. */
   readonly syncing: number | null;
-  /**
-   * Whether the switch is worth offering at all, and whether it can act.
-   *
-   * `null` on an undivided window, where there is nothing to synchronise.
-   * `false` when the area is divided and fewer than two rectangles hold a
-   * session, which is a switch that would arm and reach nowhere.
-   */
-  readonly canSync: boolean | null;
-  readonly onStartSync: () => void;
-  readonly onStopSync: () => void;
+
 }
 
 /** A cell, so every item on the bar has the same padding and no more. */
@@ -86,9 +77,6 @@ export function StatusBar({
   size,
   modifier,
   syncing,
-  canSync,
-  onStartSync,
-  onStopSync,
 }: StatusBarProps): JSX.Element {
   const i18n = useTranslator();
   const latency = gradeLatency(stats.latencyMs);
@@ -174,26 +162,15 @@ export function StatusBar({
         </>
       </Cell>
 
-      {/* The only thing on screen saying that what you type leaves this pane,
-          and the bar is where it belongs: it is true of the window rather than
-          of any one terminal. Loud on purpose when it is armed, and a button
-          in both states, because neither turning it on nor turning it off
-          should cost a search through a palette.
-
-          It says SYNC OFF while it is off, which the design canvas has drawn
-          on nine artboards since ADR-0020 and nothing built: the way off lived
-          here and the way on lived only in the palette, so somebody driving
-          with a pointer could not arm it at all.
-
-          Absent on an undivided window, where there is nothing to
-          synchronise. Present and refusing when the area is divided and fewer
-          than two rectangles hold a session, because that is a fact about the
-          window worth reading rather than a control worth hiding. */}
-      {syncing !== null ? (
-        <button
-          type="button"
-          onClick={onStopSync}
-          title={i18n.t('command.split.sync.off')}
+      {/* What the bar is good at: saying how many hosts are on the receiving
+          end, beside the whole top edge turning warn. The thing you press
+          moved to the top strip with ADR-0021's argument, which is that a
+          switch about the window belongs to the surface that is the window
+          rather than among readings that are measurements. */}
+      {syncing !== null && (
+        <div
+          role="status"
+          title={i18n.t('command.split.sync.detail', { count: String(syncing) })}
           className="bg-warn-soft text-warn border-warn/40 my-1 flex shrink-0 items-center gap-1.5 rounded border px-2 font-mono font-semibold"
         >
           <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" aria-hidden="true">
@@ -206,23 +183,7 @@ export function StatusBar({
             />
           </svg>
           {i18n.t('status.sync.on', { count: String(syncing) })}
-        </button>
-      ) : (
-        canSync !== null && (
-          <button
-            type="button"
-            onClick={onStartSync}
-            disabled={!canSync}
-            title={i18n.t(canSync ? 'command.split.sync.on' : 'status.sync.nowhere')}
-            className={`my-1 flex shrink-0 items-center gap-1.5 rounded border px-2 font-mono font-semibold ${
-              canSync
-                ? 'border-line-strong text-ink-muted hover:border-warn/50 hover:text-warn'
-                : 'border-line-subtle text-ink-disabled cursor-not-allowed'
-            }`}
-          >
-            {i18n.t('status.sync.off')}
-          </button>
-        )
+        </div>
       )}
 
       <span className="flex-1" />

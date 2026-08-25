@@ -206,17 +206,40 @@ export function GroupStrip({
             }`}
           >
             {/* The one control that decides where a keystroke lands. It sits
-                ahead of the name so a glance down the strip reads the checks
-                and not the hostnames. */}
+                ahead of the name so a glance down the strip reads the marks
+                and not the hostnames.
+
+                A square that fills rather than a browser checkbox, which is
+                what the canvas drew and what this should have been: a form
+                control in a tab strip reads as a form, and this is a safety
+                marker that happens to be clickable. `aria-checked` on a button
+                says the same thing to a screen reader that the input did. */}
             {showing && receiving !== null && (
-              <input
-                type="checkbox"
-                checked={receiving}
-                onChange={onToggleReceiving}
+              <button
+                type="button"
+                role="checkbox"
+                aria-checked={receiving}
+                onClick={onToggleReceiving}
                 title={i18n.t('terminal.pane.sync')}
                 aria-label={i18n.t('terminal.pane.sync')}
-                className="accent-warn h-3 w-3 shrink-0 cursor-pointer"
-              />
+                className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center ${
+                  receiving ? 'text-warn' : 'text-ink-disabled hover:text-ink-faint'
+                }`}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  className="h-3.5 w-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <rect x="3.5" y="3.5" width="17" height="17" rx="4" />
+                  {receiving && <path d="M8 12l3 3 5-6" />}
+                </svg>
+              </button>
             )}
 
             <button
