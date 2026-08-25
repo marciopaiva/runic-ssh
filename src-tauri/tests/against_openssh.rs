@@ -353,3 +353,73 @@ async fn the_bastion_password_does_not_open_the_far_host() {
 
     far.disconnect().await.expect("the chain closes");
 }
+
+#[tokio::test]
+#[ignore = "needs the jump fixture; see the block above"]
+async fn two_hosts_ride_one_real_bastion() {
+    /* ADR-0024 against OpenSSH's own forwarding rather than against a server
+    we also wrote. Two direct-tcpip channels on one authenticated session, which
+    is what a bastion is for and what #164 was not doing. */
+    let key = offered_target_key().await;
+
+    let mut known = KnownHosts::default();
+    known.add(KnownHosts::entry_for(
+        TARGET_HOST,
+        TARGET_PORT,
+        "ssh-ed25519",
+        key,
+    ));
+
+    let bastion = open_bastion().await;
+
+    let mut first = connect_via(
+        std::sync::Arc::clone(&bastion),
+        target_endpoint(),
+        known.clone(),
+    )
+    .await
+    .map_err(|failure| failure.error)
+    .expect("the first host is reached");
+
+    let mut second = connect_via(std::sync::Arc::clone(&bastion), target_endpoint(), known)
+        .await
+        .map_err(|failure| failure.error)
+        .expect("the second host is reached over the same bastion");
+
+    /* Both authenticate end to end, past a bastion that saw one login. */
+    for far in [&mut first, &mut second] {
+        far.authenticate(
+            TARGET_USER,
+            Credential::Password(Zeroizing::new(TARGET_PASSWORD.to_owned())),
+        )
+        .await
+        .expect("the far host accepts its own password");
+    }
+
+    /* Letting the bastion's own share go leaves the two riding it. */
+    close_shared(bastion).await.expect("the share is let go");
+
+    let mut channel = first.open_shell(120, 40).await.expect("a shell opens");
+    channel
+        .data(&b"echo still-here; exit\n"[..])
+        .await
+        .expect("sends");
+
+    let mut seen = Vec::new();
+    while let Some(message) = channel.wait().await {
+        match message {
+            russh::ChannelMsg::Data { data } => seen.extend_from_slice(&data),
+            russh::ChannelMsg::Eof | russh::ChannelMsg::Close => break,
+            _ => {}
+        }
+    }
+
+    let text = String::from_utf8_lossy(&seen);
+    assert!(
+        text.contains("still-here"),
+        "the bastion outlived its own share because two sessions ride it. It said: {text}"
+    );
+
+    first.disconnect().await.expect("the first closes");
+    second.disconnect().await.expect("the last closes");
+}
