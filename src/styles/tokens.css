@@ -17,6 +17,14 @@
  */
 
 :root {
+  /* What the platform paints the controls it draws itself: the select popup,
+     the scrollbars, the focus ring on a native widget. Without it the engine
+     assumes light and paints a white select on our dark ground, with a label
+     the same colour as the box. Declared beside the tokens because it changes
+     with them, and it is not one: tests/design-tokens.test.ts reads only
+     `--rs-` names, so it never counts as a token missing from the other side. */
+  color-scheme: dark;
+
   /* Surfaces, from the furthest back to the closest to the reader. The
      terminal is the deepest on purpose: it is where the eye rests. */
   --rs-surface-base: #070e18;
@@ -63,6 +71,7 @@
    inside the app. */
 @media (prefers-color-scheme: light) {
   :root:not([data-theme='dark']) {
+    color-scheme: light;
     --rs-surface-base: #e8edf5;
     --rs-surface-panel: #f4f7fb;
     --rs-surface-chrome: #e2e8f2;
@@ -101,6 +110,7 @@
 /* An explicit choice in the application's own settings, which beats the system
    in both directions. */
 :root[data-theme='light'] {
+  color-scheme: light;
   --rs-surface-base: #e8edf5;
   --rs-surface-panel: #f4f7fb;
   --rs-surface-chrome: #e2e8f2;

@@ -145,6 +145,29 @@ describe('token definitions', () => {
     expect(extra, `light defines ${extra.join(', ')} with no dark counterpart`).toEqual([]);
   });
 
+  it('tells the platform which way to paint its own controls', () => {
+    /* Not a token, and that is the point: the engine draws the select popup,
+       the scrollbars and the native focus ring itself, and without this it
+       assumes light. On the dark theme that was a white select carrying a
+       white label, which is #163. Nothing in the token parity tests above can
+       see it, because there is no `--rs-` name involved. */
+    const css = readFileSync(tokensFile, 'utf8');
+
+    for (const [selector, expected] of [
+      [':root {', 'dark'],
+      [":root:not([data-theme='dark'])", 'light'],
+      [":root[data-theme='light']", 'light'],
+    ] as const) {
+      const start = css.indexOf(selector);
+      const body = css.slice(css.indexOf('{', start) + 1, css.indexOf('}', start));
+
+      expect(body, `${selector} declares no color-scheme`).toContain('color-scheme:');
+      expect(body, `${selector} paints its controls the wrong way`).toContain(
+        `color-scheme: ${expected};`,
+      );
+    }
+  });
+
   it('keeps the two light definitions identical', () => {
     /* The palette is written twice, once for the system preference and once for
        an explicit choice. Nothing but this test stops them drifting. */
