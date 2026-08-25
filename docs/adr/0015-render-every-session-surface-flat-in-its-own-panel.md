@@ -1,7 +1,8 @@
 # ADR-0015: Render every session surface flat in its own panel
 
-* **Status**: Accepted; the two-box rule amended by ADR-0017, and "panel"
-  read as "pane" by ADR-0019
+* **Status**: Accepted; the two-box rule amended by ADR-0017, "panel"
+  read as "pane" by ADR-0019, and "pane" read as "the group whose active tab
+  it is" by ADR-0020
 * **Date**: 2026-08-23
 
 ## Context
