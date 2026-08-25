@@ -159,3 +159,50 @@ describe('shapes the frontend declares by hand', () => {
     expect(rust).toContain('{"kind":"unavailable","reason":"no store"}');
   });
 });
+
+describe('the settings view', () => {
+  it('is spelled the same on both sides', () => {
+    /* The frontend narrows the theme to three string literals and the core
+       serializes an enum into the same three. Renaming a variant compiles on
+       both sides and leaves a window that quietly ignores the setting, so the
+       wire form is pinned as a literal in each language. */
+    const rust = readFileSync(
+      fileURLToPath(new URL('../src-tauri/src/commands/settings.rs', import.meta.url)),
+      'utf8',
+    );
+
+    expect(rust).toContain(
+      String.raw`{"locale":null,"nativeDecorations":false,"theme":"system"}`,
+    );
+
+    const wrapper = readFileSync(
+      fileURLToPath(new URL('../src/ipc/settings.ts', import.meta.url)),
+      'utf8',
+    );
+
+    expect(wrapper).toContain("export type Theme = 'system' | 'light' | 'dark';");
+  });
+
+  it('has a command for every setting the view carries', () => {
+    /* `get_settings` returning a field nothing can write is a setting the user
+       can read and never change, which is how the theme sat for three
+       releases. */
+    const rust = readFileSync(
+      fileURLToPath(new URL('../src-tauri/src/commands/settings.rs', import.meta.url)),
+      'utf8',
+    );
+
+    for (const command of ['get_settings', 'set_locale', 'set_theme']) {
+      expect(rust, `${command} is not a command`).toContain(`pub async fn ${command}`);
+    }
+
+    const registered = readFileSync(
+      fileURLToPath(new URL('../src-tauri/src/lib.rs', import.meta.url)),
+      'utf8',
+    );
+
+    /* Registered, not merely written: a command missing from the handler list
+       fails at runtime with a message the interface cannot name. */
+    expect(registered).toContain('commands::settings::set_theme');
+  });
+});

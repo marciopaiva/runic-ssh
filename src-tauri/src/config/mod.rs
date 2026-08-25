@@ -17,6 +17,44 @@ pub mod sessions;
 
 pub const SETTINGS_FILE: &str = "settings.json";
 
+/// Which palette the window paints in.
+///
+/// Three states rather than a boolean, because "follow the system" is not the
+/// same answer as either of the other two: a machine that switches at dusk has
+/// to keep switching, and a boolean has nowhere to say so.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Theme {
+    /// Whatever the desktop asks for. What a fresh install does.
+    #[default]
+    System,
+    Light,
+    Dark,
+}
+
+/// Reads a theme leniently, falling back to following the system.
+///
+/// The derived implementation would refuse an unknown name and take the whole
+/// settings file down with it, so a build that once wrote a palette this one
+/// has never heard of would leave the user unable to change even their
+/// language. One field the reader does not understand is not a corrupt file.
+///
+/// The cost is worth naming: the next save writes `system` over the name that
+/// was there, so downgrading and then touching any setting forgets the newer
+/// choice. That is a smaller failure than refusing to load.
+impl<'de> Deserialize<'de> for Theme {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Ok(match String::deserialize(deserializer)?.as_str() {
+            "light" => Self::Light,
+            "dark" => Self::Dark,
+            _ => Self::System,
+        })
+    }
+}
+
 /// Everything the application remembers between launches.
 ///
 /// Every field is optional and defaults sensibly, so a settings file written by
@@ -33,6 +71,8 @@ pub struct Settings {
     /// anticipate — one that leaves an undecorated window impossible to resize
     /// or move. Off by default, because the drawn chrome is the design.
     pub native_decorations: bool,
+    /// Which palette to paint, or to follow the desktop.
+    pub theme: Theme,
 }
 
 /// Reads and writes [`Settings`] under a directory the caller owns.
@@ -159,6 +199,19 @@ pub fn apply_native_decorations(store: &SettingsStore, native: bool) -> Result<S
     Ok(settings)
 }
 
+/// Stores which palette to paint.
+///
+/// Its own setter for the same reason as [`apply_native_decorations`]: a call
+/// that takes a whole `Settings` is a call that resets whatever the caller was
+/// not thinking about.
+pub fn apply_theme(store: &SettingsStore, theme: Theme) -> Result<Settings, Error> {
+    let mut settings = store.load()?;
+    settings.theme = theme;
+    store.save(&settings)?;
+
+    Ok(settings)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -180,6 +233,7 @@ mod tests {
         let settings = Settings {
             locale: Some("pt-BR".to_owned()),
             native_decorations: true,
+            theme: Theme::Light,
         };
 
         store.save(&settings).expect("save");
@@ -277,6 +331,7 @@ mod tests {
         let json = serde_json::to_string(&Settings {
             locale: Some("en".to_owned()),
             native_decorations: false,
+            theme: Theme::Dark,
         })
         .expect("serialize");
 
@@ -341,5 +396,110 @@ mod decoration_tests {
 
         let settings = apply_native_decorations(&store, false).expect("off");
         assert!(!settings.native_decorations);
+    }
+}
+
+#[cfg(test)]
+mod theme_tests {
+    use super::*;
+
+    fn store() -> (SettingsStore, tempfile::TempDir) {
+        let dir = tempfile::tempdir().expect("temp dir");
+        (SettingsStore::new(dir.path()), dir)
+    }
+
+    #[test]
+    fn following_the_system_is_the_default() {
+        /* The tokens paint dark on `:root` and light under the media query, so
+        a fresh install already matches the desktop. Defaulting to either of
+        the other two would override a choice the user made elsewhere. */
+        assert_eq!(Settings::default().theme, Theme::System);
+    }
+
+    #[test]
+    fn the_wire_names_are_what_the_frontend_reads() {
+        /* `src/ipc/settings.ts` narrows to these three strings and
+        `tests/ipc-contract.test.ts` pins the same literals. Renaming a variant
+        without renaming them there gives the frontend a theme it will not
+        apply, silently. */
+        for (theme, name) in [
+            (Theme::System, r#""system""#),
+            (Theme::Light, r#""light""#),
+            (Theme::Dark, r#""dark""#),
+        ] {
+            assert_eq!(serde_json::to_string(&theme).expect("serialize"), name);
+        }
+    }
+
+    #[test]
+    fn a_settings_file_written_before_this_field_existed_still_loads() {
+        let (store, _dir) = store();
+        fs::write(store.path(), r#"{"locale":"pt-BR"}"#).expect("write");
+
+        let settings = store.load().expect("an older file must still load");
+        assert_eq!(settings.theme, Theme::System);
+        assert_eq!(settings.locale.as_deref(), Some("pt-BR"));
+    }
+
+    #[test]
+    fn a_theme_this_build_does_not_know_reads_as_following_the_system() {
+        /* Not the file being malformed: one field this build cannot paint. A
+        refusal here would leave the user unable to change their language on a
+        downgrade, because every write goes through a load. */
+        let (store, _dir) = store();
+        fs::write(store.path(), r#"{"locale":"en","theme":"solarized"}"#).expect("write");
+
+        let settings = store
+            .load()
+            .expect("an unknown theme is not a corrupt file");
+        assert_eq!(settings.theme, Theme::System);
+        assert_eq!(settings.locale.as_deref(), Some("en"));
+    }
+
+    #[test]
+    fn a_theme_that_is_not_even_a_name_still_fails_the_file() {
+        /* The leniency above is for a name this build has not heard of. A
+        number where a string belongs is the file being wrong, and section 1 of
+        this module says that surfaces rather than resetting the user. */
+        let (store, _dir) = store();
+        fs::write(store.path(), r#"{"theme":3}"#).expect("write");
+
+        assert!(matches!(store.load(), Err(Error::SettingsMalformed { .. })));
+    }
+
+    #[test]
+    fn choosing_a_theme_leaves_the_other_settings_alone() {
+        let (store, _dir) = store();
+        apply_locale(&store, Some("es".to_owned())).expect("locale");
+        apply_native_decorations(&store, true).expect("decorations");
+
+        let settings = apply_theme(&store, Theme::Light).expect("theme");
+
+        assert_eq!(settings.theme, Theme::Light);
+        assert_eq!(settings.locale.as_deref(), Some("es"));
+        assert!(settings.native_decorations);
+        assert_eq!(store.load().expect("reload"), settings, "not persisted");
+    }
+
+    #[test]
+    fn the_choice_returns_to_the_system() {
+        let (store, _dir) = store();
+        apply_theme(&store, Theme::Dark).expect("dark");
+
+        assert_eq!(
+            apply_theme(&store, Theme::System).expect("system").theme,
+            Theme::System
+        );
+    }
+
+    #[test]
+    fn a_malformed_file_surfaces_rather_than_being_overwritten() {
+        let (store, _dir) = store();
+        fs::write(store.path(), "{ not json").expect("write");
+
+        assert!(matches!(
+            apply_theme(&store, Theme::Dark),
+            Err(Error::SettingsMalformed { .. })
+        ));
     }
 }
