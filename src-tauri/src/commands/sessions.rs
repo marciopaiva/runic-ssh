@@ -574,6 +574,7 @@ mod tests {
             key_type: "ssh-ed25519".to_owned(),
             key: b"the key the server offered".to_vec(),
             verdict,
+            hop: crate::ssh::connection::Hop::Target,
         }
     }
 

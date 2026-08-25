@@ -85,6 +85,7 @@ mod tests {
                 fingerprint: "SHA256:x".to_owned(),
                 other_types: Vec::new(),
             },
+            hop: crate::ssh::connection::Hop::Target,
         }
     }
 

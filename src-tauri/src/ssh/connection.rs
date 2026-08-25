@@ -33,6 +33,22 @@ pub struct Endpoint {
     pub port: u16,
 }
 
+/// Which host in a chain something happened to.
+///
+/// Exists because "connection refused" is useless when two hosts are involved:
+/// the user cannot tell whether the bastion is down or the host behind it is,
+/// and those call for opposite reactions. A direct connection is always
+/// [`Hop::Target`], so nothing has to special-case the ordinary case.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Hop {
+    /// The host the user asked for.
+    #[default]
+    Target,
+    /// The host being reached through, on the way to the target.
+    Bastion,
+}
+
 /// How to prove who we are.
 ///
 /// Every field is [`Zeroizing`]: the value is wiped when this is dropped, which
@@ -124,12 +140,17 @@ pub struct OfferedKey {
     pub key_type: String,
     pub key: Vec<u8>,
     pub verdict: Trust,
+    /// Which host in the chain offered it. The prompt has to say so: two
+    /// fingerprint screens in a row, for two different hosts, are the same
+    /// screen to anybody not told otherwise.
+    pub hop: Hop,
 }
 
 /// Checks the host key, and nothing else.
 struct HostKeyCheck {
     endpoint: Endpoint,
     known: KnownHosts,
+    hop: Hop,
     /// What was offered and what we made of it, kept so the caller can see
     /// *why* a connection was refused and can act on it afterwards.
     offered: Arc<std::sync::Mutex<Option<OfferedKey>>>,
@@ -161,6 +182,7 @@ impl client::Handler for HostKeyCheck {
                 verdict: Trust::CertificateRequired {
                     fingerprint: String::from("SHA256:<certificate>"),
                 },
+                hop: self.hop,
             });
             return Ok(false);
         };
@@ -185,6 +207,7 @@ impl client::Handler for HostKeyCheck {
             key_type: key.algorithm().as_str().to_owned(),
             key: blob,
             verdict,
+            hop: self.hop,
         });
 
         Ok(accepted)
@@ -203,6 +226,24 @@ impl client::Handler for HostKeyCheck {
 /// A connection whose host key was trusted, before authentication.
 pub struct Connection {
     handle: Handle<HostKeyCheck>,
+    /// The bastion this session is carried on, when there is one.
+    ///
+    /// Owned rather than referenced, and that is the whole reason the close
+    /// order is not a rule somebody has to remember: the channel dies with the
+    /// connection carrying it, so the bastion has to outlive this session, and
+    /// the way to guarantee that is for this session to hold it.
+    via: Option<Box<Connection>>,
+}
+
+/// A chain that could not be completed, handing the bastion back.
+///
+/// The bastion is returned rather than dropped so the caller closes it
+/// politely. Dropping it here would leave the server logging a broken socket
+/// for a connection that was opened correctly and simply had nowhere to go.
+pub struct ChainFailure {
+    pub bastion: Connection,
+    pub error: ConnectionError,
+    pub offered: Option<OfferedKey>,
 }
 
 /// Opens a connection and verifies the host key.
@@ -257,19 +298,36 @@ pub async fn connect_reporting_within(
     let checker = HostKeyCheck {
         endpoint,
         known,
+        hop: Hop::Target,
         offered: Arc::clone(&offered),
     };
 
-    let taken = || offered.lock().ok().and_then(|mut slot| slot.take());
-
     let attempt = tokio::time::timeout(timeout, client::connect(config, address, checker));
 
-    match attempt.await {
+    settle(attempt.await, &offered)
+        .map(|handle| Connection { handle, via: None })
+        .map_err(|refusal| *refusal)
+}
+
+/// Turns a finished attempt into a handle or a verdict.
+///
+/// Shared by the direct and the chained path on purpose. This is where an
+/// unknown host key becomes a refusal the caller can act on, and rule 3 having
+/// two implementations is rule 3 having two chances to drift.
+fn settle(
+    outcome: Result<Result<Handle<HostKeyCheck>, russh::Error>, tokio::time::error::Elapsed>,
+    offered: &Arc<std::sync::Mutex<Option<OfferedKey>>>,
+) -> Result<Handle<HostKeyCheck>, Box<(ConnectionError, Option<OfferedKey>)>> {
+    let taken = || offered.lock().ok().and_then(|mut slot| slot.take());
+
+    let refused = |error, seen| Err(Box::new((error, seen)));
+
+    match outcome {
         /* The timeout fires and the future is dropped, which closes the socket
         with it. Nothing is left running for the two minutes the kernel would
         otherwise spend, and nothing is left half-negotiated on the server. */
-        Err(_elapsed) => Err((ConnectionError::TimedOut, taken())),
-        Ok(Ok(handle)) => Ok(Connection { handle }),
+        Err(_elapsed) => refused(ConnectionError::TimedOut, taken()),
+        Ok(Ok(handle)) => Ok(handle),
         Ok(Err(russh::Error::UnknownKey)) => {
             let seen = taken();
             let verdict = seen.as_ref().map_or(
@@ -279,10 +337,99 @@ pub async fn connect_reporting_within(
                 },
                 |offered| offered.verdict.clone(),
             );
-            Err((ConnectionError::HostKeyRejected(Box::new(verdict)), seen))
+            refused(ConnectionError::HostKeyRejected(Box::new(verdict)), seen)
         }
-        Ok(Err(russh::Error::IO(_))) => Err((ConnectionError::Unreachable, None)),
-        Ok(Err(_)) => Err((ConnectionError::Transport, taken())),
+        Ok(Err(russh::Error::IO(_))) => refused(ConnectionError::Unreachable, None),
+        Ok(Err(_)) => refused(ConnectionError::Transport, taken()),
+    }
+}
+
+/// Opens a session on a host reachable only through `bastion`.
+///
+/// The bastion must already be authenticated: a `direct-tcpip` request on a
+/// connection that has not authenticated is refused, which is the constraint
+/// ADR-0023 is built around.
+///
+/// The far session is an ordinary [`Connection`] whose transport is a channel.
+/// Its key exchange and its authentication run end to end with the far host, so
+/// the bastion forwards ciphertext it cannot read and never sees the far
+/// credential. That is the property the `ssh -A` pattern this replaces did not
+/// have.
+pub async fn connect_via(
+    bastion: Connection,
+    endpoint: Endpoint,
+    known: KnownHosts,
+) -> Result<Connection, ChainFailure> {
+    connect_via_within(bastion, endpoint, known, CONNECT_TIMEOUT).await
+}
+
+/// [`connect_via`], with the timeout named by the caller. See
+/// [`connect_within`] for why that is a parameter at all.
+///
+/// The budget is per hop rather than for the chain, so a failure can say which
+/// host ran out of time. The cost is that a chain where both hops stall takes
+/// twice this long to fail, and ADR-0023 accepts that.
+pub async fn connect_via_within(
+    bastion: Connection,
+    endpoint: Endpoint,
+    known: KnownHosts,
+    timeout: Duration,
+) -> Result<Connection, ChainFailure> {
+    /* The originator is loopback rather than this machine's own address. The
+    bastion has no use for it, it is written to the bastion's log, and it
+    describes a network the user did not offer to describe. */
+    let channel = match bastion
+        .handle
+        .channel_open_direct_tcpip(
+            endpoint.host.clone(),
+            u32::from(endpoint.port),
+            "127.0.0.1",
+            0,
+        )
+        .await
+    {
+        Ok(channel) => channel,
+        /* The bastion would not open the channel. That is the target being
+        unreachable *from the bastion*, and it is also exactly what a bastion
+        with `AllowTcpForwarding no` looks like. The two are indistinguishable
+        from here, so this says the thing that is true of both. */
+        Err(_) => {
+            return Err(ChainFailure {
+                bastion,
+                error: ConnectionError::Unreachable,
+                offered: None,
+            })
+        }
+    };
+
+    let config = Arc::new(client::Config::default());
+    let offered = Arc::new(std::sync::Mutex::new(None));
+
+    let checker = HostKeyCheck {
+        endpoint,
+        known,
+        hop: Hop::Target,
+        offered: Arc::clone(&offered),
+    };
+
+    let attempt = tokio::time::timeout(
+        timeout,
+        client::connect_stream(config, channel.into_stream(), checker),
+    );
+
+    match settle(attempt.await, &offered) {
+        Ok(handle) => Ok(Connection {
+            handle,
+            via: Some(Box::new(bastion)),
+        }),
+        Err(refusal) => {
+            let (error, offered) = *refusal;
+            Err(ChainFailure {
+                bastion,
+                error,
+                offered,
+            })
+        }
     }
 }
 
@@ -394,10 +541,28 @@ impl Connection {
 
     /// Closes the connection politely, so the server logs a clean disconnect
     /// rather than a dropped socket.
+    ///
+    /// A chain closes from the far end in. The bastion goes last, and it goes
+    /// even when closing the session it carries failed: a bastion left open has
+    /// no tab, no handle and nothing that could ever reach it, and it holds a
+    /// slot against the server's `MaxSessions` until the application restarts.
     pub async fn disconnect(self) -> Result<(), ConnectionError> {
-        self.handle
+        let Self { handle, via } = self;
+
+        let closed = handle
             .disconnect(Disconnect::ByApplication, "", "en")
             .await
-            .map_err(|_| ConnectionError::Transport)
+            .map_err(|_| ConnectionError::Transport);
+
+        if let Some(bastion) = via {
+            let _ = Box::pin(bastion.disconnect()).await;
+        }
+
+        closed
+    }
+
+    /// Whether this session is carried on a bastion.
+    pub fn is_chained(&self) -> bool {
+        self.via.is_some()
     }
 }
