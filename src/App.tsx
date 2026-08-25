@@ -929,6 +929,10 @@ export function App(): JSX.Element {
     return items;
   }, [groupMenu, groups, tabs, editorTabs, i18n, moveTo, closeGroup]);
 
+  /* What the status bar says it is describing. Same source as the tabs, so
+     the bar and a strip cannot disagree about a session's name. */
+  const activeIdentity = activeId === null ? null : (paneLabels.get(activeId) ?? null);
+
   const pasteBox =
     pendingPaste === null ? null : boxOf({ kind: 'session', sessionId: pendingPaste.sessionId });
   const attemptBox =
@@ -1214,6 +1218,7 @@ export function App(): JSX.Element {
 
       <StatusBar
         kind={activeTab?.kind ?? null}
+        identity={activeIdentity}
         stats={stats}
         size={size}
         modifier={chrome?.commandModifier ?? 'control'}
