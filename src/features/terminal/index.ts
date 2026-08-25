@@ -16,5 +16,6 @@ export {
   receivingSessions,
   removeEntry,
   resolveGroups,
+  sparedSessions,
 } from './groups';
 export type { Box, Grid, Group, GroupLabel, HeldGroup } from './groups';

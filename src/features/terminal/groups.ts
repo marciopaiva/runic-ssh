@@ -288,6 +288,28 @@ export function receivingSessions(
 }
 
 /**
+ * The connected sessions a keystroke does not reach.
+ *
+ * The second question the sidebar answers, and the one the group model made
+ * worth asking. There are three ways to be here and only one of them is
+ * visible from the main area: turned off in a strip, sitting behind another
+ * tab in the same group, or open in no group at all. The middle one is the
+ * rule ADR-0020 introduced and named as the most likely to be got wrong, so
+ * the list of who is *not* receiving is drawn rather than inferred.
+ *
+ * `connected` means a session with a channel open. One still being made cannot
+ * receive anything and is not being spared from it.
+ */
+export function sparedSessions(
+  connected: readonly string[],
+  receiving: readonly string[],
+): readonly string[] {
+  const reached = new Set(receiving);
+
+  return connected.filter((sessionId) => !reached.has(sessionId));
+}
+
+/**
  * Which sessions a keystroke reaches.
  *
  * `from` is the session whose terminal produced the bytes, not whichever the

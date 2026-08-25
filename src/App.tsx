@@ -75,6 +75,7 @@ import {
   receivingSessions,
   removeEntry,
   resolveGroups,
+  sparedSessions,
 } from './features/terminal';
 import type { Box, Grid, Group, HeldGroup } from './features/terminal';
 import type { TerminalSize } from './features/terminal/use-terminal';
@@ -277,6 +278,25 @@ export function App(): JSX.Element {
   /* One pane left receiving is not a broadcast: it sends exactly where an
      unarmed keystroke goes, and the screen must not claim otherwise. */
   const armed = sync && receiving.length > 1;
+  /* What the sidebar draws. Two sets rather than one, because "not receiving"
+     and "not connected" are different answers and a host list that gave them
+     the same marker would be answering neither. */
+  const reaching = useMemo(
+    () => (armed ? new Set(receiving) : null),
+    [armed, receiving],
+  );
+  const spared = useMemo(
+    () =>
+      armed
+        ? new Set(
+            sparedSessions(
+              sessions.filter((live) => live.handle !== null).map((live) => live.session.id),
+              receiving,
+            ),
+          )
+        : new Set<string>(),
+    [armed, receiving, sessions],
+  );
 
   /* Nobody inherits a broadcast they did not arm. Moving the focus within a
      group leaves this alone; changing which hosts are showing does not, and
@@ -927,6 +947,7 @@ export function App(): JSX.Element {
       <div className="flex min-h-0 flex-1">
         <ActivityRail
           sidebarOpen={sidebarOpen}
+          armed={armed}
           openCount={tabs.length}
           settingsOpen={settingsOpen}
           onToggleSidebar={() => setSidebarOpen((open) => !open)}
@@ -937,6 +958,8 @@ export function App(): JSX.Element {
           <SessionsSidebar
             sessions={sessions}
             selectedId={selected}
+            receiving={reaching}
+            spared={spared}
             onSelect={activate}
             onAdd={() => openEditor({ kind: 'new' })}
             onMenu={(sessionId, at) => setMenu({ sessionId, at })}
