@@ -4,9 +4,42 @@ import { focusAfter, panelElementId, sameFocus, tabElementId } from '../features
 import type { Focus, Tab } from '../features/chrome';
 import type { EditorTarget } from '../features/sessions';
 import type { GroupLabel } from '../features/terminal';
+import type { Translator } from '../lib/i18n';
 import { useTranslator } from '../features/settings';
 
 import { SessionMarker } from './SessionMarker';
+
+/** What a tab says it is, for a session, a host form or the settings page. */
+export interface EditorTab {
+  readonly target: EditorTarget;
+  readonly title: string;
+  readonly dirty: boolean;
+}
+
+/**
+ * The name on a tab.
+ *
+ * Exported because the group's menu is about one tab and has to name it, and
+ * a second copy of this in the shell is how a menu ends up calling something
+ * by a name the strip stopped using.
+ */
+export function entryTitle(
+  entry: Focus,
+  tabs: readonly Tab[],
+  editorTabs: readonly EditorTab[],
+  i18n: Translator,
+): string {
+  if (entry.kind === 'settings') return i18n.t('tabs.settings');
+
+  if (entry.kind === 'editor') {
+    const editor = editorTabs.find((candidate) =>
+      sameFocus({ kind: 'editor', target: candidate.target }, entry),
+    );
+    return editor?.title ?? '';
+  }
+
+  return tabs.find((candidate) => candidate.sessionId === entry.sessionId)?.title ?? '';
+}
 
 interface GroupStripProps {
   /** Everything this group holds, in the order it is drawn. */
@@ -18,11 +51,7 @@ interface GroupStripProps {
   /** The open sessions, for a session tab's name and connection marker. */
   readonly tabs: readonly Tab[];
   /** One per open host form: what its tab says, and whether it is unsaved. */
-  readonly editorTabs: readonly {
-    readonly target: EditorTarget;
-    readonly title: string;
-    readonly dirty: boolean;
-  }[];
+  readonly editorTabs: readonly EditorTab[];
   /** `user@host` per session, drawn beside the name when there is room. */
   readonly labels: ReadonlyMap<string, GroupLabel>;
   /** More than one group on screen: names get terse and the keyboard marker appears. */
@@ -38,6 +67,10 @@ interface GroupStripProps {
   readonly onFocus: (focus: Focus) => void;
   /** Closing any tab, whichever kind. The shell knows what each one means. */
   readonly onClose: (focus: Focus) => void;
+  /** Opens a host form as a tab in this group. */
+  readonly onAdd: () => void;
+  /** Opens this group's menu, about one of its tabs, at a point on screen. */
+  readonly onMenu: (entry: Focus | null, at: { readonly x: number; readonly y: number }) => void;
 }
 
 /**
@@ -70,6 +103,8 @@ export function GroupStrip({
   onToggleReceiving,
   onFocus,
   onClose,
+  onAdd,
+  onMenu,
 }: GroupStripProps): JSX.Element {
   const i18n = useTranslator();
 
@@ -117,12 +152,7 @@ export function GroupStrip({
               ) ?? null)
             : null;
 
-        const title =
-          entry.kind === 'session'
-            ? (tab?.title ?? '')
-            : entry.kind === 'editor'
-              ? (editor?.title ?? '')
-              : i18n.t('tabs.settings');
+        const title = entryTitle(entry, tabs, editorTabs, i18n);
 
         /* Only on the tab that is showing, and only when there is room for it.
            With four groups the name is all that fits, and pushing it out of
@@ -141,6 +171,13 @@ export function GroupStrip({
           <div
             key={id}
             role="presentation"
+            /* Right-click is the convention. The button at the trailing edge
+               is what somebody finds without knowing the convention, and it
+               opens the same menu about whichever tab is showing. */
+            onContextMenu={(event) => {
+              event.preventDefault();
+              onMenu(entry, { x: event.clientX, y: event.clientY });
+            }}
             className={`border-line-subtle flex min-w-0 shrink-0 items-center gap-[7px] border-r px-[11px] ${
               showing ? 'bg-surface-terminal border-t-2 border-t-accent' : 'hover:bg-surface-raised/40'
             }`}
@@ -244,6 +281,37 @@ export function GroupStrip({
       })}
 
       <div className="min-w-0 flex-1" />
+
+      <div className="text-ink-faint flex shrink-0 items-center gap-2 pr-2">
+        <button
+          type="button"
+          onClick={onAdd}
+          aria-label={i18n.t('group.add')}
+          title={i18n.t('group.add')}
+          className="hover:text-ink flex h-4 w-4 items-center justify-center"
+        >
+          <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" aria-hidden="true">
+            <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </button>
+
+        <button
+          type="button"
+          onClick={(event) => {
+            const box = event.currentTarget.getBoundingClientRect();
+            onMenu(active, { x: box.right - 4, y: box.bottom + 2 });
+          }}
+          aria-label={i18n.t('group.menu')}
+          title={i18n.t('group.menu')}
+          className="hover:text-ink flex h-4 w-4 items-center justify-center"
+        >
+          <svg viewBox="0 0 24 24" className="h-3 w-3" fill="currentColor" aria-hidden="true">
+            <circle cx="5.5" cy="12" r="1.6" />
+            <circle cx="12" cy="12" r="1.6" />
+            <circle cx="18.5" cy="12" r="1.6" />
+          </svg>
+        </button>
+      </div>
     </div>
   );
 }

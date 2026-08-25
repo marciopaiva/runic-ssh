@@ -232,6 +232,35 @@ export function removeEntry(
 }
 
 /**
+ * Moves an entry to a group, wherever it was.
+ *
+ * The other half of `placeEntry`, which deliberately refuses to move anything
+ * a group already holds: clicking a tab you can already see must not rearrange
+ * the rectangles under you. Somebody asking for the move by name is the case
+ * that rule was protecting against guessing at, so it gets its own function
+ * rather than a flag on that one.
+ *
+ * It lands at the end and becomes what its new group is showing, because a
+ * move nobody can see happen is indistinguishable from one that did not work.
+ */
+export function moveEntry(
+  held: readonly HeldGroup[],
+  entry: Focus,
+  toGroup: number,
+): readonly HeldGroup[] {
+  if (toGroup < 0 || toGroup >= held.length) return held;
+  if (held[toGroup]?.entries.some((candidate) => sameFocus(candidate, entry)) === true) return held;
+
+  const without = removeEntry(held, entry);
+
+  return without.map((group, at) => {
+    if (at !== toGroup) return group;
+    const entries = [...group.entries, entry];
+    return { entries, activeAt: entries.length - 1 };
+  });
+}
+
+/**
  * The sessions a keystroke would reach if the switch were armed.
  *
  * The active entry of each group, less the ones turned off in their own strip,

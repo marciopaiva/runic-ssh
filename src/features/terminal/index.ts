@@ -11,6 +11,7 @@ export {
   groupLabel,
   groupOf,
   inputTargets,
+  moveEntry,
   placeEntry,
   receivingSessions,
   removeEntry,
