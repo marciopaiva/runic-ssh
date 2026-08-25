@@ -3,7 +3,7 @@
 use serde::Serialize;
 use tauri::{AppHandle, Manager, Runtime};
 
-use crate::config::{apply_locale, Settings, SettingsStore};
+use crate::config::{apply_locale, apply_theme, Settings, SettingsStore, Theme};
 use crate::error::{Error, IpcError};
 
 /// What the frontend needs to decide which language to render in.
@@ -14,6 +14,8 @@ pub struct SettingsView {
     pub locale: Option<String>,
     /// Whether the window manager draws the title bar (ADR-0005's escape hatch).
     pub native_decorations: bool,
+    /// Which palette to paint, or `"system"` to follow the desktop.
+    pub theme: Theme,
 }
 
 impl From<Settings> for SettingsView {
@@ -21,6 +23,7 @@ impl From<Settings> for SettingsView {
         Self {
             locale: settings.locale,
             native_decorations: settings.native_decorations,
+            theme: settings.theme,
         }
     }
 }
@@ -53,4 +56,39 @@ pub async fn set_locale<R: Runtime>(
 ) -> Result<SettingsView, IpcError> {
     let settings = apply_locale(&store(&app)?, locale)?;
     Ok(settings.into())
+}
+
+/// Stores which palette to paint.
+///
+/// The value arrives typed: a name the core does not know is refused by the
+/// deserializer before this runs, so there is no validation here to forget.
+/// That is the difference from `set_locale`, whose tag the core cannot check
+/// against a list it does not have.
+#[tauri::command]
+pub async fn set_theme<R: Runtime>(
+    app: AppHandle<R>,
+    theme: Theme,
+) -> Result<SettingsView, IpcError> {
+    let settings = apply_theme(&store(&app)?, theme)?;
+    Ok(settings.into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_view_is_what_the_frontend_declares() {
+        /* Pinned as a literal on both sides: `tests/ipc-contract.test.ts` holds
+        this same string. A field renamed on one side and not the other is a
+        setting that silently stops arriving, which is not a compile error
+        anywhere. */
+        let json =
+            serde_json::to_string(&SettingsView::from(Settings::default())).expect("serialize");
+
+        assert_eq!(
+            json,
+            r#"{"locale":null,"nativeDecorations":false,"theme":"system"}"#
+        );
+    }
 }

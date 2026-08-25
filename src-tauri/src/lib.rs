@@ -48,6 +48,7 @@ pub fn run() -> tauri::Result<()> {
             commands::chrome::set_native_decorations,
             commands::settings::get_settings,
             commands::settings::set_locale,
+            commands::settings::set_theme,
             commands::sessions::list_sessions,
             commands::sessions::save_session,
             commands::sessions::delete_session,

@@ -17,7 +17,7 @@ export {
 } from './chrome';
 export type { CommandModifier, WindowChrome, WindowControlsOwner } from './chrome';
 export type { IpcError, IpcErrorCode } from './errors';
-export { getSettings, setLocale } from './settings';
+export { getSettings, setLocale, setTheme } from './settings';
 export {
   authenticateSession,
   authenticateWithSaved,
@@ -52,4 +52,4 @@ export {
   sessionStats,
 } from './terminal';
 export type { SessionStats } from './terminal';
-export type { SettingsView } from './settings';
+export type { SettingsView, Theme } from './settings';
