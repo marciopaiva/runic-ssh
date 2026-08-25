@@ -59,8 +59,10 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 - **The main area can be divided with a pointer** (ADR-0021). Four shapes at
   the trailing edge of the top strip, which is the only surface in the window
   that belongs to the window rather than to something inside it.
-- **Six and nine rectangles** (ADR-0022), in both arrangements of six: three
-  columns by two rows, and two by three. Three columns by two rows is the shape
+- **Three, six and nine rectangles** (ADR-0022), including both arrangements of
+  six: three columns by two rows, and two by three. Three columns at full
+  height is the shape with the most lines of terminal of any that divides the
+  area, 43 x 34 at 1440x900. Three columns by two rows is the shape
   the area ADR-0020 freed actually bought: six rectangles at the same fifteen
   lines of terminal that four give today. Nine is for the fleet being restarted
   and watched rather than the fleet streaming; the measurement behind that

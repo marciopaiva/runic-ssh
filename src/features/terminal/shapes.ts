@@ -22,6 +22,7 @@ export type ShapeLabel =
   | 'command.split.none'
   | 'command.split.columns'
   | 'command.split.rows'
+  | 'command.split.three'
   | 'command.split.grid'
   | 'command.split.sixWide'
   | 'command.split.sixTall'
@@ -31,6 +32,7 @@ export const SHAPE_LABEL: Readonly<Record<Grid, ShapeLabel>> = {
   '1x1': 'command.split.none',
   '2x1': 'command.split.columns',
   '1x2': 'command.split.rows',
+  '3x1': 'command.split.three',
   '2x2': 'command.split.grid',
   '3x2': 'command.split.sixWide',
   '2x3': 'command.split.sixTall',

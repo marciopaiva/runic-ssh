@@ -32,15 +32,15 @@ import type { Session } from '../../ipc';
  *
  * Named for their dimensions rather than for what they look like, which the
  * first four were: `columns` meant two of them and stopped being a usable name
- * the moment there were three. Seven shapes want a scheme that scales, and it
- * is the one the arithmetic in ADR-0022 is written in.
+ * the moment there were three. A set this size wants a scheme that scales, and
+ * it is the one the arithmetic in ADR-0022 is written in.
  *
  * This list is the source and the type is derived from it, so a shape added
  * here is a shape every caller sees. The one that matters is the test that
  * walks it: a hand written list there covered four shapes and would have gone
  * on covering four.
  */
-export const GRIDS = ['1x1', '2x1', '1x2', '2x2', '3x2', '2x3', '3x3'] as const;
+export const GRIDS = ['1x1', '2x1', '1x2', '3x1', '2x2', '3x2', '2x3', '3x3'] as const;
 
 export type Grid = (typeof GRIDS)[number];
 
@@ -81,6 +81,7 @@ const BOXES: Readonly<Record<Grid, readonly Box[]>> = {
   '1x1': cells(1, 1),
   '2x1': cells(2, 1),
   '1x2': cells(1, 2),
+  '3x1': cells(3, 1),
   '2x2': cells(2, 2),
   '3x2': cells(3, 2),
   '2x3': cells(2, 3),

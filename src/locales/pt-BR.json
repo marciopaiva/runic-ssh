@@ -17,6 +17,7 @@
   "command.split.sync.detail": "O que você digitar chega a {count} hosts",
   "command.split.sync.off": "Parar de digitar em todos os painéis",
   "command.split.sync.on": "Digitar em todos os painéis",
+  "command.split.three": "Dividir em três colunas",
   "command.tab.close": "Fechar aba",
   "command.tab.next": "Próxima aba",
   "command.tab.previous": "Aba anterior",

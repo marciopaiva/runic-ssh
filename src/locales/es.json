@@ -17,6 +17,7 @@
   "command.split.sync.detail": "Lo que escribas llega a {count} hosts",
   "command.split.sync.off": "Dejar de escribir en todos los paneles",
   "command.split.sync.on": "Escribir en todos los paneles",
+  "command.split.three": "Dividir en tres columnas",
   "command.tab.close": "Cerrar pestaña",
   "command.tab.next": "Pestaña siguiente",
   "command.tab.previous": "Pestaña anterior",
