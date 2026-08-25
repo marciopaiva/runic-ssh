@@ -18,7 +18,9 @@
 
 use zeroize::Zeroizing;
 
-use runic_ssh::ssh::connection::{connect, connect_reporting, Credential, Endpoint};
+use runic_ssh::ssh::connection::{
+    connect, connect_reporting, connect_via, Credential, Endpoint, Hop,
+};
 use runic_ssh::ssh::known_hosts::KnownHosts;
 use runic_ssh::ssh::trust::Trust;
 
@@ -142,4 +144,209 @@ async fn a_changed_host_key_is_caught_against_real_sshd() {
         "a different stored key is changed, not {:?}",
         offered.verdict
     );
+}
+
+/* ------------------------------------------------------------------------ *
+ * A host reached through a bastion. ADR-0023, issue #133.
+ *
+ * The in-process test proves the mechanism with russh on both ends. This one
+ * proves it against OpenSSH's own direct-tcpip, and against a topology where
+ * the far host is genuinely unreachable from this machine: a chain that
+ * quietly connected direct could not pass it.
+ *
+ *   podman network create runic-jump
+ *   podman build -t runic-test-bastion --build-arg USERNAME=jump \
+ *     --build-arg PASSWORD=runic-bastion --build-arg ROLE=bastion \
+ *     src-tauri/tests/fixtures/sshd
+ *   podman build -t runic-test-target --build-arg USERNAME=deploy \
+ *     --build-arg PASSWORD=runic-target --build-arg ROLE="target behind the bastion" \
+ *     src-tauri/tests/fixtures/sshd
+ *   podman run -d --name runic-test-target --network runic-jump \
+ *     --network-alias target.internal runic-test-target
+ *   podman run -d --name runic-test-bastion --network runic-jump \
+ *     -p 2226:2222 runic-test-bastion
+ *
+ * `docs/testing.md`, under "A bastion and a host behind it", has the rest.
+ * ------------------------------------------------------------------------ */
+
+const BASTION_PORT: u16 = 2226;
+const BASTION_USER: &str = "jump";
+const BASTION_PASSWORD: &str = "runic-bastion";
+
+/// The far host, named as only the bastion's network can resolve it.
+///
+/// That is the point rather than an accident. `target.internal` does not
+/// resolve on this machine, so the name is meaningless here and is resolved by
+/// the bastion. Reaching it at all is proof the hop happened.
+const TARGET_HOST: &str = "target.internal";
+const TARGET_PORT: u16 = 2222;
+const TARGET_USER: &str = "deploy";
+const TARGET_PASSWORD: &str = "runic-target";
+
+fn bastion_endpoint() -> Endpoint {
+    Endpoint {
+        host: HOST.to_owned(),
+        port: BASTION_PORT,
+    }
+}
+
+fn target_endpoint() -> Endpoint {
+    Endpoint {
+        host: TARGET_HOST.to_owned(),
+        port: TARGET_PORT,
+    }
+}
+
+/// Connects to the bastion and authenticates, ready to carry a chain.
+async fn open_bastion() -> runic_ssh::ssh::connection::Connection {
+    let (_, offered) = connect_reporting(bastion_endpoint(), KnownHosts::default())
+        .await
+        .err()
+        .expect("an empty known_hosts must refuse");
+    let offered = offered.expect("the bastion offered a key");
+
+    let mut known = KnownHosts::default();
+    known.add(KnownHosts::entry_for(
+        HOST,
+        BASTION_PORT,
+        "ssh-ed25519",
+        offered.key,
+    ));
+
+    let mut bastion = connect(bastion_endpoint(), known)
+        .await
+        .expect("the bastion connects");
+
+    bastion
+        .authenticate(
+            BASTION_USER,
+            Credential::Password(Zeroizing::new(BASTION_PASSWORD.to_owned())),
+        )
+        .await
+        .expect("the bastion authenticates");
+
+    bastion
+}
+
+/// Reads the far host's key by reaching it through the bastion once.
+async fn offered_target_key() -> Vec<u8> {
+    let failure = connect_via(
+        open_bastion().await,
+        target_endpoint(),
+        KnownHosts::default(),
+    )
+    .await
+    .err()
+    .expect("an empty known_hosts must refuse the far host too");
+
+    let offered = failure.offered.expect("the far host offered a key");
+    assert_eq!(
+        offered.hop,
+        Hop::Target,
+        "the prompt has to be able to say which host is asking"
+    );
+    assert!(
+        matches!(offered.verdict, Trust::Unknown { .. }),
+        "an unseen far key is unknown, not {:?}",
+        offered.verdict
+    );
+
+    failure.bastion.disconnect().await.expect("it closes");
+    offered.key
+}
+
+#[tokio::test]
+#[ignore = "needs the jump fixture; see the block above"]
+async fn the_far_host_key_is_verified_through_real_openssh() {
+    /* Rule 3 at the second hop, against a real server. A tunnel is not a
+    reason to trust what comes out of it. */
+    let _ = offered_target_key().await;
+}
+
+#[tokio::test]
+#[ignore = "needs the jump fixture; see the block above"]
+async fn a_shell_opens_on_a_host_this_machine_cannot_reach() {
+    let key = offered_target_key().await;
+
+    let mut known = KnownHosts::default();
+    known.add(KnownHosts::entry_for(
+        TARGET_HOST,
+        TARGET_PORT,
+        "ssh-ed25519",
+        key,
+    ));
+
+    let mut far = connect_via(open_bastion().await, target_endpoint(), known)
+        .await
+        .map_err(|failure| failure.error)
+        .expect("the far host is reached through the bastion");
+
+    assert!(far.is_chained());
+
+    far.authenticate(
+        TARGET_USER,
+        Credential::Password(Zeroizing::new(TARGET_PASSWORD.to_owned())),
+    )
+    .await
+    .expect("the far host accepts its own password");
+
+    let mut channel = far.open_shell(120, 40).await.expect("a shell opens");
+
+    channel
+        .data(&b"cat /home/deploy/README; exit\n"[..])
+        .await
+        .expect("sends");
+
+    let mut seen = Vec::new();
+    while let Some(message) = channel.wait().await {
+        match message {
+            russh::ChannelMsg::Data { data } => seen.extend_from_slice(&data),
+            russh::ChannelMsg::Eof | russh::ChannelMsg::Close => break,
+            _ => {}
+        }
+    }
+
+    let text = String::from_utf8_lossy(&seen);
+    assert!(
+        text.contains("target behind the bastion"),
+        "a pty on the far host, through OpenSSH's own forwarding. It said: {text}"
+    );
+
+    far.disconnect().await.expect("the chain closes");
+}
+
+#[tokio::test]
+#[ignore = "needs the jump fixture; see the block above"]
+async fn the_bastion_password_does_not_open_the_far_host() {
+    /* The credential that crosses the tunnel is the far host's own, and the
+    bastion never sees it. If one password opened both, this fixture could not
+    tell an implementation that sent the wrong one from one that worked. */
+    let key = offered_target_key().await;
+
+    let mut known = KnownHosts::default();
+    known.add(KnownHosts::entry_for(
+        TARGET_HOST,
+        TARGET_PORT,
+        "ssh-ed25519",
+        key,
+    ));
+
+    let mut far = connect_via(open_bastion().await, target_endpoint(), known)
+        .await
+        .map_err(|failure| failure.error)
+        .expect("the far host is reached");
+
+    let refused = far
+        .authenticate(
+            TARGET_USER,
+            Credential::Password(Zeroizing::new(BASTION_PASSWORD.to_owned())),
+        )
+        .await;
+
+    assert!(matches!(
+        refused,
+        Err(runic_ssh::ssh::connection::ConnectionError::AuthenticationFailed)
+    ));
+
+    far.disconnect().await.expect("the chain closes");
 }

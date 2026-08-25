@@ -282,6 +282,17 @@ sshpass -p runic-target ssh $O -o "ProxyCommand=$INNER" -p 2222 deploy@target.in
 proof is on the far side: `podman logs runic-test-target` shows the connection
 arriving from the bastion's address on the network, never from the host.
 
+The tests that use it are in `against_openssh.rs` with the rest, and ignored
+for the same reason:
+
+```sh
+cargo test --test against_openssh -- --ignored --nocapture
+```
+
+Three of the seven need this pair rather than the single host: the far key is
+verified through the chain, a shell opens on a host this machine cannot resolve,
+and the bastion's password does not open the host behind it.
+
 Three things this fixture is for, beyond connecting at all:
 
 * **Two host key prompts in one attempt**, each naming its own host. The two
