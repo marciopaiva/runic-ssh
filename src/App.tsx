@@ -47,16 +47,18 @@ import type { Session, SessionDraft } from './ipc';
 import { useLocale } from './features/settings';
 import { useSessionStats } from './features/status';
 import {
-  WHOLE_PANEL,
+  WHOLE_AREA,
+  activeEntry,
+  gridCount,
+  groupLabel,
+  groupOf,
   inputTargets,
   mountedTerminals,
-  paneCount,
-  paneLabel,
-  placeSession,
-  resolveLayout,
-  syncedPanes,
+  placeEntry,
+  receivingSessions,
+  resolveGroups,
 } from './features/terminal';
-import type { Box, LayoutKind } from './features/terminal';
+import type { Box, Grid, HeldGroup } from './features/terminal';
 import type { PaneEdge } from './components/TerminalView';
 import type { TerminalSize } from './features/terminal/use-terminal';
 
@@ -64,15 +66,15 @@ import type { TerminalSize } from './features/terminal/use-terminal';
 const TERMINAL_PANEL = 'terminal-panel';
 
 /**
- * What a pane's edge should say.
+ * What a group's edge should say.
  *
- * Nothing at all when the panel holds one terminal, so a window that has not
- * been split looks exactly as it did before panes existed. `synced` wins over
- * focus: with the switch armed every pane on screen is a destination, and which
- * one holds the keyboard is the less urgent fact.
+ * Nothing at all when the area holds one group, so a window that has not been
+ * split looks exactly as it did before groups existed. `synced` wins over
+ * focus: with the switch armed every group on screen is a destination, and
+ * which one holds the keyboard is the less urgent fact.
  */
 function paneEdge(
-  layout: LayoutKind,
+  layout: Grid,
   onScreen: boolean,
   focused: boolean,
   syncing: boolean,
@@ -138,11 +140,11 @@ export function App(): JSX.Element {
     readonly sessionId: string;
     readonly text: string;
   } | null>(null);
-  /* How the panel is divided, and which session sits in which slot. The slots
-     are a hint rather than the truth: `resolveLayout` decides what is actually
-     drawn, because a session leaves on its own when its host hangs up. */
-  const [layout, setLayout] = useState<LayoutKind>('single');
-  const [slots, setSlots] = useState<readonly (string | null)[]>([null]);
+  /* How the area is divided, and what each group holds. What is held is a hint
+     rather than the truth: `resolveGroups` decides what is actually drawn,
+     because a session leaves on its own when its host hangs up. */
+  const [layout, setLayout] = useState<Grid>('single');
+  const [held, setHeld] = useState<readonly HeldGroup[]>([{ entries: [], activeAt: -1 }]);
   /* Typing into every pane at once. Off by default and never persisted: this
      is the one switch in the application whose blast radius is more than the
      host being looked at. */
@@ -186,20 +188,34 @@ export function App(): JSX.Element {
   const stats = useSessionStats(activeHandle);
   /* One terminal per open session, kept mounted across tab switches. */
   const mounted = useMemo(() => mountedTerminals(tabs), [tabs]);
-  const panes = useMemo(
-    () => resolveLayout(layout, slots, tabs, activeId),
-    [layout, slots, tabs, activeId],
+  /* Only sessions go in a group for now. A host form and the settings surface
+     still take the whole area, which is what they do today; ADR-0020 moves
+     them into groups along with the chrome rather than here, so that this step
+     changes the model and not what is on screen. */
+  const openSessions = useMemo(
+    () => tabs.map((tab): Focus => ({ kind: 'session', sessionId: tab.sessionId })),
+    [tabs],
   );
-  const focusedAt = panes.findIndex((pane) => pane.sessionId === activeId);
-  const filled = panes.filter((pane) => pane.sessionId !== null).length;
-  const receiving = useMemo(() => syncedPanes(panes, muted), [panes, muted]);
+  const groups = useMemo(
+    () => resolveGroups(layout, held, openSessions, resolvedFocus),
+    [layout, held, openSessions, resolvedFocus],
+  );
+  const focusedGroup = groupOf(groups, resolvedFocus);
+  const filled = groups.filter((group) => group.entries.length > 0).length;
+  const receiving = useMemo(() => receivingSessions(groups, muted), [groups, muted]);
   /* One pane left receiving is not a broadcast: it sends exactly where an
      unarmed keystroke goes, and the screen must not claim otherwise. */
   const armed = sync && receiving.length > 1;
 
-  /* Nobody inherits a broadcast they did not arm. Moving the focus between
-     panes leaves this alone; changing which hosts are in them does not. */
-  const paneKey = panes.map((pane) => pane.sessionId ?? '').join('\u0000');
+  /* Nobody inherits a broadcast they did not arm. Moving the focus within a
+     group leaves this alone; changing which hosts are showing does not, and
+     with groups that includes flipping to another tab of the same group. */
+  const paneKey = groups
+    .map((group) => {
+      const entry = activeEntry(group);
+      return entry?.kind === 'session' ? entry.sessionId : '';
+    })
+    .join('\u0000');
   const lastPaneKey = useRef(paneKey);
   useEffect(() => {
     if (lastPaneKey.current === paneKey) return;
@@ -215,8 +231,8 @@ export function App(): JSX.Element {
   const focusOn = useCallback(
     (next: Focus | null): void => {
       const sessionId = focusedSession(next);
-      if (sessionId !== null) {
-        setSlots((current) => placeSession(current, focusedAt < 0 ? 0 : focusedAt, sessionId));
+      if (next !== null && sessionId !== null) {
+        setHeld((current) => placeEntry(current, focusedGroup < 0 ? 0 : focusedGroup, next));
         /* The sidebar highlight follows too. It only ever moved on connecting,
            so looking at one session while the sidebar pointed at another was
            always possible and was hard to notice with one panel on screen. It
@@ -227,13 +243,13 @@ export function App(): JSX.Element {
       }
       setFocus(next);
     },
-    [focusedAt],
+    [focusedGroup],
   );
 
   /* Where a keystroke goes, resolved for the terminal that produced it. */
   const broadcast = useCallback(
     (from: string, bytes: Uint8Array): void => {
-      for (const sessionId of inputTargets(panes, from, sync, muted)) {
+      for (const sessionId of inputTargets(groups, from, sync, muted)) {
         const target = mounted.find((candidate) => candidate.sessionId === sessionId);
         if (target === undefined) continue;
         /* Rejections are caught and dropped on purpose. The input is split to
@@ -243,24 +259,35 @@ export function App(): JSX.Element {
         void sendInput(target.handle, bytes).catch(() => {});
       }
     },
-    [panes, sync, muted, mounted],
+    [groups, sync, muted, mounted],
   );
 
   /* Which rectangle a session's surfaces belong in, or `null` when it is not
      on screen at all. ADR-0015 put a session's surfaces in that session's
-     panel; with a split that panel is a pane, and the rule is otherwise the
-     one it always was. */
+     panel; ADR-0020 reads that as the group whose active tab it is, so a
+     session sitting behind another has no box and its questions wait until it
+     is showing. */
   const boxOf = useCallback(
-    (sessionId: string): Box | null =>
-      panes.find((pane) => pane.sessionId === sessionId)?.box ?? null,
-    [panes],
+    (sessionId: string): Box | null => {
+      const group = groups.find((candidate) => {
+        const entry = activeEntry(candidate);
+        return entry?.kind === 'session' && entry.sessionId === sessionId;
+      });
+      return group?.box ?? null;
+    },
+    [groups],
   );
 
-  /* Changing the shape resizes the slots with it, and disarms the switch: the
-     set of hosts receiving what you type has just changed. */
-  const chooseLayout = useCallback((kind: LayoutKind): void => {
-    setSlots((current) =>
-      Array.from({ length: paneCount(kind) }, (_, at) => current[at] ?? null),
+  /* Changing the shape resizes the groups with it, and disarms the switch: the
+     set of hosts receiving what you type has just changed. Entries in a group
+     the new shape does not have are not dropped; `resolveGroups` finds them a
+     home rather than leaving a session running with no rectangle. */
+  const chooseLayout = useCallback((kind: Grid): void => {
+    setHeld((current) =>
+      Array.from(
+        { length: gridCount(kind) },
+        (_, at) => current[at] ?? { entries: [], activeAt: -1 },
+      ),
     );
     setLayout(kind);
     setSync(false);
@@ -643,7 +670,7 @@ export function App(): JSX.Element {
      and four linear searches through the session list to draw four headers is
      the kind of thing that reads as fine and is not. */
   const paneLabels = useMemo(
-    () => new Map(sessions.map((live) => [live.session.id, paneLabel(live.session)])),
+    () => new Map(sessions.map((live) => [live.session.id, groupLabel(live.session)])),
     [sessions],
   );
 
@@ -692,7 +719,13 @@ export function App(): JSX.Element {
           className="bg-surface-terminal relative min-w-0 flex-1 overflow-hidden"
         >
           {mounted.map((terminal) => {
-            const at = panes.findIndex((pane) => pane.sessionId === terminal.sessionId);
+            /* Showing means being the active tab of a group. A session in a
+               group's background is mounted and hidden exactly the way an
+               inactive tab has always been. */
+            const at = groups.findIndex((group) => {
+              const entry = activeEntry(group);
+              return entry?.kind === 'session' && entry.sessionId === terminal.sessionId;
+            });
             const onScreen = at >= 0;
             const isFocused = terminal.sessionId === activeId;
 
@@ -702,9 +735,9 @@ export function App(): JSX.Element {
                 handle={terminal.handle}
                 visible={onScreen}
                 focused={isFocused}
-                /* Off screen it keeps the whole panel, so `FitAddon` and the
+                /* Off screen it keeps the whole area, so `FitAddon` and the
                    resize observer go on measuring something real. ADR-0014. */
-                box={panes[at]?.box ?? WHOLE_PANEL}
+                box={groups[at]?.box ?? WHOLE_AREA}
                 edge={paneEdge(layout, onScreen, isFocused, armed && !muted.has(terminal.sessionId))}
                 label={
                   layout === 'single' || !onScreen
@@ -739,12 +772,12 @@ export function App(): JSX.Element {
               failed to paint, which is the same worry the empty panel below
               was written for. */}
           {layout !== 'single' &&
-            panes.map((pane, at) =>
-              pane.sessionId === null ? (
+            groups.map((group, at) =>
+              group.entries.length === 0 ? (
                 <div
                   key={`slot-${String(at)}`}
                   className="border-line-subtle absolute border-2 border-dashed"
-                  style={paneStyle(pane.box)}
+                  style={paneStyle(group.box)}
                 >
                   <EmptyPanel modifier={chrome?.commandModifier ?? 'control'} variant="pane" />
                 </div>
@@ -822,7 +855,7 @@ export function App(): JSX.Element {
             <div className="absolute" style={paneStyle(pasteBox)}>
               <PasteConfirm
                 text={pendingPaste.text}
-                hosts={inputTargets(panes, pendingPaste.sessionId, sync, muted).length}
+                hosts={inputTargets(groups, pendingPaste.sessionId, sync, muted).length}
                 onCancel={() => setPendingPaste(null)}
                 onConfirm={() => {
                   /* Through the same fan-out a keystroke takes, so a confirmed

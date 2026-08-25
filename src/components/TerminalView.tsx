@@ -4,7 +4,7 @@ import type { JSX } from 'react';
 import type { SessionHandle } from '../ipc';
 import { useTerminal } from '../features/terminal/use-terminal';
 import type { TerminalSize } from '../features/terminal/use-terminal';
-import type { Box, PaneLabel } from '../features/terminal';
+import type { Box, GroupLabel } from '../features/terminal';
 import { useTranslator } from '../features/settings';
 
 /**
@@ -34,7 +34,7 @@ interface TerminalViewProps {
   readonly box: Box;
   readonly edge: PaneEdge;
   /** What this pane says it is, or `null` when the panel holds one terminal. */
-  readonly label: PaneLabel | null;
+  readonly label: GroupLabel | null;
   /**
    * Whether this pane takes what is typed elsewhere, or `null` when nothing is
    * being broadcast and the question does not arise.

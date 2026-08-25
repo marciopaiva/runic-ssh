@@ -4,13 +4,15 @@ export { terminalTheme } from './theme';
 export { mountedTerminals } from './mounted';
 export type { MountedTerminal } from './mounted';
 export {
-  WHOLE_PANEL,
+  WHOLE_AREA,
+  activeEntry,
+  gridBoxes,
+  gridCount,
+  groupLabel,
+  groupOf,
   inputTargets,
-  paneLabel,
-  paneBoxes,
-  paneCount,
-  placeSession,
-  resolveLayout,
-  syncedPanes,
-} from './layout';
-export type { Box, LayoutKind, Pane, PaneLabel } from './layout';
+  placeEntry,
+  receivingSessions,
+  resolveGroups,
+} from './groups';
+export type { Box, Grid, Group, GroupLabel, HeldGroup } from './groups';

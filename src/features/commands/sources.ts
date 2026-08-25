@@ -17,7 +17,7 @@ import type { Translator } from '../../lib/i18n';
 import type { WindowAction } from '../chrome';
 import type { Tab } from '../chrome';
 import type { LiveSession } from '../sessions';
-import type { LayoutKind } from '../terminal';
+import type { Grid } from '../terminal';
 
 import type { Command } from './registry';
 
@@ -37,7 +37,7 @@ export interface CommandActions {
   /** Puts the settings tab on the strip and focuses it. */
   readonly openSettings: () => void;
   /** Divides the panel, or puts it back to one terminal. */
-  readonly splitPanel: (kind: LayoutKind) => void;
+  readonly splitPanel: (kind: Grid) => void;
   /** Arms or disarms typing into every pane at once. */
   readonly toggleSync: () => void;
 }
@@ -53,7 +53,7 @@ export interface CommandContext {
   /** Whether the window manager is currently drawing the title bar. */
   readonly nativeDecorations: boolean;
   /** How the panel is divided right now. */
-  readonly layout: LayoutKind;
+  readonly layout: Grid;
   /** Whether what is typed reaches every pane. */
   readonly syncing: boolean;
   /** How many panes have a session in them. */
@@ -171,7 +171,7 @@ export function actionCommands(context: CommandContext): readonly Command[] {
      panel to divide, and the entry would be a shape with two holes in it. */
   if (tabs.length > 0) {
     const shapes: readonly (readonly [
-      LayoutKind,
+      Grid,
       'command.split.columns' | 'command.split.rows' | 'command.split.grid',
     ])[] = [
       ['columns', 'command.split.columns'],
