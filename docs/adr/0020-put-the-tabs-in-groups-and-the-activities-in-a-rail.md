@@ -135,12 +135,13 @@ While it is armed:
 * the rail is pinned to the sessions view and the other activities are inert,
   marked with a lock, because switching to a file tree mid-command is not a
   thing to allow;
-* every receiving tab carries a checked square, and every receiving group a warn
-  border;
+* every receiving group carries a warn border and a switch turned on at the end
+  of its strip. That was a checked square on the receiving tab, which meant the
+  marker appeared only once something was armed and nothing on any surface
+  could arm it;
 * the entire top edge of the status bar turns warn, and carries the count. The
-  way off was here too until ADR-0021 took it, along with the way on, to the
-  top strip: a switch about the window belongs with the other control that is
-  about the window, and a bar of measurements is not where you press things;
+  way off was here too, and both the way off and the way on are now at the
+  trailing edge of each group's strip, where they are about that rectangle;
 * the sidebar marks each receiving host and labels the held-out ones `SPARED`.
 
 The sidebar may still be closed while armed. Every receiving host has a tab
