@@ -1,5 +1,7 @@
+import { useEffect, useRef, useState } from 'react';
 import type { JSX } from 'react';
 
+import { GRIDS, SHAPE_LABEL, dimensions } from '../features/terminal';
 import type { Grid } from '../features/terminal';
 import { useTranslator } from '../features/settings';
 
@@ -8,21 +10,17 @@ interface ShapeControlProps {
   readonly onChoose: (kind: Grid) => void;
 }
 
-/** The four shapes, in the order they divide the area further. */
-const SHAPES: readonly (readonly [
-  Grid,
-  'command.split.none' | 'command.split.columns' | 'command.split.rows' | 'command.split.grid',
-])[] = [
-  ['single', 'command.split.none'],
-  ['columns', 'command.split.columns'],
-  ['rows', 'command.split.rows'],
-  ['grid', 'command.split.grid'],
-];
+/**
+ * A rectangle divided the way the shape it stands for divides the area.
+ *
+ * Drawn from the shape's own name, so a shape added to `GRIDS` arrives here
+ * with a picture rather than with a gap where one should be.
+ */
+function Glyph({ kind, size }: { readonly kind: Grid; readonly size: string }): JSX.Element {
+  const { columns, rows } = dimensions(kind);
 
-/** A 16×12 rectangle, divided the way the shape it stands for divides the area. */
-function Glyph({ kind }: { readonly kind: Grid }): JSX.Element {
   return (
-    <svg viewBox="0 0 16 12" className="h-3 w-4" fill="none" aria-hidden="true">
+    <svg viewBox="0 0 16 12" className={size} fill="none" aria-hidden="true">
       <rect
         x="0.75"
         y="0.75"
@@ -32,12 +30,22 @@ function Glyph({ kind }: { readonly kind: Grid }): JSX.Element {
         stroke="currentColor"
         strokeWidth="1.2"
       />
-      {(kind === 'columns' || kind === 'grid') && (
-        <path d="M8 0.75v10.5" stroke="currentColor" strokeWidth="1.2" />
-      )}
-      {(kind === 'rows' || kind === 'grid') && (
-        <path d="M0.75 6h14.5" stroke="currentColor" strokeWidth="1.2" />
-      )}
+      {Array.from({ length: columns - 1 }, (_, at) => (
+        <path
+          key={`v${String(at)}`}
+          d={`M${String(0.75 + (14.5 * (at + 1)) / columns)} 0.75v10.5`}
+          stroke="currentColor"
+          strokeWidth="1.2"
+        />
+      ))}
+      {Array.from({ length: rows - 1 }, (_, at) => (
+        <path
+          key={`h${String(at)}`}
+          d={`M0.75 ${String(0.75 + (10.5 * (at + 1)) / rows)}h14.5`}
+          stroke="currentColor"
+          strokeWidth="1.2"
+        />
+      ))}
     </svg>
   );
 }
@@ -48,43 +56,90 @@ function Glyph({ kind }: { readonly kind: Grid }): JSX.Element {
  * ADR-0021 put this in the top strip, which is the only surface in the window
  * that belongs to the window rather than to something inside it. A shape
  * changes the whole main area, so anywhere else meant attaching it to one of
- * the area's inhabitants, and a control repeated on four group strips either
- * means four things or means one thing four times with nothing on the strip
- * able to say which.
+ * the area's inhabitants.
  *
- * Four buttons rather than a menu, because there are four shapes and which one
- * is in use is worth reading without opening anything.
+ * It was four buttons then, and that document's `Revisit this` said they fold
+ * into one that opens the four if the width ever matters. ADR-0022 brought the
+ * count to seven, which is 196px of a bar whose remaining job is being
+ * dragged, so this is that fold. The button still shows the shape in use,
+ * because which one it is stays worth reading without opening anything.
  */
 export function ShapeControl({ layout, onChoose }: ShapeControlProps): JSX.Element {
   const i18n = useTranslator();
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const onPointerDown = (event: MouseEvent): void => {
+      if (!(event.target instanceof Node) || box.current?.contains(event.target) !== true) {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, [open]);
 
   return (
-    <div
-      role="group"
-      aria-label={i18n.t('shape.label')}
-      className="flex shrink-0 items-center self-center gap-0.5 pr-2"
-    >
-      {SHAPES.map(([kind, label]) => {
-        const current = kind === layout;
+    <div ref={box} className="relative flex shrink-0 items-center self-center pr-2">
+      <button
+        type="button"
+        onClick={() => setOpen((showing) => !showing)}
+        aria-haspopup="true"
+        aria-expanded={open}
+        aria-label={i18n.t('shape.choose')}
+        title={i18n.t(SHAPE_LABEL[layout])}
+        className={`flex h-6 w-7 items-center justify-center rounded ${
+          open ? 'bg-surface-raised text-ink' : 'text-ink-muted hover:bg-surface-raised/50 hover:text-ink'
+        }`}
+      >
+        <Glyph kind={layout} size="h-3 w-4" />
+      </button>
 
-        return (
-          <button
-            key={kind}
-            type="button"
-            onClick={() => onChoose(kind)}
-            aria-pressed={current}
-            aria-label={i18n.t(label)}
-            title={i18n.t(label)}
-            className={`flex h-6 w-7 items-center justify-center rounded ${
-              current
-                ? 'bg-surface-raised text-accent'
-                : 'text-ink-faint hover:bg-surface-raised/50 hover:text-ink-muted'
-            }`}
-          >
-            <Glyph kind={kind} />
-          </button>
-        );
-      })}
+      {open && (
+        <div
+          role="menu"
+          aria-label={i18n.t('shape.choose')}
+          onKeyDown={(event) => {
+            if (event.key !== 'Escape') return;
+            event.preventDefault();
+            setOpen(false);
+          }}
+          /* Below the bar and against its trailing edge, which is where the
+             button is. Absolute rather than fixed: the strip does not scroll,
+             and a fixed box would need the arithmetic a menu opened from a
+             moving element needs. */
+          className="bg-surface-overlay border-line-strong absolute top-full right-2 z-50 mt-1 flex gap-1 rounded border p-1.5 shadow-2xl"
+        >
+          {GRIDS.map((kind) => {
+            const current = kind === layout;
+
+            return (
+              <button
+                key={kind}
+                type="button"
+                role="menuitemradio"
+                aria-checked={current}
+                onClick={() => {
+                  onChoose(kind);
+                  setOpen(false);
+                }}
+                aria-label={i18n.t(SHAPE_LABEL[kind])}
+                title={i18n.t(SHAPE_LABEL[kind])}
+                className={`flex h-8 w-9 items-center justify-center rounded ${
+                  current
+                    ? 'bg-surface-raised text-accent'
+                    : 'text-ink-faint hover:bg-surface-raised/60 hover:text-ink-muted'
+                }`}
+              >
+                <Glyph kind={kind} size="h-4 w-[21px]" />
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

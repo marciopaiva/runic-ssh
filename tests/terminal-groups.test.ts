@@ -16,6 +16,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  GRIDS,
   activeEntry,
   gridBoxes,
   gridCount,
@@ -56,24 +57,71 @@ function ids(groups: readonly HeldGroup[]): readonly (readonly string[])[] {
 
 describe('the grid', () => {
   it('gives every shape boxes that cover the area exactly once', () => {
-    for (const grid of ['single', 'columns', 'rows', 'grid'] as const) {
+    /* Close rather than equal, because a third of a hundred does not come back
+       out of a double as a hundred. The gap is a ten thousandth of a pixel on
+       a real window; what this is guarding against is a shape that overlaps or
+       leaves a hole, which is off by whole cells and nowhere near this. */
+    for (const grid of GRIDS) {
       const area = gridBoxes(grid).reduce((sum, box) => sum + box.width * box.height, 0);
-      expect(area, grid).toBe(100 * 100);
+      expect(area, grid).toBeCloseTo(100 * 100, 6);
     }
   });
 
-  it('counts what it draws', () => {
-    expect(gridCount('single')).toBe(1);
-    expect(gridCount('columns')).toBe(2);
-    expect(gridCount('rows')).toBe(2);
-    expect(gridCount('grid')).toBe(4);
+  it('never lets two rectangles overlap', () => {
+    /* The other half of covering exactly once, and the half the sum cannot
+       see: two boxes on top of each other with a hole beside them add up to
+       the same hundred. */
+    for (const grid of GRIDS) {
+      const boxes = gridBoxes(grid);
+
+      for (let a = 0; a < boxes.length; a += 1) {
+        for (let b = a + 1; b < boxes.length; b += 1) {
+          const one = boxes[a];
+          const other = boxes[b];
+          if (one === undefined || other === undefined) continue;
+
+          const apart =
+            one.left + one.width <= other.left + 1e-9 ||
+            other.left + other.width <= one.left + 1e-9 ||
+            one.top + one.height <= other.top + 1e-9 ||
+            other.top + other.height <= one.top + 1e-9;
+
+          expect(apart, `${grid}: rectangles ${a} and ${b} overlap`).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('stays inside the area', () => {
+    for (const grid of GRIDS) {
+      for (const box of gridBoxes(grid)) {
+        expect(box.left, grid).toBeGreaterThanOrEqual(0);
+        expect(box.top, grid).toBeGreaterThanOrEqual(0);
+        expect(box.left + box.width, grid).toBeCloseTo(box.left + box.width, 6);
+        expect(box.left + box.width, grid).toBeLessThanOrEqual(100 + 1e-9);
+        expect(box.top + box.height, grid).toBeLessThanOrEqual(100 + 1e-9);
+      }
+    }
+  });
+
+  it('counts what its name says', () => {
+    /* The name is the arithmetic: columns by rows. A shape whose count
+       disagrees with what it is called would be drawn wrong everywhere and
+       read right in every list. */
+    for (const grid of GRIDS) {
+      const [columns, rows] = grid.split('x').map(Number);
+      expect(gridCount(grid), grid).toBe((columns ?? 0) * (rows ?? 0));
+    }
+
+    expect(gridCount('3x3')).toBe(9);
+    expect(gridCount('3x2')).toBe(6);
   });
 });
 
 describe('resolving what is drawn', () => {
   it('keeps entries where they were put', () => {
     const groups = resolveGroups(
-      'columns',
+      '2x1',
       held([session('web-01'), session('web-02')], [session('db-01')]),
       [session('web-01'), session('web-02'), session('db-01')],
       session('web-01'),
@@ -84,7 +132,7 @@ describe('resolving what is drawn', () => {
 
   it('drops a session that is no longer open', () => {
     const groups = resolveGroups(
-      'columns',
+      '2x1',
       held([session('web-01'), session('gone')], [session('db-01')]),
       [session('web-01'), session('db-01')],
       session('web-01'),
@@ -97,7 +145,7 @@ describe('resolving what is drawn', () => {
      and the symptom is a terminal showing another host's scrollback. */
   it('never puts one entry in two groups', () => {
     const groups = resolveGroups(
-      'columns',
+      '2x1',
       held([session('web-01')], [session('web-01')]),
       [session('web-01')],
       session('web-01'),
@@ -110,7 +158,7 @@ describe('resolving what is drawn', () => {
      split at all: the person reaches for a terminal that is not there. */
   it('makes the focused entry the active tab of its group', () => {
     const groups = resolveGroups(
-      'columns',
+      '2x1',
       held([session('web-01'), session('web-02')], [session('db-01')]),
       [session('web-01'), session('web-02'), session('db-01')],
       session('web-02'),
@@ -122,7 +170,7 @@ describe('resolving what is drawn', () => {
 
   it('leaves the other groups showing what they were showing', () => {
     const groups = resolveGroups(
-      'columns',
+      '2x1',
       [
         { entries: [session('web-01'), session('web-02')], activeAt: 1 },
         { entries: [session('db-01'), session('db-02')], activeAt: 1 },
@@ -136,7 +184,7 @@ describe('resolving what is drawn', () => {
 
   it('falls back to the first tab when the active one closes', () => {
     const groups = resolveGroups(
-      'single',
+      '1x1',
       [{ entries: [session('web-01'), session('gone')], activeAt: 1 }],
       [session('web-01')],
       null,
@@ -146,7 +194,7 @@ describe('resolving what is drawn', () => {
   });
 
   it('reports an empty group rather than pretending it holds something', () => {
-    const groups = resolveGroups('columns', held([session('web-01')], []), [session('web-01')], null);
+    const groups = resolveGroups('2x1', held([session('web-01')], []), [session('web-01')], null);
 
     expect(groups[1]?.entries).toEqual([]);
     expect(groups[1]?.activeAt).toBe(-1);
@@ -158,7 +206,7 @@ describe('resolving what is drawn', () => {
      connection stayed up. */
   it('gives an unclaimed entry a home in the focused group', () => {
     const groups = resolveGroups(
-      'columns',
+      '2x1',
       held([session('web-01')], [session('db-01')]),
       [session('web-01'), session('db-01'), session('new')],
       session('db-01'),
@@ -169,7 +217,7 @@ describe('resolving what is drawn', () => {
 
   it('falls back to the first group when the focus is the unclaimed one', () => {
     const groups = resolveGroups(
-      'columns',
+      '2x1',
       held([session('web-01')], []),
       [session('web-01'), session('new')],
       session('new'),
@@ -182,7 +230,7 @@ describe('resolving what is drawn', () => {
      what makes ADR-0017 survive ADR-0020 without an edit. */
   it('holds a host form and settings the same way it holds a session', () => {
     const groups = resolveGroups(
-      'columns',
+      '2x1',
       held([session('web-01'), editor('web-02')], [SETTINGS]),
       [session('web-01'), editor('web-02'), SETTINGS],
       SETTINGS,
@@ -194,7 +242,7 @@ describe('resolving what is drawn', () => {
 
   it('drops entries that do not fit the shape', () => {
     const groups = resolveGroups(
-      'single',
+      '1x1',
       held([session('web-01')], [session('db-01')]),
       [session('web-01'), session('db-01')],
       session('web-01'),
@@ -407,13 +455,13 @@ describe('sending a tab to another group', () => {
        to draw what is not open, which is what makes the claim free. */
     const claimed = moveEntry(held([session('a')], []), session('z'), 1);
 
-    expect(ids(resolveGroups('columns', claimed, [session('a')], session('a')))).toEqual([
+    expect(ids(resolveGroups('2x1', claimed, [session('a')], session('a')))).toEqual([
       ['a'],
       [],
     ]);
 
     expect(
-      ids(resolveGroups('columns', claimed, [session('a'), session('z')], session('a'))),
+      ids(resolveGroups('2x1', claimed, [session('a'), session('z')], session('a'))),
     ).toEqual([['a'], ['z']]);
   });
 

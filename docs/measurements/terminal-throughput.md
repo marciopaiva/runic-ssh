@@ -274,3 +274,69 @@ session bound.
 4. **Synthetic text.** Printable, varied, no escape sequences, so it measures
    drawing rather than parsing. A host emitting heavy SGR or cursor addressing
    is a different load.
+
+---
+
+## Six and nine, measured 2026-08-25
+
+Taken because a 3x3 shape was proposed, and ADR-0019 said to revisit the
+four-pane limit when somebody measured, and to lower it if the measurement said
+so rather than raising it because nothing had broken yet.
+
+Same harness, same machine, same software rasteriser. The four-terminal row
+reproduces the run above almost exactly, which is what makes the two new rows
+comparable rather than merely new.
+
+### Paced at the rate the transport delivers
+
+The harness feeds every terminal 12 MB/s, which is the top of what one SSH
+session asks for.
+
+| terminals | MB/s total | MB/s each | median gap | p95 gap | worst gap | over 100 ms |
+| --- | --- | --- | --- | --- | --- | --- |
+| 4 | 47.6 | 11.9 | 14 ms | 21 ms | 27 ms | 0 of 717 |
+| 6 | 62.5 | 10.4 | 14 ms | 21 ms | 42 ms | 0 of 709 |
+| 9 | 73.3 | 8.1 | 19 ms | 28 ms | 45 ms | 0 of 536 |
+
+### Flat out, 16 MB each
+
+| terminals | MB/s total | MB/s each | median gap | p95 gap | worst gap | over 100 ms |
+| --- | --- | --- | --- | --- | --- | --- |
+| 4 | 100.8 | 25.2 | 31 ms | 60 ms | 60 ms | 0 of 19 |
+| 6 | 122.3 | 20.4 | 30 ms | 40 ms | 42 ms | 0 of 25 |
+| 9 | 119.2 | 13.2 | 40 ms | 59 ms | 61 ms | 0 of 30 |
+
+### What it says
+
+**Nothing stutters.** The worst gap anywhere is 61 ms, against the 100 ms where
+a keystroke starts to look dropped. Nine terminals painting at once is not a
+frame rate problem.
+
+**The renderer stops keeping up.** Four terminals take the full 11.9 MB/s each
+the pacing offers. Nine take 8.1. The ceiling is the aggregate: about 120 MB/s
+flat out whatever the count, so nine sessions each wanting 9 to 15 MB/s are
+asking for 81 to 137 against a 120 that does not grow.
+
+Six sits between: 10.4 each, still ahead of the 9.1 low end of what a session
+asks for, behind the 15.2 high end.
+
+So the honest reading is that the headroom named above is spent somewhere
+between six and nine terminals **all busy at once**. What that describes is
+nine hosts all streaming at full tilt, which is a different activity from nine
+hosts being restarted and watched. ADR-0022 decides what to do with that.
+
+### Rows, which the renderer has nothing to say about
+
+Each row of groups costs 48px of chrome: a 28px strip, 4px of border and 16px
+of padding. Cells are 8.12 x 23.16 px.
+
+| shape | rectangles | 1440x900 | 1920x1080 |
+| --- | --- | --- | --- |
+| 2x2 | 4 | 66 x 15 | 95 x 19 |
+| 3x2 | 6 | 43 x 15 | 62 x 19 |
+| 2x3 | 6 | 66 x 9 | 95 x 12 |
+| 3x3 | 9 | 43 x 9 | 62 x 12 |
+
+Three columns cost width, which there is enough of. Three rows cost nine lines,
+and `top` wants twenty-four. That is the real limit on 3x3, and it is not one a
+faster renderer would move.

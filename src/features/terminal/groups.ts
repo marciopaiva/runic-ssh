@@ -26,7 +26,23 @@ import { sameFocus } from '../chrome/focus';
 import type { Focus } from '../chrome/focus';
 import type { Session } from '../../ipc';
 
-export type Grid = 'single' | 'columns' | 'rows' | 'grid';
+/**
+ * Every shape the main area can be divided into, in the order they divide it
+ * further, as columns by rows.
+ *
+ * Named for their dimensions rather than for what they look like, which the
+ * first four were: `columns` meant two of them and stopped being a usable name
+ * the moment there were three. Seven shapes want a scheme that scales, and it
+ * is the one the arithmetic in ADR-0022 is written in.
+ *
+ * This list is the source and the type is derived from it, so a shape added
+ * here is a shape every caller sees. The one that matters is the test that
+ * walks it: a hand written list there covered four shapes and would have gone
+ * on covering four.
+ */
+export const GRIDS = ['1x1', '2x1', '1x2', '2x2', '3x2', '2x3', '3x3'] as const;
+
+export type Grid = (typeof GRIDS)[number];
 
 /** A rectangle inside the main area, in percentages of it. */
 export interface Box {
@@ -48,22 +64,27 @@ export interface Group extends HeldGroup {
   readonly box: Box;
 }
 
+/** Every shape, as equal cells filled left to right and then downward. */
+function cells(columns: number, rows: number): readonly Box[] {
+  const width = 100 / columns;
+  const height = 100 / rows;
+
+  return Array.from({ length: columns * rows }, (_, at) => ({
+    left: (at % columns) * width,
+    top: Math.floor(at / columns) * height,
+    width,
+    height,
+  }));
+}
+
 const BOXES: Readonly<Record<Grid, readonly Box[]>> = {
-  single: [{ left: 0, top: 0, width: 100, height: 100 }],
-  columns: [
-    { left: 0, top: 0, width: 50, height: 100 },
-    { left: 50, top: 0, width: 50, height: 100 },
-  ],
-  rows: [
-    { left: 0, top: 0, width: 100, height: 50 },
-    { left: 0, top: 50, width: 100, height: 50 },
-  ],
-  grid: [
-    { left: 0, top: 0, width: 50, height: 50 },
-    { left: 50, top: 0, width: 50, height: 50 },
-    { left: 0, top: 50, width: 50, height: 50 },
-    { left: 50, top: 50, width: 50, height: 50 },
-  ],
+  '1x1': cells(1, 1),
+  '2x1': cells(2, 1),
+  '1x2': cells(1, 2),
+  '2x2': cells(2, 2),
+  '3x2': cells(3, 2),
+  '2x3': cells(2, 3),
+  '3x3': cells(3, 3),
 };
 
 /**

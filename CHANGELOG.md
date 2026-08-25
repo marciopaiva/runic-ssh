@@ -59,6 +59,13 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 - **The main area can be divided with a pointer** (ADR-0021). Four shapes at
   the trailing edge of the top strip, which is the only surface in the window
   that belongs to the window rather than to something inside it.
+- **Six and nine rectangles** (ADR-0022), in both arrangements of six: three
+  columns by two rows, and two by three. Three columns by two rows is the shape
+  the area ADR-0020 freed actually bought: six rectangles at the same fifteen
+  lines of terminal that four give today. Nine is for the fleet being restarted
+  and watched rather than the fleet streaming; the measurement behind that
+  distinction is in `docs/measurements/terminal-throughput.md` and the
+  assumption is stated in the decision record.
 - **Four terminals painting at once has been measured** (#123). Fed at the rate
   the transport actually delivers, they hold a 16 ms median gap between frames,
   with the worst gap in 620 frames at 24 ms. The four-rectangle limit rests on
@@ -88,6 +95,14 @@ with the caveat that anything below 1.0 may break, and this project intends to.
   protection. A session sitting in a group's background is connected without
   receiving, which is a second way to be surprised by where a keystroke went,
   and the sidebar is where that one is read.
+- **Nine rectangles is offered on an assumption rather than on a measurement.**
+  Nine hosts all streaming at once ask for more than the renderer draws, and
+  nothing on screen says so when it happens. Nine hosts being restarted and
+  watched are nowhere near it. ADR-0022 says which is which and why the shape
+  is offered anyway.
+- Two columns by three rows gives nine lines of terminal at 1440x900, which is
+  fewer than `top` wants. It is offered because which arrangement of six suits
+  the work is not something the application can know.
 - Groups hold sessions that are already connected. A second terminal on a host
   you are already on is not possible yet, and would need a second connection.
 - No draggable divider, and no keyboard shortcut for splitting or for moving

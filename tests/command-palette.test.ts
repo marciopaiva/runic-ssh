@@ -66,7 +66,7 @@ function context(overrides: Partial<CommandContext> = {}): CommandContext {
     chosenLocale: null,
     nativeDecorations: false,
     maximized: false,
-    layout: 'single',
+    layout: '1x1',
     syncing: false,
     panesFilled: 0,
     groupCount: 1,
@@ -498,39 +498,39 @@ describe('dividing the panel', () => {
        one. Requiring two open sessions made the command invisible exactly
        when somebody first went looking for it. */
     expect(ids({ tabs: [tab('a')], activeId: 'a' })).toEqual(
-      expect.arrayContaining(['split:columns', 'split:rows', 'split:grid']),
+      expect.arrayContaining(['split:2x1', 'split:1x2', 'split:2x2', 'split:3x2', 'split:2x3', 'split:3x3']),
     );
   });
 
   it('offers nothing to divide when nothing is open', () => {
-    expect(ids({})).not.toContain('split:columns');
+    expect(ids({})).not.toContain('split:2x1');
   });
 
   it('leaves out the shape already in use', () => {
-    const offered = ids({ tabs: [tab('a')], activeId: 'a', layout: 'columns' });
-    expect(offered).not.toContain('split:columns');
-    expect(offered).toContain('split:rows');
+    const offered = ids({ tabs: [tab('a')], activeId: 'a', layout: '2x1' });
+    expect(offered).not.toContain('split:2x1');
+    expect(offered).toContain('split:1x2');
   });
 
   it('offers the way back only once there is something to go back from', () => {
     expect(ids({ tabs: [tab('a')], activeId: 'a' })).not.toContain('split:none');
-    expect(ids({ tabs: [tab('a')], activeId: 'a', layout: 'grid' })).toContain('split:none');
+    expect(ids({ tabs: [tab('a')], activeId: 'a', layout: '2x2' })).toContain('split:none');
   });
 
   it('offers the sync switch only when it would reach somewhere', () => {
     /* Armed against one pane it would do nothing and still say it was on,
        which for this switch is worse than being absent. */
-    expect(ids({ tabs: [tab('a')], activeId: 'a', layout: 'columns', panesFilled: 1 })).not.toContain(
+    expect(ids({ tabs: [tab('a')], activeId: 'a', layout: '2x1', panesFilled: 1 })).not.toContain(
       'split:sync',
     );
-    expect(ids({ tabs: [tab('a')], activeId: 'a', layout: 'columns', panesFilled: 2 })).toContain(
+    expect(ids({ tabs: [tab('a')], activeId: 'a', layout: '2x1', panesFilled: 2 })).toContain(
       'split:sync',
     );
   });
 
   it('says how many hosts arming it would reach', () => {
     const entry = actionCommands(
-      context({ tabs: [tab('a')], activeId: 'a', layout: 'grid', panesFilled: 3 }),
+      context({ tabs: [tab('a')], activeId: 'a', layout: '2x2', panesFilled: 3 }),
     ).find((command) => command.id === 'split:sync');
 
     expect(entry?.detail).toContain('3');
@@ -539,9 +539,9 @@ describe('dividing the panel', () => {
   it('runs the shape it names', () => {
     const act = actions();
     actionCommands(context({ tabs: [tab('a')], activeId: 'a', actions: act }))
-      .find((entry) => entry.id === 'split:grid')
+      .find((entry) => entry.id === 'split:2x2')
       ?.run();
 
-    expect(act.calls).toEqual(['split:grid']);
+    expect(act.calls).toEqual(['split:2x2']);
   });
 });

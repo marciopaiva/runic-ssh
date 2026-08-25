@@ -100,3 +100,7 @@ obvious neighbour when the divider becomes draggable.
 **Revisit this** if the divider in #121 lands and resizing wants to live beside
 choosing, or if a window narrow enough to matter turns out to be common, in
 which case the four buttons fold into one that opens the four.
+
+**They folded** (ADR-0022). Not for width in the end, but for count: seven
+shapes is around 196px of a bar whose remaining job is being dragged. The
+control is one button showing the shape in use, which opens the seven.

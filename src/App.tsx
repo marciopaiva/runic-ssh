@@ -111,7 +111,7 @@ const EDGES: Readonly<Record<GroupEdge, string>> = {
 };
 
 function groupEdge(layout: Grid, focused: boolean, syncing: boolean): GroupEdge {
-  if (layout === 'single') return 'none';
+  if (layout === '1x1') return 'none';
   if (syncing) return 'synced';
   return focused ? 'focused' : 'idle';
 }
@@ -237,7 +237,7 @@ export function App(): JSX.Element {
   /* How the area is divided, and what each group holds. What is held is a hint
      rather than the truth: `resolveGroups` decides what is actually drawn,
      because a session leaves on its own when its host hangs up. */
-  const [layout, setLayout] = useState<Grid>('single');
+  const [layout, setLayout] = useState<Grid>('1x1');
   const [held, setHeld] = useState<readonly HeldGroup[]>([{ entries: [], activeAt: -1 }]);
   /* Typing into every pane at once. Off by default and never persisted: this
      is the one switch in the application whose blast radius is more than the
@@ -1052,7 +1052,7 @@ export function App(): JSX.Element {
                 className={`absolute flex flex-col overflow-hidden ${
                   !empty
                     ? `bg-surface-terminal ${EDGES[groupEdge(layout, at === focusedGroup, syncing)]}`
-                    : layout === 'single'
+                    : layout === '1x1'
                       ? /* The whole area, with nothing open in it. The panel
                            below says so in words; a dashed line around the
                            entire window would be saying it twice, and on the
@@ -1083,15 +1083,15 @@ export function App(): JSX.Element {
                   tabs={tabs}
                   editorTabs={editorTabs}
                   labels={paneLabels}
-                  dense={layout !== 'single'}
+                  dense={layout !== '1x1'}
                   label={
-                    layout === 'single'
+                    layout === '1x1'
                       ? i18n.t('tabs.label')
                       : i18n.t('group.tabs', { number: String(at + 1) })
                   }
                   /* Absent unless something is being broadcast: a control for
                      a state that does not exist decides nothing. */
-                  receiving={sync && shown !== null && layout !== 'single' ? !muted.has(shown) : null}
+                  receiving={sync && shown !== null && layout !== '1x1' ? !muted.has(shown) : null}
                   onToggleReceiving={() =>
                     setMuted((current) => {
                       if (shown === null) return current;
@@ -1126,7 +1126,7 @@ export function App(): JSX.Element {
                   {empty && (
                     <EmptyPanel
                       modifier={chrome?.commandModifier ?? 'control'}
-                      variant={layout === 'single' && entries.length === 0 ? 'panel' : 'pane'}
+                      variant={layout === '1x1' && entries.length === 0 ? 'panel' : 'pane'}
                     />
                   )}
                 </div>
