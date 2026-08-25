@@ -92,6 +92,14 @@ only in the command palette, so a person driving with a pointer could not arm
 the switch at all. It is built now. What the canvas draws and the tree lacks
 belongs here on the day it is noticed, not on the day somebody trips over it.
 
+The theme control went the same way. `Settings.dc.html` has drawn three
+segmented buttons since ADR-0020, `tokens.css` has defined a light palette since
+the tokens existed, and nothing in the tree ever wrote `data-theme`, so the only
+way to see light was to change your operating system. Nobody wrote it here
+either. That is twice this list has been found short after the fact rather than
+kept, which is worth more than the two entries it was missing: a drawing with no
+code behind it is not noticed by reading the drawing. #149 built it.
+
 That list used to have a second entry, the split control on a group's strip.
 It is gone from both sides now: ADR-0021 decided splitting belongs to the top
 strip, because it changes the whole main area and a button on one group's strip
