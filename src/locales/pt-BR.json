@@ -95,6 +95,7 @@
   "hostKey.field.fingerprint": "IMPRESSÃO DIGITAL SHA256",
   "hostKey.field.host": "HOST",
   "hostKey.field.keyType": "TIPO DE CHAVE",
+  "hostKey.field.randomart": "RANDOMART",
   "hostKey.refused.note": "Nada foi enviado ao host",
   "hostKey.revoked.body": "O known_hosts marca esta chave como revogada. Ela não pode ser aceita, e não há exceção.",
   "hostKey.revoked.title": "Esta chave está revogada",

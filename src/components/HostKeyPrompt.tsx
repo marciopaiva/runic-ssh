@@ -3,6 +3,7 @@ import type { JSX } from 'react';
 
 import { useTranslator } from '../features/settings';
 
+import { Randomart } from './Randomart';
 import { SessionSurface, SurfaceAction } from './SessionSurface';
 
 interface HostKeyPromptProps {
@@ -33,6 +34,9 @@ interface HostKeyPromptProps {
  * `ssh::connection`), so offering the option would be a lie about what the
  * application does. The interface canvas showed one; the implementation
  * removed it rather than build a second, weaker trust path.
+ *
+ * Randomart sits beside the fingerprint as a recognition aid. It does not
+ * arm Trust and is omitted when the fingerprint cannot be decoded.
  */
 export function HostKeyPrompt({
   host,
@@ -73,11 +77,19 @@ export function HostKeyPrompt({
         </>
       }
     >
-      <dl className="bg-surface-base border-line-subtle flex flex-col gap-3 rounded-lg border p-3.5">
-        <Field label={i18n.t('hostKey.field.host')} value={`${host}:${port}`} />
-        <Field label={i18n.t('hostKey.field.keyType')} value={keyType} />
-        <Field label={i18n.t('hostKey.field.fingerprint')} value={fingerprint} emphasis />
-      </dl>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+        <dl className="bg-surface-base border-line-subtle flex min-w-0 flex-1 flex-col gap-3 rounded-lg border p-3.5">
+          <Field label={i18n.t('hostKey.field.host')} value={`${host}:${port}`} />
+          <Field label={i18n.t('hostKey.field.keyType')} value={keyType} />
+          <Field label={i18n.t('hostKey.field.fingerprint')} value={fingerprint} emphasis />
+        </dl>
+
+        <Randomart
+          fingerprint={fingerprint}
+          keyType={keyType}
+          label={i18n.t('hostKey.field.randomart')}
+        />
+      </div>
 
       <label className="border-line-subtle bg-surface-base flex cursor-pointer items-start gap-2.5 rounded-lg border p-3">
         <input
