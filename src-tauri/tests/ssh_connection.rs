@@ -15,7 +15,9 @@ use russh::Channel;
 use russh::MethodKind;
 use zeroize::Zeroizing;
 
-use runic_ssh::ssh::connection::{connect, connect_within, ConnectionError, Credential, Endpoint};
+use runic_ssh::ssh::connection::{
+    connect, connect_via, connect_within, ConnectionError, Credential, Endpoint, Hop,
+};
 use runic_ssh::ssh::known_hosts::KnownHosts;
 use runic_ssh::ssh::trust::Trust;
 
@@ -26,12 +28,42 @@ const PASSPHRASE: &str = "a passphrase for the key";
 #[derive(Clone)]
 struct TestServer {
     authorized: Arc<PublicKey>,
+    /// The one password this server accepts.
+    password: &'static str,
+    /// Whether it will forward a `direct-tcpip` channel. A bastion does; an
+    /// ordinary host does not, and a bastion configured `AllowTcpForwarding no`
+    /// does not either.
+    forwards: bool,
+    /// How many client sessions are open right now.
+    live: Arc<std::sync::atomic::AtomicUsize>,
+    /// Decrements `live` when this client's handler is dropped. `None` on the
+    /// template the server clones from, `Some` on each accepted client.
+    guard: Option<Arc<SessionGuard>>,
+    /// Every password this server was offered.
+    ///
+    /// The point of recording them is one assertion: a bastion must never be
+    /// offered the credential of the host behind it. Holding test constants in
+    /// a test is not the thing rule 2 forbids, and the assertion it buys is the
+    /// security property the whole chain exists for.
+    seen: Arc<std::sync::Mutex<Vec<String>>>,
 }
 
 impl russh::server::Server for TestServer {
     type Handler = Self;
     fn new_client(&mut self, _peer: Option<std::net::SocketAddr>) -> Self {
-        self.clone()
+        self.live.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let mut client = self.clone();
+        client.guard = Some(Arc::new(SessionGuard(Arc::clone(&self.live))));
+        client
+    }
+}
+
+/// Held by an accepted client, and dropped when that client goes.
+struct SessionGuard(Arc<std::sync::atomic::AtomicUsize>);
+
+impl Drop for SessionGuard {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
     }
 }
 
@@ -39,7 +71,10 @@ impl ServerHandler for TestServer {
     type Error = russh::Error;
 
     async fn auth_password(&mut self, user: &str, password: &str) -> Result<Auth, Self::Error> {
-        if user == USER && password == PASSWORD {
+        if let Ok(mut seen) = self.seen.lock() {
+            seen.push(password.to_owned());
+        }
+        if user == USER && password == self.password {
             Ok(Auth::Accept)
         } else {
             Ok(Auth::Reject {
@@ -72,10 +107,81 @@ impl ServerHandler for TestServer {
     ) -> Result<(), Self::Error> {
         Ok(())
     }
+
+    /// Forwards the channel to the address it names, which is what makes this
+    /// server a bastion.
+    ///
+    /// The upstream connection is made *before* the channel is accepted. The
+    /// other order accepts a channel and then discovers there is nothing behind
+    /// it, which reaches the client as a session that opens and immediately
+    /// stops rather than as a refusal it can report.
+    async fn channel_open_direct_tcpip(
+        &mut self,
+        channel: Channel<Msg>,
+        host_to_connect: &str,
+        port_to_connect: u32,
+        _originator_address: &str,
+        _originator_port: u32,
+        reply: ChannelOpenHandle,
+        _session: &mut Session,
+    ) -> Result<(), Self::Error> {
+        if !self.forwards {
+            reply
+                .reject(russh::ChannelOpenFailure::AdministrativelyProhibited)
+                .await;
+            return Ok(());
+        }
+
+        let Ok(mut upstream) =
+            tokio::net::TcpStream::connect(format!("{host_to_connect}:{port_to_connect}")).await
+        else {
+            reply.reject(russh::ChannelOpenFailure::ConnectFailed).await;
+            return Ok(());
+        };
+
+        reply.accept().await;
+
+        tokio::spawn(async move {
+            let mut downstream = channel.into_stream();
+            let _ = tokio::io::copy_bidirectional(&mut downstream, &mut upstream).await;
+        });
+
+        Ok(())
+    }
 }
 
 /// Starts a server on a loopback port and returns its address and host key.
 async fn start_server(authorized: PublicKey) -> (u16, PublicKey) {
+    let (port, key, _seen) = start_host(authorized, PASSWORD, false).await;
+    (port, key)
+}
+
+/// [`start_server`], with what the chain tests need to vary.
+///
+/// Returns the passwords the server is offered, so a test can assert what it
+/// was never asked for.
+async fn start_host(
+    authorized: PublicKey,
+    password: &'static str,
+    forwards: bool,
+) -> (u16, PublicKey, Arc<std::sync::Mutex<Vec<String>>>) {
+    let (port, key, seen, _live) = start_counted(authorized, password, forwards).await;
+    (port, key, seen)
+}
+
+/// [`start_host`], also handing back its live session count.
+#[allow(clippy::type_complexity)]
+async fn start_counted(
+    authorized: PublicKey,
+    password: &'static str,
+    forwards: bool,
+) -> (
+    u16,
+    PublicKey,
+    Arc<std::sync::Mutex<Vec<String>>>,
+    Arc<std::sync::atomic::AtomicUsize>,
+) {
+    let live = Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let host_key =
         PrivateKey::random(&mut rng(), russh::keys::Algorithm::Ed25519).expect("a host key");
     let host_public = host_key.public_key().clone();
@@ -93,14 +199,20 @@ async fn start_server(authorized: PublicKey) -> (u16, PublicKey) {
         .expect("a loopback port");
     let port = listener.local_addr().expect("an address").port();
 
+    let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
     let mut server = TestServer {
         authorized: Arc::new(authorized),
+        password,
+        forwards,
+        live: Arc::clone(&live),
+        guard: None,
+        seen: Arc::clone(&seen),
     };
     tokio::spawn(async move {
         let _ = server.run_on_socket(config, &listener).await;
     });
 
-    (port, host_public)
+    (port, host_public, seen, live)
 }
 
 /// Keys are generated in memory and never written anywhere, which is what
@@ -481,4 +593,240 @@ async fn giving_up_is_not_reported_as_unreachable() {
         .map(|_| "connected")
         .map_err(|error| error.to_string());
     assert_ne!(outcome, Err(unreachable));
+}
+
+/* ------------------------------------------------------------------------ *
+ * A host reached through a bastion. ADR-0023.
+ * ------------------------------------------------------------------------ */
+
+/// Deliberately not [`PASSWORD`]. The bastion and the host behind it having
+/// different credentials is what makes it possible to assert that one never
+/// reached the other, which is the property the whole design exists for.
+const BASTION_PASSWORD: &str = "the bastion has a password of its own";
+
+struct Chain {
+    bastion_port: u16,
+    bastion_key: PublicKey,
+    target_port: u16,
+    target_key: PublicKey,
+    /// Every password the bastion was offered.
+    bastion_saw: Arc<std::sync::Mutex<Vec<String>>>,
+    /// How many sessions the bastion currently holds open.
+    bastion_live: Arc<std::sync::atomic::AtomicUsize>,
+}
+
+/// A forwarding bastion and a host behind it.
+///
+/// Both listen on loopback, so the far host is reachable directly here too.
+/// That is on purpose: this file tests the mechanism, and the topology where
+/// the target is genuinely unreachable is what the container fixture in
+/// `docs/testing.md` is for. The two answer different questions and neither
+/// substitutes for the other.
+async fn a_chain(forwards: bool) -> Chain {
+    let unused = PrivateKey::random(&mut rng(), russh::keys::Algorithm::Ed25519)
+        .expect("a key")
+        .public_key()
+        .clone();
+
+    let (bastion_port, bastion_key, bastion_saw, bastion_live) =
+        start_counted(unused.clone(), BASTION_PASSWORD, forwards).await;
+    let (target_port, target_key, _, _) = start_counted(unused, PASSWORD, false).await;
+
+    Chain {
+        bastion_port,
+        bastion_key,
+        target_port,
+        target_key,
+        bastion_saw,
+        bastion_live,
+    }
+}
+
+/// Connects to the bastion and authenticates, which is what `direct-tcpip`
+/// requires before it will open anything.
+async fn open_bastion(chain: &Chain) -> runic_ssh::ssh::connection::Connection {
+    let mut bastion = connect(
+        endpoint(chain.bastion_port),
+        trusting(chain.bastion_port, &chain.bastion_key),
+    )
+    .await
+    .expect("the bastion accepts its own key");
+
+    bastion
+        .authenticate(
+            USER,
+            Credential::Password(Zeroizing::new(BASTION_PASSWORD.to_owned())),
+        )
+        .await
+        .expect("the bastion accepts its own password");
+
+    bastion
+}
+
+#[tokio::test]
+async fn a_session_rides_a_channel_through_a_bastion() {
+    let chain = a_chain(true).await;
+    let bastion = open_bastion(&chain).await;
+
+    let mut far = connect_via(
+        bastion,
+        endpoint(chain.target_port),
+        trusting(chain.target_port, &chain.target_key),
+    )
+    .await
+    .map_err(|failure| failure.error)
+    .expect("the far host is reached through the bastion");
+
+    assert!(far.is_chained(), "the far session knows it rides a bastion");
+
+    /* The far session is an ordinary connection: it authenticates with its own
+    credential, end to end, over a transport that happens to be a channel. */
+    far.authenticate(
+        USER,
+        Credential::Password(Zeroizing::new(PASSWORD.to_owned())),
+    )
+    .await
+    .expect("the far host accepts its own password");
+}
+
+#[tokio::test]
+async fn a_bastion_is_never_offered_the_far_credential() {
+    /* This is the property that made ProxyJump replace `ssh -A bastion`. The
+    bastion forwards bytes it cannot read; the key exchange and the
+    authentication with the far host run end to end past it. */
+    let chain = a_chain(true).await;
+    let bastion = open_bastion(&chain).await;
+
+    let mut far = connect_via(
+        bastion,
+        endpoint(chain.target_port),
+        trusting(chain.target_port, &chain.target_key),
+    )
+    .await
+    .map_err(|failure| failure.error)
+    .expect("the far host is reached");
+
+    far.authenticate(
+        USER,
+        Credential::Password(Zeroizing::new(PASSWORD.to_owned())),
+    )
+    .await
+    .expect("the far host accepts its own password");
+
+    let seen = chain.bastion_saw.lock().expect("the log is readable");
+    assert!(
+        seen.iter().any(|offered| offered == BASTION_PASSWORD),
+        "the bastion was offered its own password"
+    );
+    assert!(
+        !seen.iter().any(|offered| offered == PASSWORD),
+        "the bastion was never offered the far host's password, and saw {} attempt(s)",
+        seen.len()
+    );
+}
+
+#[tokio::test]
+async fn the_far_host_key_is_checked_through_the_chain() {
+    /* Rule 3 applies to the second hop exactly as it does to the first. A
+    tunnel is not a reason to trust what comes out of it. */
+    let chain = a_chain(true).await;
+    let bastion = open_bastion(&chain).await;
+
+    let failure = connect_via(bastion, endpoint(chain.target_port), KnownHosts::default())
+        .await
+        .err()
+        .expect("an unknown far key stops the chain");
+
+    assert!(matches!(
+        failure.error,
+        ConnectionError::HostKeyRejected(ref verdict) if matches!(**verdict, Trust::Unknown { .. })
+    ));
+
+    let offered = failure.offered.expect("the far key is handed back");
+    assert_eq!(
+        offered.hop,
+        Hop::Target,
+        "the prompt has to be able to say which host is asking"
+    );
+    assert_eq!(offered.port, chain.target_port);
+
+    /* The bastion comes back rather than being dropped, so it can be closed
+    politely instead of leaving a broken socket in the server's log. */
+    failure.bastion.disconnect().await.expect("it closes");
+}
+
+#[tokio::test]
+async fn a_bastion_that_refuses_forwarding_hands_itself_back() {
+    /* `AllowTcpForwarding no` is a real and reasonable bastion configuration,
+    and from here it is indistinguishable from the far host being down. The
+    error says the thing that is true of both. */
+    let chain = a_chain(false).await;
+    let bastion = open_bastion(&chain).await;
+
+    let failure = connect_via(
+        bastion,
+        endpoint(chain.target_port),
+        trusting(chain.target_port, &chain.target_key),
+    )
+    .await
+    .err()
+    .expect("a bastion that will not forward cannot reach the far host");
+
+    assert!(matches!(failure.error, ConnectionError::Unreachable));
+    assert!(failure.offered.is_none(), "no key was ever offered");
+    failure.bastion.disconnect().await.expect("it closes");
+}
+
+#[tokio::test]
+async fn closing_a_chain_releases_the_bastion() {
+    let chain = a_chain(true).await;
+    let bastion = open_bastion(&chain).await;
+
+    let far = connect_via(
+        bastion,
+        endpoint(chain.target_port),
+        trusting(chain.target_port, &chain.target_key),
+    )
+    .await
+    .map_err(|failure| failure.error)
+    .expect("the far host is reached");
+
+    assert_eq!(
+        chain
+            .bastion_live
+            .load(std::sync::atomic::Ordering::Relaxed),
+        1,
+        "the bastion is holding the session that carries the chain"
+    );
+
+    far.disconnect().await.expect("the chain closes");
+
+    /* What this proves is that the bastion does not outlive the session it
+    carried. It does not prove the disconnect was *polite*: russh's server
+    handler has no disconnect hook, so a dropped connection and a disconnected
+    one look identical from here. The container fixture in `docs/testing.md`
+    is where that distinction is visible, in the bastion's own log.
+
+    The failure this does catch is the one that matters: a bastion retained
+    somewhere and left holding a slot against `MaxSessions` that no handle can
+    reach and no user can see. The server drops its handler on its own task, so
+    this waits rather than reading immediately. */
+    let mut waited = std::time::Duration::ZERO;
+    while chain
+        .bastion_live
+        .load(std::sync::atomic::Ordering::Relaxed)
+        != 0
+        && waited < std::time::Duration::from_secs(5)
+    {
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        waited += std::time::Duration::from_millis(10);
+    }
+
+    assert_eq!(
+        chain
+            .bastion_live
+            .load(std::sync::atomic::Ordering::Relaxed),
+        0,
+        "the bastion did not outlive the session it carried"
+    );
 }
