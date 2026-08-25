@@ -24,6 +24,7 @@
 
 import { sameFocus } from '../chrome/focus';
 import type { Focus } from '../chrome/focus';
+import type { Session } from '../../ipc';
 
 export type Grid = 'single' | 'columns' | 'rows' | 'grid';
 
@@ -255,4 +256,29 @@ export function inputTargets(
   if (receiving.length < 2 || !receiving.includes(from)) return [from];
 
   return receiving;
+}
+
+/** What a group's tab says it is. */
+export interface GroupLabel {
+  readonly name: string;
+  readonly where: string;
+}
+
+/**
+ * How a tab names its session.
+ *
+ * With one group the strip answers this on its own. With four, the shell
+ * prompt is otherwise the only thing on screen saying which host a rectangle
+ * belongs to, and a prompt says whatever the remote end put in `PS1`. That is
+ * a bad thing to be reading a moment before running one command on all of
+ * them.
+ *
+ * The port is left off when it is 22. It is on every row otherwise and carries
+ * no information; showing it would push the part that does identify the host
+ * along by three characters everywhere.
+ */
+export function groupLabel(session: Session): GroupLabel {
+  const port = session.port === 22 ? '' : `:${String(session.port)}`;
+
+  return { name: session.name, where: `${session.user}@${session.host}${port}` };
 }
