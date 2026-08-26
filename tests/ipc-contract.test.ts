@@ -373,3 +373,33 @@ describe('how long to keep a credential', () => {
     }
   });
 });
+
+describe('every command the frontend calls exists in the core', () => {
+  /* A wrapper for a command nobody registered compiles, typechecks, and fails
+     only when somebody clicks the thing. The two lists live in two languages
+     and nothing at runtime compares them, which is the same gap the error codes
+     above are here to close. Found while adding `dismiss_host_key`, which is
+     one `generate_handler!` line away from being exactly this defect. */
+  const wrappers = readFileSync(
+    fileURLToPath(new URL('../src/ipc/sessions.ts', import.meta.url)),
+    'utf8',
+  );
+
+  const registered = readFileSync(
+    fileURLToPath(new URL('../src-tauri/src/lib.rs', import.meta.url)),
+    'utf8',
+  );
+
+  const invoked = [...wrappers.matchAll(/invoke<[^>]*>\(\s*'([a-z_]+)'/g)].map(
+    (match) => match[1] ?? '',
+  );
+
+  it('finds commands to check', () => {
+    /* A regex that matches nothing would make every assertion below vacuous. */
+    expect(invoked.length).toBeGreaterThan(5);
+  });
+
+  it.each(invoked)('%s is in generate_handler!', (command) => {
+    expect(registered).toContain(`::${command},`);
+  });
+});

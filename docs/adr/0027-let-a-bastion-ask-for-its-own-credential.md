@@ -149,6 +149,43 @@ default.
 **The window says which hop is asking.** Not decoration: it is the whole of what
 ADR-0023 required before this could be done at all.
 
+### The rebuild, which this decision did not survive contact with
+
+The first version of this decision stopped at the three details above and was
+driven against the fixtures. It failed on its first contact with a person, in
+the way the Bad section below now records as item 1, and the correction belongs
+in the decision rather than in a follow-up.
+
+Accepting the far host's key rebuilds the entire chain. ADR-0023 chose that on
+purpose, because the transport has no "accept for this session" path, and wrote
+it down as a consequence. It cost nothing while the bastion authenticated from
+the keychain in silence. Once the bastion can ask, the rebuild asks **a second
+time, for the same host**, and it arrives in the position where the user has
+just learned to expect the far host's prompt. Somebody typed the far host's
+password into that window on their first attempt.
+
+So a credential typed for a bastion and kept nowhere is **held against the
+decision that interrupted it**, and the retry names the decision it is
+continuing. The alternative considered was parking it in `SessionSecrets` and
+clearing it when the attempt ends, which is fewer moving parts and wrong in one
+way that matters: `Keep::Never` would stop meaning what it says, and an attempt
+the user walks away from has no end for anything to be cleared at.
+
+Keying it to the decision gives three properties the run store cannot:
+
+* it is taken once, by the one retry it belongs to, so a repeated retry asks
+  again rather than reusing a secret nobody re-authorised;
+* it never enters the store that survives a connection, so the three keep
+  answers keep meaning what they say;
+* a decision nobody answers can be dropped, and dropping it takes the secret.
+
+That last one is why this decision also adds `dismiss_host_key`. Cancelling a
+host key prompt used to reach the core not at all: the interface dropped the
+attempt and the entry sat in `PendingHostKeys` until the process ended. One host
+name and one key left behind is untidy. A credential left behind is not, and a
+secret the user asked us not to keep must not outlive the attempt they abandoned.
+The way out has to be told as well as the way through.
+
 ## Consequences
 
 **Good**: a machine with no keychain can use a jump host, which removes the
@@ -165,6 +202,14 @@ new command, no new dependency, no migration.
    and what separates them is a sentence. If that sentence is wrong or gets
    translated badly, the failure mode is somebody typing the target's password
    into the bastion's prompt.
+
+   This is not a hypothetical and it should not be read as one. The first
+   version of this decision let the rebuild ask for the bastion a second time,
+   and the person driving it typed the far host's password into that window
+   while the heading above the field said it was the jump host's. The copy is
+   the weakest guard in this repository and it lost the first time it was
+   tested. What fixed it was removing the second prompt, not improving the
+   sentence.
 2. **The bastion now sits unauthenticated while a person types.** `sshd` closes
    an unauthenticated connection after `LoginGraceTime`, two minutes by default.
    Until now the bastion authenticated immediately from the keychain and the
@@ -186,6 +231,15 @@ new command, no new dependency, no migration.
 6. The narrow fallback means a locked keyring still refuses. That is the right
    behaviour and it is invisible: two machines fail differently for reasons the
    user cannot see unless the message says so.
+7. **A credential now exists in a third place**, briefly: not the keychain, not
+   the run store, but a map keyed by a host key decision. It is encoded the way
+   the vault holds one, it is taken once, and it is dropped when the decision is
+   answered or abandoned. It is still a third place, and the count of places a
+   secret can be is the number this project is trying to keep small.
+8. `connect_session` takes a parameter naming a decision, so the interface can
+   now describe a relationship between two attempts. Nothing stops it passing an
+   id from an unrelated attempt; the worst that does is spend a credential on
+   the wrong retry, which fails to authenticate and prompts again.
 
 **Follow-up**: what the credential window looks like is now worth deciding, since
 it is going to be seen more often; it is a separate decision and does not touch

@@ -21,7 +21,7 @@ use crate::ssh::connection::{
 };
 use crate::ssh::credentials::{CredentialPrompt, CredentialRequests, Keep};
 use crate::ssh::known_hosts::KnownHosts;
-use crate::ssh::pending::{PendingHostKeys, PendingId};
+use crate::ssh::pending::{CarriedCredentials, PendingHostKeys, PendingId};
 use crate::ssh::registry::{Busy, Open, Registry, SessionHandle};
 use crate::ssh::trust::Trust;
 use crate::vault::{
@@ -210,6 +210,32 @@ pub async fn trust_host_key<R: Runtime>(
     ));
 
     write_known_hosts(&path, &known.to_file())?;
+    Ok(())
+}
+
+/// Drops a decision nobody answered, and whatever it was carrying.
+///
+/// Cancelling a host key prompt used to reach the core not at all: the
+/// interface bumped a generation, dropped the attempt, and the entry sat in
+/// `PendingHostKeys` until the process ended. That was one host name and one
+/// key, which is untidy rather than dangerous.
+///
+/// ADR-0027 makes it dangerous. A decision can now be holding the credential
+/// somebody typed for the jump host, and a secret the user asked us not to keep
+/// must not outlive the attempt they abandoned. So the way out has to be told
+/// as well as the way through.
+///
+/// Answering an id that is not there is not an error. The user cancelled;
+/// whether anything was still held is our bookkeeping, not theirs.
+#[tauri::command]
+pub async fn dismiss_host_key(
+    pending: State<'_, PendingHostKeys>,
+    carried: State<'_, CarriedCredentials>,
+    pending_id: PendingId,
+) -> Result<(), IpcError> {
+    pending.take(pending_id).await;
+    carried.forget(pending_id).await;
+
     Ok(())
 }
 
@@ -426,6 +452,12 @@ async fn refusal(
     chained: bool,
     error: crate::ssh::connection::ConnectionError,
     offered: Option<OfferedKey>,
+    /* What the bastion was authenticated with, when it was typed rather than
+    read, and only for the hop whose decision causes a rebuild. Answering this
+    decision reopens the chain from the beginning; without this the user is
+    asked for the same host a second time, at the moment they are expecting to
+    be asked for the other one. */
+    carry: Option<(&CarriedCredentials, Secret)>,
 ) -> IpcError {
     let inner = IpcError::from(Box::new(error));
 
@@ -434,6 +466,11 @@ async fn refusal(
         role a connection plays in a chain it was not told about. */
         offered.hop = hop;
         let id = pending.remember(offered).await;
+
+        if let Some((carried, credential)) = carry {
+            carried.hold(id, credential).await;
+        }
+
         return IpcError::HostKeyDecision {
             pending: id,
             inner: Box::new(inner),
@@ -456,10 +493,13 @@ async fn refusal(
 struct Chain<'a, R: Runtime> {
     app: &'a AppHandle<R>,
     pending: &'a PendingHostKeys,
+    carried: &'a CarriedCredentials,
     registry: &'a Registry,
     requests: &'a CredentialRequests,
     vault: &'a Vault,
     secrets: &'a SessionSecrets,
+    /// The decision this attempt is continuing, when it is a retry.
+    continuing: Option<PendingId>,
 }
 
 /// Opens the chain to a host that is behind a bastion.
@@ -482,8 +522,8 @@ async fn open_through<R: Runtime>(
     the reason a machine with no keychain can still reach a host behind one: the
     credential was used when that connection was made and is not needed twice.
     Six hosts behind a bastion cost it one login, not six. */
-    let carrier = match chain.registry.shared_of_session(&bastion.id).await {
-        Some(open) => open,
+    let (carrier, typed) = match chain.registry.shared_of_session(&bastion.id).await {
+        Some(open) => (open, None),
         None => open_bastion(chain, bastion, &target.name, known.clone()).await?,
     };
 
@@ -493,12 +533,19 @@ async fn open_through<R: Runtime>(
             /* Letting go of our share. It closes only if nothing else was
             riding it, which is the whole of the lifetime rule. */
             let _ = close_shared(carrier).await;
+
+            /* A typed bastion credential travels with the decision, and only
+            when there is a decision. Any other failure drops it: reusing a
+            password the far host refused would retry it forever, and holding
+            one for a chain that ended is holding a secret nobody asked us to
+            keep. `refusal` stores it only on the branch that makes an id. */
             Err(refusal(
                 chain.pending,
                 Hop::Target,
                 true,
                 failure.error,
                 failure.offered,
+                typed.map(|credential| (chain.carried, credential)),
             )
             .await)
         }
@@ -526,71 +573,102 @@ fn worth_asking(error: &Error) -> bool {
 /// Registered by the caller so the next chain to the same host finds it, rather
 /// than the core holding a connection it cannot name.
 ///
-/// The credential comes from the keychain when one is there, and from a window
-/// when one is not. ADR-0027, and the order ADR-0008 depends on is intact:
-/// `connect_reporting` has verified this host's key before anything here can
-/// ask for a password.
+/// The credential comes from three places, in this order: the decision this
+/// attempt is continuing, the keychain, and a window. ADR-0027, and the order
+/// ADR-0008 depends on is intact: `connect_reporting` has verified this host's
+/// key before anything here can ask for a password.
+///
+/// Returns the credential when it was typed at this hop and kept nowhere,
+/// encoded the way the vault holds one, because the caller may have to hand it
+/// to a host key decision rather than ask for it a second time.
 async fn open_bastion<R: Runtime>(
     chain: &Chain<'_, R>,
     bastion: &Session,
     carrying: &str,
     known: KnownHosts,
-) -> Result<Shared, IpcError> {
+) -> Result<(Shared, Option<Secret>), IpcError> {
     let mut carrier = match connect_reporting(endpoint_of(bastion), known).await {
         Ok(connection) => connection,
         Err((error, offered)) => {
-            return Err(refusal(chain.pending, Hop::Bastion, true, error, offered).await)
+            return Err(refusal(chain.pending, Hop::Bastion, true, error, offered, None).await)
         }
     };
 
     let id = CredentialId::for_session(&bastion.id);
+
+    /* Answered already, on the attempt this one is continuing. Accepting the
+    far host's key rebuilds the chain from the beginning, so without this the
+    same host is asked a second time, in the position where the user is
+    expecting to be asked for the other one. Taken rather than read: one
+    answer, one retry. */
+    let continued = match chain.continuing {
+        Some(decision) => chain.carried.take(decision).await,
+        None => None,
+    };
 
     /* Saved first, always. ADR-0023's argument survives ADR-0027 whole: a
     bastion is crossed dozens of times a day, and a window on the way to every
     host behind it is what makes somebody stop using the feature. The prompt is
     for the case where there is nothing to read, not an alternative to reading
     it. */
-    let saved = resolve_credential(chain.secrets, chain.vault, &id)
-        .and_then(|stored| StoredCredential::decode(&stored));
+    let saved = || {
+        resolve_credential(chain.secrets, chain.vault, &id)
+            .and_then(|stored| StoredCredential::decode(&stored))
+    };
 
-    let (stored, keep) = match saved {
-        Ok(stored) => (stored, Keep::Never),
-        Err(error) if worth_asking(&error) => {
-            let prompt = CredentialPrompt {
-                session_name: bastion.name.clone(),
-                user: bastion.user.clone(),
-                host: bastion.host.clone(),
-                port: bastion.port,
-                can_remember: matches!(chain.vault.availability(), Availability::Available),
-                /* What makes this window tellable from the one that follows it.
-                Without it they are two identical prompts in a row for two
-                different hosts, which is what ADR-0023 refused to ship. */
-                carrying: Some(carrying.to_owned()),
-            };
+    /* `carry` is the whole of the difference: whether this answer has anywhere
+    else to be found if the chain is rebuilt. One read back out of the keychain
+    does; one typed into a window and not kept does not. */
+    let (stored, keep, carry) = match continued {
+        Some(secret) => match StoredCredential::decode(&secret) {
+            Ok(stored) => (stored, Keep::Never, true),
+            Err(error) => {
+                let _ = carrier.disconnect().await;
+                return Err(chain_failure(Hop::Bastion, IpcError::from(error)));
+            }
+        },
+        None => match saved() {
+            Ok(stored) => (stored, Keep::Never, false),
+            Err(error) if worth_asking(&error) => {
+                let prompt = CredentialPrompt {
+                    session_name: bastion.name.clone(),
+                    user: bastion.user.clone(),
+                    host: bastion.host.clone(),
+                    port: bastion.port,
+                    can_remember: matches!(chain.vault.availability(), Availability::Available),
+                    /* What makes this window tellable from the one that follows
+                    it. Without it they are two identical prompts in a row for
+                    two different hosts, which is what ADR-0023 refused to
+                    ship. */
+                    carrying: Some(carrying.to_owned()),
+                };
 
-            match ask(chain.app, chain.requests, prompt).await {
-                Ok(answered) => answered,
-                Err(error) => {
-                    /* Including a dismissal. A bastion left open on a refusal
-                    holds a slot against the server's `MaxSessions` until the
-                    application restarts, and nothing on screen would name it. */
-                    let _ = carrier.disconnect().await;
-                    return Err(chain_failure(Hop::Bastion, IpcError::from(error)));
+                match ask(chain.app, chain.requests, prompt).await {
+                    Ok((stored, keep)) => (stored, keep, keep == Keep::Never),
+                    Err(error) => {
+                        /* Including a dismissal. A bastion left open on a
+                        refusal holds a slot against the server's `MaxSessions`
+                        until the application restarts, and nothing on screen
+                        would name it. */
+                        let _ = carrier.disconnect().await;
+                        return Err(chain_failure(Hop::Bastion, IpcError::from(error)));
+                    }
                 }
             }
-        }
-        Err(error) => {
-            let _ = carrier.disconnect().await;
-            return Err(chain_failure(Hop::Bastion, IpcError::from(error)));
-        }
+            Err(error) => {
+                let _ = carrier.disconnect().await;
+                return Err(chain_failure(Hop::Bastion, IpcError::from(error)));
+            }
+        },
     };
 
     /* Encoded before authenticating, because authenticating consumes it, and
-    written only after the host has accepted. Saving a secret the server refused
-    is how a keychain fills up with typos. */
+    acted on only after the host has accepted. Saving a secret the server
+    refused is how a keychain fills up with typos, and carrying one forward is
+    how a wrong password gets retried until somebody gives up. */
     let keepsake = match keep {
-        Keep::Never => None,
-        Keep::ForThisRun | Keep::Stored => Some(stored.encode().map_err(IpcError::from)?),
+        Keep::Never if !carry => None,
+        _ => Some(stored.encode().map_err(IpcError::from)?),
     };
 
     let credential = from_stored(stored);
@@ -599,6 +677,8 @@ async fn open_bastion<R: Runtime>(
         let _ = carrier.disconnect().await;
         return Err(chain_failure(Hop::Bastion, IpcError::from(Box::new(error))));
     }
+
+    let mut typed = None;
 
     if let Some(secret) = keepsake {
         match keep {
@@ -612,11 +692,13 @@ async fn open_bastion<R: Runtime>(
             Keep::Stored => {
                 let _ = persist_credential(chain.app, chain.vault, &bastion.id, &secret);
             }
-            Keep::Never => {}
+            /* Kept by nothing, so it goes back to the caller and lives exactly
+            as long as the decision it is about to be attached to. */
+            Keep::Never => typed = Some(secret),
         }
     }
 
-    Ok(share(carrier))
+    Ok((share(carrier), typed))
 }
 
 /// Opens a connection to a saved session and verifies its host key.
@@ -629,14 +711,25 @@ async fn open_bastion<R: Runtime>(
 /// has to be authenticated before it will open a channel, so its credential is
 /// resolved here. It comes from the keychain and never from a window.
 #[tauri::command]
+/* Nine, of which six are state Tauri injects and one is the handle it builds.
+There is one call site and it is generated. Grouping them would mean wrapping
+the framework's own injection to satisfy a lint about human call sites that
+this function does not have. */
+#[allow(clippy::too_many_arguments)]
 pub async fn connect_session<R: Runtime>(
     app: AppHandle<R>,
     registry: State<'_, Registry>,
     pending: State<'_, PendingHostKeys>,
+    carried: State<'_, CarriedCredentials>,
     requests: State<'_, CredentialRequests>,
     vault: State<'_, Vault>,
     secrets: State<'_, SessionSecrets>,
     session_id: String,
+    /* The decision this attempt continues, when the interface is retrying after
+    a host key was accepted. An opaque id, the same shape the decision itself
+    crosses as: it names a thing the webview cannot forge and carries nothing
+    about the session. */
+    continuing: Option<PendingId>,
 ) -> Result<OpenSession, IpcError> {
     let sessions = SessionStore::new(config_dir(&app)?).load()?;
     let session = sessions
@@ -650,7 +743,7 @@ pub async fn connect_session<R: Runtime>(
             match connect_reporting(endpoint_of(&session), known).await {
                 Ok(connection) => connection,
                 Err((error, offered)) => {
-                    return Err(refusal(&pending, Hop::Target, false, error, offered).await)
+                    return Err(refusal(&pending, Hop::Target, false, error, offered, None).await)
                 }
             },
             None,
@@ -671,10 +764,12 @@ pub async fn connect_session<R: Runtime>(
             let chain = Chain {
                 app: &app,
                 pending: &pending,
+                carried: &carried,
                 registry: &registry,
                 requests: &requests,
                 vault: &vault,
                 secrets: &secrets,
+                continuing,
             };
 
             let connection = open_through(&chain, &bastion, &session, known).await?;
@@ -863,6 +958,7 @@ mod tests {
                 fingerprint: "SHA256:x".to_owned(),
                 other_types: Vec::new(),
             })),
+            None,
         )
         .await;
 
@@ -887,6 +983,7 @@ mod tests {
                 fingerprint: "SHA256:x".to_owned(),
                 other_types: Vec::new(),
             })),
+            None,
         )
         .await;
 
@@ -907,6 +1004,7 @@ mod tests {
             Hop::Bastion,
             true,
             crate::ssh::connection::ConnectionError::Unreachable,
+            None,
             None,
         )
         .await;
@@ -932,6 +1030,7 @@ mod tests {
             Hop::Target,
             false,
             crate::ssh::connection::ConnectionError::Unreachable,
+            None,
             None,
         )
         .await;
@@ -1091,6 +1190,92 @@ mod tests {
         assert!(worth_asking(&Error::KeychainUnavailable {
             reason: "this machine has no credential store configured".to_owned(),
         }));
+    }
+
+    /// The defect this whole mechanism exists for, at the level a test reaches.
+    ///
+    /// Accepting the far host's key rebuilds the chain, so the credential typed
+    /// for the jump host has to survive the round trip or the same host is
+    /// asked a second time, in the position where the user is expecting to be
+    /// asked for the other one. Somebody typed the far host's password into
+    /// that second window on their first attempt, on 2026-08-26, which is how
+    /// this was found.
+    #[tokio::test]
+    async fn a_typed_credential_travels_with_the_decision_that_interrupts_it() {
+        let pending = PendingHostKeys::new();
+        let carried = CarriedCredentials::new();
+
+        let crossed = refusal(
+            &pending,
+            Hop::Target,
+            true,
+            crate::ssh::connection::ConnectionError::HostKeyRejected(Box::new(Trust::Unknown {
+                fingerprint: "SHA256:x".to_owned(),
+                other_types: Vec::new(),
+            })),
+            Some(offered(Trust::Unknown {
+                fingerprint: "SHA256:x".to_owned(),
+                other_types: Vec::new(),
+            })),
+            Some((&carried, Secret::new("what the user typed"))),
+        )
+        .await;
+
+        let IpcError::HostKeyDecision { pending: id, .. } = crossed else {
+            panic!("a decision is what the far host's key produces");
+        };
+
+        assert_eq!(carried.count().await, 1);
+
+        let held = carried.take(id).await.expect("the retry finds it");
+        assert_eq!(held.expose(), "what the user typed");
+
+        /* Take-once. A retry that arrives twice asks again rather than reusing
+        a secret nobody has re-authorised. */
+        assert!(carried.take(id).await.is_none());
+    }
+
+    #[tokio::test]
+    async fn a_failure_that_is_not_a_decision_carries_nothing() {
+        /* There is no retry coming, so holding it would be holding a secret
+        the user asked us not to keep, for no purpose. */
+        let pending = PendingHostKeys::new();
+        let carried = CarriedCredentials::new();
+
+        let crossed = refusal(
+            &pending,
+            Hop::Target,
+            true,
+            crate::ssh::connection::ConnectionError::Unreachable,
+            None,
+            Some((&carried, Secret::new("what the user typed"))),
+        )
+        .await;
+
+        assert!(matches!(crossed, IpcError::ChainFailed { .. }));
+        assert_eq!(carried.count().await, 0);
+    }
+
+    #[tokio::test]
+    async fn walking_away_from_a_decision_takes_the_secret_with_it() {
+        /* Cancelling used to reach the core not at all. That was one host name
+        left behind, which is untidy; it is now a credential, which is not. */
+        let pending = PendingHostKeys::new();
+        let carried = CarriedCredentials::new();
+
+        let id = pending
+            .remember(offered(Trust::Unknown {
+                fingerprint: "SHA256:x".to_owned(),
+                other_types: Vec::new(),
+            }))
+            .await;
+        carried.hold(id, Secret::new("what the user typed")).await;
+
+        pending.take(id).await;
+        carried.forget(id).await;
+
+        assert_eq!(carried.count().await, 0);
+        assert_eq!(pending.count().await, 0);
     }
 
     #[test]

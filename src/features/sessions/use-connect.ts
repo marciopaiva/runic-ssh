@@ -19,6 +19,7 @@ import {
   authenticateWithSaved,
   connectSession,
   disconnectSession,
+  dismissHostKey,
   hostKeyDecision as readDecision,
   trustHostKey,
 } from '../../ipc';
@@ -156,7 +157,12 @@ export function useConnect(wiring: Wiring): ConnectState {
   );
 
   const attemptConnect = useCallback(
-    async (sessionId: string): Promise<void> => {
+    /* `continuing` names the decision this attempt is picking up from, and is
+       set only by `trust`. A chained session rebuilds the whole chain when a
+       key is accepted, so without it the jump host is asked for a second time,
+       in the position where the user is expecting the far host's prompt.
+       ADR-0027, and #190 for the drive that found it. */
+    async (sessionId: string, continuing?: number): Promise<void> => {
       generation.current += 1;
       const mine = generation.current;
 
@@ -165,7 +171,7 @@ export function useConnect(wiring: Wiring): ConnectState {
 
       let opened;
       try {
-        opened = await connectSession(sessionId);
+        opened = await connectSession(sessionId, continuing);
       } catch (rejection) {
         const error = asIpcError(rejection) ?? null;
         const held = error === null ? null : heldDecision(error);
@@ -219,8 +225,9 @@ export function useConnect(wiring: Wiring): ConnectState {
 
       /* Accepting a key means writing it down and connecting again — the
          transport has no "accept for this session" path, deliberately. See
-         ssh::connection. */
-      await attemptConnect(sessionId);
+         ssh::connection. The decision is named on the way back in so the chain
+         does not ask again for a hop already answered. */
+      await attemptConnect(sessionId, pending);
     },
     [attempt, attemptConnect, fail],
   );
@@ -229,6 +236,17 @@ export function useConnect(wiring: Wiring): ConnectState {
      answer still in flight now belongs to nobody and is dropped on arrival. */
   const abandon = useCallback((): void => {
     generation.current += 1;
+
+    /* Told to the core as well as forgotten here. A decision left behind may be
+       holding the credential typed for a jump host, and a secret the user asked
+       us not to keep must not outlive the attempt they walked away from. The
+       rejection is swallowed on purpose: cancelling has already happened as far
+       as the user is concerned, and there is nothing for them to do about a
+       tidy-up that failed. */
+    if (attempt !== null && attempt.stage.stage === 'deciding') {
+      void dismissHostKey(attempt.stage.decision.pending).catch(() => undefined);
+    }
+
     setAttempt(null);
     if (attempt !== null) onAbandoned(attempt.sessionId);
   }, [attempt, onAbandoned]);

@@ -23,6 +23,10 @@ with the caveat that anything below 1.0 may break, and this project intends to.
   arrive in a row for two different machines and telling them apart is the
   condition ADR-0023 attached to allowing this at all.
 
+  A jump host is asked about **once** for one click, including when accepting
+  the far host's key rebuilds the chain. Cancelling a host key prompt now tells
+  the core, so a decision nobody answered stops holding what was typed for it.
+
   A keychain that exists and refuses is deliberately not covered. A locked
   keyring is a different problem from an empty one, and prompting past it would
   teach people to retype a password instead of unlocking it, so that case still

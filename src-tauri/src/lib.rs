@@ -40,6 +40,9 @@ pub fn run() -> tauri::Result<()> {
         })
         .manage(ssh::registry::Registry::new())
         .manage(ssh::pending::PendingHostKeys::new())
+        /* A jump host's answer, held against the decision that interrupts it.
+        Never persisted, and gone when the process is. ADR-0027. */
+        .manage(ssh::pending::CarriedCredentials::new())
         .manage(ssh::credentials::CredentialRequests::new())
         .manage(vault::Vault::default())
         /* Never persisted, and gone when the process is. ADR-0025. */
@@ -56,6 +59,7 @@ pub fn run() -> tauri::Result<()> {
             commands::sessions::delete_session,
             commands::sessions::connect_session,
             commands::sessions::trust_host_key,
+            commands::sessions::dismiss_host_key,
             commands::sessions::host_key_decision,
             commands::sessions::credential_store_status,
             commands::sessions::remember_credential,
