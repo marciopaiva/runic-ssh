@@ -34,6 +34,22 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 
 ### Fixed
 
+- **The credential prompt belongs to the application now** (#188). It was
+  centred on the screen with no parent, so the desktop treated it as a stray
+  dialog: it did not group with Runic SSH in the task switcher, and with the
+  main window pushed to a corner it opened somewhere else entirely. It is now a
+  child of the main window and opens in the middle of it. On Windows that also
+  means the prompt is hidden while the main window is minimised, and comes back
+  with it.
+
+- **A private key can be pasted into the prompt again** (#188). Asking for a
+  key produced a window nobody could use: the field collapsed to nothing, its
+  label printed on top of the passphrase label, and Cancel and Authenticate sat
+  below the bottom edge. The buttons now sit outside the part that scrolls, so
+  no amount of content above them can push them off, and the field has a floor
+  it cannot shrink past. The window's height was never the problem: it was
+  chosen when keeping a credential was one checkbox rather than three options.
+
 - **Right clicking no longer offers to reload the window** (#179). WebKit's own
   menu carried Reload, which restarted the document and emptied the window while
   every connection stayed authenticated on the far side, reachable by nothing on

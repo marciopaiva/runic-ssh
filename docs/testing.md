@@ -257,6 +257,34 @@ says why. That is the case worth having a machine for: the middle answer is the
 only one such a machine can honour, and it is the reason there are three
 answers rather than a tick box.
 
+### Where the credential prompt opens, and what fits in it
+
+The prompt is its own window, and two things about it are decided in Rust
+against a component in a webview. Nothing measures one against the other, so
+both are driven rather than tested.
+
+Move the main window into a corner of the screen before connecting. Centring
+over the application and centring on the screen are the same thing when the
+window is where it starts.
+
+| Do this | Expect |
+| --- | --- |
+| Connect to a host with no saved credential | the prompt opens in the middle of the **main window**, not the middle of the screen |
+| Move the main window, then connect | it follows: the prompt is always over the window that asked |
+| Alt-tab, or look at the task switcher | the prompt is grouped with Runic SSH rather than standing alone |
+| Choose *Private key* | the key field is there, the two labels do not overlap, and Cancel and Authenticate stay on screen |
+| Scroll the prompt with a key asked for | the buttons do not move |
+| Connect through a jump host | the taller window, with the whole hop paragraph and every keep option reachable |
+
+The last two rows are the ones that have failed. A hop paragraph pushed the
+buttons off the bottom once, and a private key field did it again, which is why
+the buttons now sit outside the part that scrolls. Drive them in Brazilian
+Portuguese as well: it is the longest of the three catalogues.
+
+**Minimising the main window on Windows hides the prompt with it.** That is what
+an owned window does there, and it comes back when the main window does. Worth
+knowing before reporting a prompt that disappeared.
+
 **Four groups flooding is unmeasured.** ADR-0011 measured the renderer against
 one terminal. Run `yes` in two of four groups and watch whether the window stays
 responsive; if it does not, the limit belongs at two groups and the measurement
