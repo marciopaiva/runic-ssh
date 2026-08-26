@@ -223,17 +223,9 @@ pub(crate) async fn ask<R: Runtime>(
     requests: &CredentialRequests,
     prompt: CredentialPrompt,
 ) -> Result<(StoredCredential, Keep), Error> {
-    /* Read before the prompt is handed over, because the window is sized from
-    what it will render and the request owns the prompt from here on. */
-    let height = if prompt.carrying.is_none() {
-        PROMPT_HEIGHT
-    } else {
-        PROMPT_HEIGHT_WITH_HOP
-    };
-
     let (request, answer) = requests.open(prompt).await;
 
-    if let Err(failure) = open_window(app, request, height) {
+    if let Err(failure) = open_window(app, request) {
         /* Nobody can answer a window that did not open, so the request is
         closed here rather than left for a reply that cannot arrive. */
         requests.answer(request, Answer::Dismissed).await;
@@ -253,29 +245,42 @@ pub(crate) async fn ask<R: Runtime>(
     }
 }
 
-/// How tall the prompt window is, which depends on what it has to say.
+/// How tall the prompt window is.
 ///
-/// A jump host's prompt carries a paragraph the ordinary one does not, so there
-/// are two figures, and both have room for the longest of the three
-/// translations rather than for the English, which is the shortest.
+/// **One figure for every prompt**, which is the point of it rather than an
+/// accident. There were two, chosen from whether a jump host was being asked
+/// about, and the pair went wrong three times: a hop paragraph that pushed the
+/// buttons off the bottom, a title bar drawn inside the surface that took 47
+/// points nobody had budgeted, and a private key field that needed more than
+/// either figure allowed. Every one of those was a number here disagreeing with
+/// a component in a webview, and two numbers are two chances to disagree.
 ///
-/// These are what the document gets, because the window is undecorated: no
-/// title bar is drawn inside the surface to take a share of them. That was not
-/// true until ADR-0028, and until then the figures carried an allowance for a
-/// cost they had no way to measure. Two guesses in a row were short, and the
-/// second time what fell off the bottom was two of the three keep options,
-/// leaving a control that showed one answer and looked complete.
+/// So this is the tallest thing the window can be asked to render, and it was
+/// measured rather than estimated, by opening the window at 900 and reading off
+/// where the content stopped. Three of the four numbers this file has carried
+/// were estimates and all three were short.
 ///
-/// Both leave more room than the content measured, and deliberately. A number
-/// chosen here is measured against a component in a webview, in three
-/// languages, on a machine whose fonts nobody here picked. This particular
-/// window has run out of room three times; the air is what stops a fourth.
+/// In Brazilian Portuguese, the longest of the three catalogues, asking for a
+/// private key, which is the tallest of the three prompts:
 ///
-/// The action row still sits outside the part that scrolls, for when it is not
-/// enough anyway. What has to survive a disagreement is the window staying
-/// answerable.
-const PROMPT_HEIGHT: f64 = 420.0;
-const PROMPT_HEIGHT_WITH_HOP: f64 = 540.0;
+/// | | content | window it needs |
+/// | --- | --- | --- |
+/// | a password | 360 | 360 |
+/// | a jump host, with its paragraph | 450 | 450 |
+/// | a private key and its passphrase | 528 | 528 |
+///
+/// A password prompt is 200 points short of that and carries the difference as
+/// space under the fields, which is the trade taken on purpose. Empty space
+/// reads as a dialog with room in it. A scrollbar over a credential form reads
+/// as something gone wrong.
+///
+/// This is the whole of what the document gets. The window is undecorated since
+/// ADR-0028, so nothing is drawn inside the surface to take a share of it.
+///
+/// The action row still sits outside the part that scrolls, for the machine
+/// whose fonts nobody here picked. What has to survive a disagreement is the
+/// window staying answerable.
+const PROMPT_HEIGHT: f64 = 560.0;
 
 /// How wide the prompt is, which does not depend on what it says.
 ///
@@ -339,11 +344,7 @@ fn clamp_into(placement: (f64, f64), work: (f64, f64, f64, f64), prompt: (f64, f
     )
 }
 
-fn open_window<R: Runtime>(
-    app: &AppHandle<R>,
-    request: RequestId,
-    height: f64,
-) -> Result<(), Error> {
+fn open_window<R: Runtime>(app: &AppHandle<R>, request: RequestId) -> Result<(), Error> {
     /* A window left over from an abandoned attempt would take the label and
     make this one fail to build. */
     close_window(app);
@@ -367,7 +368,7 @@ fn open_window<R: Runtime>(
         let scale = main.scale_factor().ok()?;
         let origin = main.outer_position().ok()?;
         let size = main.outer_size().ok()?;
-        let prompt = (PROMPT_WIDTH, height);
+        let prompt = (PROMPT_WIDTH, PROMPT_HEIGHT);
 
         let centred = centre_over(
             (origin.x, origin.y),
@@ -405,7 +406,7 @@ fn open_window<R: Runtime>(
         let builder =
             WebviewWindowBuilder::new(app, CREDENTIAL_WINDOW, WebviewUrl::App(url.clone().into()))
                 .title("Runic SSH")
-                .inner_size(PROMPT_WIDTH, height)
+                .inner_size(PROMPT_WIDTH, PROMPT_HEIGHT)
                 .resizable(false)
                 .minimizable(false)
                 /* ADR-0008: "on some window managers a second window can open behind the
@@ -426,9 +427,9 @@ fn open_window<R: Runtime>(
                 standing. #193.
                 The title bar was also spending the window. A desktop that draws
                 it inside the surface takes it out of what the document gets, 47
-                points of 420 where that was measured, and the heights below are
+                points of 420 where that was measured, and the height below is
                 chosen in Rust against content in a webview with no way to find
-                that out. They mean what they say now. */
+                that out. It means what it says now. */
                 .decorations(false);
 
         match placement {
@@ -539,7 +540,7 @@ mod tests {
         desktop keeps up there, and the part that goes under is the heading:
         the line that says which host is being asked about. */
         let work = (0.0, 32.0, 1920.0, 1008.0);
-        let prompt = (PROMPT_WIDTH, PROMPT_HEIGHT_WITH_HOP);
+        let prompt = (PROMPT_WIDTH, PROMPT_HEIGHT);
 
         let centred = centre_over((520, 0), (880, 560), 1.0, prompt);
         assert!(centred.1 < 32.0, "the case needs the prompt to reach up");
