@@ -8,7 +8,19 @@
  * password given to whoever answered.
  */
 
-import type { Hop, IpcError, IpcErrorCode } from '../../ipc';
+import type { Hop, IpcError, IpcErrorCode, Keeping } from '../../ipc';
+
+/**
+ * What an attempt is being made for.
+ *
+ * The steps are the same either way, and that is the point of naming the
+ * difference rather than building a second sequence: a credential is collected
+ * by connecting, and connecting means a host key decided first. What changes is
+ * only the ending. `open` attaches the session to a terminal; `credential`
+ * closes the connection it just made, because a saved password is the whole of
+ * what was wanted and an authenticated connection nobody can see is #168.
+ */
+export type ConnectIntent = 'open' | 'credential';
 
 /** Where a connection attempt is. */
 export type ConnectStage =
@@ -18,6 +30,15 @@ export type ConnectStage =
   | { readonly stage: 'deciding'; readonly decision: HeldDecision }
   /** Waiting on the credential window. */
   | { readonly stage: 'authenticating' }
+  /**
+   * A credential attempt that reached the end. The connection is closed.
+   *
+   * `keeping` is what the core answered, and it is not the whole story: it
+   * says a secret was kept and not where. Whether it reached the keychain is
+   * read from the session afterwards, because that is the fact that outlives
+   * the run.
+   */
+  | { readonly stage: 'settled'; readonly keeping: Keeping }
   | {
       readonly stage: 'failed';
       readonly code: IpcErrorCode;
@@ -123,21 +144,23 @@ export function wasCancelled(code: IpcErrorCode): boolean {
 /**
  * Whether a saved credential is worth trying before prompting.
  *
- * Not when the keychain has nothing for this session, and not when it has
- * something the store cannot read — both end in the same prompt, and trying
- * first only delays it.
+ * Always, when the point is to open a session. The interface used to decide
+ * from `credentialId` in the session file, which answers a different question:
+ * whether something was once written to the keychain. It says nothing about a
+ * credential kept for this run (ADR-0025), and it can be stale when an entry
+ * was removed outside the application.
+ *
+ * So the core is asked, and `noSavedCredential` falls through to the prompt,
+ * which `shouldPromptAfterSaved` already handles. The cost is one call into
+ * Rust on a connection with nothing kept.
+ *
+ * Never, when the point is to collect one. Somebody who asked to save a
+ * password is asking to type it, and a host that already has a working one
+ * would authenticate silently and never open the window: the button would do
+ * nothing anybody could see, on a host where something was in fact stored.
  */
-export function shouldTrySaved(): boolean {
-  /* Always. The interface used to decide from `credentialId` in the session
-     file, which answers a different question: whether something was once
-     written to the keychain. It says nothing about a credential kept for this
-     run (ADR-0025), and it can be stale when an entry was removed outside the
-     application.
-
-     So the core is asked, and `noSavedCredential` falls through to the prompt,
-     which `shouldPromptAfterSaved` already handles. The cost is one call into
-     Rust on a connection with nothing kept. */
-  return true;
+export function shouldTrySaved(intent: ConnectIntent): boolean {
+  return intent === 'open';
 }
 
 /**

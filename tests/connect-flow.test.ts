@@ -83,7 +83,15 @@ describe('a saved credential', () => {
        application. Asking and falling through is the honest shape, and
        prompting for a password the machine already holds is why people stop
        keeping them. */
-    expect(shouldTrySaved()).toBe(true);
+    expect(shouldTrySaved('open')).toBe(true);
+  });
+
+  it('is not tried when the point of the attempt is to collect one', () => {
+    /* Somebody who asked to save a password is asking to type it. A host that
+       already has a working one would authenticate silently, the window would
+       never open, and the button would have done nothing anybody could see on
+       a host where something was in fact stored. */
+    expect(shouldTrySaved('credential')).toBe(false);
   });
 
   it('falls back to asking when the host refuses it', () => {
