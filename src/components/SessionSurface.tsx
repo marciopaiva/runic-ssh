@@ -24,7 +24,10 @@ interface SessionSurfaceProps {
    *
    * `window` is for the credential prompt, which ADR-0008 puts in a window of
    * its own. There is nothing to float inside, so it fills the surface it has
-   * and the action row stays put while the rest scrolls. That is not a
+   * and the action row stays put while the rest scrolls. It carries a border
+   * for the same reason: ADR-0028 took the desktop's title bar off that window,
+   * and without an edge of some kind it is a rectangle of our own colours
+   * floating on more of our own colours. That is not a
    * refinement: the prompt is the one surface whose window size is decided in
    * Rust, and a compositor that draws its title bar inside the size it was
    * given leaves less room than was asked for. The buttons have to survive
@@ -105,7 +108,7 @@ export function SessionSurface({
         {...(alert ? { role: 'alert' } : {})}
         className={`bg-surface-raised flex flex-col gap-4 ${
           windowed
-            ? 'h-full w-full p-5'
+            ? 'border-line-strong h-full w-full border p-5'
             : `w-full max-w-[560px] rounded-xl border p-6 ${
                 danger ? 'border-danger/50' : 'border-line-subtle'
               }`

@@ -257,11 +257,11 @@ says why. That is the case worth having a machine for: the middle answer is the
 only one such a machine can honour, and it is the reason there are three
 answers rather than a tick box.
 
-### Where the credential prompt opens, and what fits in it
+### Where the credential prompt opens, and how it is closed
 
-The prompt is its own window, and two things about it are decided in Rust
-against a component in a webview. Nothing measures one against the other, so
-both are driven rather than tested.
+The prompt is its own window, and everything about that window is decided in
+Rust against a component in a webview. Nothing measures one against the other,
+so all of it is driven rather than tested.
 
 Move the main window into a corner of the screen before connecting. Centring
 over the application and centring on the screen are the same thing when the
@@ -270,6 +270,7 @@ window is where it starts.
 | Do this | Expect |
 | --- | --- |
 | Connect to a host with no saved credential | the prompt opens in the middle of the **main window**, not the middle of the screen |
+| Look at its top edge | no title bar. It is our chrome, like every other window this application opens |
 | Move the main window, then connect | it follows: the prompt is always over the window that asked |
 | Push the main window against the top or bottom of the screen, then connect | the prompt is pulled back inside the work area, clear of any bar the desktop keeps there |
 | Alt-tab, or look at the task switcher | the prompt is grouped with Runic SSH rather than standing alone |
@@ -279,20 +280,31 @@ window is where it starts.
 | Scroll the prompt with a key asked for | the buttons do not move |
 | Connect through a jump host | the taller window, with the whole hop paragraph and every keep option visible without scrolling |
 
-**Count the options.** That row is the one this section exists for. The window
-is sized in Rust from what it is about to render, and `inner_size` is the inner
-size only where the window manager draws the frame *around* the window. A
-desktop that draws the title bar inside the surface takes it out of what the
-document gets: measured at 47 points on one, which was enough to leave a keep
-control showing one of its three answers and looking complete.
+**Then close it four ways, because ADR-0028 spent the title bar on the fourth.**
+
+| Close it by | Expect |
+| --- | --- |
+| Escape | the window goes, the attempt fails as cancelled |
+| its own Cancel | the same |
+| **Cancel in the main window**, while the prompt is up | the prompt goes with it, the panel returns to normal, and no window is left asking for a connection that no longer exists |
+| quitting the application | the prompt goes too |
+
+The third row is the one that matters. It is the way out of a prompt whose own
+script never ran, which is what the desktop's close button used to provide, and
+it is ours now: a control in a different document with a different script.
+Nothing a machine runs asserts it, because what it asserts is that a window went
+away. Until #193 it did not work, and the prompt stayed on top of everything
+asking for an attempt already abandoned.
+
+**Count the options**, every time. The window used to be sized with an allowance
+for a title bar drawn inside its own surface, which cost 47 points of 420 on one
+desktop and left a keep control showing one of its three answers and looking
+complete. The allowance is gone with the title bar, but the height is still a
+number chosen somewhere else.
 
 Drive it in Brazilian Portuguese. It is the longest of the three catalogues and
 the heights are chosen against it, so it is the one that runs out of room first
 and the only one where fitting proves anything.
-
-**Minimising the main window on Windows hides the prompt with it.** That is what
-an owned window does there, and it comes back when the main window does. Worth
-knowing before reporting a prompt that disappeared.
 
 **Four groups flooding is unmeasured.** ADR-0011 measured the renderer against
 one terminal. Run `yes` in two of four groups and watch whether the window stays
