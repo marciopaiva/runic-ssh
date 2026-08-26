@@ -370,6 +370,8 @@ Start from a bastion with no saved credential and no session open on it.
 | Do this | Expect |
 | --- | --- |
 | Connect to the target | the bastion's key is asked about first, then a credential window naming the bastion |
+| Keep going to the target's key, and accept it | **the bastion does not ask again.** Accepting that key rebuilds the chain, and the answer already given travels with the decision |
+| Cancel the target's key instead | the attempt ends, and nothing is holding what you typed for the bastion |
 | Read that window | the heading says the jump host is authenticated first, and the body names the host you actually clicked |
 | Answer it, choose *until Runic SSH closes* | the target's own window follows, with the ordinary heading |
 | Connect to a second host behind the same bastion | the bastion does not ask again |

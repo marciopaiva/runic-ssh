@@ -16,6 +16,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::Mutex;
 
 use crate::ssh::connection::OfferedKey;
+use crate::vault::Secret;
 
 /// An opaque reference to a host key awaiting a decision.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -67,6 +68,68 @@ impl PendingHostKeys {
 
     pub async fn count(&self) -> usize {
         self.waiting.lock().await.len()
+    }
+}
+
+/// A bastion's credential, held for the retry a host key decision will cause.
+///
+/// Accepting the far host's key rebuilds the whole chain, because the transport
+/// has no "accept for this session" path and ADR-0023 chose not to invent one.
+/// That was invisible while the bastion authenticated from the keychain in
+/// silence. Once it can ask, the rebuild asks a second time, in the position
+/// where the user is expecting the *other* host's prompt, and the password that
+/// gets typed there goes to the wrong machine. Measured on 2026-08-26, by
+/// somebody doing exactly that on their first attempt.
+///
+/// So the answer is held against the decision that is about to interrupt it,
+/// and the retry says which decision it is continuing. Three things follow from
+/// keying it this way rather than parking it in [`SessionSecrets`]:
+///
+/// * it is consumed once, by the one retry it belongs to;
+/// * `Keep::Never` keeps meaning what it says, because this is not the store
+///   that survives a connection;
+/// * a decision nobody answers can be dropped, and dropping it takes the
+///   secret with it.
+///
+/// [`SessionSecrets`]: crate::vault::SessionSecrets
+///
+/// Held in the shape the vault holds one, which is the shape every other
+/// resolver already speaks, so the retry decodes it through exactly the path a
+/// saved credential takes.
+///
+/// Deliberately not `Debug`. `Secret` renders as `<redacted>` since ADR-0026,
+/// so this would print nothing secret; it would still print how many
+/// connections are mid-flight and against which decisions, which is nobody's
+/// business either.
+#[derive(Default)]
+pub struct CarriedCredentials {
+    held: Mutex<HashMap<PendingId, Secret>>,
+}
+
+impl CarriedCredentials {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Holds a credential for one decision, replacing anything under that id.
+    pub async fn hold(&self, id: PendingId, credential: Secret) {
+        self.held.lock().await.insert(id, credential);
+    }
+
+    /// Takes it out. Take-once, so a retry that arrives twice prompts the
+    /// second time rather than reusing a secret nobody has re-authorised.
+    pub async fn take(&self, id: PendingId) -> Option<Secret> {
+        self.held.lock().await.remove(&id)
+    }
+
+    /// Drops one without using it, for a decision the user walked away from.
+    pub async fn forget(&self, id: PendingId) {
+        self.held.lock().await.remove(&id);
+    }
+
+    #[cfg(test)]
+    pub async fn count(&self) -> usize {
+        self.held.lock().await.len()
     }
 }
 

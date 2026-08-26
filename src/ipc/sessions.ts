@@ -101,8 +101,23 @@ export interface OpenSession {
  * rejects here, with a `hostKeyRejected` error naming which of the five
  * outcomes it was — there is no path that proceeds on an untrusted key.
  */
-export async function connectSession(sessionId: string): Promise<OpenSession> {
-  return invoke<OpenSession>('connect_session', { sessionId });
+export async function connectSession(
+  sessionId: string,
+  /**
+   * The host key decision this attempt is continuing, when it is a retry.
+   *
+   * Accepting a key means writing it down and connecting again, because the
+   * transport has no "accept for this session" path. For a chained session that
+   * rebuilds the whole chain, jump host included, and naming the decision is
+   * what lets the core reuse the answer already given for that hop rather than
+   * asking for it a second time. See ADR-0027.
+   */
+  continuing?: number,
+): Promise<OpenSession> {
+  return invoke<OpenSession>('connect_session', {
+    sessionId,
+    continuing: continuing ?? null,
+  });
 }
 
 /**
@@ -155,6 +170,18 @@ export async function trustHostKey(
     pendingId,
     confirmation: confirmation ?? null,
   });
+}
+
+/**
+ * Drops a decision the user walked away from.
+ *
+ * Cancelling used to reach the core not at all, and the entry sat there until
+ * the process ended. Since ADR-0027 a decision can be holding the credential
+ * typed for a jump host, and a secret the user asked us not to keep must not
+ * outlive the attempt they abandoned.
+ */
+export async function dismissHostKey(pendingId: number): Promise<void> {
+  return invoke<void>('dismiss_host_key', { pendingId });
 }
 
 /** Whether this machine can remember a credential at all. */

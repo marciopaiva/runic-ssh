@@ -27,6 +27,7 @@ export {
   connectSession,
   deleteSession,
   disconnectSession,
+  dismissHostKey,
   listSessions,
   saveSession,
   trustHostKey,
