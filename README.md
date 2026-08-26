@@ -75,8 +75,13 @@ carries your keys.
 - **Hosts reached through a bastion.** A saved session names another saved
   session as the host it is reached through, rather than repeating its address,
   because a bastion has its own key to verify and its own credential to answer.
-  Everything behind one jump host shares a single connection to it, and it
-  closes when the last of them does.
+  Both keys are verified and both hops authenticate end to end, so the bastion
+  forwards ciphertext it cannot read and never sees the far host's credential.
+  A bastion you already have open is ridden rather than opened a second time,
+  and it stays up until the last session on it leaves. The sidebar says which
+  hosts are carrying somebody else's session and the status bar says which
+  machine yours travels through, because a connection nothing admits to is one
+  nobody can reason about.
 - **Groups**, from two rectangles to nine. Every rectangle is a
   strip of tabs over the body of whichever tab it is showing, so six sessions
   in four rectangles is an ordinary thing to have. A terminal, a host form and
@@ -90,7 +95,10 @@ carries your keys.
 - **The fingerprint drawn as randomart**, the same picture `ssh-keygen -lv`
   draws, so a check against something you already trust is a check and not a
   comparison of two different pictures.
-- **Saved hosts**, grouped, each edited on its own tab.
+- **Saved hosts**, grouped, each edited on its own tab. A host's password is
+  saved from that tab by connecting once, so there is never a password field on
+  a form rendered in the same document as a remote host's output, and the same
+  block forgets one.
 - **A command palette** on `Ctrl+Shift+P`.
 - **Light and dark**, from one token set, chosen in settings or left to follow
   the system.
