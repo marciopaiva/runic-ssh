@@ -19,7 +19,8 @@ import {
   shouldTrySaved,
   wasCancelled,
 } from '../src/features/sessions/connect';
-import type { IpcError } from '../src/ipc';
+import { describeKeeping, hasStoredCredential } from '../src/features/sessions/kept';
+import type { IpcError, Session } from '../src/ipc';
 
 const rejected = (verdict: 'unknown' | 'changed' | 'revoked' | 'certificateRequired'): IpcError => ({
   code: 'hostKeyDecision',
@@ -160,5 +161,72 @@ describe('what counts as still working', () => {
 
   it('is not working before anything started', () => {
     expect(isInProgress({ stage: 'idle' })).toBe(false);
+  });
+});
+
+describe('a password collected by connecting once', () => {
+  /* Four endings, and three of them mean the host asks again next time. The
+     core answers `kept` for both ways of keeping one (ADR-0025), so where it
+     went is read from the session rather than from the answer. */
+  it('says it is saved only when the session carries a credential', () => {
+    expect(describeKeeping('kept', true).title).toBe('kept.stored.title');
+  });
+
+  it('says a run-long credential is a run-long credential', () => {
+    /* Reporting this as saved would be a promise the next start does not
+       keep: nothing was written, deliberately. */
+    const outcome = describeKeeping('kept', false);
+
+    expect(outcome.title).toBe('kept.run.title');
+    expect(outcome.tone).toBe('neutral');
+  });
+
+  it('raises the one nobody chose', () => {
+    const outcome = describeKeeping('refused', false);
+
+    expect(outcome.title).toBe('kept.refused.title');
+    expect(outcome.tone).toBe('danger');
+  });
+
+  it('does not treat "never" as a failure', () => {
+    /* They authenticated and asked for nothing to be kept. A danger tone here
+       would report a choice as a defect. */
+    const outcome = describeKeeping('notAsked', false);
+
+    expect(outcome.title).toBe('kept.none.title');
+    expect(outcome.tone).toBe('neutral');
+  });
+});
+
+describe('reading whether a host has a stored password', () => {
+  const session = (overrides: Partial<Session> = {}): Session => ({
+    id: 'fixture',
+    name: 'fixture',
+    host: '127.0.0.1',
+    port: 2222,
+    user: 'deploy',
+    group: null,
+    credentialId: null,
+    proxyJump: null,
+    ...overrides,
+  });
+
+  it('reads a stored one', () => {
+    expect(hasStoredCredential(session({ credentialId: 'session:fixture' }))).toBe(true);
+  });
+
+  it('treats an absent field the way it treats null', () => {
+    /* The core skips the field entirely for a host with nothing stored, so
+       what arrives is `undefined` and never `null`. A strict comparison
+       against `null` is true for every host in the tree, and it told somebody
+       their password was in the system keychain when they had asked for it to
+       be kept only until the application closes. `proxyJump` taught the same
+       lesson first; see `jump.ts`. */
+    const wire = JSON.parse(
+      JSON.stringify({ ...session(), credentialId: undefined }),
+    ) as Session;
+
+    expect(hasStoredCredential(wire)).toBe(false);
+    expect(hasStoredCredential(session())).toBe(false);
   });
 });

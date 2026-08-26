@@ -37,6 +37,14 @@ interface SessionFormProps {
    * the next connection went on not asking for one.
    */
   readonly onForget: (() => void) | null;
+  /**
+   * Saves the form and collects a password by connecting once.
+   *
+   * The sequence is the ordinary one and that is the point of it: the host key
+   * is decided before anything is typed, the password is typed in the window
+   * ADR-0008 put it in, and nothing is kept until the server has accepted it.
+   */
+  readonly onSavePassword: () => void;
   readonly onSubmit: () => void;
   /** `null` for a session that does not exist yet. */
   readonly onDelete: (() => void) | null;
@@ -66,6 +74,7 @@ export function SessionForm({
   carried,
   storedCredential,
   onForget,
+  onSavePassword,
   onSubmit,
   onDelete,
 }: SessionFormProps): JSX.Element {
@@ -220,26 +229,36 @@ export function SessionForm({
           window it is collected in is what makes the claim above it true. */}
       <div className="flex flex-col items-start gap-1">
         <span className="text-ink-muted text-[11px]">{i18n.t('session.editor.credential')}</span>
-        {storedCredential ? (
-          <>
-            <span className="text-ink-faint text-[11px] leading-snug">
-              {i18n.t('session.editor.credential.stored')}
-            </span>
-            {onForget !== null && (
-              <button
-                type="button"
-                onClick={onForget}
-                className="text-ink-secondary border-line-subtle hover:text-ink rounded border px-2 py-1 text-[11.5px]"
-              >
-                {i18n.t('session.editor.credential.forget')}
-              </button>
+        <span className="text-ink-faint text-[11px] leading-snug">
+          {i18n.t(
+            storedCredential ? 'session.editor.credential.stored' : 'session.editor.noSecret',
+          )}
+        </span>
+        <div className="mt-0.5 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={onSavePassword}
+            className="text-ink-secondary border-line-subtle hover:text-ink rounded border px-2 py-1 text-[11.5px]"
+          >
+            {i18n.t(
+              storedCredential
+                ? 'session.editor.credential.replace'
+                : 'session.editor.credential.save',
             )}
-          </>
-        ) : (
-          <span className="text-ink-faint text-[11px] leading-snug">
-            {i18n.t('session.editor.noSecret')}
-          </span>
-        )}
+          </button>
+          {storedCredential && onForget !== null && (
+            <button
+              type="button"
+              onClick={onForget}
+              className="text-danger-text hover:bg-danger-soft rounded px-2 py-1 text-[11.5px]"
+            >
+              {i18n.t('session.editor.credential.forget')}
+            </button>
+          )}
+        </div>
+        <span className="text-ink-faint text-[11px] leading-snug">
+          {i18n.t('session.editor.credential.saveHint')}
+        </span>
       </div>
 
       <div className="mt-1 flex items-center gap-2">

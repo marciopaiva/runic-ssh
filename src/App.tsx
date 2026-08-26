@@ -10,6 +10,7 @@ import { GroupStrip, entryTitle } from './components/GroupStrip';
 import type { GroupMenuItem } from './components/GroupMenu';
 import { HostKeyBlocked } from './components/HostKeyBlocked';
 import { ConnectionFailure } from './components/ConnectionFailure';
+import { CredentialSaved } from './components/CredentialSaved';
 import { HostKeyPrompt } from './components/HostKeyPrompt';
 import { HostKeyRefused } from './components/HostKeyRefused';
 import { PasteConfirm } from './components/PasteConfirm';
@@ -44,6 +45,7 @@ import {
   isInProgress,
   isOverridable,
   needsConfirmation,
+  hasStoredCredential,
   jumpHostChoice,
   parsePort,
   settled,
@@ -719,6 +721,20 @@ export function App(): JSX.Element {
       );
     }
 
+    if (attempt.stage.stage === 'settled') {
+      const live = sessions.find((entry) => entry.session.id === attempt.sessionId);
+      if (live === undefined) return null;
+
+      return (
+        <CredentialSaved
+          session={live.session}
+          keeping={attempt.stage.keeping}
+          stored={hasStoredCredential(live.session)}
+          onDismiss={abandon}
+        />
+      );
+    }
+
     if (failed !== null) {
       return (
         <ConnectionFailure
@@ -791,7 +807,10 @@ export function App(): JSX.Element {
   }, []);
 
   const submitIn = useCallback(
-    (target: EditorTarget): void => {
+    /* `after` runs on what was stored, before the tab is decided about. It is
+       how "connect once and save" reaches a host that did not exist a moment
+       ago: the id it needs is the one the core has just assigned. */
+    (target: EditorTarget, after?: (stored: Session) => void): void => {
       const open = findEditor(editorsRef.current, target);
       if (open === null) return;
 
@@ -833,6 +852,8 @@ export function App(): JSX.Element {
         group: filled.group.trim() === '' ? null : filled.group.trim(),
         proxyJump: filled.proxyJump === '' ? null : filled.proxyJump,
       }).then((stored) => {
+        after?.(stored);
+
         /* Saving a host that did not exist closes the tab it was created on.
            The alternative is a tab that goes on saying "New session" while
            holding one already on disk — the tab lying about its own contents —
@@ -849,6 +870,26 @@ export function App(): JSX.Element {
       });
     },
     [saved, save, forget],
+  );
+
+  /* Save, then collect a password on the connection that proves it works.
+     `connect` with this intent closes the connection as soon as the server has
+     accepted, so nothing is left open and no terminal is opened for a host
+     nobody asked to work on. */
+  const savePasswordIn = useCallback(
+    (target: EditorTarget): void => {
+      submitIn(target, (stored) => {
+        /* Taken to the attempt, not left on the form. Everything this does
+           happens in the session's own panel, starting with a host key
+           decision, and driving it showed the whole sequence running in a tab
+           nobody was looking at: the button appeared to do nothing, and the
+           one screen that must never be answered without being read was the
+           screen behind the one on top. */
+        setFocus({ kind: 'session', sessionId: stored.id });
+        void connect(stored.id, 'credential');
+      });
+    },
+    [submitIn, connect],
   );
 
   const removeIn = useCallback(
@@ -1285,10 +1326,14 @@ export function App(): JSX.Element {
                   discarding={open.discarding}
                   jumpHosts={jump.offered}
                   carried={jump.carried}
-                  storedCredential={targetSession(open.target, saved)?.credentialId != null}
+                  storedCredential={(() => {
+                    const session = targetSession(open.target, saved);
+                    return session !== null && hasStoredCredential(session);
+                  })()}
                   onForget={editingId === null ? null : () => forgetPassword(editingId)}
                   onChange={(field, value) => changeIn(open.target, field, value)}
                   onSubmit={() => submitIn(open.target)}
+                  onSavePassword={() => savePasswordIn(open.target)}
                   onDelete={() => removeIn(open.target)}
                   onConfirmDiscard={() => discardIn(open.target, true)}
                   onCancelDiscard={() => discardIn(open.target, false)}
