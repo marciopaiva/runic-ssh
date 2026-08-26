@@ -4,6 +4,7 @@ import type { ConnectionKind } from '../features/sessions';
 import { describeState } from '../features/sessions';
 import { useTranslator } from '../features/settings';
 import { ENCODING, TERM, gradeLatency, paletteKeys } from '../features/status';
+import type { Announcement } from '../features/status';
 import type { GroupLabel } from '../features/terminal';
 import type { TerminalSize } from '../features/terminal/use-terminal';
 import type { CommandModifier, SessionStats } from '../ipc';
@@ -20,6 +21,14 @@ interface StatusBarProps {
   readonly modifier: CommandModifier;
   /** How many hosts a keystroke reaches, or `null` when it reaches one. */
   readonly syncing: number | null;
+  /**
+   * What to say out loud about that, or `null` before it has ever changed.
+   *
+   * Separate from `syncing` because a live region announces a change to text
+   * it already held, and every marker for this state comes and goes with the
+   * state itself. See `features/status/broadcast.ts` and #154.
+   */
+  readonly announcement: Announcement | null;
   /**
    * Whether this session's credential was asked to be kept and refused.
    *
@@ -85,6 +94,7 @@ export function StatusBar({
   size,
   modifier,
   syncing,
+  announcement,
   credentialUnsaved,
   onDismissUnsaved,
 }: StatusBarProps): JSX.Element {
@@ -104,6 +114,16 @@ export function StatusBar({
         syncing === null ? 'border-line-subtle border-t' : 'border-warn border-t-2'
       }`}
     >
+      {/* Always rendered, never conditional: a live region that arrives
+          already holding its text is not reliably announced, and the badge
+          below is inserted and removed with the fact it describes, so
+          disarming used to say nothing at all. */}
+      <p role="status" aria-live="polite" className="sr-only">
+        {announcement === null
+          ? ''
+          : i18n.t(announcement.key, { count: String(announcement.count) })}
+      </p>
+
       <Cell title={i18n.t('status.state')}>
         <>
           {kind === null ? (
@@ -202,7 +222,8 @@ export function StatusBar({
 
       {syncing !== null && (
         <div
-          role="status"
+          /* Not a live region any more. It said the same thing as the region
+             above and only half the time, and two of them announce twice. */
           title={i18n.t('command.split.sync.detail', { count: String(syncing) })}
           className="bg-warn-soft text-warn border-warn/40 my-1 flex shrink-0 items-center gap-1.5 rounded border px-2 font-mono font-semibold"
         >
