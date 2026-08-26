@@ -49,7 +49,7 @@ workflow produced, and it is the answer to "is this usable yet".
 | Linux, `.deb` | **yes**, 2026-08-24 | 0.1.1 | **downloaded from the release** |
 | Linux, `.rpm` | no | | no RPM distribution to hand |
 | Linux, `.AppImage` | no | | discouraged anyway, see below |
-| Windows, `.exe` (NSIS) | **yes**, 2026-08-23 | 0.1.0 | built on the machine that ran it |
+| Windows, `.exe` (NSIS) | **yes**, 2026-08-26 | 0.1.1 | **a workflow artifact, copied in through WSL** |
 | Windows, `.msi` (WiX) | built, not installed | | the NSIS package was the one exercised |
 | macOS, `.dmg` | **no** | | needs an Apple Silicon Mac |
 
@@ -87,6 +87,30 @@ open on the server, which is what ADR-0014 is for.
 Minimise, maximise and close were all exercised there, which matters because
 they cannot be checked under WSLg at all: that compositor does not iconify, so a
 working minimise and a broken one look identical. See `docs/testing.md`.
+
+The 0.1.1 run, on 2026-08-26, was the artifact from a `workflow_dispatch` of
+`package.yml` at `cb23f2d` rather than a local build: the checksum was checked
+against the run's own `SHA256SUMS` on Linux and again with `Get-FileHash` after
+the file crossed `/mnt/c`, and the silent install went over the installed 0.1.0
+in place without administrator rights. It covered what 0.1.0 could not, because
+none of it existed then: split panes with the empty-pane state, a live session
+against a container reached from Windows into WSL, the status bar's latency and
+byte counters, and the chain glyphs in the sidebar.
+
+**It did not cover SmartScreen, and could not.** A file copied through WSL to
+`/mnt/c` carries no Mark of the Web, so Windows treats it as local and never
+consults the service. Getting that check means setting the zone marker
+deliberately, or downloading through a browser.
+
+**ADR-0025 was exercised here, on DPAPI, and it is the part of that run worth
+keeping.** A new host kept its credential for the run only: nothing was written
+to `%APPDATA%\Microsoft\Credentials`, and `credentialId` stayed null in
+`sessions.json`, so a restarted process had no path to that secret even if it
+had wanted one. Reconnecting inside the run did not ask; closing and reopening
+did. Saving the same credential to the keyring afterwards wrote both halves, the
+store entry and the session pointer, which is the invariant `persist_credential`
+exists to hold. The keep modes have now run on both credential stores that
+exist.
 
 Still unchecked: the `.msi` (a different installer with a different code path,
 and per-machine, so it needs administrator rights), Windows SmartScreen on a
