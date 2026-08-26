@@ -52,7 +52,16 @@ interface ConnectState {
 }
 
 interface Wiring {
-  readonly onOpened: (sessionId: string, handle: SessionHandle) => void;
+  /**
+   * Called when a session is open and usable.
+   *
+   * `via` names the host it is carried on, or `null` when it was reached
+   * directly. Reported here rather than read off the saved list later: a jump
+   * host taken off a session that is already connected does not close the
+   * connection to it, and a sidebar recomputing the fact would stop admitting
+   * the host it is still riding. See #168 and `carried.ts`.
+   */
+  readonly onOpened: (sessionId: string, handle: SessionHandle, via: string | null) => void;
   readonly onConnecting: (sessionId: string) => void;
   readonly onFailed: (sessionId: string, code: IpcErrorCode) => void;
   /**
@@ -155,7 +164,7 @@ export function useConnect(wiring: Wiring): ConnectState {
             return;
           }
           setAttempt(null);
-          onOpened(sessionId, handle);
+          onOpened(sessionId, handle, opened.via ?? null);
           /* The far host had a saved credential and never opened a window. The
              jump host may still have been asked about and refused on the way
              here. */
@@ -193,7 +202,7 @@ export function useConnect(wiring: Wiring): ConnectState {
         }
 
         setAttempt(null);
-        onOpened(sessionId, handle);
+        onOpened(sessionId, handle, opened.via ?? null);
 
         /* After the session is open, never instead of it. Two hops can refuse,
            and the jump host's refusal reaches here on the value that opened the

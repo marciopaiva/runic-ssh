@@ -15,12 +15,20 @@ import type { ParameterlessKey } from '../../lib/i18n';
 export type ConnectionKind =
   | 'connected'
   | 'connecting'
+  /** Not open itself, but a session behind it is riding it. See `carried.ts`. */
+  | 'carrying'
   | 'saved'
   | 'keyMismatch'
   | 'unreachable';
 
 /** How the marker is drawn. Distinct per state, before any colour is applied. */
-export type MarkerShape = 'filled' | 'outlined' | 'halo' | 'warning' | 'crossed';
+export type MarkerShape =
+  | 'filled'
+  | 'outlined'
+  | 'halo'
+  | 'passing'
+  | 'warning'
+  | 'crossed';
 
 export interface ConnectionState {
   readonly kind: ConnectionKind;
@@ -50,6 +58,16 @@ const STATES: Readonly<Record<ConnectionKind, ConnectionState>> = {
     shape: 'halo',
     tone: 'text-warn',
     label: 'session.state.connecting',
+  },
+  /* A bastion with no tab, carrying somebody else's session. The connection
+     to it is open and authenticated, which is why this is not `saved`: a host
+     the application is logged in to must not be drawn as one it has never
+     touched. #168. */
+  carrying: {
+    kind: 'carrying',
+    shape: 'passing',
+    tone: 'text-accent',
+    label: 'session.state.carrying',
   },
   saved: {
     kind: 'saved',
