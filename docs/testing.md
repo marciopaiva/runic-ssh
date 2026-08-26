@@ -276,9 +276,9 @@ window is where it starts.
 | Alt-tab, or look at the task switcher | the prompt is grouped with Runic SSH rather than standing alone |
 | Compare it with an unknown host key screen | the same shape: icon, title, sentence, and an action row under a rule |
 | Count the keep options | **three**, or two on a machine with no keychain. Never one |
-| Choose *Private key* | the key field is there, the two labels do not overlap, and Cancel and Authenticate stay on screen |
-| Scroll the prompt with a key asked for | the buttons do not move |
-| Connect through a jump host | the taller window, with the whole hop paragraph and every keep option visible without scrolling |
+| Choose *Private key* | the key field, its passphrase, every keep option and both buttons, all at once, with nothing to scroll |
+| Look at the window size in each of the three | **the same**. One height, set by the tallest of them |
+| Connect through a jump host | the same window, with the whole hop paragraph and every keep option visible without scrolling |
 
 **Then close it four ways, because ADR-0028 spent the title bar on the fourth.**
 
@@ -296,15 +296,17 @@ Nothing a machine runs asserts it, because what it asserts is that a window went
 away. Until #193 it did not work, and the prompt stayed on top of everything
 asking for an attempt already abandoned.
 
-**Count the options**, every time. The window used to be sized with an allowance
-for a title bar drawn inside its own surface, which cost 47 points of 420 on one
-desktop and left a keep control showing one of its three answers and looking
-complete. The allowance is gone with the title bar, but the height is still a
-number chosen somewhere else.
+**Count the options**, every time. This window has run out of room four times,
+and the last one showed a keep control with one of its three answers on screen,
+looking complete. Three of those were a number in Rust guessed against content
+in a webview; the number is now measured, and there is one of it rather than
+two, but it is still chosen somewhere the content cannot be seen.
 
 Drive it in Brazilian Portuguese. It is the longest of the three catalogues and
-the heights are chosen against it, so it is the one that runs out of room first
-and the only one where fitting proves anything.
+the height is measured against it, so it is the one that runs out of room first
+and the only one where fitting proves anything. If a machine's fonts make it
+overflow anyway, the action row stays put and the rest scrolls, which is the
+failure this is designed to have.
 
 **Four groups flooding is unmeasured.** ADR-0011 measured the renderer against
 one terminal. Run `yes` in two of four groups and watch whether the window stays

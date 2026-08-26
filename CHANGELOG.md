@@ -59,6 +59,14 @@ with the caveat that anything below 1.0 may break, and this project intends to.
   through the same `SessionSurface`, at the same 560 points wide, filling a
   window rather than floating in a panel.
 
+- **The credential prompt is one size, and nothing in it scrolls** (#188). It
+  had two heights, picked from whether a jump host was being asked about, and
+  neither had room for a private key with its passphrase and every keep option.
+  There is now one height, measured rather than estimated by opening the window
+  oversized and reading off where the content stopped. A password prompt carries
+  the difference as space under the fields: empty space reads as a dialog with
+  room in it, and a scrollbar over a credential form does not.
+
 - **Every way of keeping a credential is on screen again** (#188). The prompt
   showed one of its three answers on desktops that draw a window's title bar
   inside the size the window was given: 47 points of the 340 asked for went to
