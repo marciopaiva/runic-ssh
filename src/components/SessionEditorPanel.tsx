@@ -17,6 +17,8 @@ interface SessionEditorPanelProps {
   readonly onChange: (field: keyof DraftValues, value: string) => void;
   /** The saved hosts this one may be reached through. */
   readonly jumpHosts: readonly Session[];
+  /** The saved hosts reached through this one. */
+  readonly carried: readonly Session[];
   readonly onSubmit: () => void;
   readonly onDelete: () => void;
   readonly onConfirmDiscard: () => void;
@@ -47,6 +49,7 @@ export function SessionEditorPanel({
   discarding,
   onChange,
   jumpHosts,
+  carried,
   onSubmit,
   onDelete,
   onConfirmDiscard,
@@ -94,6 +97,7 @@ export function SessionEditorPanel({
         wrong={wrong}
         onChange={onChange}
         jumpHosts={jumpHosts}
+        carried={carried}
         onSubmit={onSubmit}
         /* No delete on a host that was never saved: there is nothing to
            delete, and the button would be asking about the form itself. */

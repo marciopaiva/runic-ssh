@@ -9,4 +9,10 @@ export type {
   MessageParams,
   ParameterlessKey,
 } from './messages';
-export { formatBytes, formatNumber, formatRelativeTime, pluralCategory } from './format';
+export {
+  formatBytes,
+  formatList,
+  formatNumber,
+  formatRelativeTime,
+  pluralCategory,
+} from './format';

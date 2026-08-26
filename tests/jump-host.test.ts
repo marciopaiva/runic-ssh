@@ -11,7 +11,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { reportedFailure } from '../src/features/sessions/connect';
-import { eligibleJumpHosts, jumpRole } from '../src/features/sessions/jump';
+import { eligibleJumpHosts, jumpHostChoice, jumpRole } from '../src/features/sessions/jump';
 import { describeFailure } from '../src/features/sessions/failure';
 import { createTranslator } from '../src/lib/i18n';
 import type { IpcError, Session } from '../src/ipc';
@@ -235,5 +235,50 @@ describe('saying which hosts are in a chain', () => {
         expect(i18n.t(key), `${locale} ${key}`).not.toBe(key);
       }
     }
+  });
+});
+
+describe('a host other sessions are reached through', () => {
+  /* #171: the core refuses giving it a jump host of its own, and the form is
+     what makes that refusal something the user meets as an absence with a
+     reason rather than as a save that fails. */
+  const bastion = session('bastion');
+  const gateway = session('gateway');
+  const web = session('web-01', { proxyJump: 'bastion' });
+  const saved = [bastion, gateway, web];
+
+  it('offers no jump host and names who depends on it', () => {
+    const choice = jumpHostChoice(saved, 'bastion', '');
+
+    expect(choice.offered).toEqual([]);
+    expect(choice.carried.map((host) => host.id)).toEqual(['web-01']);
+  });
+
+  it('offers only the value already stored, so it can be cleared', () => {
+    /* The state this check refuses can already be in the file, because the
+       check is newer than the sessions. Offering nothing would leave it
+       unfixable from the editor; offering the eligible list would be a form
+       contradicting the message beside it. */
+    const broken = [{ ...bastion, proxyJump: 'gateway' }, gateway, web];
+    const choice = jumpHostChoice(broken, 'bastion', 'gateway');
+
+    expect(choice.offered.map((host) => host.id)).toEqual(['gateway']);
+    expect(choice.carried.map((host) => host.id)).toEqual(['web-01']);
+  });
+
+  it('leaves every other host alone', () => {
+    const choice = jumpHostChoice(saved, 'web-01', '');
+
+    expect(choice.carried).toEqual([]);
+    expect(choice.offered.map((host) => host.id)).toEqual(
+      eligibleJumpHosts(saved, 'web-01').map((host) => host.id),
+    );
+  });
+
+  it('carries nothing when the session does not exist yet', () => {
+    const choice = jumpHostChoice(saved, null, '');
+
+    expect(choice.carried).toEqual([]);
+    expect(choice.offered.map((host) => host.id)).toEqual(['bastion', 'gateway']);
   });
 });

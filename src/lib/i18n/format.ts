@@ -13,6 +13,7 @@
 const numberFormats = new Map<string, Intl.NumberFormat>();
 const pluralRules = new Map<string, Intl.PluralRules>();
 const relativeFormats = new Map<string, Intl.RelativeTimeFormat>();
+const listFormats = new Map<string, Intl.ListFormat>();
 
 function cached<T>(store: Map<string, T>, key: string, make: () => T): T {
   const existing = store.get(key);
@@ -29,6 +30,18 @@ export function formatNumber(
 ): string {
   const key = `${locale}:${JSON.stringify(options ?? {})}`;
   return cached(numberFormats, key, () => new Intl.NumberFormat(locale, options)).format(value);
+}
+
+/**
+ * Joins names into a phrase the language actually uses.
+ *
+ * English wants "a, b and c", Portuguese "a, b e c", Spanish "a, b y c", and
+ * the last separator is not the same word or the same punctuation in any of
+ * them. Hand-joining with a comma gets one language right and the other two
+ * nearly right, which is the kind of nearly that reads as machine output.
+ */
+export function formatList(locale: string, values: readonly string[]): string {
+  return cached(listFormats, locale, () => new Intl.ListFormat(locale)).format(values);
 }
 
 const BYTE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'] as const;
@@ -78,6 +91,7 @@ export function formatRelativeTime(
 
 /** Clears the formatter caches. Only the tests need this. */
 export function resetFormatterCaches(): void {
+  listFormats.clear();
   numberFormats.clear();
   pluralRules.clear();
   relativeFormats.clear();
