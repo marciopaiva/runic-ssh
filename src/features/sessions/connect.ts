@@ -127,8 +127,17 @@ export function wasCancelled(code: IpcErrorCode): boolean {
  * something the store cannot read — both end in the same prompt, and trying
  * first only delays it.
  */
-export function shouldTrySaved(credentialId: string | null): boolean {
-  return credentialId !== null;
+export function shouldTrySaved(): boolean {
+  /* Always. The interface used to decide from `credentialId` in the session
+     file, which answers a different question: whether something was once
+     written to the keychain. It says nothing about a credential kept for this
+     run (ADR-0025), and it can be stale when an entry was removed outside the
+     application.
+
+     So the core is asked, and `noSavedCredential` falls through to the prompt,
+     which `shouldPromptAfterSaved` already handles. The cost is one call into
+     Rust on a connection with nothing kept. */
+  return true;
 }
 
 /**

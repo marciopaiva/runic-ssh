@@ -71,8 +71,11 @@ pub struct CredentialPrompt {
     pub user: String,
     pub host: String,
     pub port: u16,
-    /// Whether this machine has somewhere to keep it, so the window knows
-    /// whether to offer.
+    /// Whether this machine has somewhere to keep it *beyond this run*.
+    ///
+    /// Keeping it for the run needs nothing and is always offered, so the
+    /// window has one control that is always there and one that appears only
+    /// when the machine can honour it. ADR-0025.
     pub can_remember: bool,
 }
 
@@ -83,10 +86,28 @@ pub struct CredentialPrompt {
 /// who asked to be remembered needs it written *and* used, and converting once
 /// here means the secret is not copied a second time to satisfy the second
 /// use.
+/// How long the user asked for a credential to be kept.
+///
+/// Three answers rather than a boolean, because ADR-0025 added the one in the
+/// middle and it is not a weaker version of either: "until I say otherwise"
+/// and "ask me every time" leave out the afternoon somebody is working, which
+/// is what most people want and what a machine with no keychain can give.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Keep {
+    /// Used once and dropped. What a fresh prompt does.
+    #[default]
+    Never,
+    /// Held in this process until it closes, and written nowhere.
+    ForThisRun,
+    /// Written to the OS keychain. Needs one to exist.
+    Stored,
+}
+
 pub enum Answer {
     Submitted {
         credential: StoredCredential,
-        remember: bool,
+        keep: Keep,
     },
     /// The user cancelled, or closed the window.
     Dismissed,
@@ -97,8 +118,8 @@ impl std::fmt::Debug for Answer {
     /// way a secret reaches a log nobody meant to write.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Submitted { remember, .. } => f.write_fmt(format_args!(
-                "Answer::Submitted {{ <redacted>, remember: {remember} }}"
+            Self::Submitted { keep, .. } => f.write_fmt(format_args!(
+                "Answer::Submitted {{ <redacted>, keep: {keep:?} }}"
             )),
             Self::Dismissed => f.write_str("Answer::Dismissed"),
         }
@@ -194,7 +215,7 @@ mod tests {
                     id,
                     Answer::Submitted {
                         credential: password(),
-                        remember: false
+                        keep: Keep::Never
                     }
                 )
                 .await
@@ -248,7 +269,7 @@ mod tests {
                     id,
                     Answer::Submitted {
                         credential: password(),
-                        remember: false
+                        keep: Keep::Never
                     }
                 )
                 .await
@@ -276,12 +297,32 @@ mod tests {
     }
 
     #[test]
+    fn how_long_to_keep_it_crosses_as_three_words() {
+        /* Pinned as a literal on both sides. Renaming a variant compiles in
+        both languages and leaves a window whose middle choice quietly does
+        nothing, which is the worst of the three to lose: somebody would
+        believe a secret was kept and find out by being asked again. */
+        assert_eq!(
+            serde_json::to_string(&Keep::Never).expect("serializes"),
+            r#""never""#
+        );
+        assert_eq!(
+            serde_json::to_string(&Keep::ForThisRun).expect("serializes"),
+            r#""forThisRun""#
+        );
+        assert_eq!(
+            serde_json::to_string(&Keep::Stored).expect("serializes"),
+            r#""stored""#
+        );
+    }
+
+    #[test]
     fn an_answer_never_prints_the_secret() {
         let rendered = format!(
             "{:?}",
             Answer::Submitted {
                 credential: password(),
-                remember: true,
+                keep: Keep::Stored,
             }
         );
 
@@ -289,7 +330,9 @@ mod tests {
             !rendered.contains("hunter2"),
             "the secret reached a formatter"
         );
-        assert!(rendered.contains("remember: true"));
+        /* What was asked for is not a secret, and a Debug that redacts it too
+        would leave nothing to read at all. */
+        assert!(rendered.contains("keep: Stored"));
     }
 
     #[test]

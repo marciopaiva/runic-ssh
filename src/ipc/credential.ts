@@ -38,6 +38,19 @@ export interface CredentialPrompt {
 export type Keeping = 'notAsked' | 'kept' | 'refused';
 
 /**
+ * How long the user asked for a credential to be kept.
+ *
+ * Three answers rather than a boolean. "Until I say otherwise" and "ask me
+ * every time" leave out the afternoon somebody is working, which is what most
+ * people want and the only one a machine with no keychain can give. ADR-0025.
+ *
+ * `forThisRun` is written nowhere: the core holds it until the application
+ * closes, and the control says so, because there is no second chance to
+ * explain it after a restart.
+ */
+export type Keep = 'never' | 'forThisRun' | 'stored';
+
+/**
  * Opens the prompt, waits for it, and authenticates with the answer.
  *
  * Rejects with `credentialDismissed` when the user cancels or closes the
@@ -63,14 +76,14 @@ export async function credentialPrompt(request: number): Promise<CredentialPromp
 export async function submitCredential(
   request: number,
   secret: { readonly password: string } | { readonly privateKey: string; readonly passphrase: string | null },
-  remember: boolean,
+  keep: Keep,
 ): Promise<void> {
   return invoke<void>('submit_credential', {
     request,
     password: 'password' in secret ? secret.password : null,
     privateKey: 'privateKey' in secret ? secret.privateKey : null,
     passphrase: 'privateKey' in secret ? secret.passphrase : null,
-    remember,
+    keep,
   });
 }
 

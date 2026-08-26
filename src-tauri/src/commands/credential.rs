@@ -16,9 +16,9 @@ use tauri::{AppHandle, Manager, Runtime, State, WebviewUrl, WebviewWindowBuilder
 
 use crate::commands::sessions::{from_stored, persist_credential, saved_session, to_stored};
 use crate::error::{Error, IpcError};
-use crate::ssh::credentials::{Answer, CredentialPrompt, CredentialRequests, RequestId};
+use crate::ssh::credentials::{Answer, CredentialPrompt, CredentialRequests, Keep, RequestId};
 use crate::ssh::registry::{Busy, Registry, SessionHandle};
-use crate::vault::{Availability, Vault};
+use crate::vault::{Availability, CredentialId, SessionSecrets, Vault};
 
 /// What became of a credential the user asked to keep.
 ///
@@ -64,6 +64,7 @@ pub async fn authenticate_interactively<R: Runtime>(
     registry: State<'_, Registry>,
     requests: State<'_, CredentialRequests>,
     vault: State<'_, Vault>,
+    secrets: State<'_, SessionSecrets>,
     handle: SessionHandle,
 ) -> Result<Keeping, IpcError> {
     let session_id = registry
@@ -96,21 +97,16 @@ pub async fn authenticate_interactively<R: Runtime>(
 
     close_window(&app);
 
-    let Answer::Submitted {
-        credential,
-        remember,
-    } = answer
-    else {
+    let Answer::Submitted { credential, keep } = answer else {
         return Err(Error::CredentialDismissed.into());
     };
 
     /* Encoded before authenticating, because authenticating consumes the
     credential. Written only once the host has accepted it: saving a secret
     the server refused is how a keychain fills up with typos. */
-    let keepsake = if remember {
-        Some(credential.encode()?)
-    } else {
-        None
+    let keepsake = match keep {
+        Keep::Never => None,
+        Keep::ForThisRun | Keep::Stored => Some(credential.encode()?),
     };
 
     let credential = from_stored(credential);
@@ -132,6 +128,13 @@ pub async fn authenticate_interactively<R: Runtime>(
     let Some(secret) = keepsake else {
         return Ok(Keeping::NotAsked);
     };
+
+    /* Kept for this run goes nowhere near a disk, so there is nothing that can
+    refuse it and nothing to report. ADR-0025. */
+    if keep == Keep::ForThisRun {
+        secrets.keep(&CredentialId::for_session(&session_id), &secret);
+        return Ok(Keeping::Kept);
+    }
 
     match persist_credential(&app, &vault, &session_id, &secret) {
         Ok(()) => Ok(Keeping::Kept),
@@ -165,18 +168,12 @@ pub async fn submit_credential(
     password: Option<String>,
     private_key: Option<String>,
     passphrase: Option<String>,
-    remember: bool,
+    keep: Keep,
 ) -> Result<(), IpcError> {
     let credential = to_stored(password, private_key, passphrase)?;
 
     let delivered = requests
-        .answer(
-            request,
-            Answer::Submitted {
-                credential,
-                remember,
-            },
-        )
+        .answer(request, Answer::Submitted { credential, keep })
         .await;
 
     /* An unmatched or repeated id is refused, which is ADR-0008's protocol

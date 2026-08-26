@@ -75,14 +75,15 @@ describe('what a verdict allows', () => {
 });
 
 describe('a saved credential', () => {
-  it('is tried when the session has one', () => {
-    /* Prompting for a password the machine already holds is why people stop
-       saving them. */
-    expect(shouldTrySaved('runic-ssh:web-01')).toBe(true);
-  });
-
-  it('is not tried when the session has none', () => {
-    expect(shouldTrySaved(null)).toBe(false);
+  it('is always tried, because only the core knows whether there is one', () => {
+    /* It used to be decided from `credentialId` in the session file, which
+       answers a different question: whether something was once written to the
+       keychain. That says nothing about a credential kept for this run
+       (ADR-0025), and it can be stale when an entry was removed outside the
+       application. Asking and falling through is the honest shape, and
+       prompting for a password the machine already holds is why people stop
+       keeping them. */
+    expect(shouldTrySaved()).toBe(true);
   });
 
   it('falls back to asking when the host refuses it', () => {

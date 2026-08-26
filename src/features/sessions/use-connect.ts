@@ -36,7 +36,7 @@ interface Attempt {
 
 interface ConnectState {
   readonly attempt: Attempt | null;
-  readonly connect: (sessionId: string, credentialId: string | null) => Promise<void>;
+  readonly connect: (sessionId: string) => Promise<void>;
   /** Accepts the held host key and connects again. */
   readonly trust: (confirmation?: string) => Promise<void>;
   readonly abandon: () => void;
@@ -103,7 +103,6 @@ export function useConnect(wiring: Wiring): ConnectState {
     async (
       sessionId: string,
       handle: SessionHandle,
-      credentialId: string | null,
       mine: number,
     ): Promise<void> => {
       if (!current(mine)) {
@@ -116,7 +115,7 @@ export function useConnect(wiring: Wiring): ConnectState {
       /* A saved credential is tried first and silently. Prompting for a
          password the machine already holds is the reason people stop saving
          them. */
-      if (shouldTrySaved(credentialId)) {
+      if (shouldTrySaved()) {
         try {
           await authenticateWithSaved(handle);
           if (!current(mine)) {
@@ -157,7 +156,7 @@ export function useConnect(wiring: Wiring): ConnectState {
   );
 
   const attemptConnect = useCallback(
-    async (sessionId: string, credentialId: string | null): Promise<void> => {
+    async (sessionId: string): Promise<void> => {
       generation.current += 1;
       const mine = generation.current;
 
@@ -189,14 +188,14 @@ export function useConnect(wiring: Wiring): ConnectState {
         return;
       }
 
-      await authenticate(sessionId, opened.handle, credentialId, mine);
+      await authenticate(sessionId, opened.handle, mine);
     },
     [authenticate, fail, onConnecting, current],
   );
 
   const connect = useCallback(
-    async (sessionId: string, credentialId: string | null): Promise<void> => {
-      await attemptConnect(sessionId, credentialId);
+    async (sessionId: string): Promise<void> => {
+      await attemptConnect(sessionId);
     },
     [attemptConnect],
   );
@@ -221,7 +220,7 @@ export function useConnect(wiring: Wiring): ConnectState {
       /* Accepting a key means writing it down and connecting again — the
          transport has no "accept for this session" path, deliberately. See
          ssh::connection. */
-      await attemptConnect(sessionId, null);
+      await attemptConnect(sessionId);
     },
     [attempt, attemptConnect, fail],
   );

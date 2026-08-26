@@ -42,6 +42,8 @@ pub fn run() -> tauri::Result<()> {
         .manage(ssh::pending::PendingHostKeys::new())
         .manage(ssh::credentials::CredentialRequests::new())
         .manage(vault::Vault::default())
+        /* Never persisted, and gone when the process is. ADR-0025. */
+        .manage(vault::SessionSecrets::new())
         .invoke_handler(tauri::generate_handler![
             commands::chrome::window_chrome,
             commands::chrome::window_action,
