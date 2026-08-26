@@ -44,8 +44,8 @@ export function SyncToggle({ state, onToggle }: SyncToggleProps): JSX.Element {
     state === 'unavailable'
       ? 'status.sync.nowhere'
       : on
-        ? 'terminal.pane.sync.on'
-        : 'terminal.pane.sync.off',
+        ? 'terminal.group.sync.on'
+        : 'terminal.group.sync.off',
   );
 
   return (

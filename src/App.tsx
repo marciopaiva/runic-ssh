@@ -1171,7 +1171,7 @@ export function App(): JSX.Element {
                   {empty && (
                     <EmptyPanel
                       modifier={chrome?.commandModifier ?? 'control'}
-                      variant={layout === '1x1' && entries.length === 0 ? 'panel' : 'pane'}
+                      variant={layout === '1x1' && entries.length === 0 ? 'panel' : 'group'}
                     />
                   )}
                 </div>

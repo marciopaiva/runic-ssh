@@ -174,7 +174,7 @@ connected at all the commands are absent, because there is no area to divide.
 | Right-click a tab | a menu offers to send it to another group |
 | Read a group's trailing menu | closing says how many connections it is about to drop |
 | Close one session of a division | its rectangle goes empty, the other stays |
-| Read the empty rectangle | it says no session *in this pane*, not that none is open |
+| Read the empty rectangle | it says no session *in this group*, not that none is open |
 | Read each strip | it names its session, and one group is marked focused |
 | Read the status bar | it names the focused host, and shows its grid rather than the last resized |
 | Back to one terminal | every tab is in one strip and nothing was disconnected |

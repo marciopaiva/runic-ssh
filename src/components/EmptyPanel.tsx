@@ -9,12 +9,12 @@ interface EmptyPanelProps {
   /**
    * Which nothing this is.
    *
-   * `panel` is a window with no session at all. `pane` is one slot of a split
-   * with sessions running in the others, where saying "no session open" would
-   * be plainly false and the way forward is a different one: the tabs are
-   * already there, and picking one fills the empty pane first.
+   * `panel` is a window with no session at all. `group` is one rectangle of a
+   * division with sessions running in the others, where saying "no session
+   * open" would be plainly false and the way forward is a different one: the
+   * tabs are already there, and picking one fills the empty rectangle first.
    */
-  readonly variant?: 'panel' | 'pane';
+  readonly variant?: 'panel' | 'group';
 }
 
 /**
@@ -45,10 +45,10 @@ export function EmptyPanel({ modifier, variant = 'panel' }: EmptyPanelProps): JS
 
       <div className="flex flex-col items-center gap-[7px]">
         <span className="text-ink-secondary text-[14px] font-semibold">
-          {i18n.t(variant === 'pane' ? 'empty.pane.title' : 'empty.title')}
+          {i18n.t(variant === 'group' ? 'empty.group.title' : 'empty.title')}
         </span>
         <span className="text-ink-faint text-[12.5px]">
-          {variant === 'pane' ? i18n.t('empty.pane.hint') : i18n.t('empty.hint', { keys })}
+          {variant === 'group' ? i18n.t('empty.group.hint') : i18n.t('empty.hint', { keys })}
         </span>
       </div>
     </div>
