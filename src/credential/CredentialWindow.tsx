@@ -8,7 +8,7 @@ import { useTranslator } from '../features/settings';
    property ADR-0008 rests on. tests/credential-window.test.ts caught exactly
    that on its first run. */
 import { credentialPrompt, dismissCredential, submitCredential } from '../ipc/credential';
-import type { CredentialPrompt } from '../ipc/credential';
+import type { CredentialPrompt, Keep } from '../ipc/credential';
 import { asIpcError } from '../ipc/errors';
 
 type Method = 'password' | 'key';
@@ -92,7 +92,7 @@ export function CredentialWindow({ request }: { readonly request: number | null 
     /* Read from the DOM, not from state, and never assigned to anything that
        outlives this call. */
     const fields = new FormData(event.currentTarget);
-    const remember = fields.get('remember') === 'on';
+    const keep = (fields.get('keep') ?? 'never') as Keep;
 
     const secret =
       method === 'password'
@@ -103,7 +103,7 @@ export function CredentialWindow({ request }: { readonly request: number | null 
           };
 
     setBusy(true);
-    void submitCredential(request, secret, remember)
+    void submitCredential(request, secret, keep)
       .catch((rejection: unknown) => {
         setBusy(false);
         /* Deliberately not `String(rejection)`, which is what the failure
@@ -218,12 +218,34 @@ export function CredentialWindow({ request }: { readonly request: number | null 
           </>
         )}
 
-        {prompt.canRemember && (
-          <label className="text-ink-secondary mt-1 flex items-center gap-2 text-[12px]">
-            <input name="remember" type="checkbox" />
-            {i18n.t('credential.remember')}
-          </label>
-        )}
+        {/* Three durations, each named. The middle one is the one most likely
+            to be misread, so it says where it goes rather than only how long:
+            somebody who restarts and is asked again has to be able to connect
+            that to a choice they made an hour ago. ADR-0025.
+
+            The last is absent rather than disabled when the machine has no
+            keychain. A control that can never be used is a feature somebody is
+            told about and then denied. */}
+        <fieldset className="m-0 mt-1 flex flex-col gap-1.5 border-0 p-0">
+          <legend className="text-ink-faint p-0 pb-1 text-[11px]">
+            {i18n.t('credential.keep')}
+          </legend>
+
+          {(['never', 'forThisRun', ...(prompt.canRemember ? (['stored'] as const) : [])] as const).map(
+            (option) => (
+              <label key={option} className="text-ink-secondary flex items-center gap-2 text-[12px]">
+                <input
+                  name="keep"
+                  type="radio"
+                  value={option}
+                  defaultChecked={option === 'never'}
+                  className="accent-accent"
+                />
+                {i18n.t(`credential.keep.${option}`)}
+              </label>
+            ),
+          )}
+        </fieldset>
 
         <div className="mt-auto flex justify-end gap-2 pt-3">
           <button

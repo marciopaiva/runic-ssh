@@ -314,3 +314,62 @@ describe('what became of a credential the user asked to keep', () => {
     }
   });
 });
+
+describe('how long to keep a credential', () => {
+  it('is spelled the same on both sides', () => {
+    const rust = readFileSync(
+      fileURLToPath(new URL('../src-tauri/src/ssh/credentials.rs', import.meta.url)),
+      'utf8',
+    );
+
+    expect(rust).toContain(String.raw`r#""never""#`);
+    expect(rust).toContain(String.raw`r#""forThisRun""#`);
+    expect(rust).toContain(String.raw`r#""stored""#`);
+
+    const wrapper = readFileSync(
+      fileURLToPath(new URL('../src/ipc/credential.ts', import.meta.url)),
+      'utf8',
+    );
+
+    expect(wrapper).toContain("export type Keep = 'never' | 'forThisRun' | 'stored';");
+  });
+
+  it('never writes what it keeps for this run', () => {
+    /* The whole of what makes ADR-0025 acceptable under a threat model that
+       does not defend against a local attacker running as the user: a secret
+       this process holds is not reachable by anything that model claims to
+       stop, *provided it is never written*. The Rust side has a test that
+       reads its own source for a write; this one keeps the claim visible from
+       the side that offers the choice. */
+    const vault = readFileSync(
+      fileURLToPath(new URL('../src-tauri/src/vault/mod.rs', import.meta.url)),
+      'utf8',
+    );
+
+    expect(vault).toContain('what_the_run_keeps_is_never_written_anywhere');
+  });
+
+  it('names all three durations in every language', () => {
+    for (const locale of ['en', 'pt-BR', 'es']) {
+      const catalogue = JSON.parse(
+        readFileSync(
+          fileURLToPath(new URL(`../src/locales/${locale}.json`, import.meta.url)),
+          'utf8',
+        ),
+      ) as Record<string, string>;
+
+      for (const key of [
+        'credential.keep',
+        'credential.keep.never',
+        'credential.keep.forThisRun',
+        'credential.keep.stored',
+      ]) {
+        expect(catalogue[key], `${locale} ${key}`).toBeTruthy();
+      }
+
+      /* The old single checkbox is gone rather than left behind saying
+         something the window no longer offers. */
+      expect(catalogue['credential.remember']).toBeUndefined();
+    }
+  });
+});

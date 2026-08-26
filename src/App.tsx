@@ -572,7 +572,7 @@ export function App(): JSX.Element {
         return;
       }
 
-      void connect(sessionId, live.session.credentialId);
+      void connect(sessionId);
     },
     [sessions, attempt, connect],
   );
@@ -623,7 +623,7 @@ export function App(): JSX.Element {
         return;
       }
 
-      void connect(sessionId, live.session.credentialId);
+      void connect(sessionId);
     },
     [connect, sessions, attempt, focusOn],
   );

@@ -314,3 +314,49 @@ fn the_ssh_layer_never_reaches_for_the_filesystem() {
         }
     }
 }
+
+/* ------------------------------------------------------------------------ *
+ * What is kept, rather than what is used. #131, ADR-0025.
+ * ------------------------------------------------------------------------ */
+
+#[test]
+fn what_the_keychain_holds_never_renders_itself() {
+    /* This file tested the credential the transport uses and never the shape
+    the store holds, and that shape derived `Debug` over a bare `String`.
+    It rendered `Password { secret: "hunter2" }`, in main, until this week.
+    One `dbg!` was the whole distance between rule 2 and a password in a
+    terminal. */
+    let password = runic_ssh::vault::StoredCredential::Password {
+        secret: "hunter2".to_owned(),
+    };
+    assert_clean("a stored password", &format!("{password:?}"));
+
+    let key = runic_ssh::vault::StoredCredential::PrivateKey {
+        pem: "-----BEGIN OPENSSH PRIVATE KEY-----hunter2".to_owned(),
+        passphrase: Some("correct horse battery staple".to_owned()),
+    };
+    assert_clean("a stored key", &format!("{key:?}"));
+
+    /* And it still says the one thing that is not a secret, or the redaction
+    would have taken the information with it. */
+    assert!(format!("{key:?}").contains("encrypted: true"));
+}
+
+#[test]
+fn a_secret_kept_for_this_run_never_renders_itself() {
+    /* ADR-0025 added a second place a credential can be. A store that can
+    print itself is one `dbg!` away from every password in it. */
+    let secrets = runic_ssh::vault::SessionSecrets::new();
+    let id = runic_ssh::vault::CredentialId::for_session("web-01");
+    secrets.keep(&id, &zeroize::Zeroizing::new("hunter2".to_owned()));
+
+    /* It does not implement `Debug` at all, which is the point: this asserts
+    what can be reached rather than how it prints, because there is no way
+    to print it. */
+    assert_eq!(secrets.count(), 1);
+    assert!(secrets.resolve(&id).is_some());
+
+    secrets.forget(&id);
+    assert_eq!(secrets.count(), 0);
+    assert!(secrets.resolve(&id).is_none());
+}

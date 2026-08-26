@@ -24,7 +24,7 @@ pub const SERVICE: &str = "com.runicssh.client";
 /// Opaque to the *frontend*, which is what ADR-0004 asks for: holding one
 /// lets the interface say "use the saved credential" and never lets it read
 /// the credential. The keychain, not the id, is what enforces access.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(transparent)]
 pub struct CredentialId(String);
 
@@ -142,7 +142,7 @@ impl Vault {
 /// the store takes one string — so the shape is written down rather than
 /// guessed at on the way back out. A password read as a private key would fail
 /// authentication in a way that looks like the server rejecting the user.
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum StoredCredential {
     Password {
@@ -152,6 +152,28 @@ pub enum StoredCredential {
         pem: String,
         passphrase: Option<String>,
     },
+}
+
+impl std::fmt::Debug for StoredCredential {
+    /// Never prints the material.
+    ///
+    /// It derived `Debug` until this was written, and derived `Debug` on a type
+    /// holding a bare `String` renders it: `Password { secret: "hunter2" }`.
+    /// Rule 2 says nothing secret is logged at any level, and one `dbg!` was
+    /// the whole distance between that rule and a password in a terminal.
+    ///
+    /// Written by hand rather than solved properly, which is #131: the
+    /// guarantee is still a person remembering, and the next field added here
+    /// will be redacted only because somebody looked.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Password { .. } => f.write_str("StoredCredential::Password(<redacted>)"),
+            Self::PrivateKey { passphrase, .. } => f.write_fmt(format_args!(
+                "StoredCredential::PrivateKey {{ pem: <redacted>, encrypted: {} }}",
+                passphrase.is_some()
+            )),
+        }
+    }
 }
 
 impl StoredCredential {
@@ -173,6 +195,75 @@ impl StoredCredential {
         serde_json::from_str(stored).map_err(|_| Error::KeychainReadFailed {
             reason: String::from("the stored credential is not readable"),
         })
+    }
+}
+
+/// Credentials kept for the life of this run, and never written anywhere.
+///
+/// ADR-0025. The middle answer between keeping a secret until somebody says
+/// otherwise and asking for it on every connection: a machine with no secret
+/// service can still stop asking for the afternoon somebody is working.
+///
+/// Holds the encoded form rather than the parsed one, for two reasons. It is
+/// [`Zeroizing`], so it is wiped when it goes; and it is the same shape the
+/// keychain holds, so resolving from either store returns the same type and the
+/// caller cannot tell which answered.
+///
+/// Deliberately not `Debug`. A store that can print itself is one `dbg!` away
+/// from every password in it, and the type it holds only stopped rendering
+/// itself this week.
+#[derive(Default)]
+pub struct SessionSecrets {
+    held: std::sync::Mutex<std::collections::HashMap<CredentialId, Zeroizing<String>>>,
+}
+
+impl SessionSecrets {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Keeps a secret until the process ends.
+    ///
+    /// Nothing here reaches a disk, a log or the frontend. That is the whole
+    /// of what makes this acceptable under a threat model that does not defend
+    /// against a local attacker already running as the user: a secret this
+    /// process holds is not reachable by anything that model claims to stop.
+    pub fn keep(&self, id: &CredentialId, secret: &Zeroizing<String>) {
+        if let Ok(mut held) = self.held.lock() {
+            held.insert(id.clone(), secret.clone());
+        }
+    }
+
+    pub fn resolve(&self, id: &CredentialId) -> Option<Zeroizing<String>> {
+        self.held.lock().ok()?.get(id).cloned()
+    }
+
+    /// Drops a secret before the process ends, wiping it.
+    pub fn forget(&self, id: &CredentialId) {
+        if let Ok(mut held) = self.held.lock() {
+            held.remove(id);
+        }
+    }
+
+    pub fn count(&self) -> usize {
+        self.held.lock().map(|held| held.len()).unwrap_or_default()
+    }
+}
+
+/// A secret for this session, from wherever it is.
+///
+/// The run comes first. Somebody who chose to keep a credential for this run
+/// after the stored one stopped working expects the one they just typed, and
+/// reaching for the keychain first would hand back the stale one they were
+/// working around.
+pub fn resolve_credential(
+    secrets: &SessionSecrets,
+    vault: &Vault,
+    id: &CredentialId,
+) -> Result<Zeroizing<String>, Error> {
+    match secrets.resolve(id) {
+        Some(secret) => Ok(secret),
+        None => vault.resolve(id),
     }
 }
 
@@ -228,6 +319,56 @@ mod tests {
             .expect("serializes"),
             r#"{"kind":"unavailable","reason":"no store"}"#
         );
+    }
+
+    #[test]
+    fn the_run_answers_before_the_keychain() {
+        /* Somebody who chose to keep a credential for this run after the
+        stored one stopped working expects the one they just typed. Reaching
+        for the keychain first would hand back the stale one they were
+        working around. ADR-0025. */
+        let secrets = SessionSecrets::new();
+        let vault = scratch();
+        let id = CredentialId::for_session("web-01");
+
+        secrets.keep(&id, &Zeroizing::new("from-this-run".to_owned()));
+
+        let resolved = resolve_credential(&secrets, &vault, &id).expect("it resolves");
+        assert_eq!(resolved.as_str(), "from-this-run");
+    }
+
+    #[test]
+    fn nothing_kept_falls_through_to_the_keychain() {
+        /* And when the run holds nothing, the answer has to be the keychain's
+        rather than a refusal, or a credential somebody stored would stop
+        being found the moment this store existed. */
+        let secrets = SessionSecrets::new();
+        let vault = scratch();
+        let id = CredentialId::for_session("never-kept");
+
+        let resolved = resolve_credential(&secrets, &vault, &id);
+        assert!(resolved.is_err(), "nothing is kept and nothing is stored");
+    }
+
+    #[test]
+    fn what_the_run_keeps_is_never_written_anywhere() {
+        /* The whole of what makes ADR-0025 acceptable. The store has no path
+        to a disk: it takes a secret, hands it back, and drops it. If a
+        write is ever added, this file is where the argument for it has to
+        be made. */
+        let source = include_str!("mod.rs");
+        let store = source
+            .split("pub struct SessionSecrets")
+            .nth(1)
+            .and_then(|rest| rest.split("/// Turns a keyring failure").next())
+            .expect("the store is in this file");
+
+        for reaching in ["fs::", "File::", "write", "keyring", "Entry::new"] {
+            assert!(
+                !store.contains(reaching),
+                "the session store reached for {reaching}"
+            );
+        }
     }
 
     #[test]

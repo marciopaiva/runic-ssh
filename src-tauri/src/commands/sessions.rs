@@ -22,7 +22,9 @@ use crate::ssh::known_hosts::KnownHosts;
 use crate::ssh::pending::{PendingHostKeys, PendingId};
 use crate::ssh::registry::{Busy, Open, Registry, SessionHandle};
 use crate::ssh::trust::Trust;
-use crate::vault::{Availability, CredentialId, StoredCredential, Vault};
+use crate::vault::{
+    resolve_credential, Availability, CredentialId, SessionSecrets, StoredCredential, Vault,
+};
 
 pub const KNOWN_HOSTS_FILE: &str = "known_hosts";
 
@@ -368,6 +370,7 @@ pub async fn forget_credential<R: Runtime>(
 pub async fn authenticate_with_saved(
     registry: State<'_, Registry>,
     vault: State<'_, Vault>,
+    secrets: State<'_, SessionSecrets>,
     handle: SessionHandle,
 ) -> Result<(), IpcError> {
     let session_id = registry
@@ -375,7 +378,7 @@ pub async fn authenticate_with_saved(
         .await
         .ok_or(Error::UnknownHandle)?;
 
-    let stored = vault.resolve(&CredentialId::for_session(&session_id))?;
+    let stored = resolve_credential(&secrets, &vault, &CredentialId::for_session(&session_id))?;
     let credential = from_stored(StoredCredential::decode(&stored)?);
 
     let outcome = registry
@@ -456,6 +459,7 @@ async fn open_through(
     pending: &PendingHostKeys,
     registry: &Registry,
     vault: &Vault,
+    secrets: &SessionSecrets,
     bastion: &Session,
     target: &Session,
     known: KnownHosts,
@@ -466,7 +470,7 @@ async fn open_through(
     Six hosts behind a bastion cost it one login, not six. */
     let carrier = match registry.shared_of_session(&bastion.id).await {
         Some(open) => open,
-        None => open_bastion(pending, vault, bastion, known.clone()).await?,
+        None => open_bastion(pending, vault, secrets, bastion, known.clone()).await?,
     };
 
     match connect_via(Arc::clone(&carrier), endpoint_of(target), known).await {
@@ -487,6 +491,7 @@ async fn open_through(
 async fn open_bastion(
     pending: &PendingHostKeys,
     vault: &Vault,
+    secrets: &SessionSecrets,
     bastion: &Session,
     known: KnownHosts,
 ) -> Result<Shared, IpcError> {
@@ -502,16 +507,16 @@ async fn open_bastion(
     it, on a machine crossed dozens of times a day, is what makes somebody stop
     using the feature. A bastion with nothing saved is refused, and the error
     says which host it is talking about. */
-    let credential = match vault
-        .resolve(&CredentialId::for_session(&bastion.id))
-        .and_then(|stored| StoredCredential::decode(&stored))
-    {
-        Ok(stored) => from_stored(stored),
-        Err(error) => {
-            let _ = carrier.disconnect().await;
-            return Err(chain_failure(Hop::Bastion, IpcError::from(error)));
-        }
-    };
+    let credential =
+        match resolve_credential(secrets, vault, &CredentialId::for_session(&bastion.id))
+            .and_then(|stored| StoredCredential::decode(&stored))
+        {
+            Ok(stored) => from_stored(stored),
+            Err(error) => {
+                let _ = carrier.disconnect().await;
+                return Err(chain_failure(Hop::Bastion, IpcError::from(error)));
+            }
+        };
 
     if let Err(error) = carrier.authenticate(&bastion.user, credential).await {
         let _ = carrier.disconnect().await;
@@ -536,6 +541,7 @@ pub async fn connect_session<R: Runtime>(
     registry: State<'_, Registry>,
     pending: State<'_, PendingHostKeys>,
     vault: State<'_, Vault>,
+    secrets: State<'_, SessionSecrets>,
     session_id: String,
 ) -> Result<OpenSession, IpcError> {
     let sessions = SessionStore::new(config_dir(&app)?).load()?;
@@ -568,8 +574,10 @@ pub async fn connect_session<R: Runtime>(
                 .cloned()
                 .ok_or(Error::UnknownSession { id: bastion_id })?;
 
-            let connection =
-                open_through(&pending, &registry, &vault, &bastion, &session, known).await?;
+            let connection = open_through(
+                &pending, &registry, &vault, &secrets, &bastion, &session, known,
+            )
+            .await?;
             (connection, Some(bastion.name))
         }
     };
