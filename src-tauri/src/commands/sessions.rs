@@ -9,6 +9,7 @@ use std::sync::Arc;
 use serde::Serialize;
 use tauri::{AppHandle, Manager, Runtime, State};
 
+use crate::commands::credential::ask;
 use crate::config::sessions::{
     check_proxy_jump, delete_session as remove_session, save_session as store_session, Session,
     SessionDraft, SessionStore,
@@ -18,6 +19,7 @@ use crate::ssh::connection::{
     close_shared, connect_reporting, connect_via, share, Connection, Credential, Endpoint, Hop,
     OfferedKey, Shared,
 };
+use crate::ssh::credentials::{CredentialPrompt, CredentialRequests, Keep};
 use crate::ssh::known_hosts::KnownHosts;
 use crate::ssh::pending::{PendingHostKeys, PendingId};
 use crate::ssh::registry::{Busy, Open, Registry, SessionHandle};
@@ -445,6 +447,21 @@ async fn refusal(
     inner
 }
 
+/// What opening a chain needs from the application, in one value.
+///
+/// Six references that always travel together, and which clippy is right to
+/// refuse as six parameters. Grouping them also says something true: these
+/// belong to the application rather than to the chain, and the chain borrows
+/// all of them for exactly as long as one connect attempt lasts.
+struct Chain<'a, R: Runtime> {
+    app: &'a AppHandle<R>,
+    pending: &'a PendingHostKeys,
+    registry: &'a Registry,
+    requests: &'a CredentialRequests,
+    vault: &'a Vault,
+    secrets: &'a SessionSecrets,
+}
+
 /// Opens the chain to a host that is behind a bastion.
 ///
 /// The order is fixed and is the whole security content of ADR-0023: the
@@ -455,11 +472,8 @@ async fn refusal(
 ///
 /// Nothing is left open on any failure path. A bastion nobody can reach holds
 /// a slot against the server's `MaxSessions` until the application restarts.
-async fn open_through(
-    pending: &PendingHostKeys,
-    registry: &Registry,
-    vault: &Vault,
-    secrets: &SessionSecrets,
+async fn open_through<R: Runtime>(
+    chain: &Chain<'_, R>,
     bastion: &Session,
     target: &Session,
     known: KnownHosts,
@@ -468,9 +482,9 @@ async fn open_through(
     the reason a machine with no keychain can still reach a host behind one: the
     credential was used when that connection was made and is not needed twice.
     Six hosts behind a bastion cost it one login, not six. */
-    let carrier = match registry.shared_of_session(&bastion.id).await {
+    let carrier = match chain.registry.shared_of_session(&bastion.id).await {
         Some(open) => open,
-        None => open_bastion(pending, vault, secrets, bastion, known.clone()).await?,
+        None => open_bastion(chain, bastion, &target.name, known.clone()).await?,
     };
 
     match connect_via(Arc::clone(&carrier), endpoint_of(target), known).await {
@@ -479,48 +493,127 @@ async fn open_through(
             /* Letting go of our share. It closes only if nothing else was
             riding it, which is the whole of the lifetime rule. */
             let _ = close_shared(carrier).await;
-            Err(refusal(pending, Hop::Target, true, failure.error, failure.offered).await)
+            Err(refusal(
+                chain.pending,
+                Hop::Target,
+                true,
+                failure.error,
+                failure.offered,
+            )
+            .await)
         }
     }
+}
+
+/// Whether a bastion with no usable saved credential should be asked about.
+///
+/// ADR-0027 lets the bastion prompt, and deliberately does not let it prompt on
+/// everything. Two failures mean nothing was ever saved and asking is the only
+/// way forward: no entry for this session, and a machine with no credential
+/// store at all. Every other failure means a store exists and said no, and a
+/// locked keyring is a different thing from an absent one. Falling back on both
+/// would teach people to retype a password whenever the keyring is locked,
+/// which is how a keyring stops being worth having.
+fn worth_asking(error: &Error) -> bool {
+    matches!(
+        error,
+        Error::NoSavedCredential | Error::KeychainUnavailable { .. }
+    )
 }
 
 /// Opens and authenticates a bastion nobody had open.
 ///
 /// Registered by the caller so the next chain to the same host finds it, rather
 /// than the core holding a connection it cannot name.
-async fn open_bastion(
-    pending: &PendingHostKeys,
-    vault: &Vault,
-    secrets: &SessionSecrets,
+///
+/// The credential comes from the keychain when one is there, and from a window
+/// when one is not. ADR-0027, and the order ADR-0008 depends on is intact:
+/// `connect_reporting` has verified this host's key before anything here can
+/// ask for a password.
+async fn open_bastion<R: Runtime>(
+    chain: &Chain<'_, R>,
     bastion: &Session,
+    carrying: &str,
     known: KnownHosts,
 ) -> Result<Shared, IpcError> {
     let mut carrier = match connect_reporting(endpoint_of(bastion), known).await {
         Ok(connection) => connection,
         Err((error, offered)) => {
-            return Err(refusal(pending, Hop::Bastion, true, error, offered).await)
+            return Err(refusal(chain.pending, Hop::Bastion, true, error, offered).await)
         }
     };
 
-    /* ADR-0023: the bastion authenticates from the keychain and never opens a
-    window. A password prompt for the bastion on the way to every host behind
-    it, on a machine crossed dozens of times a day, is what makes somebody stop
-    using the feature. A bastion with nothing saved is refused, and the error
-    says which host it is talking about. */
-    let credential =
-        match resolve_credential(secrets, vault, &CredentialId::for_session(&bastion.id))
-            .and_then(|stored| StoredCredential::decode(&stored))
-        {
-            Ok(stored) => from_stored(stored),
-            Err(error) => {
-                let _ = carrier.disconnect().await;
-                return Err(chain_failure(Hop::Bastion, IpcError::from(error)));
+    let id = CredentialId::for_session(&bastion.id);
+
+    /* Saved first, always. ADR-0023's argument survives ADR-0027 whole: a
+    bastion is crossed dozens of times a day, and a window on the way to every
+    host behind it is what makes somebody stop using the feature. The prompt is
+    for the case where there is nothing to read, not an alternative to reading
+    it. */
+    let saved = resolve_credential(chain.secrets, chain.vault, &id)
+        .and_then(|stored| StoredCredential::decode(&stored));
+
+    let (stored, keep) = match saved {
+        Ok(stored) => (stored, Keep::Never),
+        Err(error) if worth_asking(&error) => {
+            let prompt = CredentialPrompt {
+                session_name: bastion.name.clone(),
+                user: bastion.user.clone(),
+                host: bastion.host.clone(),
+                port: bastion.port,
+                can_remember: matches!(chain.vault.availability(), Availability::Available),
+                /* What makes this window tellable from the one that follows it.
+                Without it they are two identical prompts in a row for two
+                different hosts, which is what ADR-0023 refused to ship. */
+                carrying: Some(carrying.to_owned()),
+            };
+
+            match ask(chain.app, chain.requests, prompt).await {
+                Ok(answered) => answered,
+                Err(error) => {
+                    /* Including a dismissal. A bastion left open on a refusal
+                    holds a slot against the server's `MaxSessions` until the
+                    application restarts, and nothing on screen would name it. */
+                    let _ = carrier.disconnect().await;
+                    return Err(chain_failure(Hop::Bastion, IpcError::from(error)));
+                }
             }
-        };
+        }
+        Err(error) => {
+            let _ = carrier.disconnect().await;
+            return Err(chain_failure(Hop::Bastion, IpcError::from(error)));
+        }
+    };
+
+    /* Encoded before authenticating, because authenticating consumes it, and
+    written only after the host has accepted. Saving a secret the server refused
+    is how a keychain fills up with typos. */
+    let keepsake = match keep {
+        Keep::Never => None,
+        Keep::ForThisRun | Keep::Stored => Some(stored.encode().map_err(IpcError::from)?),
+    };
+
+    let credential = from_stored(stored);
 
     if let Err(error) = carrier.authenticate(&bastion.user, credential).await {
         let _ = carrier.disconnect().await;
         return Err(chain_failure(Hop::Bastion, IpcError::from(Box::new(error))));
+    }
+
+    if let Some(secret) = keepsake {
+        match keep {
+            /* Nowhere near a disk, so nothing can refuse it. This is the answer
+            that makes a machine with no keychain usable: one prompt for this
+            bastion serves every host behind it for the life of the process,
+            because `resolve_credential` reads this store before the vault. */
+            Keep::ForThisRun => chain.secrets.keep(&id, &secret),
+            /* A keychain that refuses must not undo a connection that worked.
+            The far hop is still to come and it is the one the user asked for. */
+            Keep::Stored => {
+                let _ = persist_credential(chain.app, chain.vault, &bastion.id, &secret);
+            }
+            Keep::Never => {}
+        }
     }
 
     Ok(share(carrier))
@@ -540,6 +633,7 @@ pub async fn connect_session<R: Runtime>(
     app: AppHandle<R>,
     registry: State<'_, Registry>,
     pending: State<'_, PendingHostKeys>,
+    requests: State<'_, CredentialRequests>,
     vault: State<'_, Vault>,
     secrets: State<'_, SessionSecrets>,
     session_id: String,
@@ -574,10 +668,16 @@ pub async fn connect_session<R: Runtime>(
                 .cloned()
                 .ok_or(Error::UnknownSession { id: bastion_id })?;
 
-            let connection = open_through(
-                &pending, &registry, &vault, &secrets, &bastion, &session, known,
-            )
-            .await?;
+            let chain = Chain {
+                app: &app,
+                pending: &pending,
+                registry: &registry,
+                requests: &requests,
+                vault: &vault,
+                secrets: &secrets,
+            };
+
+            let connection = open_through(&chain, &bastion, &session, known).await?;
             (connection, Some(bastion.name))
         }
     };
@@ -980,5 +1080,32 @@ mod tests {
             check_acceptance(&offered(Trust::Matched), None),
             Err(Error::NotAwaitingDecision)
         ));
+    }
+
+    /// ADR-0027 lets a bastion prompt, and the whole of the restraint in that
+    /// decision is which failures reach the window. A store that exists and
+    /// said no is not a store that was never there.
+    #[test]
+    fn nothing_saved_and_nowhere_to_save_are_the_two_that_ask() {
+        assert!(worth_asking(&Error::NoSavedCredential));
+        assert!(worth_asking(&Error::KeychainUnavailable {
+            reason: "this machine has no credential store configured".to_owned(),
+        }));
+    }
+
+    #[test]
+    fn a_store_that_refused_keeps_refusing() {
+        /* A locked keyring. Prompting here would teach somebody to retype a
+        password every time their session bus is not up yet, and the fix they
+        actually need is to unlock it. */
+        assert!(!worth_asking(&Error::KeychainReadFailed {
+            reason: "the credential store refused access".to_owned(),
+        }));
+
+        /* And a secret that is there and unreadable is not a missing one. */
+        assert!(!worth_asking(&Error::KeychainWriteFailed {
+            reason: "the stored value is not readable".to_owned(),
+        }));
+        assert!(!worth_asking(&Error::UnknownHandle));
     }
 }

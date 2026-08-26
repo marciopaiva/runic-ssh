@@ -74,14 +74,26 @@ describe('reporting a failure that happened in a chain', () => {
     expect(failure.retryable).toBe(false);
   });
 
-  it('does not offer to type a credential the jump host cannot be given', () => {
-    /* ADR-0023 resolves the bastion credential from the keychain and nowhere
-       else, so the ordinary keychain copy ("you can still connect by typing
-       the credential") promises a way out that does not exist at that hop.
-       Found by reading it on screen. See #165. */
-    for (const code of ['keychainUnavailable', 'keychainReadFailed', 'noSavedCredential'] as const) {
-      expect(describeFailure(code, 'bastion').title).toBe('failure.jumpCredential.title');
-      expect(describeFailure(code, 'bastion').retryable).toBe(false);
+  it('says why this one hop will not let the credential be typed', () => {
+    /* A keychain that is there and refusing. ADR-0027 deliberately did not
+       cover this case: prompting past a locked keyring would teach people to
+       retype a password rather than unlock it, and would leave the real cause
+       in place. So the copy has to explain why this hop is different, which is
+       the one thing ADR-0027 named as invisible otherwise. */
+    expect(describeFailure('keychainReadFailed', 'bastion').title).toBe(
+      'failure.jumpCredential.title',
+    );
+    expect(describeFailure('keychainReadFailed', 'bastion').retryable).toBe(false);
+  });
+
+  it('no longer claims a jump host has nowhere to type a credential', () => {
+    /* These two took that path until ADR-0027. They now open a prompt in the
+       core instead of failing, which is what closed #165, so reaching this
+       function with either of them at the bastion hop should not happen. If it
+       ever does, the ordinary keychain copy is the true one: it offers a window
+       and a window is now what there is. */
+    for (const code of ['keychainUnavailable', 'noSavedCredential'] as const) {
+      expect(describeFailure(code, 'bastion').title).not.toBe('failure.jumpCredential.title');
     }
   });
 

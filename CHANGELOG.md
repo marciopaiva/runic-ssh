@@ -9,6 +9,41 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 versions follow [semantic versioning](https://semver.org/spec/v2.0.0.html),
 with the caveat that anything below 1.0 may break, and this project intends to.
 
+## [Unreleased]
+
+### Added
+
+- **A jump host asks for its own credential when it has none** (ADR-0027, #165).
+  It came from the keychain and only from the keychain, so a machine with no
+  secret service could not use a jump host at all: the chain was the one feature
+  that hard-required one. It now opens the same prompt window every other host
+  uses, and the answer kept for the life of the run serves every host behind
+  that bastion until the application closes. The prompt says which hop it is
+  asking about, in the heading as well as in the body, because two prompts
+  arrive in a row for two different machines and telling them apart is the
+  condition ADR-0023 attached to allowing this at all.
+
+  A keychain that exists and refuses is deliberately not covered. A locked
+  keyring is a different problem from an empty one, and prompting past it would
+  teach people to retype a password instead of unlocking it, so that case still
+  refuses and now says why.
+
+### Fixed
+
+- **Right clicking no longer offers to reload the window** (#179). WebKit's own
+  menu carried Reload, which restarted the document and emptied the window while
+  every connection stayed authenticated on the far side, reachable by nothing on
+  screen. The menu is kept where it can only edit, which is the only way to
+  paste with the pointer.
+- **Arming and disarming synchronised typing is announced** (#154). Every marker
+  for it was visual, so somebody using a screen reader was told nothing at all
+  about the one control whose blast radius is larger than the host in front of
+  them.
+- **The copy no longer describes the anatomy ADR-0020 replaced** (#180). Ten
+  strings called a group a pane, and the one shown while confirming a paste to
+  several hosts described the older broadcast rule, which reached more sessions
+  than the current one does.
+
 ## [0.2.0] — 2026-08-26
 
 ### Added

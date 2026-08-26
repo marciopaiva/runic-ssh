@@ -150,4 +150,21 @@ describe('the credential window', () => {
     expect(handler).not.toMatch(/String\s*\(\s*rejection/);
     expect(handler).not.toMatch(/JSON\.stringify/);
   });
+
+  it('tells a jump host prompt apart from the one that follows it', () => {
+    /* ADR-0023 refused to let a jump host ask for a credential at all until
+       this window could say which hop was asking, because two identical
+       prompts in a row for two different machines is worse than one refusal
+       with an explanation. ADR-0027 granted that permission on this condition,
+       so a window that renders `carrying` and says nothing is the failure that
+       decision was guarding against.
+
+       Both are asserted. The banner alone is a thing the eye learns to skip;
+       the heading changing is what somebody notices without reading. */
+    const source = readFileSync(resolve(root, 'src/credential/CredentialWindow.tsx'), 'utf8');
+
+    expect(source).toContain('credential.hop.bastion');
+    expect(source).toContain('credential.title.jump');
+    expect(source).toMatch(/prompt\.carrying/);
+  });
 });

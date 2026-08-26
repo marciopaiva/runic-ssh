@@ -358,6 +358,42 @@ hand: `podman exec runic-test-bastion sh -c "echo 'AllowTcpForwarding no'
 >> /etc/ssh/sshd_config"` and restart it. The chain should fail at the bastion
 and say so.
 
+#### The credential the jump host asks for
+
+ADR-0027 lets the bastion prompt when it has nothing saved, which is what makes
+a machine with no keychain able to use one at all. Two prompts now arrive in a
+row for two different machines, so the thing being checked is mostly whether a
+person can tell them apart.
+
+Start from a bastion with no saved credential and no session open on it.
+
+| Do this | Expect |
+| --- | --- |
+| Connect to the target | the bastion's key is asked about first, then a credential window naming the bastion |
+| Read that window | the heading says the jump host is authenticated first, and the body names the host you actually clicked |
+| Answer it, choose *until Runic SSH closes* | the target's own window follows, with the ordinary heading |
+| Connect to a second host behind the same bastion | the bastion does not ask again |
+| Close the application, reopen, connect | it asks again, and nothing was written anywhere |
+| Answer it, choose *in the system keychain* | it does not ask on the next run, and this is the only answer that survives one |
+| Cancel the bastion's window | the attempt fails naming the jump host, and `podman exec runic-test-bastion ps` shows no session left behind |
+
+The last row is the one worth doing slowly. A bastion left open by a refusal
+holds a slot against the server's `MaxSessions` until the application restarts,
+and nothing on screen would name it.
+
+**Lock the keyring for the other half.** On a machine with a secret service,
+save the bastion's credential, then lock the keyring and connect. It must
+refuse rather than prompt, and say that the keychain holds one and would not
+give it up. Prompting there would teach somebody to retype a password instead
+of unlocking, and ADR-0027 named that as the case it deliberately does not
+cover.
+
+**A slow answer is a new way to fail.** `sshd` closes an unauthenticated
+connection after `LoginGraceTime`, two minutes by default, and the bastion now
+sits unauthenticated for as long as the window is open. Leave the prompt up for
+three minutes and answer it: the failure that arrives reads as the SSH
+conversation not finishing, not as a timeout on a prompt.
+
 Host keys survive `podman stop` and `podman start`, because `ssh-keygen -A`
 generates only what is missing and the writable layer persists. They do not
 survive `podman rm`, which is the same trade the single-host fixture makes.

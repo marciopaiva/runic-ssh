@@ -21,6 +21,15 @@ export interface CredentialPrompt {
   readonly port: number;
   /** Whether this machine has anywhere to keep it. */
   readonly canRemember: boolean;
+  /**
+   * The session this hop is being crossed for, when this is a jump host.
+   *
+   * `null` is an ordinary prompt for the host the user clicked. A name means
+   * the window is asking about a machine the user did not name, on the way to
+   * one they did. ADR-0023 refused to let a jump host prompt at all until this
+   * could be said, so rendering it is not optional.
+   */
+  readonly carrying: string | null;
 }
 
 /**
