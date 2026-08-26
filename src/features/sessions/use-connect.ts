@@ -24,7 +24,12 @@ import {
   hostKeyDecision as readDecision,
   trustHostKey,
 } from '../../ipc';
-import type { HostKeyDecisionView, IpcErrorCode, SessionHandle } from '../../ipc';
+import type {
+  HostKeyDecisionView,
+  IpcErrorCode,
+  OpenSession,
+  SessionHandle,
+} from '../../ipc';
 
 import { heldDecision, reportedFailure, shouldPromptAfterSaved, shouldTrySaved } from './connect';
 import type { ConnectIntent, ConnectStage, ReportedFailure } from './connect';
@@ -66,8 +71,13 @@ interface Wiring {
    * Never a failure: the session is open and usable, and only the convenience
    * did not happen. But it is said, because a tick box that does nothing and
    * says nothing is worse than one that is not offered at all. See #167.
+   *
+   * `via` names the jump host when the refusal happened at that hop, which is
+   * a host with no tab of its own. It is reported on the session the user
+   * clicked, which is the one they are looking at, the same way a failure in a
+   * chain is reported on the session it was on the way to. See #191.
    */
-  readonly onCredentialRefused: (sessionId: string) => void;
+  readonly onCredentialRefused: (sessionId: string, via: string | null) => void;
   /**
    * Called when a credential attempt is over and its connection is closed.
    *
@@ -122,10 +132,11 @@ export function useConnect(wiring: Wiring): ConnectState {
   const authenticate = useCallback(
     async (
       sessionId: string,
-      handle: SessionHandle,
+      opened: OpenSession,
       mine: number,
       intent: ConnectIntent,
     ): Promise<void> => {
+      const { handle } = opened;
       if (!current(mine)) {
         void disconnectSession(handle);
         return;
@@ -145,6 +156,10 @@ export function useConnect(wiring: Wiring): ConnectState {
           }
           setAttempt(null);
           onOpened(sessionId, handle);
+          /* The far host had a saved credential and never opened a window. The
+             jump host may still have been asked about and refused on the way
+             here. */
+          if (opened.keepRefused) onCredentialRefused(sessionId, opened.via ?? null);
           return;
         } catch (rejection) {
           const reported = reportedFailure(asIpcError(rejection) ?? null);
@@ -179,8 +194,13 @@ export function useConnect(wiring: Wiring): ConnectState {
 
         setAttempt(null);
         onOpened(sessionId, handle);
-        /* After the session is open, never instead of it. */
-        if (keeping === 'refused') onCredentialRefused(sessionId);
+
+        /* After the session is open, never instead of it. Two hops can refuse,
+           and the jump host's refusal reaches here on the value that opened the
+           session rather than from this call, because it happened before this
+           window was ever shown. */
+        if (keeping === 'refused') onCredentialRefused(sessionId, null);
+        if (opened.keepRefused) onCredentialRefused(sessionId, opened.via ?? null);
       } catch (rejection) {
         void disconnectSession(handle);
         fail(sessionId, reportedFailure(asIpcError(rejection) ?? null), mine, intent);
@@ -227,7 +247,7 @@ export function useConnect(wiring: Wiring): ConnectState {
         return;
       }
 
-      await authenticate(sessionId, opened.handle, mine, intent);
+      await authenticate(sessionId, opened, mine, intent);
     },
     [authenticate, fail, onConnecting, current],
   );
