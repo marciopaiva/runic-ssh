@@ -19,6 +19,8 @@ export {
 export type { ConnectStage, HeldDecision, HostKeyVerdict } from './connect';
 export { useConnect } from './use-connect';
 export { EMPTY_DRAFT, LIMITS, invalidFields, parsePort, suggestName } from './draft';
+export { describeKeeping, hasStoredCredential } from './kept';
+export type { KeptOutcome } from './kept';
 export { eligibleJumpHosts, jumpHostChoice, jumpRole } from './jump';
 export type { JumpHostChoice } from './jump';
 export type { JumpRole } from './jump';

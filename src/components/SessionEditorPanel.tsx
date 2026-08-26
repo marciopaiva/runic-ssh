@@ -23,6 +23,8 @@ interface SessionEditorPanelProps {
   readonly storedCredential: boolean;
   /** Drops it, or `null` on a host that does not exist yet. */
   readonly onForget: (() => void) | null;
+  /** Saves the form and collects a password by connecting once. */
+  readonly onSavePassword: () => void;
   readonly onSubmit: () => void;
   readonly onDelete: () => void;
   readonly onConfirmDiscard: () => void;
@@ -56,6 +58,7 @@ export function SessionEditorPanel({
   carried,
   storedCredential,
   onForget,
+  onSavePassword,
   onSubmit,
   onDelete,
   onConfirmDiscard,
@@ -106,6 +109,7 @@ export function SessionEditorPanel({
         carried={carried}
         storedCredential={storedCredential}
         onForget={onForget}
+        onSavePassword={onSavePassword}
         onSubmit={onSubmit}
         /* No delete on a host that was never saved: there is nothing to
            delete, and the button would be asking about the form itself. */
