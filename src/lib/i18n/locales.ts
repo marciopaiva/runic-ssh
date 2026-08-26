@@ -8,21 +8,34 @@
  * rather than a typo. See ADR-0007 and issue #4.
  *
  * Portuguese is offered *and* reviewed. The maintainer is a native speaker,
- * wrote it, and confirmed its security copy on 2026-08-25, and again on
- * **2026-08-26** for the eighteen strings that had been added or reworded since:
- * the jump host's credential window and the copy around it, the three answers to
- * how long a credential is kept, and everything that says where a keystroke goes
- * once typing is synchronised. That is written down here rather than left in the
- * conversation it was said in, because the rule this file enforces is about the
- * claim: nobody says these strings have been checked until somebody has, and a
- * locale offered on nothing more than having been written by whoever needed it
- * is the state that rule exists to end.
+ * wrote it, and confirmed its security copy on 2026-08-25, on **2026-08-26** for
+ * the eighteen strings added or reworded since, and again at the **v0.2.1**
+ * sweep for the thirty added after that: the editor's password block, the four
+ * endings a kept credential can have, the jump host's refused keep, and the copy
+ * about a host carrying somebody else's session. That pass also replaced
+ * `keychain` with `chaveiro` throughout, which is the word somebody using the
+ * application in Portuguese would actually reach for.
+ *
+ * That is written down here rather than left in the conversation it was said in,
+ * because the rule this file enforces is about the claim: nobody says these
+ * strings have been checked until somebody has, and a locale offered on nothing
+ * more than having been written by whoever needed it is the state that rule
+ * exists to end.
+ *
+ * Spanish had a pass at the same sweep and it is **not** the review it is
+ * waiting for. It fixed a real inconsistency, the catalogue addressing the
+ * reader as `tú` in some strings and `usted` in others, which is worth having on
+ * its own. But it was done by the maintainer, who is not a native speaker of it,
+ * and #4 asks for one. A pass that makes a locale better and a pass that lets it
+ * be offered are different things, and recording the first as the second is
+ * exactly the move ADR-0007 refuses. Spanish stays out of the selector.
  *
  * A date is load-bearing here, and it is the part that rots. A review is of
- * strings, and strings keep being added: between those two dates the catalogue
- * gained twenty-three, fifteen of which say where a keystroke or a secret goes,
- * and the note above them still read as though it covered them. Nothing failed,
- * because nothing can. See #192.
+ * strings, and strings keep being added: between the first two dates the
+ * catalogue gained twenty-three, fifteen of which say where a keystroke or a
+ * secret goes, and the note above them still read as though it covered them. It
+ * happened again before v0.2.1, by thirty. Nothing failed either time, because
+ * nothing can. See #192.
  *
  * Keeping the catalogue in the tree rather than deleting it is what keeps the
  * parity guards covering it. A removed catalogue rots silently.

@@ -161,15 +161,23 @@ fixed, and is written into the limitations with the issue that will fix it.
   for: an open authenticated session on a bastion is a live credential in use,
   and a client holding one without saying so asks somebody to reason about what
   it has hidden.
-- **The Portuguese strings this release adds have not been reviewed.** Thirty of
-  them, of which the ones about where a password goes and what is never shown on
-  a form are security copy. The note in `src/lib/i18n/locales.ts` records a
-  review dated 2026-08-26 that covers the strings existing at that moment and
-  nothing added since, and nothing in the tree fails when it goes stale, which is
-  #192. Portuguese is still offered, because it is written by a native speaker
-  who is the maintainer; what is being said here is that the review claim does
-  not yet reach these thirty. Spanish is still held out of the language selector,
-  for the reason it has been held out since ADR-0007 (#4).
+- **The Portuguese security copy was reviewed for this release**, including the
+  thirty strings added since the last review: the editor's password block, the
+  four endings a kept credential can have, the jump host's refused keep, and the
+  copy about a host carrying somebody else's session. The same pass replaced
+  `keychain` with `chaveiro` throughout, which is the word somebody using the
+  application in Portuguese would actually reach for. `src/lib/i18n/locales.ts`
+  records what was covered and when; nothing in the tree fails when that note
+  goes stale, which is #192, and it had gone stale twice by then.
+- **Spanish had a pass at the same time and it is not the review it is waiting
+  for.** It fixed a real inconsistency, the catalogue addressing the reader as
+  `tú` in some strings and `usted` in others. But it was done by the maintainer,
+  who is not a native speaker of it, and #4 asks for one. Spanish stays out of
+  the language selector, for the reason it has been held out since ADR-0007.
+- Two English strings lost a long dash used as a connector, which is the house
+  rule in section 1 of `CLAUDE.md` and which the Portuguese pass had already
+  applied to its side of them. English is normative and was the only one of the
+  three still breaking it.
 
 ### Known limitations
 
