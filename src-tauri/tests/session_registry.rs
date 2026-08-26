@@ -19,12 +19,12 @@ use std::time::Duration;
 use russh::keys::{PrivateKey, PublicKey};
 use russh::server::{Auth, ChannelOpenHandle, Handler as ServerHandler, Msg, Server as _, Session};
 use russh::{Channel, MethodKind};
-use zeroize::Zeroizing;
 
 use runic_ssh::ssh::connection::{connect, Credential, Endpoint};
 use runic_ssh::ssh::known_hosts::KnownHosts;
 use runic_ssh::ssh::registry::{Open, Registry};
 use runic_ssh::ssh::terminal::Input;
+use runic_ssh::vault::Secret;
 
 const USER: &str = "deploy";
 const PASSWORD: &str = "correct horse battery staple";
@@ -107,10 +107,7 @@ async fn open_session() -> (
     .expect("connects");
 
     connection
-        .authenticate(
-            USER,
-            Credential::Password(Zeroizing::new(PASSWORD.to_owned())),
-        )
+        .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
         .await
         .expect("authenticates");
 
@@ -317,10 +314,7 @@ async fn a_second_session() -> (Open, u16, ()) {
     .expect("connects");
 
     connection
-        .authenticate(
-            USER,
-            Credential::Password(Zeroizing::new(PASSWORD.to_owned())),
-        )
+        .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
         .await
         .expect("authenticates");
 

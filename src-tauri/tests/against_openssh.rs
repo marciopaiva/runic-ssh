@@ -16,13 +16,12 @@
 //! The container generates its host keys at start, so recreating it is how the
 //! changed-key path gets exercised against something real.
 
-use zeroize::Zeroizing;
-
 use runic_ssh::ssh::connection::{
     close_shared, connect, connect_reporting, connect_via, share, Credential, Endpoint, Hop, Shared,
 };
 use runic_ssh::ssh::known_hosts::KnownHosts;
 use runic_ssh::ssh::trust::Trust;
+use runic_ssh::vault::Secret;
 
 const HOST: &str = "127.0.0.1";
 const PORT: u16 = 2222;
@@ -75,10 +74,7 @@ async fn a_password_authenticates_against_real_sshd() {
     let mut connection = connect(endpoint(), known).await.expect("connects");
 
     connection
-        .authenticate(
-            USER,
-            Credential::Password(Zeroizing::new(PASSWORD.to_owned())),
-        )
+        .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
         .await
         .expect("authenticates");
 
@@ -112,7 +108,7 @@ async fn a_wrong_password_is_refused_by_real_sshd() {
     let refused = connection
         .authenticate(
             USER,
-            Credential::Password(Zeroizing::new("not the password".to_owned())),
+            Credential::Password(Secret::new("not the password".to_owned())),
         )
         .await;
 
@@ -223,7 +219,7 @@ async fn open_bastion() -> Shared {
     bastion
         .authenticate(
             BASTION_USER,
-            Credential::Password(Zeroizing::new(BASTION_PASSWORD.to_owned())),
+            Credential::Password(Secret::new(BASTION_PASSWORD.to_owned())),
         )
         .await
         .expect("the bastion authenticates");
@@ -288,7 +284,7 @@ async fn a_shell_opens_on_a_host_this_machine_cannot_reach() {
 
     far.authenticate(
         TARGET_USER,
-        Credential::Password(Zeroizing::new(TARGET_PASSWORD.to_owned())),
+        Credential::Password(Secret::new(TARGET_PASSWORD.to_owned())),
     )
     .await
     .expect("the far host accepts its own password");
@@ -342,7 +338,7 @@ async fn the_bastion_password_does_not_open_the_far_host() {
     let refused = far
         .authenticate(
             TARGET_USER,
-            Credential::Password(Zeroizing::new(BASTION_PASSWORD.to_owned())),
+            Credential::Password(Secret::new(BASTION_PASSWORD.to_owned())),
         )
         .await;
 
@@ -390,7 +386,7 @@ async fn two_hosts_ride_one_real_bastion() {
     for far in [&mut first, &mut second] {
         far.authenticate(
             TARGET_USER,
-            Credential::Password(Zeroizing::new(TARGET_PASSWORD.to_owned())),
+            Credential::Password(Secret::new(TARGET_PASSWORD.to_owned())),
         )
         .await
         .expect("the far host accepts its own password");

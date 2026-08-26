@@ -23,7 +23,7 @@ use crate::ssh::pending::{PendingHostKeys, PendingId};
 use crate::ssh::registry::{Busy, Open, Registry, SessionHandle};
 use crate::ssh::trust::Trust;
 use crate::vault::{
-    resolve_credential, Availability, CredentialId, SessionSecrets, StoredCredential, Vault,
+    resolve_credential, Availability, CredentialId, Secret, SessionSecrets, StoredCredential, Vault,
 };
 
 pub const KNOWN_HOSTS_FILE: &str = "known_hosts";
@@ -288,9 +288,9 @@ pub async fn remember_credential<R: Runtime>(
     app: AppHandle<R>,
     vault: State<'_, Vault>,
     session_id: String,
-    password: Option<String>,
-    private_key: Option<String>,
-    passphrase: Option<String>,
+    password: Option<Secret>,
+    private_key: Option<Secret>,
+    passphrase: Option<Secret>,
 ) -> Result<(), IpcError> {
     /* Checked before anything is written: a keychain entry for a session that
     does not exist is a secret nobody can reach and nobody knows to delete. */
@@ -318,7 +318,7 @@ pub fn persist_credential<R: Runtime>(
     app: &AppHandle<R>,
     vault: &Vault,
     session_id: &str,
-    secret: &zeroize::Zeroizing<String>,
+    secret: &Secret,
 ) -> Result<(), Error> {
     let store = SessionStore::new(config_dir(app)?);
     let mut sessions = store.load()?;
@@ -608,9 +608,9 @@ pub async fn connect_session<R: Runtime>(
 pub async fn authenticate_session(
     registry: State<'_, Registry>,
     handle: SessionHandle,
-    password: Option<String>,
-    private_key: Option<String>,
-    passphrase: Option<String>,
+    password: Option<Secret>,
+    private_key: Option<Secret>,
+    passphrase: Option<Secret>,
 ) -> Result<(), IpcError> {
     let credential = build_credential(password, private_key, passphrase)?;
 
@@ -651,9 +651,9 @@ pub async fn disconnect_session(
 /// Shares its refusals with [`build_credential`]: both are the same wire shape
 /// arriving from the webview, and both refuse rather than guess.
 pub fn to_stored(
-    password: Option<String>,
-    private_key: Option<String>,
-    passphrase: Option<String>,
+    password: Option<Secret>,
+    private_key: Option<Secret>,
+    passphrase: Option<Secret>,
 ) -> Result<StoredCredential, Error> {
     match (password, private_key) {
         (Some(_), Some(_)) => Err(Error::AmbiguousCredential),
@@ -665,14 +665,11 @@ pub fn to_stored(
 
 /// Turns what the keychain held back into something to authenticate with.
 pub fn from_stored(stored: StoredCredential) -> Credential {
-    use zeroize::Zeroizing;
-
     match stored {
-        StoredCredential::Password { secret } => Credential::Password(Zeroizing::new(secret)),
-        StoredCredential::PrivateKey { pem, passphrase } => Credential::PrivateKey {
-            pem: Zeroizing::new(pem),
-            passphrase: passphrase.map(Zeroizing::new),
-        },
+        StoredCredential::Password { secret } => Credential::Password(secret),
+        StoredCredential::PrivateKey { pem, passphrase } => {
+            Credential::PrivateKey { pem, passphrase }
+        }
     }
 }
 
@@ -682,19 +679,14 @@ pub fn from_stored(stored: StoredCredential) -> Credential {
 /// webview sends is a wire format, and a wire format is something to validate,
 /// not to trust.
 pub fn build_credential(
-    password: Option<String>,
-    private_key: Option<String>,
-    passphrase: Option<String>,
+    password: Option<Secret>,
+    private_key: Option<Secret>,
+    passphrase: Option<Secret>,
 ) -> Result<Credential, Error> {
-    use zeroize::Zeroizing;
-
     match (password, private_key) {
         (Some(_), Some(_)) => Err(Error::AmbiguousCredential),
-        (Some(password), None) => Ok(Credential::Password(Zeroizing::new(password))),
-        (None, Some(pem)) => Ok(Credential::PrivateKey {
-            pem: Zeroizing::new(pem),
-            passphrase: passphrase.map(Zeroizing::new),
-        }),
+        (Some(password), None) => Ok(Credential::Password(password)),
+        (None, Some(pem)) => Ok(Credential::PrivateKey { pem, passphrase }),
         (None, None) => Err(Error::MissingCredential),
     }
 }
@@ -707,7 +699,7 @@ mod tests {
 
     #[test]
     fn a_password_becomes_a_password_credential() {
-        let credential = build_credential(Some("hunter2".to_owned()), None, None).expect("built");
+        let credential = build_credential(Some(Secret::new("hunter2")), None, None).expect("built");
         assert!(matches!(credential, Credential::Password(_)));
     }
 
@@ -715,8 +707,8 @@ mod tests {
     fn a_key_carries_its_passphrase() {
         let credential = build_credential(
             None,
-            Some("-----BEGIN-----".to_owned()),
-            Some("phrase".to_owned()),
+            Some(Secret::new("-----BEGIN-----")),
+            Some(Secret::new("phrase")),
         )
         .expect("built");
 
@@ -735,7 +727,7 @@ mod tests {
         which secret was used, and the user would be told the wrong thing
         when it fails. */
         assert!(matches!(
-            build_credential(Some("a".to_owned()), Some("b".to_owned()), None),
+            build_credential(Some(Secret::new("a")), Some(Secret::new("b")), None),
             Err(Error::AmbiguousCredential)
         ));
     }
@@ -743,7 +735,7 @@ mod tests {
     #[test]
     fn sending_neither_is_refused() {
         assert!(matches!(
-            build_credential(None, None, Some("orphan".to_owned())),
+            build_credential(None, None, Some(Secret::new("orphan"))),
             Err(Error::MissingCredential)
         ));
     }
@@ -874,7 +866,7 @@ mod tests {
         /* A password read back as a private key would fail authentication in a
         way that looks like the server rejecting the user, which is the
         worst possible place for a shape to be guessed. */
-        let stored = to_stored(Some("hunter2".to_owned()), None, None).expect("stored");
+        let stored = to_stored(Some(Secret::new("hunter2")), None, None).expect("stored");
         let encoded = stored.encode().expect("encode");
         let decoded = StoredCredential::decode(&encoded).expect("decode");
 
@@ -885,8 +877,8 @@ mod tests {
     fn a_stored_key_keeps_its_passphrase() {
         let stored = to_stored(
             None,
-            Some("-----BEGIN-----".to_owned()),
-            Some("phrase".to_owned()),
+            Some(Secret::new("-----BEGIN-----")),
+            Some(Secret::new("phrase")),
         )
         .expect("stored");
 
@@ -907,11 +899,11 @@ mod tests {
         and a credential that is guessed here is a credential remembered
         wrongly forever. */
         assert!(matches!(
-            to_stored(Some("a".to_owned()), Some("b".to_owned()), None),
+            to_stored(Some(Secret::new("a")), Some(Secret::new("b")), None),
             Err(Error::AmbiguousCredential)
         ));
         assert!(matches!(
-            to_stored(None, None, Some("orphan".to_owned())),
+            to_stored(None, None, Some(Secret::new("orphan"))),
             Err(Error::MissingCredential)
         ));
     }
@@ -919,7 +911,7 @@ mod tests {
     #[test]
     fn what_is_stored_never_renders_itself() {
         /* It is a Debug away from a log. */
-        let stored = to_stored(Some("hunter2".to_owned()), None, None).expect("stored");
+        let stored = to_stored(Some(Secret::new("hunter2")), None, None).expect("stored");
         let credential = from_stored(stored);
 
         assert!(!format!("{credential:?}").contains("hunter2"));
