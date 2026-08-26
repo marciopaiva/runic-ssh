@@ -83,6 +83,16 @@ That distinction is the whole point of this table. It exists so that "the build
 is green", "somebody ran it", and "somebody ran the file a stranger would
 download" stay three separate claims.
 
+**CI now installs what it built, and that does not make a row here true.** The
+`smoke` job in `package.yml` installs the `.deb` and the NSIS package on their
+own platforms, opens the Linux one on a virtual display and checks that the
+window rendered something rather than a flat colour, and mounts the `.dmg` to
+read the version out of the bundle. It runs before `release`, so a tag with a
+broken installer publishes no page at all. What it does not do is connect to
+anything, or touch a keyboard, or open the application on macOS at all, and this
+table is about what a person has run. A fourth claim was added; none of the
+three it sits beside moved.
+
 What the Linux run covered, end to end on the packaged binary: it read the real
 config directory, listed saved sessions, took the unknown-host-key path,
 displayed a fingerprint that matched `ssh-keyscan` exactly, wrote the correct
