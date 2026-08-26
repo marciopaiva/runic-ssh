@@ -95,19 +95,16 @@ thing this project would rather not do.
 
 ## 📸 What it looks like
 
-Both captures are of the packaged application connected to a real SSH server.
-They are not mockups, and not the design canvas. The hosts are invented; the
-fingerprint, the shell and the output are not.
-
-They are also **out of date**. They were taken before the tabs left the title
-bar, so they show the anatomy ADR-0020 replaced. Retaking them needs a packaged
-build driven by hand against a real host, which is why they have not been
-replaced with something cheaper and captioned as if it were the same thing.
+Both captures are of the release build, the same binary the installers carry,
+connected to a real SSH server. They are not mockups, and not the design canvas.
+The hosts are invented; the fingerprints, the shells and the output are not.
+Each fingerprint shown was checked against `ssh-keyscan` before the picture was
+taken.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-main-dark.png">
   <source media="(prefers-color-scheme: light)" srcset="assets/screenshot-main-light.png">
-  <img src="assets/screenshot-main-dark.png" alt="Runic SSH with a connected session: saved hosts grouped in the sidebar, a terminal, and a status bar" width="880">
+  <img src="assets/screenshot-main-dark.png" alt="Runic SSH with two hosts open side by side: the activity rail, saved hosts grouped in the sidebar, two groups each with its own strip of tabs, and a status bar naming the focused host" width="880">
 </picture>
 
 **An unknown host key.** The primary button starts inert and stays that way

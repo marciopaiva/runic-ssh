@@ -111,8 +111,6 @@ with the caveat that anything below 1.0 may break, and this project intends to.
   between groups. Both go through the command palette.
 - SFTP has no code behind it, so the rail carries one view rather than the three
   the design canvas draws. The icon arrives with the feature.
-- The screenshots below the feature list are of the previous anatomy, taken
-  before the tabs left the title bar.
 
 ## [0.1.1] — 2026-08-23
 
