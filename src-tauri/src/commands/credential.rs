@@ -284,6 +284,41 @@ fn close_window<R: Runtime>(app: &AppHandle<R>) {
 mod tests {
     use super::*;
 
+    #[test]
+    fn the_prompt_window_still_sends_what_this_command_takes() {
+        /* The three secret arguments became `Option<Secret>` under ADR-0026,
+        and nothing else in the gate would notice if that changed the wire.
+        The literal below is what `submitCredential` in `src/ipc/credential.ts`
+        builds, absent fields included: it sends `null` rather than omitting
+        them, so `Option` has to accept both. */
+        #[derive(serde::Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Sent {
+            password: Option<Secret>,
+            private_key: Option<Secret>,
+            passphrase: Option<Secret>,
+        }
+
+        let typed: Sent =
+            serde_json::from_str(r#"{"password":"hunter2","privateKey":null,"passphrase":null}"#)
+                .expect("a password the window sent");
+        assert_eq!(typed.password.as_ref().map(Secret::expose), Some("hunter2"));
+        assert!(typed.private_key.is_none() && typed.passphrase.is_none());
+
+        let typed: Sent = serde_json::from_str(
+            r#"{"password":null,"privateKey":"-----BEGIN-----","passphrase":"phrase"}"#,
+        )
+        .expect("a key the window sent");
+        assert_eq!(
+            typed.private_key.as_ref().map(Secret::expose),
+            Some("-----BEGIN-----")
+        );
+        assert_eq!(
+            typed.passphrase.as_ref().map(Secret::expose),
+            Some("phrase")
+        );
+    }
+
     /// Parses the URL the way the window does: split the query, read `request`.
     fn request_in(url: &str) -> Option<u64> {
         url.split_once("?request=")
