@@ -448,8 +448,13 @@ jobs:
             exit 1
           fi
 
+          # `grep -a` reads the binary itself. Piping `strings` into `grep -q`
+          # is the obvious spelling and it fails on the runner: `grep -q` exits
+          # at the first match, `strings` takes the broken pipe, and the
+          # `pipefail` this shell runs with turns that into a failed step
+          # reporting a frontend that is present.
           for probe in index.html assets/; do
-            if ! strings -a "$exe" | grep -q -- "$probe"; then
+            if ! LC_ALL=C grep -a -q -- "$probe" "$exe"; then
               echo "::error::no $probe in the executable: the frontend was not embedded"
               exit 1
             fi
