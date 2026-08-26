@@ -19,6 +19,7 @@ import {
   authenticateWithSaved,
   connectSession,
   disconnectSession,
+  dismissCredential,
   dismissHostKey,
   hostKeyDecision as readDecision,
   trustHostKey,
@@ -245,6 +246,23 @@ export function useConnect(wiring: Wiring): ConnectState {
        tidy-up that failed. */
     if (attempt !== null && attempt.stage.stage === 'deciding') {
       void dismissHostKey(attempt.stage.decision.pending).catch(() => undefined);
+    }
+
+    /* And the prompt window goes with it. Cancelling used to leave it standing:
+       the panel went back to normal and a password prompt stayed on top of
+       everything, asking for a connection that no longer existed, with the core
+       still waiting inside it. Somebody who typed into it was authenticating an
+       attempt they had already walked away from.
+
+       No request id is needed. Closing the window is what answers the request,
+       because the core wires its destruction to a dismissal. #193.
+
+       This is also the way out of a prompt whose own script never loaded, which
+       is what ADR-0028 spends to take the native title bar off that window. It
+       is a different document with a different script, so it survives the
+       failure the title bar was there for. */
+    if (attempt !== null && attempt.stage.stage === 'authenticating') {
+      void dismissCredential(null).catch(() => undefined);
     }
 
     setAttempt(null);

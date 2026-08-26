@@ -42,6 +42,15 @@ with the caveat that anything below 1.0 may break, and this project intends to.
   means the prompt is hidden while the main window is minimised, and comes back
   with it.
 
+- **The credential prompt has no title bar of the desktop's** (ADR-0028, #193,
+  #188). It carried one, against the chrome every other window in this
+  application uses, because it was the only way to close a prompt whose script
+  never ran, and a prompt that cannot be closed is a connection that hangs. The
+  way out is now Cancel in the main window, which is a control in a different
+  document with a different script and survives the same failure. That had to be
+  built anyway: cancelling used to leave the prompt standing, on top of
+  everything, asking for a connection that no longer existed.
+
 - **The credential prompt speaks the same shape as the host key screens**
   (#188). It had one of its own: a bare heading, a different type scale, its own
   buttons. ADR-0015 replaced five shapes with one for exactly this reason, and

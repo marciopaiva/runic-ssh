@@ -4,9 +4,12 @@
  * ADR-0008: the core issues an opaque request id, the prompt window replies
  * with that id and the secret, and an unmatched or repeated id is refused.
  *
- * Everything here except `authenticateInteractively` is called from the
- * credential window and nowhere else. It lives in `src/ipc/` with the rest so
- * the whole privileged surface stays readable in one directory, per section 6.
+ * Most of this is called from the credential window and nowhere else. Two are
+ * not: `authenticateInteractively`, which is how the main window asks for a
+ * prompt to exist, and `dismissCredential`, which is how it takes one away
+ * again when the user cancels the attempt underneath it. It lives in
+ * `src/ipc/` with the rest so the whole privileged surface stays readable in
+ * one directory, per section 6.
  */
 
 import { invoke } from '@tauri-apps/api/core';
@@ -102,6 +105,13 @@ export async function submitCredential(
  * The request is optional because the window's error state is reached exactly
  * when it could not find its request — and a Cancel that needs one is inert in
  * the only state where it is the last thing left.
+ *
+ * It is also how the **main** window takes a prompt away. Passing `null` from
+ * there closes whichever prompt is open, and closing it is what answers the
+ * request the core is holding: the core wires the window's own destruction to a
+ * dismissal, so there is no id to know and nothing left waiting. That is the
+ * way out of a prompt that does not depend on the prompt's own script, which is
+ * what ADR-0028 spends to take the native title bar off it.
  */
 export async function dismissCredential(request: number | null): Promise<void> {
   return invoke<void>('dismiss_credential', { request });

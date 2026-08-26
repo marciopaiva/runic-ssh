@@ -259,21 +259,21 @@ pub(crate) async fn ask<R: Runtime>(
 /// are two figures, and both have room for the longest of the three
 /// translations rather than for the English, which is the shortest.
 ///
-/// **These are a request, not a measurement, and the compositor may spend part
-/// of it on itself.** `inner_size` is the inner size where the window manager
-/// draws the frame around the window. Where it draws the title bar *inside* the
-/// surface, which is what client-side decorations are, the same number arrives
-/// as the outer size and the document gets what is left. Measured at 47 points
-/// on one such desktop: 340 asked for, 293 rendered into, which was enough to
-/// hide two of the three keep options.
+/// These are what the document gets, because the window is undecorated: no
+/// title bar is drawn inside the surface to take a share of them. That was not
+/// true until ADR-0028, and until then the figures carried an allowance for a
+/// cost they had no way to measure. Two guesses in a row were short, and the
+/// second time what fell off the bottom was two of the three keep options,
+/// leaving a control that showed one answer and looked complete.
 ///
-/// Nothing here can find that out. There is no portable way to ask what a
-/// decoration will cost before the window exists, and resizing after it is
-/// mapped trades the clipping for a window that jumps. So the figures below
-/// carry an allowance, and the window says so when it is not enough: the
-/// component draws a rule above the buttons whenever there is more above them
-/// than fits. An interface that is short of room can be lived with. One that
-/// looks complete while hiding two thirds of a control cannot.
+/// Both leave more room than the content measured, and deliberately. A number
+/// chosen here is measured against a component in a webview, in three
+/// languages, on a machine whose fonts nobody here picked. This particular
+/// window has run out of room three times; the air is what stops a fourth.
+///
+/// The action row still sits outside the part that scrolls, for when it is not
+/// enough anyway. What has to survive a disagreement is the window staying
+/// answerable.
 const PROMPT_HEIGHT: f64 = 420.0;
 const PROMPT_HEIGHT_WITH_HOP: f64 = 540.0;
 
@@ -413,14 +413,23 @@ fn open_window<R: Runtime>(
                 application hanging". Both are asked for explicitly. */
                 .focused(true)
                 .always_on_top(true)
-                /* Native decorations, deliberately, against ADR-0005's aesthetic and only
-                on this window. A prompt whose script fails to load and has no OS close
-                button is a connection that can never be cancelled, which is the exact
-                hang ADR-0008 calls the worst failure of this design. The guaranteed way
-                out is worth more here than the chrome. #188 asked whether the
-                decorations could go; they can once something else guarantees the way
-                out, and today nothing does. */
-                .decorations(true);
+                /* Undecorated, like every other window this application opens.
+                ADR-0028.
+                This one carried the desktop's title bar until the main window's
+                Cancel could close it. That was ADR-0008's answer to its own
+                worst failure, a prompt whose script never runs leaving a
+                connection waiting on a reply that cannot come: the window
+                manager's close button works whether or not anything of ours
+                does. The replacement is a control in a different document with
+                a different script, which survives the same failure, and it had
+                to be built anyway because cancelling used to leave the prompt
+                standing. #193.
+                The title bar was also spending the window. A desktop that draws
+                it inside the surface takes it out of what the document gets, 47
+                points of 420 where that was measured, and the heights below are
+                chosen in Rust against content in a webview with no way to find
+                that out. They mean what they say now. */
+                .decorations(false);
 
         match placement {
             Some((x, y)) => builder.position(x, y),
