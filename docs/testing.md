@@ -91,9 +91,11 @@ installer, which is minutes rather than one.
 The clipboard is the one part of the terminal that cannot be asserted from a
 test. It runs on the browser's own `copy` and `paste` events (ADR-0018), so what
 is being checked is whether the webview raises them, and WebKitGTK and WebView2
-each get their own vote. Synthetic key events do not answer this: keys injected
-with `xdotool` never reach the WebKit web process under Xvfb, so this list is
-driven by hand or not at all.
+each get their own vote. Half of this can be driven synthetically and half
+cannot: `xdotool` typing reaches the webview on a display that has a window
+manager, so a paste can be sent, but a drag never reaches it, so nothing can be
+selected and copy is a person's job. See "What synthetic input can and cannot
+drive" below before assuming either way.
 
 Connect a session, then:
 
@@ -150,8 +152,10 @@ Save them as four sessions and the split is one palette command away.
 reasoning behind what these are checking.
 
 Nothing here can be asserted from a test either, for the same reason as the
-clipboard: what is being checked is what the webview does with a real keyboard
-in real rectangles, and injected keys do not reach it.
+clipboard: what is being checked is what the webview does with a keyboard in
+real rectangles. Typing can be sent synthetically, so most of this list can be
+walked without a person; moving a host into an empty rectangle cannot, because
+that is a drag.
 
 Split from the palette (`Ctrl-Shift-P`, then "Split"). One open session is
 enough: splitting first and connecting into the empty pane is the ordinary way
@@ -347,6 +351,35 @@ what happened is to read `/proc/<pid>/environ`.
 
 `import -window <id>` screenshots it and `xdotool` drives it, both with
 `DISPLAY=:99`. Nothing touches the desktop the developer is using.
+
+### What synthetic input can and cannot drive
+
+This list was measured on 2026-08-26, on `:91` with `openbox` running and a
+release build, while retaking the README screenshots (#146). It corrects a
+claim this document made in two places: that injected keys never reach the
+WebKit web process. They do, once something gives the window keyboard focus.
+
+| Gesture | Reaches the webview |
+| --- | --- |
+| `xdotool type` and `key`, after `windowactivate --sync` | **yes** |
+| `Ctrl-Shift-V`, pasting from the clipboard | **yes** |
+| Middle click, pasting the primary selection into a form field | **yes** |
+| `xdotool click` | **yes** |
+| Middle click into the terminal | no |
+| Any drag: selecting text, moving a host into a rectangle | no |
+| `xdotool type --window <id>` | no |
+
+Two of those are worth keeping in mind. `--window` sends `XSendEvent` and
+WebKit ignores it, so a failure there says nothing about whether keys work; use
+plain `xdotool type` with the window activated. And a drag failing silently is
+what makes it expensive: the pointer moves, the button goes down and up, and
+the application simply never hears it, which reads exactly like a bug in the
+feature being driven.
+
+A host key prompt or a credential window will time out while you debug the
+coordinates. `sshd` closes the connection after its login grace period, and the
+error the window shows is "the SSH conversation did not finish", not "you took
+too long". Drive the whole sequence in one go.
 
 ## Measuring several terminals painting at once
 
