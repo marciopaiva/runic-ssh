@@ -1,3 +1,5 @@
+export { announceBroadcast } from './broadcast';
+export type { Announcement } from './broadcast';
 export {
   ALL_LATENCY_READINGS,
   ENCODING,

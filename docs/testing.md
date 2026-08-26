@@ -200,6 +200,23 @@ session in them, and says so when you hover it.
 | Paste one line, under `bash` | the confirmation appears anyway, naming the host count |
 | Cancel that confirmation | no host received anything |
 
+**What a screen reader hears is the half no test can hold.** Every marker above
+is a thing to look at. The status bar carries one live region, always present
+and empty until the state first moves, and `announceBroadcast` decides what goes
+in it. That the region says the right thing is asserted; that anything speaks it
+is not, and cannot be from here.
+
+Drive it with the reader the platform ships, Orca on Linux and Narrator on
+Windows, with the terminal focused:
+
+| Do this | Expect |
+| --- | --- |
+| Arm the switch from the palette | it says synchronised typing is on, and how many hosts |
+| Spare one group | it says the new count |
+| Leave one receiving | it says one host, not `1 hosts` |
+| Turn the switch off | it says it is off, which no marker used to do |
+| Open the window and touch nothing | it says nothing at all |
+
 **The password case is what the switch cannot protect and the thing to see for
 yourself.** The fixture is Alpine and has no `sudo`, so use the mechanism
 directly. Any prompt that hides what you type does it the same way: the remote

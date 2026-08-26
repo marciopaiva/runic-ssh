@@ -62,7 +62,8 @@ import { preparePaste } from './features/terminal/clipboard';
 import { deleteSession, disconnectSession, saveSession, sendInput } from './ipc';
 import type { Session, SessionDraft } from './ipc';
 import { useLocale, useTheme } from './features/settings';
-import { useSessionStats } from './features/status';
+import { announceBroadcast, useSessionStats } from './features/status';
+import type { Announcement } from './features/status';
 import {
   WHOLE_AREA,
   activeEntry,
@@ -324,6 +325,19 @@ export function App(): JSX.Element {
         : new Set<string>(),
     [armed, receiving, sessions],
   );
+
+  /* The only thing in the window that says a broadcast was armed or disarmed
+     without being looked at. Held here rather than derived in the bar because
+     an announcement is about the change, and the bar only ever sees the state
+     it is in now. See #154. */
+  const hostsReceiving = armed ? receiving.length : null;
+  const lastReceiving = useRef<number | null>(null);
+  const [announcement, setAnnouncement] = useState<Announcement | null>(null);
+  useEffect(() => {
+    const said = announceBroadcast(lastReceiving.current, hostsReceiving);
+    lastReceiving.current = hostsReceiving;
+    if (said !== null) setAnnouncement(said);
+  }, [hostsReceiving]);
 
   /* Nobody inherits a broadcast they did not arm. Moving the focus within a
      group leaves this alone; changing which hosts are showing does not, and
@@ -1358,7 +1372,8 @@ export function App(): JSX.Element {
         stats={stats}
         size={size}
         modifier={chrome?.commandModifier ?? 'control'}
-        syncing={armed ? receiving.length : null}
+        syncing={hostsReceiving}
+        announcement={announcement}
         credentialUnsaved={activeId !== null && unsaved.has(activeId)}
         onDismissUnsaved={() =>
           setUnsaved((current) => {
