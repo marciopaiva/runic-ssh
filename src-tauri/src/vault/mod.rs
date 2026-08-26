@@ -290,6 +290,26 @@ pub fn resolve_credential(
     }
 }
 
+/// Forgets a secret wherever it is: the copy this run is holding, and the
+/// keychain's.
+///
+/// The pair to [`resolve_credential`], and it has to be a pair. That function
+/// answers from the run first, so clearing only the keychain leaves the answer
+/// unchanged: the user is told the password is gone, the next connection does
+/// not ask, and the control has said one thing and done another.
+///
+/// The run's copy goes first and whatever happens next. A keychain that refuses
+/// is reported, but it must not leave a secret behind that would still be
+/// handed out by `resolve_credential`.
+pub fn forget_credential(
+    secrets: &SessionSecrets,
+    vault: &Vault,
+    id: &CredentialId,
+) -> Result<(), Error> {
+    secrets.forget(id);
+    vault.forget(id)
+}
+
 /// Turns a keyring failure into something safe to show.
 ///
 /// Deliberately a fixed phrase per kind rather than the underlying message.
@@ -358,6 +378,28 @@ mod tests {
 
         let resolved = resolve_credential(&secrets, &vault, &id).expect("it resolves");
         assert_eq!(resolved.expose(), "from-this-run");
+    }
+
+    #[test]
+    fn forgetting_takes_the_run_copy_too() {
+        /* The whole of the decision. `resolve_credential` answers from the run
+        first, so a forget that only reached the keychain would change nothing
+        the next connection sees: the interface would say the password was gone
+        and the host would still not be asked for one. */
+        let secrets = SessionSecrets::new();
+        let vault = scratch();
+        let id = CredentialId::for_session("web-01");
+
+        secrets.keep(&id, &Secret::new("from-this-run"));
+        assert!(secrets.resolve(&id).is_some(), "kept for this run");
+
+        /* The keychain half is allowed to fail here. A machine with no secret
+        service is exactly where the run copy is the only copy, and it is the
+        one this test is about. */
+        let _ = forget_credential(&secrets, &vault, &id);
+
+        assert!(secrets.resolve(&id).is_none(), "the run copy is gone");
+        assert!(resolve_credential(&secrets, &vault, &id).is_err());
     }
 
     #[test]

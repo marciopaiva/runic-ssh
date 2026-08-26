@@ -371,9 +371,14 @@ pub fn persist_credential<R: Runtime>(
 pub async fn forget_credential<R: Runtime>(
     app: AppHandle<R>,
     vault: State<'_, Vault>,
+    secrets: State<'_, SessionSecrets>,
     session_id: String,
 ) -> Result<(), IpcError> {
-    vault.forget(&CredentialId::for_session(&session_id))?;
+    /* Both copies, and the run's first. Clearing only the keychain would leave
+    `resolve_credential` answering exactly as before, so the next connection
+    would still not ask and the button would have said something it did not
+    do. See `vault::forget_credential`. */
+    crate::vault::forget_credential(&secrets, &vault, &CredentialId::for_session(&session_id))?;
 
     let store = SessionStore::new(config_dir(&app)?);
     let mut sessions = store.load()?;
