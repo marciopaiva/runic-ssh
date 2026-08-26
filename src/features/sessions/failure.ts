@@ -95,12 +95,14 @@ const FAILURES: Partial<Record<IpcErrorCode, Failure>> = {
     body: 'failure.unknownSession.body',
     retryable: false,
   },
-  /* One message for all three problems the core distinguishes. Only two of
+  /* One message for all four problems the core distinguishes. Only two of
      them can be met by connecting: a jump host that was deleted, and one that
-     has since been put behind a jump host of its own. A session naming itself
-     is refused when it is saved, so nothing can be stored in that state and
-     nothing can reach this by connecting. Both reachable cases are fixed the
-     same way, in the editor, which is what the message says. */
+     has since been put behind a jump host of its own. A session naming itself,
+     and a bastion being given a jump host while other sessions are reached
+     through it, are both refused when they are saved, so nothing can be stored
+     in either state and nothing can reach this by connecting. Both reachable
+     cases are fixed the same way, in the editor, which is what the message
+     says. */
   invalidProxyJump: {
     title: 'failure.proxyJump.title',
     body: 'failure.proxyJump.body',

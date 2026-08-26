@@ -67,6 +67,25 @@ describe('the IPC error contract', () => {
     ).toEqual([]);
   });
 
+  /* The codes inside `invalidProxyJump` are the same gap as the variants
+     above, one level down: they cross as a plain string, so a fourth one added
+     in Rust typechecks on both sides while the frontend union quietly cannot
+     name it. Found while adding `serving` for #171. */
+  it('names the same jump host problems on both sides', () => {
+    const rust = [...rustSource.matchAll(/ProxyJumpProblem::[A-Za-z]+ => "([a-z]+)"/g)]
+      .map(([, code]) => code ?? '')
+      .sort();
+
+    const union = typescriptSource.slice(
+      typescriptSource.indexOf('readonly problem:'),
+      typescriptSource.indexOf(';', typescriptSource.indexOf('readonly problem:')),
+    );
+    const typescript = [...union.matchAll(/'([a-z]+)'/g)].map(([, code]) => code ?? '').sort();
+
+    expect(rust.length, 'no problems were found in error.rs').toBeGreaterThan(3);
+    expect(typescript).toEqual(rust);
+  });
+
   it('narrows a real rejection', () => {
     const rejection = { code: 'hostKeyRejected', verdict: 'changed', offered: null, stored: [] };
     expect(asIpcError(rejection)?.code).toBe('hostKeyRejected');
