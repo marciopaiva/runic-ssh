@@ -19,6 +19,13 @@ use tauri::{AppHandle, Runtime, WebviewWindow};
 use crate::config::apply_native_decorations;
 use crate::error::{Error, IpcError};
 
+/// The label the application's own window is created under.
+///
+/// Spelled once. `tauri.conf.json` names it, this module looks it up to apply
+/// the stored decorations, and the credential prompt looks it up to sit over
+/// it; a literal in three places is a rename that half works.
+pub const MAIN_WINDOW: &str = "main";
+
 /// Who draws the minimise, maximise and close buttons.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -184,7 +191,7 @@ pub fn restore_decorations<R: Runtime>(app: &AppHandle<R>) {
         return;
     }
 
-    if let Some(window) = tauri::Manager::get_webview_window(app, "main") {
+    if let Some(window) = tauri::Manager::get_webview_window(app, MAIN_WINDOW) {
         let _ = window.set_decorations(true);
     }
 }
