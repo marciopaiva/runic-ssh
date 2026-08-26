@@ -4,8 +4,11 @@
 * **Date**: 2026-08-22
 
 Amended by ADR-0027, dated 2026-08-26, from one credential per connection to one
-per hop. Which document the prompt lives in is not amended and is the whole of
-what this decides.
+per hop. Amended again by ADR-0028, same date: the way out of a prompt that
+cannot answer for itself is the main window's Cancel rather than the window
+manager's close button, and the prompt window is undecorated accordingly. Which
+document the prompt lives in is not amended by either, and is the whole of what
+this decides.
 
 ## Context
 
