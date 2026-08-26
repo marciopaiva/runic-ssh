@@ -53,6 +53,11 @@ workflow produced, and it is the answer to "is this usable yet".
 | Windows, `.msi` (WiX) | built, not installed | | the NSIS package was the one exercised |
 | macOS, `.dmg` | **no** | | needs an Apple Silicon Mac |
 
+**Nothing from v0.2.1 appears above, because nobody has installed one yet.** The
+newest file anyone has run is the 0.2.0 `.deb`, and the Windows row is older
+still. A row here moves when somebody runs the file, not when the tag is pushed,
+and this paragraph is what stops the table's silence being read as coverage.
+
 **The Linux row is now a release download, and that is a different claim.** The
 files attached to a release come off the CI runners: same commit, different
 machine, and a different set of things that can go wrong along the way, from a
@@ -153,7 +158,7 @@ can it tell you the file was not modified in transit. Compare the SHA-256
 against the workflow run before you do it:
 
 ```powershell
-Get-FileHash .\Runic-SSH_0.2.0_x64_en-US.msi -Algorithm SHA256
+Get-FileHash .\Runic-SSH_0.2.1_x64_en-US.msi -Algorithm SHA256
 ```
 
 ## macOS
@@ -180,7 +185,7 @@ as of anything else.
 
 ```sh
 sha256sum -c SHA256SUMS --ignore-missing
-sudo apt install ./Runic-SSH_0.2.0_amd64.deb
+sudo apt install ./Runic-SSH_0.2.1_amd64.deb
 ```
 
 The file is `Runic-SSH_...`, capitalised, because the product name is; the
@@ -192,13 +197,13 @@ bundled browser engine. The webview is the system's, which is why the download
 is three megabytes rather than a hundred.
 
 **Installing a second build of the same version does nothing.** `apt` compares
-version numbers, so a rebuild of `0.2.0` over an installed `0.2.0` exits
+version numbers, so a rebuild of `0.2.1` over an installed `0.2.1` exits
 successfully without replacing anything: no error, no warning, and the old
-binary still on disk. A real bump does upgrade normally, so `0.2.0` over `0.1.1`
+binary still on disk. A real bump does upgrade normally, so `0.2.1` over `0.2.0`
 needs none of this. For a rebuild of the same version, force it:
 
 ```sh
-sudo dpkg -i ./Runic-SSH_0.2.0_amd64.deb
+sudo dpkg -i ./Runic-SSH_0.2.1_amd64.deb
 ```
 
 ### If the window cannot be moved or resized

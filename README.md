@@ -130,19 +130,22 @@ exists to prevent, so it is not one click away.
 
 ## 🚦 Status
 
-**Pre-alpha, and it connects.** v0.1.0 and v0.1.1 shipped on 2026-08-23, and
-v0.2.0 on 2026-08-26 with panes and jump hosts. On Linux and on Windows 11 a
-packaged build was installed and driven end to end: it verified an unknown host
-key against its real fingerprint, asked for a password in its own window,
-opened a shell and ran commands in it.
+**Pre-alpha, and it connects.** v0.1.0 and v0.1.1 shipped on 2026-08-23, v0.2.0
+on 2026-08-26 with groups and jump hosts, and v0.2.1 the same day finishing what
+that release said it did. On Linux and on Windows 11 a packaged build was
+installed and driven end to end: it verified an unknown host key against its
+real fingerprint, asked for a password in its own window, opened a shell and ran
+commands in it.
 
 **macOS has never been opened by anyone.** The `.dmg` builds on every run and
 that is all anyone can say about it. `docs/installing.md` tracks which packages
 a human has actually installed, per platform, which is not the same list as the
-one CI produces. The Linux `.deb` from the v0.1.1 release has now been
-downloaded, checked against its hash, installed and driven, which is the first
-time anyone has run a file that came out of a release rather than off their own
-machine. Windows and macOS have not.
+one CI produces. The Linux `.deb` has now been downloaded from a release,
+checked against its hash, installed and driven twice, at v0.1.1 and again at
+v0.2.0, which is the only path where somebody has run the same file a stranger
+would. On Windows the newest package anyone has installed is a v0.1.1 build, and
+it came off a developer's machine rather than a release. Nobody has installed
+anything from v0.2.1.
 
 Work is tracked in [issues](https://github.com/marciopaiva/runic-ssh/issues) and
 the decisions behind it in [`docs/adr/`](docs/adr/).
@@ -218,11 +221,21 @@ pnpm typecheck
 pnpm test
 ```
 
+`pnpm gate` runs the same five quietly, for the loop between edits, and re-runs
+the first failure in full. It is a check rather than evidence: a claim that
+something was verified cites the loud form above.
+
+`pnpm prose` is a sixth thing, and CI runs it as its own job beside the five.
+It checks the two rules in [CLAUDE.md](CLAUDE.md) a machine can decide, the long
+dash and the commit subject, against what your branch adds rather than against
+the tree. Five green commands and a red pull request is what happens without it.
+
 ## 🗺️ Roadmap
 
 - [x] **v0.1.0 (MVP):** SSH connections with host key verification, saved sessions, and a working terminal. [Released 2026-08-23](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.1.0).
 - [x] **v0.1.1:** copy and paste in the terminal. [Released 2026-08-23](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.1.1).
 - [x] **v0.2.0:** reaching a host through a bastion, a main area divided into groups, and typing into all of them at once. [Released 2026-08-26](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.2.0).
+- [x] **v0.2.1:** finishing what v0.2.0 claimed: a jump host that asks for its own credential, a password saved from a host's own form, and a bastion that admits it is carrying somebody else's session. [Released 2026-08-26](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.2.1).
 - [ ] **v0.3.0:** SFTP, upload and download over the connection that is already open.
 - [ ] **v0.4.0:** port forwarding (SSH tunnels), customizable themes, and session import from PuTTY and OpenSSH.
 - [ ] **v1.0.0:** production grade stability, and a signed installer on every platform.
