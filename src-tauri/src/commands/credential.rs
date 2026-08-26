@@ -18,7 +18,7 @@ use crate::commands::sessions::{from_stored, persist_credential, saved_session, 
 use crate::error::{Error, IpcError};
 use crate::ssh::credentials::{Answer, CredentialPrompt, CredentialRequests, Keep, RequestId};
 use crate::ssh::registry::{Busy, Registry, SessionHandle};
-use crate::vault::{Availability, CredentialId, Secret, SessionSecrets, Vault};
+use crate::vault::{Availability, CredentialId, Secret, SessionSecrets, StoredCredential, Vault};
 
 /// What became of a credential the user asked to keep.
 ///
@@ -79,27 +79,12 @@ pub async fn authenticate_interactively<R: Runtime>(
         host: session.host.clone(),
         port: session.port,
         can_remember: matches!(vault.availability(), Availability::Available),
+        /* The host the user clicked. Nothing is being crossed on the way to
+        anywhere, which is what `None` says. */
+        carrying: None,
     };
 
-    let (request, answer) = requests.open(prompt).await;
-
-    if let Err(failure) = open_window(&app, request) {
-        /* Nobody can answer a window that did not open, so the request is
-        closed here rather than left for a reply that cannot arrive. */
-        requests.answer(request, Answer::Dismissed).await;
-        return Err(failure.into());
-    }
-
-    /* The sender is held by the request; it is answered by a submit, by a
-    cancel, or by the window's own close event. There is no fourth way for
-    this to resolve, which is what keeps a connection from waiting forever. */
-    let answer = answer.await.map_err(|_| Error::CredentialDismissed)?;
-
-    close_window(&app);
-
-    let Answer::Submitted { credential, keep } = answer else {
-        return Err(Error::CredentialDismissed.into());
-    };
+    let (credential, keep) = ask(&app, &requests, prompt).await?;
 
     /* Encoded before authenticating, because authenticating consumes the
     credential. Written only once the host has accepted it: saving a secret
@@ -222,7 +207,70 @@ pub fn prompt_url(request: RequestId) -> String {
 }
 
 /// Builds the prompt window and wires its close event to a dismissal.
-fn open_window<R: Runtime>(app: &AppHandle<R>, request: RequestId) -> Result<(), Error> {
+/// Opens the prompt window, waits for it, and returns what the user typed.
+///
+/// Extracted so a bastion can ask as well. ADR-0027 lets the core prompt for a
+/// hop the user did not click, and the thing that must not be duplicated to do
+/// that is this sequence: a request that is always answered, a window that is
+/// always destroyed, and a dismissal that is an error rather than a retry.
+///
+/// The returned credential is the shape the keychain holds, because a caller
+/// that was asked to keep it needs it written as well as used, and converting
+/// once means the secret is not copied a second time to satisfy the second use.
+pub(crate) async fn ask<R: Runtime>(
+    app: &AppHandle<R>,
+    requests: &CredentialRequests,
+    prompt: CredentialPrompt,
+) -> Result<(StoredCredential, Keep), Error> {
+    /* Read before the prompt is handed over, because the window is sized from
+    what it will render and the request owns the prompt from here on. */
+    let height = if prompt.carrying.is_none() {
+        PROMPT_HEIGHT
+    } else {
+        PROMPT_HEIGHT_WITH_HOP
+    };
+
+    let (request, answer) = requests.open(prompt).await;
+
+    if let Err(failure) = open_window(app, request, height) {
+        /* Nobody can answer a window that did not open, so the request is
+        closed here rather than left for a reply that cannot arrive. */
+        requests.answer(request, Answer::Dismissed).await;
+        return Err(failure);
+    }
+
+    /* The sender is held by the request; it is answered by a submit, by a
+    cancel, or by the window's own close event. There is no fourth way for
+    this to resolve, which is what keeps a connection from waiting forever. */
+    let answer = answer.await.map_err(|_| Error::CredentialDismissed)?;
+
+    close_window(app);
+
+    match answer {
+        Answer::Submitted { credential, keep } => Ok((credential, keep)),
+        Answer::Dismissed => Err(Error::CredentialDismissed),
+    }
+}
+
+/// How tall the prompt window is, which depends on what it has to say.
+///
+/// A jump host's prompt carries a paragraph the ordinary one does not, and at
+/// 340 pixels that paragraph pushed the keep options and the submit button off
+/// the bottom edge, leaving a window that could be read and not answered. Found
+/// by opening one. No test in this repository could have: the height is a
+/// number in Rust and the content is a component in a webview, and nothing
+/// measures one against the other.
+///
+/// The taller figure has room for the longest of the three translations rather
+/// than for the English, which is the shortest of them.
+const PROMPT_HEIGHT: f64 = 340.0;
+const PROMPT_HEIGHT_WITH_HOP: f64 = 440.0;
+
+fn open_window<R: Runtime>(
+    app: &AppHandle<R>,
+    request: RequestId,
+    height: f64,
+) -> Result<(), Error> {
     /* A window left over from an abandoned attempt would take the label and
     make this one fail to build. */
     close_window(app);
@@ -236,7 +284,7 @@ fn open_window<R: Runtime>(app: &AppHandle<R>, request: RequestId) -> Result<(),
 
     let window = WebviewWindowBuilder::new(app, CREDENTIAL_WINDOW, WebviewUrl::App(url.into()))
         .title("Runic SSH")
-        .inner_size(440.0, 340.0)
+        .inner_size(440.0, height)
         .resizable(false)
         .minimizable(false)
         .center()
@@ -339,6 +387,7 @@ mod tests {
                         host: "10.0.4.31".to_owned(),
                         port: 22,
                         can_remember: false,
+                        carrying: None,
                     })
                     .await
             });

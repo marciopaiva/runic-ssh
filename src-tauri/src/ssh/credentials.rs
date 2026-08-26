@@ -77,6 +77,18 @@ pub struct CredentialPrompt {
     /// window has one control that is always there and one that appears only
     /// when the machine can honour it. ADR-0025.
     pub can_remember: bool,
+    /// The session this hop is being crossed for, when this is a jump host.
+    ///
+    /// `None` is an ordinary prompt for the host the user clicked. `Some` says
+    /// the window is asking about a machine the user did not name, on the way
+    /// to one they did, and it carries the name so the window can say which.
+    ///
+    /// This is not decoration. ADR-0023 refused to let a bastion prompt at all
+    /// until the window could say which hop was asking, because two identical
+    /// windows in sequence for two different hosts is worse than one refusal
+    /// with an explanation. ADR-0027 is that permission, and this field is the
+    /// condition it was granted on.
+    pub carrying: Option<String>,
 }
 
 /// How long the user asked for a credential to be kept.
@@ -190,6 +202,7 @@ mod tests {
             host: "10.0.4.31".to_owned(),
             port: 22,
             can_remember: true,
+            carrying: None,
         }
     }
 
@@ -339,7 +352,21 @@ mod tests {
 
         assert_eq!(
             json,
-            r#"{"sessionName":"web-01","user":"deploy","host":"10.0.4.31","port":22,"canRemember":true}"#
+            r#"{"sessionName":"web-01","user":"deploy","host":"10.0.4.31","port":22,"canRemember":true,"carrying":null}"#
         );
+    }
+
+    #[test]
+    fn a_bastion_prompt_names_the_session_it_is_on_the_way_to() {
+        /* A saved session's name, which the user typed, and never anything the
+        far host offered. ADR-0027 requires this field to exist; ADR-0008
+        requires it to be ours. */
+        let json = serde_json::to_string(&CredentialPrompt {
+            carrying: Some("web-01".to_owned()),
+            ..prompt()
+        })
+        .expect("serializes");
+
+        assert!(json.contains(r#""carrying":"web-01""#));
     }
 }

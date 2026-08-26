@@ -122,21 +122,20 @@ const UNEXPECTED: Failure = {
 };
 
 /**
- * A jump host has no window to type a credential into.
+ * A keychain that is there and refusing, at the hop that cannot ask.
  *
- * ADR-0023 resolves it from the keychain and nowhere else, deliberately. So
- * the ordinary keychain message, which offers typing it instead, promises a
- * way out that does not exist at this hop. Saying so is the difference between
- * a message somebody acts on and one they try twice and give up on. See #165.
+ * This set used to hold three codes. ADR-0027 took two of them away: a jump
+ * host with nothing saved, and a machine with no store at all, now open a
+ * prompt instead of failing, which is what closed #165. What is left is the
+ * case that decision deliberately did not cover, and the copy has to say why
+ * this one hop is not offering to let the credential be typed. A locked keyring
+ * is a different problem from an empty one, and typing past it would leave the
+ * real cause in place.
  */
-const WITHOUT_A_KEYCHAIN: ReadonlySet<IpcErrorCode> = new Set<IpcErrorCode>([
-  'keychainUnavailable',
-  'keychainReadFailed',
-  'noSavedCredential',
-]);
+const KEYCHAIN_REFUSED: ReadonlySet<IpcErrorCode> = new Set<IpcErrorCode>(['keychainReadFailed']);
 
 export function describeFailure(code: IpcErrorCode, hop: Hop | null = null): Failure {
-  if (hop === 'bastion' && WITHOUT_A_KEYCHAIN.has(code)) {
+  if (hop === 'bastion' && KEYCHAIN_REFUSED.has(code)) {
     return {
       title: 'failure.jumpCredential.title',
       body: 'failure.jumpCredential.body',

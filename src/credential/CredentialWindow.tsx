@@ -149,8 +149,15 @@ export function CredentialWindow({ request }: { readonly request: number | null 
   }
 
   return (
-    <main className="bg-surface-base text-ink flex h-full flex-col p-5">
-      <h1 className="text-[13.5px] font-semibold">{i18n.t('credential.title')}</h1>
+    /* Scrolls rather than clips. The core sizes this window for what it is
+       about to render, and that is a number in Rust measured against a
+       component in a webview, in three languages. When the two disagree the
+       failure must be a scrollbar and not a window that can be read and not
+       answered. */
+    <main className="bg-surface-base text-ink flex h-full flex-col overflow-y-auto p-5">
+      <h1 className="text-[13.5px] font-semibold">
+        {i18n.t(prompt.carrying === null ? 'credential.title' : 'credential.title.jump')}
+      </h1>
       <p className="text-ink-secondary mt-1 text-[12px]">
         {i18n.t('credential.subject', {
           name: prompt.sessionName,
@@ -158,6 +165,17 @@ export function CredentialWindow({ request }: { readonly request: number | null 
           host: prompt.host,
         })}
       </p>
+
+      {/* The whole of what ADR-0023 required before a jump host was allowed to
+          ask at all. Two prompts arrive in a row for two different machines,
+          and without this the second is indistinguishable from the first. The
+          title changes with it rather than only this block, because a banner is
+          a thing the eye learns to skip and a heading is not. */}
+      {prompt.carrying !== null && (
+        <p className="bg-warn-soft text-warn border-warn/40 mt-3 rounded border px-2.5 py-1.5 text-[11.5px]">
+          {i18n.t('credential.hop.bastion', { target: prompt.carrying })}
+        </p>
+      )}
 
       <div
         role="radiogroup"
