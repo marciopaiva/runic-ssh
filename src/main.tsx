@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { App } from './App';
+import { refuseNavigationMenu } from './features/chrome';
 import { SettingsProvider } from './features/settings';
 import './styles.css';
 
@@ -45,6 +46,12 @@ if (flood !== null) {
     document.title = 'flood done';
   })();
 } else {
+  /* Before anything renders, because the menu this refuses is the webview's own
+     and it opens over whatever is on screen at the time. See #179: its Reload
+     restarts this document, and every open session goes with it while the
+     connections stay up on the far side. */
+  refuseNavigationMenu(document);
+
   createRoot(container).render(
     <StrictMode>
       <SettingsProvider>
