@@ -1,6 +1,6 @@
 [package]
 name = "runic-ssh"
-version = "0.1.1"
+version = "0.2.0"
 description = "A modern, fast, and secure cross-platform SSH/SFTP client"
 authors = ["Marcio Paiva Barbosa"]
 license = "MIT"
