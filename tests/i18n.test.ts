@@ -16,6 +16,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createTranslator,
   formatBytes,
+  formatList,
   LOCALES,
   offeredLocales,
   pluralCategory,
@@ -161,6 +162,15 @@ describe('formatting through Intl', () => {
   it('refuses a nonsense size rather than inventing one', () => {
     expect(formatBytes('en', -1)).toBe('—');
     expect(formatBytes('en', Number.NaN)).toBe('—');
+  });
+
+  it('joins names with each language own conjunction', () => {
+    /* Joining with a comma and the English "and" is the sort of thing that
+       reads as translated by a machine, in a sentence naming the user own
+       hosts. #171 put one on the session editor. */
+    expect(formatList('en', ['web-01', 'db-02'])).toBe('web-01 and db-02');
+    expect(formatList('pt-BR', ['web-01', 'db-02'])).toBe('web-01 e db-02');
+    expect(formatList('en', ['web-01'])).toBe('web-01');
   });
 
   it('uses each language own plural categories', () => {

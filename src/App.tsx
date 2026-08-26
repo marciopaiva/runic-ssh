@@ -44,7 +44,7 @@ import {
   isInProgress,
   isOverridable,
   needsConfirmation,
-  eligibleJumpHosts,
+  jumpHostChoice,
   parsePort,
   settled,
   stateAfterFailure,
@@ -57,7 +57,13 @@ import {
   withEditor,
   withoutEditor,
 } from './features/sessions';
-import type { DraftValues, EditorTarget, OpenEditor, SessionAction } from './features/sessions';
+import type {
+  DraftField,
+  DraftValues,
+  EditorTarget,
+  OpenEditor,
+  SessionAction,
+} from './features/sessions';
 import { preparePaste } from './features/terminal/clipboard';
 import { deleteSession, disconnectSession, saveSession, sendInput } from './ipc';
 import type { Session, SessionDraft } from './ipc';
@@ -771,9 +777,21 @@ export function App(): JSX.Element {
       const filled = suggestName(open.values);
       const problems = invalidFields(filled);
 
-      if (problems.length > 0) {
+      /* The one field the core refuses that the form cannot check on its own,
+         and the one state it cannot prevent: a host saved before this rule
+         existed, already carrying other sessions and already holding a jump
+         host of its own. The save would be refused, so it is stopped here with
+         the field named rather than sent to be turned down in silence. */
+      const carried =
+        target.kind === 'existing'
+          ? jumpHostChoice(saved, target.sessionId, filled.proxyJump).carried
+          : [];
+      const wrong: readonly DraftField[] =
+        carried.length > 0 && filled.proxyJump !== '' ? [...problems, 'proxyJump'] : problems;
+
+      if (wrong.length > 0) {
         setEditors((current) =>
-          updateEditor(current, target, (editor) => ({ ...editor, values: filled, wrong: problems })),
+          updateEditor(current, target, (editor) => ({ ...editor, values: filled, wrong })),
         );
         return;
       }
@@ -1213,6 +1231,11 @@ export function App(): JSX.Element {
           {editors.map((open) => {
             const mine: Focus = { kind: 'editor', target: open.target };
             const box = boxOf(mine);
+            const jump = jumpHostChoice(
+              saved,
+              open.target.kind === 'existing' ? open.target.sessionId : null,
+              open.values.proxyJump,
+            );
 
             return (
               /* One panel per open form, all mounted, only the ones a group is
@@ -1240,10 +1263,8 @@ export function App(): JSX.Element {
                   values={open.values}
                   wrong={open.wrong}
                   discarding={open.discarding}
-                  jumpHosts={eligibleJumpHosts(
-                    saved,
-                    open.target.kind === 'existing' ? open.target.sessionId : null,
-                  )}
+                  jumpHosts={jump.offered}
+                  carried={jump.carried}
                   onChange={(field, value) => changeIn(open.target, field, value)}
                   onSubmit={() => submitIn(open.target)}
                   onDelete={() => removeIn(open.target)}

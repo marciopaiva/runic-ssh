@@ -10,7 +10,14 @@
  * because the core is what writes the file; a test pins the limits against it.
  */
 
-export type DraftField = 'name' | 'host' | 'port' | 'user' | 'group';
+/**
+ * A field a submit can find wrong.
+ *
+ * `proxyJump` is here and is not checked by `invalidFields`: the only way it
+ * can be wrong is a question about the session list rather than about the
+ * string, so it is set by the shell, which has the list. See `jumpHostChoice`.
+ */
+export type DraftField = 'name' | 'host' | 'port' | 'user' | 'group' | 'proxyJump';
 
 /** The lengths the core refuses beyond. Pinned against Rust by a test. */
 export const LIMITS: Readonly<Record<'name' | 'host' | 'user' | 'group', number>> = {
@@ -29,10 +36,10 @@ export interface DraftValues {
   /**
    * The id of the saved session to reach this host through; empty for none.
    *
-   * Never validated here. The three ways a reference can be wrong are all
+   * Never validated here. The four ways a reference can be wrong are all
    * questions about the session list rather than about the string, so the form
    * offers only what the core will accept and there is nothing left to check.
-   * See `eligibleJumpHosts`.
+   * See `jumpHostChoice`.
    */
   readonly proxyJump: string;
 }

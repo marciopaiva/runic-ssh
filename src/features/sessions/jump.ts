@@ -65,3 +65,53 @@ export function jumpRole(session: Session, sessions: readonly Session[]): JumpRo
     rides: (session.proxyJump ?? null) !== null,
   };
 }
+
+/**
+ * What the editor may offer for "reached through", and why.
+ *
+ * `eligibleJumpHosts` answers the question from one side: which saved hosts
+ * are usable as a bastion. This answers it from the other, which is the side
+ * #171 was about: a host that other sessions are already reached through
+ * cannot be given a jump host of its own, because that is their chain made two
+ * hops long by editing a host they do not appear on.
+ *
+ * The core refuses it either way (`config::sessions::check_not_serving`). What
+ * this is for is the form, which should not offer a choice that will be
+ * refused, and should say whose connection is at stake rather than only saying
+ * no.
+ */
+export interface JumpHostChoice {
+  /** The hosts to offer, in order. Empty means the control has nothing to show. */
+  readonly offered: readonly Session[];
+  /**
+   * The saved hosts reached through the one being edited.
+   *
+   * Non-empty means no jump host may be chosen, and these are the names the
+   * message needs: "no" alone leaves somebody to work out which of their hosts
+   * they are being protected from breaking.
+   */
+  readonly carried: readonly Session[];
+}
+
+export function jumpHostChoice(
+  sessions: readonly Session[],
+  /** The session being edited, or `null` when creating one. */
+  editing: string | null,
+  /** The id currently in the field, empty for none. */
+  chosen: string,
+): JumpHostChoice {
+  const carried = editing === null ? [] : sessions.filter((other) => other.proxyJump === editing);
+
+  if (carried.length === 0) {
+    return { offered: eligibleJumpHosts(sessions, editing), carried };
+  }
+
+  /* A host in this state can already be in the file: the check is new and the
+     sessions are not. Offering the value it holds, and nothing else, is what
+     leaves a way to clear it. Offering the eligible list instead would be a
+     form contradicting its own message, and offering nothing at all would make
+     a session saved before this check unfixable from the editor. */
+  const current = sessions.find((session) => session.id === chosen);
+
+  return { offered: current === undefined ? [] : [current], carried };
+}

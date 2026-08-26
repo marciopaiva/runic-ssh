@@ -6,7 +6,13 @@
  * few lines, while plural selection and every numeric format come from `Intl`.
  */
 
-import { formatBytes, formatNumber, formatRelativeTime, pluralCategory } from './format';
+import {
+  formatBytes,
+  formatList,
+  formatNumber,
+  formatRelativeTime,
+  pluralCategory,
+} from './format';
 import type { Catalog, MessageArgs, MessageKey } from './messages';
 import { DEFAULT_LOCALE, findLocale, resolveLocale } from './locales';
 
@@ -21,6 +27,8 @@ export interface Translator {
   t<K extends MessageKey>(key: K, ...args: MessageArgs<K>): string;
   number(value: number, options?: Intl.NumberFormatOptions): string;
   bytes(value: number): string;
+  /** Joins names with the separator and conjunction the language uses. */
+  list(values: readonly string[]): string;
   relativeTime(value: number, unit: Intl.RelativeTimeFormatUnit): string;
   plural(count: number): Intl.LDMLPluralRule;
 }
@@ -58,6 +66,7 @@ export function createTranslator(requestedLocale: string | undefined): Translato
     },
 
     number: (value, options) => formatNumber(tag, value, options),
+    list: (values) => formatList(tag, values),
     bytes: (value) => formatBytes(tag, value),
     relativeTime: (value, unit) => formatRelativeTime(tag, value, unit),
     plural: (count) => pluralCategory(tag, count),
