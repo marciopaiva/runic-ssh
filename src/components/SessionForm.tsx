@@ -27,6 +27,16 @@ interface SessionFormProps {
    * hosts depend on it.
    */
   readonly carried: readonly Session[];
+  /** Whether the keychain holds a password for this host. */
+  readonly storedCredential: boolean;
+  /**
+   * Drops the stored password, or `null` on a host that does not exist yet.
+   *
+   * Both copies go: the keychain's and the one this run may be holding. A
+   * button that left the second behind would say the password was gone while
+   * the next connection went on not asking for one.
+   */
+  readonly onForget: (() => void) | null;
   readonly onSubmit: () => void;
   /** `null` for a session that does not exist yet. */
   readonly onDelete: (() => void) | null;
@@ -54,6 +64,8 @@ export function SessionForm({
   onChange,
   jumpHosts,
   carried,
+  storedCredential,
+  onForget,
   onSubmit,
   onDelete,
 }: SessionFormProps): JSX.Element {
@@ -202,9 +214,33 @@ export function SessionForm({
         )
       )}
 
-      <p className="text-ink-faint text-[11px] leading-snug">
-        {i18n.t('session.editor.noSecret')}
-      </p>
+      {/* What the host has, rather than a field for it. A password box on this
+          form would put the secret in the document that renders terminal
+          output, which is the whole of what ADR-0008 exists to avoid, and the
+          window it is collected in is what makes the claim above it true. */}
+      <div className="flex flex-col items-start gap-1">
+        <span className="text-ink-muted text-[11px]">{i18n.t('session.editor.credential')}</span>
+        {storedCredential ? (
+          <>
+            <span className="text-ink-faint text-[11px] leading-snug">
+              {i18n.t('session.editor.credential.stored')}
+            </span>
+            {onForget !== null && (
+              <button
+                type="button"
+                onClick={onForget}
+                className="text-ink-secondary border-line-subtle hover:text-ink rounded border px-2 py-1 text-[11.5px]"
+              >
+                {i18n.t('session.editor.credential.forget')}
+              </button>
+            )}
+          </>
+        ) : (
+          <span className="text-ink-faint text-[11px] leading-snug">
+            {i18n.t('session.editor.noSecret')}
+          </span>
+        )}
+      </div>
 
       <div className="mt-1 flex items-center gap-2">
         {onDelete !== null && (

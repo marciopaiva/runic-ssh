@@ -19,6 +19,10 @@ interface SessionEditorPanelProps {
   readonly jumpHosts: readonly Session[];
   /** The saved hosts reached through this one. */
   readonly carried: readonly Session[];
+  /** Whether the keychain holds a password for this host. */
+  readonly storedCredential: boolean;
+  /** Drops it, or `null` on a host that does not exist yet. */
+  readonly onForget: (() => void) | null;
   readonly onSubmit: () => void;
   readonly onDelete: () => void;
   readonly onConfirmDiscard: () => void;
@@ -50,6 +54,8 @@ export function SessionEditorPanel({
   onChange,
   jumpHosts,
   carried,
+  storedCredential,
+  onForget,
   onSubmit,
   onDelete,
   onConfirmDiscard,
@@ -98,6 +104,8 @@ export function SessionEditorPanel({
         onChange={onChange}
         jumpHosts={jumpHosts}
         carried={carried}
+        storedCredential={storedCredential}
+        onForget={onForget}
         onSubmit={onSubmit}
         /* No delete on a host that was never saved: there is nothing to
            delete, and the button would be asking about the form itself. */
