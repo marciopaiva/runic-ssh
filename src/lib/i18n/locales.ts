@@ -7,6 +7,13 @@
  * security copy, because a mistranslated host key warning is a vulnerability
  * rather than a typo. See ADR-0007 and issue #4.
  *
+ * Portuguese is offered *and* reviewed. The maintainer is a native speaker,
+ * wrote it, and confirmed its security copy on 2026-08-25. That is written down
+ * here rather than left in the conversation it was said in, because the rule
+ * this file enforces is about the claim: nobody says these strings have been
+ * checked until somebody has, and a locale offered on nothing more than having
+ * been written by whoever needed it is the state that rule exists to end.
+ *
  * Keeping the catalogue in the tree rather than deleting it is what keeps the
  * parity guards covering it. A removed catalogue rots silently.
  */
