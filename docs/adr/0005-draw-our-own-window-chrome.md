@@ -106,6 +106,41 @@ is the one behavior most likely to be silently missing (#28). Revisit this
 decision if Tauri ships a first-class overlay titlebar API for all three
 platforms, which would collapse the two code paths back into one.
 
+**Amended, 2026-08-26: Snap Layouts was never paid for, and will not be (#28).**
+
+The decision above turns on a sentence that this ADR asserted and nobody
+checked: "On Windows the strong expectation is Snap Layouts, which we can
+satisfy from our own chrome by answering the hit test." We can. We did not.
+
+Measured on Windows 11 build 26200, against 0.1.1 installed from a workflow
+artifact: `WM_NCHITTEST` sent to the main window returns `HTCLIENT` at every
+point across the strip where the three buttons are drawn, on a restored window,
+with a bottom-left corner answering `HTBOTTOMLEFT` in the same run to prove the
+message was reaching the window procedure at all. The shell hangs the flyout on
+whatever answers `HTMAXBUTTON`, and nothing here ever does. `tao` 0.35.3 answers
+`WM_NCHITTEST` only for resize borders; `HTMAXBUTTON` does not appear in the
+crate.
+
+Paying for it means answering the hit test ourselves, which means subclassing a
+window procedure, which means `unsafe` against a crate that forbids it and the
+`windows` crate as a new dependency. The maintainer's call, made on 2026-08-26,
+is that the flyout is not worth either: it comes off the roadmap rather than
+being bought.
+
+So the comparison in "Options considered" no longer reads as it did. Option A
+was rejected partly on the grounds that Option C could keep Snap Layouts, and it
+does not. What survives is the rest, and the rest is what was actually wanted:
+the tab strip in the titlebar, the vertical space, theme tokens reaching the
+whole window. Those were always the reason. Snap Layouts was the argument that
+made the cost look smaller than it was, and it should be read as withdrawn
+rather than as still pending.
+
+One thing this amendment does not withdraw. The same session found that `tao`
+keeps `WS_SYSMENU` on an undecorated window, and the window carries a real
+system menu with seven items. The "Bad" paragraph lists `Alt+Space` among the
+things that become our bugs; on Windows it is the platform's, still, and we owe
+it nothing there. That was expected to be broken and is not.
+
 **Done, 2026-08-23**: the escape hatch this ADR asked for exists (#29). It is a
 command in the palette and a `nativeDecorations` line in `settings.json`,
 default off, applied to the live window and stored for the next launch.
