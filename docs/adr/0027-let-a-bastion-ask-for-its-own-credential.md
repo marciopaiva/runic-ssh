@@ -236,7 +236,14 @@ new command, no new dependency, no migration.
    the vault holds one, it is taken once, and it is dropped when the decision is
    answered or abandoned. It is still a third place, and the count of places a
    secret can be is the number this project is trying to keep small.
-8. `connect_session` takes a parameter naming a decision, so the interface can
+8. **A bastion cannot report a keep that was refused.** #167 gave the host the
+   user clicked a way to say that the keychain would not hold its credential,
+   because a tick box that does nothing and says nothing is worse than one that
+   is not offered. The bastion now offers the same tick box through the same
+   window and has no channel to report the same refusal, so the answer is
+   carried forward for this attempt and the user finds out on the next run by
+   being asked again.
+9. `connect_session` takes a parameter naming a decision, so the interface can
    now describe a relationship between two attempts. Nothing stops it passing an
    id from an unrelated attempt; the worst that does is spend a credential on
    the wrong retry, which fails to authenticate and prompts again.

@@ -688,9 +688,17 @@ async fn open_bastion<R: Runtime>(
             because `resolve_credential` reads this store before the vault. */
             Keep::ForThisRun => chain.secrets.keep(&id, &secret),
             /* A keychain that refuses must not undo a connection that worked.
-            The far hop is still to come and it is the one the user asked for. */
+            The far hop is still to come and it is the one the user asked for.
+
+            But a refusal here means nothing will find this credential on the
+            rebuild, and a rebuild is one accepted host key away. Without the
+            carry, asking to save it and being refused puts the second window
+            back, in the one case where the user has least reason to expect it.
+            This is #167's shape at a hop that cannot report it yet. */
             Keep::Stored => {
-                let _ = persist_credential(chain.app, chain.vault, &bastion.id, &secret);
+                if persist_credential(chain.app, chain.vault, &bastion.id, &secret).is_err() {
+                    typed = Some(secret);
+                }
             }
             /* Kept by nothing, so it goes back to the caller and lives exactly
             as long as the decision it is about to be attached to. */
