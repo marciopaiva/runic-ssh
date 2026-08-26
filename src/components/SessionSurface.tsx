@@ -16,6 +16,21 @@ interface SessionSurfaceProps {
   /** Sits at the leading edge of the action row, for a consequence to state. */
   readonly note?: ReactNode;
   readonly actions: ReactNode;
+  /**
+   * Whether this surface is a card inside a panel or the whole of a window.
+   *
+   * `panel` is the original and the common case: a session's share of the main
+   * window, where the surface floats as a card with room around it.
+   *
+   * `window` is for the credential prompt, which ADR-0008 puts in a window of
+   * its own. There is nothing to float inside, so it fills the surface it has
+   * and the action row stays put while the rest scrolls. That is not a
+   * refinement: the prompt is the one surface whose window size is decided in
+   * Rust, and a compositor that draws its title bar inside the size it was
+   * given leaves less room than was asked for. The buttons have to survive
+   * that, because a prompt that cannot be answered is a connection that hangs.
+   */
+  readonly variant?: 'panel' | 'window';
 }
 
 /**
@@ -47,46 +62,65 @@ export function SessionSurface({
   children,
   note,
   actions,
+  variant = 'panel',
 }: SessionSurfaceProps): JSX.Element {
   const danger = tone === 'danger';
+  const windowed = variant === 'window';
+
+  const heading = (
+    <>
+      <div className="flex items-start gap-3.5">
+        {icon !== undefined && (
+          <div
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border ${
+              danger
+                ? 'border-danger/60 bg-danger-soft text-danger'
+                : 'border-line-strong bg-surface-base text-accent-bright'
+            }`}
+          >
+            {icon}
+          </div>
+        )}
+        <div className="flex flex-col gap-1.5">
+          <h2
+            id={titleId}
+            className={`text-[15px] font-bold tracking-tight ${
+              danger ? 'text-danger-text' : 'text-ink'
+            }`}
+          >
+            {title}
+          </h2>
+          <div className="text-ink-muted text-[12.5px] leading-relaxed text-pretty">{body}</div>
+        </div>
+      </div>
+
+      {children}
+    </>
+  );
 
   return (
-    <div className="flex h-full items-center justify-center overflow-y-auto p-8">
+    <div className={windowed ? 'h-full' : 'flex h-full items-center justify-center overflow-y-auto p-8'}>
       <section
         aria-labelledby={titleId}
         {...(alert ? { role: 'alert' } : {})}
-        className={`bg-surface-raised flex w-full max-w-[560px] flex-col gap-4 rounded-xl border p-6 ${
-          danger ? 'border-danger/50' : 'border-line-subtle'
+        className={`bg-surface-raised flex flex-col gap-4 ${
+          windowed
+            ? 'h-full w-full p-5'
+            : `w-full max-w-[560px] rounded-xl border p-6 ${
+                danger ? 'border-danger/50' : 'border-line-subtle'
+              }`
         }`}
       >
-        <div className="flex items-start gap-3.5">
-          {icon !== undefined && (
-            <div
-              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border ${
-                danger
-                  ? 'border-danger/60 bg-danger-soft text-danger'
-                  : 'border-line-strong bg-surface-base text-accent-bright'
-              }`}
-            >
-              {icon}
-            </div>
-          )}
-          <div className="flex flex-col gap-1.5">
-            <h2
-              id={titleId}
-              className={`text-[15px] font-bold tracking-tight ${
-                danger ? 'text-danger-text' : 'text-ink'
-              }`}
-            >
-              {title}
-            </h2>
-            <div className="text-ink-muted text-[12.5px] leading-relaxed text-pretty">{body}</div>
-          </div>
-        </div>
+        {/* Filling a window, the heading and the content scroll and the action
+            row does not. Floating in a panel, the panel scrolls and nothing
+            here needs to. */}
+        {windowed ? (
+          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">{heading}</div>
+        ) : (
+          heading
+        )}
 
-        {children}
-
-        <div className="border-line-subtle flex items-end gap-3 border-t pt-3.5">
+        <div className="border-line-subtle flex shrink-0 items-end gap-3 border-t pt-3.5">
           {note !== undefined && <span className="text-ink-faint text-[11.5px]">{note}</span>}
           {/* Never compressed by the note beside it. A two-line note used to
               squeeze these until the label wrapped inside the button, which is
@@ -99,9 +133,12 @@ export function SessionSurface({
 }
 
 interface SurfaceActionProps {
-  readonly onClick: () => void;
+  /** Absent for a submit, where the form the button sits in is what runs. */
+  readonly onClick?: () => void;
   readonly variant: 'primary' | 'secondary';
   readonly disabled?: boolean;
+  /** `submit` only for a surface wrapped in a form, which is the prompt. */
+  readonly type?: 'button' | 'submit';
   readonly children: ReactNode;
 }
 
@@ -116,11 +153,12 @@ export function SurfaceAction({
   onClick,
   variant,
   disabled = false,
+  type = 'button',
   children,
 }: SurfaceActionProps): JSX.Element {
   return (
     <button
-      type="button"
+      type={type}
       onClick={onClick}
       disabled={disabled}
       className={`h-[34px] rounded-md px-4 text-[12.5px] font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${

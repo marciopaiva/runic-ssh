@@ -271,15 +271,24 @@ window is where it starts.
 | --- | --- |
 | Connect to a host with no saved credential | the prompt opens in the middle of the **main window**, not the middle of the screen |
 | Move the main window, then connect | it follows: the prompt is always over the window that asked |
+| Push the main window against the top or bottom of the screen, then connect | the prompt is pulled back inside the work area, clear of any bar the desktop keeps there |
 | Alt-tab, or look at the task switcher | the prompt is grouped with Runic SSH rather than standing alone |
+| Compare it with an unknown host key screen | the same shape: icon, title, sentence, and an action row under a rule |
+| Count the keep options | **three**, or two on a machine with no keychain. Never one |
 | Choose *Private key* | the key field is there, the two labels do not overlap, and Cancel and Authenticate stay on screen |
 | Scroll the prompt with a key asked for | the buttons do not move |
-| Connect through a jump host | the taller window, with the whole hop paragraph and every keep option reachable |
+| Connect through a jump host | the taller window, with the whole hop paragraph and every keep option visible without scrolling |
 
-The last two rows are the ones that have failed. A hop paragraph pushed the
-buttons off the bottom once, and a private key field did it again, which is why
-the buttons now sit outside the part that scrolls. Drive them in Brazilian
-Portuguese as well: it is the longest of the three catalogues.
+**Count the options.** That row is the one this section exists for. The window
+is sized in Rust from what it is about to render, and `inner_size` is the inner
+size only where the window manager draws the frame *around* the window. A
+desktop that draws the title bar inside the surface takes it out of what the
+document gets: measured at 47 points on one, which was enough to leave a keep
+control showing one of its three answers and looking complete.
+
+Drive it in Brazilian Portuguese. It is the longest of the three catalogues and
+the heights are chosen against it, so it is the one that runs out of room first
+and the only one where fitting proves anything.
 
 **Minimising the main window on Windows hides the prompt with it.** That is what
 an owned window does there, and it comes back when the main window does. Worth

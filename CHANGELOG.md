@@ -42,13 +42,24 @@ with the caveat that anything below 1.0 may break, and this project intends to.
   means the prompt is hidden while the main window is minimised, and comes back
   with it.
 
-- **A private key can be pasted into the prompt again** (#188). Asking for a
-  key produced a window nobody could use: the field collapsed to nothing, its
-  label printed on top of the passphrase label, and Cancel and Authenticate sat
-  below the bottom edge. The buttons now sit outside the part that scrolls, so
-  no amount of content above them can push them off, and the field has a floor
-  it cannot shrink past. The window's height was never the problem: it was
-  chosen when keeping a credential was one checkbox rather than three options.
+- **The credential prompt speaks the same shape as the host key screens**
+  (#188). It had one of its own: a bare heading, a different type scale, its own
+  buttons. ADR-0015 replaced five shapes with one for exactly this reason, and
+  this window escaped the rule because the rule was written about surfaces
+  inside the main window and this one is not inside anything. It now renders
+  through the same `SessionSurface`, at the same 560 points wide, filling a
+  window rather than floating in a panel.
+
+- **Every way of keeping a credential is on screen again** (#188). The prompt
+  showed one of its three answers on desktops that draw a window's title bar
+  inside the size the window was given: 47 points of the 340 asked for went to
+  the decoration, and what fell off the bottom was two thirds of a control that
+  still looked complete. The window is now sized with an allowance for that, the
+  action row sits outside the part that scrolls so nothing can push it off, and
+  a placement that would land under a task bar is pulled back into the work
+  area. Asking for a private key was worse than clipped: the field collapsed to
+  nothing and its label printed over the passphrase label, so a key could not be
+  pasted at all.
 
 - **Right clicking no longer offers to reload the window** (#179). WebKit's own
   menu carried Reload, which restarted the document and emptied the window while
