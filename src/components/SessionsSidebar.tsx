@@ -169,7 +169,7 @@ export function SessionsSidebar({
                             stroke="currentColor"
                             strokeWidth="2.4"
                             role="img"
-                            aria-label={i18n.t('terminal.pane.sync.on')}
+                            aria-label={i18n.t('terminal.group.sync.on')}
                           >
                             <path d="M20 6L9 17l-5-5" />
                           </svg>

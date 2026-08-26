@@ -283,7 +283,7 @@ export function GroupStrip({
                  purpose, which leaves the border with nothing left to say
                  about focus. */
               <span className="text-ink-secondary shrink-0 font-mono text-[10px] font-bold tracking-[0.08em]">
-                {i18n.t('terminal.pane.focused')}
+                {i18n.t('terminal.group.focused')}
               </span>
             )}
           </div>

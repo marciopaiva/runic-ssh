@@ -58,6 +58,23 @@ describe('catalogues', () => {
     }
   });
 
+  /* ADR-0020 named the rectangles in the main area **groups**, and everything
+     written since uses that word: the decision records, the changelog, the
+     README and the code comments. The strings did not follow, and nothing
+     failed. Ten of them still called a group a pane after the anatomy changed
+     under them, and one told the person confirming a paste that it would reach
+     every pane on screen when it reaches the active tab of each group (#180).
+
+     A banned word is a blunt guard and this one is worth it. The mistake it
+     catches is not a typo: it is a string written next to another string that
+     was already wrong, which is how all ten got there. */
+  it('never calls a group a pane', () => {
+    const offending = Object.entries(source)
+      .filter(([, message]) => /\bpanes?\b/i.test(message))
+      .map(([key]) => key);
+    expect(offending, 'ADR-0020 calls these groups').toEqual([]);
+  });
+
   it.each(others)('%s translates something', (file) => {
     /* A catalogue copied wholesale from English is not a translation, and the
        parity tests above would happily pass it. */
