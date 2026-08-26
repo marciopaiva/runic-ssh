@@ -12,6 +12,12 @@
 </p>
 
 <p align="center">
+  <!-- Every tag lands as a pre-release, because package.yml passes
+       --prerelease unconditionally. So include_prereleases is required or the
+       badge reads "no releases" on a project that has shipped three, and the
+       link goes to /releases rather than /releases/latest, which GitHub
+       resolves by the same rule and would bounce to the list anyway. -->
+  <a href="https://github.com/marciopaiva/runic-ssh/releases"><img src="https://img.shields.io/github/v/release/marciopaiva/runic-ssh?include_prereleases&label=pre-release&color=blue" alt="Latest pre-release"></a>
   <a href="https://github.com/marciopaiva/runic-ssh/actions/workflows/gate.yml"><img src="https://github.com/marciopaiva/runic-ssh/actions/workflows/gate.yml/badge.svg" alt="Gate"></a>
   <a href="https://github.com/marciopaiva/runic-ssh/actions/workflows/audit.yml"><img src="https://github.com/marciopaiva/runic-ssh/actions/workflows/audit.yml/badge.svg" alt="Advisories"></a>
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License">
