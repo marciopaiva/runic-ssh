@@ -25,6 +25,15 @@ fixed, and is written into the limitations with the issue that will fix it.
 
 ### Added
 
+- **Spanish is offered in the language selector** (ADR-0007, #4). It has been
+  complete in the tree and held to the same key-parity tests as the other two
+  since v0.1.0, and held out of the selector that whole time because a
+  mistranslated host key warning is a vulnerability rather than a typo and
+  nobody here could check it. A native speaker has now read the copy that
+  describes a security decision to the user: both host key screens, the vault
+  failures, and the authentication errors that say what to do next. Exposing it
+  was the one-line change ADR-0007 said it would be.
+
 - **A password can be saved for a host from its own form** (#189). "Connect once
   and save a password" opens the connection, verifies the host key, collects the
   credential in the window every other host uses, and closes the connection as
@@ -169,11 +178,17 @@ fixed, and is written into the limitations with the issue that will fix it.
   application in Portuguese would actually reach for. `src/lib/i18n/locales.ts`
   records what was covered and when; nothing in the tree fails when that note
   goes stale, which is #192, and it had gone stale twice by then.
-- **Spanish had a pass at the same time and it is not the review it is waiting
-  for.** It fixed a real inconsistency, the catalogue addressing the reader as
-  `tú` in some strings and `usted` in others. But it was done by the maintainer,
-  who is not a native speaker of it, and #4 asks for one. Spanish stays out of
-  the language selector, for the reason it has been held out since ADR-0007.
+- **The Spanish security copy was reviewed by a native speaker**, which is what
+  ADR-0007 attached to offering it and what #4 tracked. The reviewer verified
+  rather than translated, which is the job that issue describes, and the English
+  stayed normative. What it changed was mostly consistency: the catalogue
+  addressed the reader as `tú` in some strings and `usted` in others.
+
+  The reviewer asked not to be named, and #4 asks for a named one, so that part
+  of its wording is not met. What a name carries is somebody to ask, and the
+  maintainer confirmed this review and stands behind it. That is weaker than a
+  name and stronger than nothing, and it is written down as the middle thing it
+  is.
 - Two English strings lost a long dash used as a connector, which is the house
   rule in section 1 of `CLAUDE.md` and which the Portuguese pass had already
   applied to its side of them. English is normative and was the only one of the

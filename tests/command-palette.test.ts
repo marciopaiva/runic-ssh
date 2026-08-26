@@ -17,7 +17,7 @@ import { actionCommands, sessionCommands } from '../src/features/commands/source
 import type { CommandActions, CommandContext } from '../src/features/commands/sources';
 import type { Tab } from '../src/features/chrome';
 import type { LiveSession } from '../src/features/sessions';
-import { createTranslator } from '../src/lib/i18n';
+import { createTranslator, offeredLocales } from '../src/lib/i18n';
 import type { Session } from '../src/ipc';
 
 function command(id: string, title: string, extra: Partial<Command> = {}): Command {
@@ -348,12 +348,18 @@ describe('what the palette offers', () => {
   });
 
   it('offers only languages cleared to be offered', () => {
-    /* Spanish is complete in the tree and held back until its security copy
-       has been reviewed. The palette is a way into the application; it must
-       not be a way around that. */
-    const ids = actionCommands(context()).map((entry) => entry.id);
+    /* The palette is a way into the application; it must not be a way around
+       the selector. Written against the registry rather than against one
+       locale's name: it named Spanish while Spanish was the one held back, and
+       an assertion that a since-cleared locale is absent is one that passes by
+       being wrong. Whatever is held back next is covered by this without
+       anybody remembering to come back. */
+    const offered = new Set(offeredLocales().map((locale) => `locale:${locale.tag}`));
+    const languages = actionCommands(context())
+      .map((entry) => entry.id)
+      .filter((id) => id.startsWith('locale:') && id !== 'locale:system');
 
-    expect(ids).not.toContain('locale:es');
+    expect(new Set(languages)).toEqual(offered);
   });
 
   it('titles every command in the active language', () => {

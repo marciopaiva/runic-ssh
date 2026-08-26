@@ -22,13 +22,22 @@
  * more than having been written by whoever needed it is the state that rule
  * exists to end.
  *
- * Spanish had a pass at the same sweep and it is **not** the review it is
- * waiting for. It fixed a real inconsistency, the catalogue addressing the
- * reader as `tú` in some strings and `usted` in others, which is worth having on
- * its own. But it was done by the maintainer, who is not a native speaker of it,
- * and #4 asks for one. A pass that makes a locale better and a pass that lets it
- * be offered are different things, and recording the first as the second is
- * exactly the move ADR-0007 refuses. Spanish stays out of the selector.
+ * **Spanish is offered from v0.2.1**, which is the one-line change ADR-0007 said
+ * this would be. A native Spanish speaker, a contributor in the maintainer's
+ * network, read the security copy #4 scopes: both host key screens with their
+ * fingerprint and override copy, the vault failures including the fallback for a
+ * machine with no secret service, and the authentication errors that say what to
+ * do next. They verified rather than translated, which is the job that issue
+ * describes, and the English stayed normative where the two could have
+ * disagreed. What it changed was mostly consistency: the catalogue addressed the
+ * reader as `tú` in some strings and `usted` in others.
+ *
+ * They asked not to be named, and #4 asks for a named reviewer, so that part of
+ * its wording is not met and is worth saying rather than glossing. What the name
+ * would have carried is somebody to ask, and the maintainer confirmed this
+ * review and stands behind it. That is a weaker claim than a name and a
+ * stronger one than nothing, and stating which of the three it is beats
+ * recording it as though a name existed.
  *
  * A date is load-bearing here, and it is the part that rots. A review is of
  * strings, and strings keep being added: between the first two dates the
@@ -62,7 +71,7 @@ export interface LocaleEntry {
 export const LOCALES: readonly LocaleEntry[] = [
   { tag: 'en', name: en['language.en'], offered: true, catalog: en },
   { tag: 'pt-BR', name: en['language.pt-BR'], offered: true, catalog: ptBR },
-  { tag: 'es', name: en['language.es'], offered: false, catalog: es },
+  { tag: 'es', name: en['language.es'], offered: true, catalog: es },
 ];
 
 /** The locales a user may choose between. */

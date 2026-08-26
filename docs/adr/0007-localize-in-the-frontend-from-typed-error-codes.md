@@ -178,6 +178,18 @@ security copy is signed off, at which point exposing it is a one-line change.
 The alternative was leaving the release blocked on finding a person, with no
 owner and no date, which is the state that produced this decision.
 
+**Resolved on 2026-08-26**: Spanish is offered, from v0.2.1. A native speaker, a
+contributor in the maintainer's network, read the security copy #4 scopes and
+verified rather than translated it; the English stayed normative. Exposing it
+was the one-line change this decision said it would be, which is what carrying
+availability separately from existence bought.
+
+The reviewer asked not to be named and #4 asks for a named one, so that part of
+its wording is not met. What a name carries is somebody to ask, and the
+maintainer confirmed the review and stands behind it. That is weaker than a name
+and stronger than nothing, and it is recorded as the middle thing it is rather
+than as the strong one.
+
 **Follow-up**: find that reviewer, tracked in #4 and no longer release-blocking
 for v0.1.0. The locale registry needs to carry availability separately from
 existence, so a catalogue can be complete and still not offered. Use CSS logical
