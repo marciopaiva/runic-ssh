@@ -9,7 +9,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 versions follow [semantic versioning](https://semver.org/spec/v2.0.0.html),
 with the caveat that anything below 1.0 may break, and this project intends to.
 
-## [Unreleased]
+## [0.2.0] — 2026-08-26
 
 ### Added
 
@@ -49,6 +49,26 @@ with the caveat that anything below 1.0 may break, and this project intends to.
   lines and bracketed pastes included. Bracketed paste stops the remote shell
   running the lines; nothing stops a paste reaching four machines because the
   wrong group had focus.
+- **A host reached through a bastion** (ADR-0023). A saved session names
+  another saved session as the host it is reached through, rather than
+  repeating its address, because a bastion is a host in its own right: it has
+  its own key to verify and its own credential to answer. The whole sequence,
+  verify, authenticate, forward, verify, authenticate, runs in the core, which
+  is where this feature's entire security content lives.
+- **One bastion, shared by everything behind it** (ADR-0024). Three hosts
+  behind the same jump host open one connection to it, not three, and it closes
+  when the last of them does. The sidebar marks both ends of a chain, and a
+  host with no chain is marked too, so the absence of a mark never has to be
+  read as an answer.
+- **A credential can be kept for the life of the run** (ADR-0025). Three
+  answers rather than a tick box: used once, held in memory until the
+  application closes, or written to the OS keychain. The middle one needs no
+  keychain, which is the only thing a machine without one can be offered, and
+  it is written nowhere, so a restart asks again.
+- **The theme is chosen in settings** (#149). Follow the system, light, or
+  dark, remembered on this machine and sent nowhere. The palette is composed in
+  dark and light is the same tokens with the values swapped, which the settings
+  page says out loud so nobody reads light as an afterthought.
 - **Randomart beside the host key fingerprint**, drawn the way `ssh-keygen -lv`
   draws it. Its whole value is being the same picture, since the way it gets
   used is comparing what is on screen against what OpenSSH printed somewhere
@@ -83,10 +103,27 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 
 ### Fixed
 
+- **A credential the keychain refused is reported rather than swallowed**
+  (#167). A locked keyring must not undo a connection that worked, and the old
+  code was right about that and then said nothing at all, so the tick box
+  looked honoured when it was not.
+- **The language select is drawn by the application** rather than left to the
+  platform, which rendered it in the desktop's own colours in the middle of a
+  window that had none of them.
 - **Two writes to one session can no longer interleave.** Input was split to
   stay inside what the core accepts, which ordered the pieces of one write and
   nothing between two of them. Nobody hit it with one terminal and one person
   typing; typing into several at once makes overlapping writes ordinary.
+
+### Security
+
+- **One type holds every secret** (ADR-0026). Passwords, private keys and
+  passphrases are carried in a type with a redacting `Debug`, no `Display` and
+  no `Serialize`, so the rule that nothing secret reaches a formatter is held
+  by the compiler rather than by remembering. Three hand-written `Debug`
+  implementations were deleted when it landed, which is the check on whether it
+  works: the rule now holds in those three places without anybody having
+  decided that it should.
 
 ### Known limitations
 
@@ -97,6 +134,19 @@ with the caveat that anything below 1.0 may break, and this project intends to.
   protection. A session sitting in a group's background is connected without
   receiving, which is a second way to be surprised by where a keystroke went,
   and the sidebar is where that one is read.
+- **A machine with no keychain cannot reach a host through a bastion** (#165).
+  Both hosts prompt on every connection, which works, and the chain then asks
+  for the bastion's credential again on the next connection through it. The
+  credential kept for the life of the run narrowed this to a single run and did
+  not close it.
+- **A chain leaves a connection nothing on screen names** (#168). Connecting to
+  a host behind a bastion opens a session on the bastion too, and the sidebar
+  shows one connected host rather than two. It closes with the last host behind
+  it, so nothing leaks; what is missing is the admission that it is there.
+- **A host already serving as a jump host can be given one of its own** (#171).
+  The check refuses a jump host that is itself behind one at the moment it is
+  chosen, and does not refuse the other order, so a two-deep chain can be built
+  by saving the pieces in the wrong sequence.
 - **Nine rectangles is offered on an assumption rather than on a measurement.**
   Nine hosts all streaming at once ask for more than the renderer draws, and
   nothing on screen says so when it happens. Nine hosts being restarted and
@@ -111,8 +161,15 @@ with the caveat that anything below 1.0 may break, and this project intends to.
   between groups. Both go through the command palette.
 - SFTP has no code behind it, so the rail carries one view rather than the three
   the design canvas draws. The icon arrives with the feature.
-- The screenshots below the feature list are of the previous anatomy, taken
-  before the tabs left the title bar.
+- **macOS is still unopened by anyone.** The `.dmg` builds on every run and
+  that remains the whole of what can be said about it. `docs/installing.md`
+  tracks which packages a person has installed, per platform, which is not the
+  list CI produces.
+- **Windows 11 Snap Layouts is not coming**, and that is now a decision rather
+  than a gap (#28). The drawn title bar cannot answer `WM_NCHITTEST` with
+  `HTMAXBUTTON` without a window procedure Tauri does not expose, which was
+  measured rather than argued. Snapping into a zone works by every other route,
+  and ADR-0005 has been amended to withdraw the claim it used to make.
 
 ## [0.1.1] — 2026-08-23
 
@@ -238,6 +295,6 @@ deliberately labelled one.
 - A connection gives up after twenty seconds (ADR-0016). That number is a
   choice, not a measurement, and there is no setting for it yet.
 
-[Unreleased]: https://github.com/marciopaiva/runic-ssh/compare/v0.1.1...HEAD
+[0.2.0]: https://github.com/marciopaiva/runic-ssh/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/marciopaiva/runic-ssh/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/marciopaiva/runic-ssh/releases/tag/v0.1.0

@@ -58,7 +58,10 @@ carries your keys.
   back; `@revoked` and `@cert-authority` refuse with no override.
 - **Credentials collected in a window of their own**, resolved against the OS
   keychain at the moment of use, never crossing toward the interface in plain
-  text. Password or private key, saving optional.
+  text. Password or private key, and three answers to how long to keep it: used
+  once, held until the application closes, or written to the keychain. The
+  middle one needs no keychain, so a machine without one is not left with only
+  the two answers it cannot use.
 - **A terminal per session** (xterm.js), kept alive across tab switches, with
   scrollback and a status bar carrying latency and bytes moved.
 - **Copy and paste.** Ctrl-C copies a selection and interrupts when there is
@@ -69,7 +72,12 @@ carries your keys.
   rail of activities that never closes, the session list beside it that does,
   and a main area of groups. Splitting, broadcasting and a host key prompt
   never swap the window for a different product.
-- **Groups**, two columns, two rows or a grid of four. Every rectangle is a
+- **Hosts reached through a bastion.** A saved session names another saved
+  session as the host it is reached through, rather than repeating its address,
+  because a bastion has its own key to verify and its own credential to answer.
+  Everything behind one jump host shares a single connection to it, and it
+  closes when the last of them does.
+- **Groups**, from two rectangles to nine. Every rectangle is a
   strip of tabs over the body of whichever tab it is showing, so six sessions
   in four rectangles is an ordinary thing to have. A terminal, a host form and
   the settings page are all tabs, and a session's questions, the host key
@@ -84,7 +92,8 @@ carries your keys.
   comparison of two different pictures.
 - **Saved hosts**, grouped, each edited on its own tab.
 - **A command palette** on `Ctrl+Shift+P`.
-- **Light and dark**, from one token set, following the system.
+- **Light and dark**, from one token set, chosen in settings or left to follow
+  the system.
 - **English and Brazilian Portuguese.** Spanish is translated and held back
   until a native speaker reviews its security copy.
 
@@ -95,19 +104,16 @@ thing this project would rather not do.
 
 ## 📸 What it looks like
 
-Both captures are of the packaged application connected to a real SSH server.
-They are not mockups, and not the design canvas. The hosts are invented; the
-fingerprint, the shell and the output are not.
-
-They are also **out of date**. They were taken before the tabs left the title
-bar, so they show the anatomy ADR-0020 replaced. Retaking them needs a packaged
-build driven by hand against a real host, which is why they have not been
-replaced with something cheaper and captioned as if it were the same thing.
+Both captures are of the release build, the same binary the installers carry,
+connected to a real SSH server. They are not mockups, and not the design canvas.
+The hosts are invented; the fingerprints, the shells and the output are not.
+Each fingerprint shown was checked against `ssh-keyscan` before the picture was
+taken.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-main-dark.png">
   <source media="(prefers-color-scheme: light)" srcset="assets/screenshot-main-light.png">
-  <img src="assets/screenshot-main-dark.png" alt="Runic SSH with a connected session: saved hosts grouped in the sidebar, a terminal, and a status bar" width="880">
+  <img src="assets/screenshot-main-dark.png" alt="Runic SSH with two hosts open side by side: the activity rail, saved hosts grouped in the sidebar, two groups each with its own strip of tabs, and a status bar naming the focused host" width="880">
 </picture>
 
 **An unknown host key.** The primary button starts inert and stays that way
@@ -123,11 +129,11 @@ exists to prevent, so it is not one click away.
 
 ## 🚦 Status
 
-**Pre-alpha, and it connects.** v0.1.0 shipped on 2026-08-23, and v0.1.1 the
-same day with copy and paste in the terminal. On Linux and on
-Windows 11 a packaged build was installed and driven end to end: it verified an
-unknown host key against its real fingerprint, asked for a password in its own
-window, opened a shell and ran commands in it.
+**Pre-alpha, and it connects.** v0.1.0 and v0.1.1 shipped on 2026-08-23, and
+v0.2.0 on 2026-08-26 with panes and jump hosts. On Linux and on Windows 11 a
+packaged build was installed and driven end to end: it verified an unknown host
+key against its real fingerprint, asked for a password in its own window,
+opened a shell and ran commands in it.
 
 **macOS has never been opened by anyone.** The `.dmg` builds on every run and
 that is all anyone can say about it. `docs/installing.md` tracks which packages
@@ -172,9 +178,9 @@ sha256sum -c SHA256SUMS --ignore-missing   # before installing anything
 - **Core:** Rust and Tauri 2.0
 - **Frontend:** React, TypeScript, TailwindCSS
 - **Terminal:** xterm.js, DOM renderer, no GPU path ([ADR-0011](docs/adr/0011-drop-the-webgl-renderer.md))
-- **SSH:** the `russh` crate, in process, no OpenSSH binary ([ADR-0003](docs/adr/0003-use-russh-instead-of-openssh.md)). `russh-sftp` is the plan for v0.2.0 and is not wired up yet
+- **SSH:** the `russh` crate, in process, no OpenSSH binary ([ADR-0003](docs/adr/0003-use-russh-instead-of-openssh.md)). `russh-sftp` is the plan for v0.3.0 and is not wired up yet
 - **Secrets:** the OS keychain, referenced by opaque id ([ADR-0004](docs/adr/0004-store-credentials-in-the-os-keychain.md))
-- **Languages:** English and Brazilian Portuguese at v0.1.0; Spanish is translated and waiting on a native review of its security copy ([ADR-0007](docs/adr/0007-localize-in-the-frontend-from-typed-error-codes.md))
+- **Languages:** English and Brazilian Portuguese; Spanish is translated and waiting on a native review of its security copy ([ADR-0007](docs/adr/0007-localize-in-the-frontend-from-typed-error-codes.md))
 
 ## 🧑‍💻 Building it
 
@@ -215,7 +221,7 @@ pnpm test
 
 - [x] **v0.1.0 (MVP):** SSH connections with host key verification, saved sessions, and a working terminal. [Released 2026-08-23](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.1.0).
 - [x] **v0.1.1:** copy and paste in the terminal. [Released 2026-08-23](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.1.1).
-- [ ] **v0.2.0:** reaching a host through a bastion with `ProxyJump`. Split panes and synchronised typing are already in, ahead of the release.
+- [x] **v0.2.0:** reaching a host through a bastion, a main area divided into groups, and typing into all of them at once. [Released 2026-08-26](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.2.0).
 - [ ] **v0.3.0:** SFTP, upload and download over the connection that is already open.
 - [ ] **v0.4.0:** port forwarding (SSH tunnels), customizable themes, and session import from PuTTY and OpenSSH.
 - [ ] **v1.0.0:** production grade stability, and a signed installer on every platform.

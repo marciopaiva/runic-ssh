@@ -91,9 +91,11 @@ installer, which is minutes rather than one.
 The clipboard is the one part of the terminal that cannot be asserted from a
 test. It runs on the browser's own `copy` and `paste` events (ADR-0018), so what
 is being checked is whether the webview raises them, and WebKitGTK and WebView2
-each get their own vote. Synthetic key events do not answer this: keys injected
-with `xdotool` never reach the WebKit web process under Xvfb, so this list is
-driven by hand or not at all.
+each get their own vote. Half of this can be driven synthetically and half
+cannot: `xdotool` typing reaches the webview on a display that has a window
+manager, so a paste can be sent, but a drag never reaches it, so nothing can be
+selected and copy is a person's job. See "What synthetic input can and cannot
+drive" below before assuming either way.
 
 Connect a session, then:
 
@@ -128,7 +130,7 @@ that in one call and the frontend splits to stay inside it, which is proven by
 unit test and has never been driven. Note that an SSH private key is far below
 the limit, so the obvious test does not reach the split.
 
-### Split panes and synchronised typing
+### Groups and synchronised typing
 
 Two sessions at least, and four for the grid. The container recipe above gives
 one host, so the grid needs three more. They are the same image on three more
@@ -142,51 +144,59 @@ done
 ```
 
 Each one is a distinct host key, so the first connection to each prompts on its
-own. That is the point: four panes that trust four different keys is closer to
+own. That is the point: four groups that trust four different keys is closer to
 what a person has on screen than four tabs onto one machine.
 
-Save them as four sessions and the split is one palette command away.
-`docs/adr/0019-split-the-panel-into-panes-and-type-into-all-of-them.md` is the
-reasoning behind what these are checking.
+ADR-0019 is the reasoning behind typing into several at once, and ADR-0020 and
+ADR-0021 are the anatomy it now lives in: the main area divides into groups,
+each group is a strip of tabs over the body of whichever tab it is showing, and
+the shapes are picked from the trailing edge of the top strip. There is no
+separate pane header any more; the strip is the header.
 
 Nothing here can be asserted from a test either, for the same reason as the
-clipboard: what is being checked is what the webview does with a real keyboard
-in real rectangles, and injected keys do not reach it.
+clipboard: what is being checked is what the webview does with a keyboard in
+real rectangles. Typing can be sent synthetically, so most of this list can be
+walked without a person; moving a host into an empty rectangle cannot, because
+that is a drag.
 
-Split from the palette (`Ctrl-Shift-P`, then "Split"). One open session is
-enough: splitting first and connecting into the empty pane is the ordinary way
-round. With nothing connected at all the commands are absent, because there is
-no panel to divide.
+Divide the area from the shape control in the top strip, or from the palette
+(`Ctrl-Shift-P`, then "Split"). One open session is enough: dividing first and
+connecting into the empty rectangle is the ordinary way round. With nothing
+connected at all the commands are absent, because there is no area to divide.
 
 | Do this | Expect |
 | --- | --- |
-| Split into two columns, two sessions open | both paint, each with its own grid |
+| Divide into two columns, two sessions open | both paint, each with its own grid |
 | Resize the window | both re-fit, and neither reports `0x0` |
-| Click inside a pane | that pane's tab is the highlighted one |
-| Click a tab that is not on screen | it takes the focused pane |
+| Click inside a group | that group is outlined, and its active tab is highlighted in the host list |
+| Click a host that is not open | it opens as a tab in the focused group |
 | Click a tab that is already on screen | only the focus moves, nothing rearranges |
-| Close one session of a split | its pane goes dashed and empty, the other stays |
-| Read the empty pane | it says no session *in this pane*, not that none is open |
-| Read the pane headers | each names its saved session and `user@host`, and one is marked focused |
-| Read the status bar | it shows the grid of the focused pane, not the last resized |
-| Back to one terminal | the panel is exactly what it was before splitting |
+| Right-click a tab | a menu offers to send it to another group |
+| Read a group's trailing menu | closing says how many connections it is about to drop |
+| Close one session of a division | its rectangle goes empty, the other stays |
+| Read the empty rectangle | it says no session *in this pane*, not that none is open |
+| Read each strip | it names its session, and one group is marked focused |
+| Read the status bar | it names the focused host, and shows its grid rather than the last resized |
+| Back to one terminal | every tab is in one strip and nothing was disconnected |
 
-Then arm the switch ("Type into every pane"). It is absent unless two panes have
-a session in them.
+Then arm the switch on a group's strip. It is refused unless two groups have a
+session in them, and says so when you hover it.
 
 | Do this | Expect |
 | --- | --- |
-| Type | it arrives in every pane, each host echoing its own |
-| `Ctrl-C` | interrupts in every pane |
-| Look at the panes and the bar | every pane has the warning edge; the bar has the count |
-| Find the focused pane | the edge says nothing now, so the header marker is the only thing that does |
-| Uncheck one pane's box, with four open | its edge goes back to normal, the bar counts one fewer |
-| Type after unchecking | the spared pane receives nothing |
-| Type *into* the spared pane | it reaches that pane and no other |
+| Type | it arrives in the active tab of every group, each host echoing its own |
+| `Ctrl-C` | interrupts in every receiving group |
+| Look at the window | the status bar's top edge is amber and carries the count and the way off; every receiving group is outlined; the rail is amber and holds the settings gear shut |
+| Read the host list | every receiving host is marked, and every connected host that is not receiving is labelled `SPARED` |
+| Find the focused group | the outline says nothing now, so the strip's marker is the only thing that does |
+| Uncheck one group's box, with four open | that group stops receiving, the count drops by one |
+| Type after unchecking | the spared group receives nothing |
+| Type *into* the spared group | it reaches that group and no other |
+| Leave a connected session behind another tab | it is connected and is not receiving, and the host list is where that is read |
 | Uncheck until one is left | the bar stops claiming a broadcast |
 | Turn the switch off and on again | every box is checked again |
-| Click the count in the status bar | the switch goes off in one click |
-| Close a pane's session, or change a pane's host | the switch disarms itself |
+| Click the way off in the status bar | the switch goes off in one click |
+| Close a session, or change which tab a group shows | the switch disarms itself |
 | Paste one line, under `bash` | the confirmation appears anyway, naming the host count |
 | Cancel that confirmation | no host received anything |
 
@@ -196,24 +206,43 @@ directly. Any prompt that hides what you type does it the same way: the remote
 pty turns the echo off, on the far side of the channel, where nothing here can
 see it.
 
-With the switch **off**, in one pane only:
+With the switch **off**, in one group only:
 
 ```sh
 stty -echo; read secret; stty echo; echo "[$secret]"
 ```
 
-That pane is now waiting with the echo off, exactly as `sudo` or `ssh` would
+That session is now waiting with the echo off, exactly as `sudo` or `ssh` would
 leave it. Arm the switch and type a password, then Return.
 
-The pane that asked hides it and prints it back in brackets. **The other three
-print it on screen** and try to run it as a command. That is the whole of the
-limit, and it is a documented one rather than a defect: there is no signal to
-key on, because the decision to stop echoing was made by the host and never
+The session that asked hides it and prints it back in brackets. **The other
+three print it on screen** and try to run it as a command. That is the whole of
+the limit, and it is a documented one rather than a defect: there is no signal
+to key on, because the decision to stop echoing was made by the host and never
 crossed the channel.
 
-**Four panes flooding is unmeasured.** ADR-0011 measured the renderer against
-one terminal. Run `yes` in two of four panes and watch whether the window stays
-responsive; if it does not, the limit belongs at two panes and the measurement
+### How long a credential is kept
+
+ADR-0025 gives the credential window three answers, and two of them are only
+visible over time, so nothing in a single run distinguishes them. Drive them in
+this order, against a host with no saved credential:
+
+| Do this | Expect |
+| --- | --- |
+| Connect, choose *ask me again next time*, disconnect, connect again | the window opens again |
+| Connect, choose *until Runic SSH closes*, disconnect, connect again | it does not ask |
+| Close the application, reopen it, connect | it asks again, and `sessions.json` never held a `credentialId` |
+| Connect, choose *in the system keychain*, restart, connect | it does not ask, and `sessions.json` now names an opaque id |
+| Look for the secret anywhere but the keychain | it is not in `sessions.json`, not in `settings.json`, and not in any log |
+
+On a machine with no secret service the third choice is absent and the window
+says why. That is the case worth having a machine for: the middle answer is the
+only one such a machine can honour, and it is the reason there are three
+answers rather than a tick box.
+
+**Four groups flooding is unmeasured.** ADR-0011 measured the renderer against
+one terminal. Run `yes` in two of four groups and watch whether the window stays
+responsive; if it does not, the limit belongs at two groups and the measurement
 belongs in ADR-0019.
 
 ### A bastion and a host behind it
@@ -347,6 +376,35 @@ what happened is to read `/proc/<pid>/environ`.
 
 `import -window <id>` screenshots it and `xdotool` drives it, both with
 `DISPLAY=:99`. Nothing touches the desktop the developer is using.
+
+### What synthetic input can and cannot drive
+
+This list was measured on 2026-08-26, on `:91` with `openbox` running and a
+release build, while retaking the README screenshots (#146). It corrects a
+claim this document made in two places: that injected keys never reach the
+WebKit web process. They do, once something gives the window keyboard focus.
+
+| Gesture | Reaches the webview |
+| --- | --- |
+| `xdotool type` and `key`, after `windowactivate --sync` | **yes** |
+| `Ctrl-Shift-V`, pasting from the clipboard | **yes** |
+| Middle click, pasting the primary selection into a form field | **yes** |
+| `xdotool click` | **yes** |
+| Middle click into the terminal | no |
+| Any drag: selecting text, moving a host into a rectangle | no |
+| `xdotool type --window <id>` | no |
+
+Two of those are worth keeping in mind. `--window` sends `XSendEvent` and
+WebKit ignores it, so a failure there says nothing about whether keys work; use
+plain `xdotool type` with the window activated. And a drag failing silently is
+what makes it expensive: the pointer moves, the button goes down and up, and
+the application simply never hears it, which reads exactly like a bug in the
+feature being driven.
+
+A host key prompt or a credential window will time out while you debug the
+coordinates. `sshd` closes the connection after its login grace period, and the
+error the window shows is "the SSH conversation did not finish", not "you took
+too long". Drive the whole sequence in one go.
 
 ## Measuring several terminals painting at once
 

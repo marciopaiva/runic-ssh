@@ -90,10 +90,12 @@ packaging, so a dev run does not stand in for this.
 Then **drive it**, from `docs/testing.md`. Launching only proves the entry point
 resolves.
 
-What cannot be automated here, established the hard way: keys injected with
-`xdotool` never reach the WebKit web process under Xvfb, so anything keyboard
-driven is driven by a person. Ask the maintainer and wait for the answer. Do not
-write a table row that says something was driven when nobody drove it.
+What can and cannot be driven synthetically is a table in `docs/testing.md`,
+under "What synthetic input can and cannot drive". Typing and pasting reach the
+webview on a display with a window manager; a drag never does. Anything on the
+wrong side of that line is driven by a person: ask the maintainer and wait for
+the answer. Do not write a table row that says something was driven when nobody
+drove it, and do not write one that says a person drove it when a script did.
 
 ---
 
