@@ -11,7 +11,37 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-08-26
+
+Finishes what v0.2.0 claimed. Three of the limitations that release wrote down
+are closed: a machine with no keychain can now reach a host through a bastion,
+a chain no longer opens a connection nothing on screen admits exists, and a host
+already serving as a jump host can no longer be given one of its own. The
+credential window, which v0.2.0 made people see far more often, was rebuilt
+around that fact.
+
+One thing v0.2.0 claimed that was not true is corrected below rather than
+fixed, and is written into the limitations with the issue that will fix it.
+
 ### Added
+
+- **A password can be saved for a host from its own form** (#189). "Connect once
+  and save a password" opens the connection, verifies the host key, collects the
+  credential in the window every other host uses, and closes the connection as
+  soon as the server accepts it. There is still no password field on a form, and
+  there never will be: the form is rendered in the document that also renders
+  hostile output from a remote host, and ADR-0008 keeps every secret out of it.
+  The block says whether a password is stored, and offers to replace it or to
+  forget it.
+
+- **A host carrying somebody else's session says so** (#168). Connecting to a
+  host behind a bastion opens a second connection, to the bastion, which is
+  authenticated. Nothing on screen admitted it existed: no tab, no marker, and
+  the bastion's own row read "saved, not connected" while the application was
+  logged in to it. Its row now has a state of its own, and the status bar of the
+  session riding it names the host it travels through. Those are two different
+  questions, "what is open" and "where does this go", and they are answered in
+  the two places somebody looks for each.
 
 - **A jump host asks for its own credential when it has none** (ADR-0027, #165).
   It came from the keychain and only from the keychain, so a machine with no
@@ -33,6 +63,32 @@ with the caveat that anything below 1.0 may break, and this project intends to.
   refuses and now says why.
 
 ### Fixed
+
+- **A host already serving as a jump host is no longer offered one of its own**
+  (#171). The check refused a jump host that was itself behind one at the moment
+  it was chosen, and did not refuse the other order, so a two-deep chain could be
+  built by saving the pieces in the wrong sequence, and the hosts it broke were
+  ones the user never opened. The core refuses it now, and the form says which
+  hosts are reached through this one instead of offering a control that would be
+  turned down. A session already saved in that state can still be repaired,
+  because the value it holds stays in the list until it is cleared.
+
+- **Forgetting a password forgets both copies** (#189). A credential kept for the
+  life of the run is answered before the keychain is read, so clearing only the
+  keychain left the next connection finding it anyway. The button would have said
+  something it had not done.
+
+- **A jump host says when its password was not kept** (#191, #167). The keychain
+  refusing was reported for the host the user clicked and silently dropped for
+  the hop with no tab, including on the rebuild that follows accepting a host
+  key. The badge on the status bar now says which of the two it was about, rather
+  than hiding the difference behind a hover.
+
+- **The host form says when the core refused an action** (#198). `submitIn` had
+  no `catch`: a save the core turned down was a rejected promise nobody read, and
+  the form said nothing at all. There is now a line above the fields naming what
+  did not happen and why, a failed save leaves the tab open holding what was
+  typed, and a delete closes the form when the host is gone rather than before.
 
 - **The credential prompt belongs to the application now** (#188). It was
   centred on the screen with no parent, so the desktop treated it as a stray
@@ -92,6 +148,56 @@ with the caveat that anything below 1.0 may break, and this project intends to.
   several hosts described the older broadcast rule, which reached more sessions
   than the current one does.
 
+### Security
+
+- A bastion's credential is asked for in the same window every other host uses,
+  and the window says which hop it is asking about, in its heading as well as in
+  its body. Two prompts arrive in a row for two different machines, and telling
+  them apart is the condition ADR-0023 attached to letting a bastion prompt at
+  all. The far host's credential is still never sent to the bastion: the two
+  hops authenticate end to end, and the bastion forwards ciphertext it cannot
+  read.
+- A host carrying a chain is now visible, which `docs/security-model.md` asks
+  for: an open authenticated session on a bastion is a live credential in use,
+  and a client holding one without saying so asks somebody to reason about what
+  it has hidden.
+- **The Portuguese strings this release adds have not been reviewed.** Thirty of
+  them, of which the ones about where a password goes and what is never shown on
+  a form are security copy. The note in `src/lib/i18n/locales.ts` records a
+  review dated 2026-08-26 that covers the strings existing at that moment and
+  nothing added since, and nothing in the tree fails when it goes stale, which is
+  #192. Portuguese is still offered, because it is written by a native speaker
+  who is the maintainer; what is being said here is that the review claim does
+  not yet reach these thirty. Spanish is still held out of the language selector,
+  for the reason it has been held out since ADR-0007 (#4).
+
+### Known limitations
+
+- **A bastion is not shared as widely as v0.2.0 said it was** (#200). That
+  release claimed three hosts behind one jump host open one connection to it.
+  That is true only for a bastion already open as a session of its own, which is
+  what a chain looks for. A bastion the chain opens itself is not registered, so
+  the next chain to the same host cannot find it and opens another. ADR-0024
+  says it should be registered and that part was never built; doing it needs a
+  decision about when the registry lets go of a connection nobody asked for,
+  which is why it is an issue rather than a line in this release.
+- **A locked keychain still refuses rather than prompting** (#165, in part). A
+  machine with no credential store at all now prompts, and the answer kept for
+  the life of the run serves every host behind that bastion. A store that exists
+  and says no is a different problem: prompting past it would teach people to
+  retype a password instead of unlocking their keyring.
+- **A credential kept for this run is invisible in the editor** (#197). The
+  password block reads what is on disk, so a password held in memory until the
+  application closes shows as no password at all. Nothing is wrong with the
+  connection; the form is answering a narrower question than it appears to.
+- **The bastion cannot be closed on its own.** Its row says it is carrying
+  something and offers no way to drop it, because there is no honest one yet: the
+  connection closes when the last session riding it leaves, so a button there
+  would change the row and leave the connection up.
+- Everything v0.2.0 listed that is not named above is still true, including the
+  password typed with synchronised typing armed, the arrangements of six and
+  nine, and macOS remaining unopened by anyone.
+
 ## [0.2.0] — 2026-08-26
 
 ### Added
@@ -143,6 +249,11 @@ with the caveat that anything below 1.0 may break, and this project intends to.
   when the last of them does. The sidebar marks both ends of a chain, and a
   host with no chain is marked too, so the absence of a mark never has to be
   read as an answer.
+
+  **Corrected in v0.2.1**: the sharing holds only for a bastion already open as
+  a session of its own. A bastion a chain opens itself is not registered, so the
+  next chain to the same host opens another connection to it. The claim above is
+  left as it was written; the state of it is #200.
 - **A credential can be kept for the life of the run** (ADR-0025). Three
   answers rather than a tick box: used once, held in memory until the
   application closes, or written to the OS keychain. The middle one needs no
@@ -378,6 +489,7 @@ deliberately labelled one.
 - A connection gives up after twenty seconds (ADR-0016). That number is a
   choice, not a measurement, and there is no setting for it yet.
 
+[0.2.1]: https://github.com/marciopaiva/runic-ssh/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/marciopaiva/runic-ssh/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/marciopaiva/runic-ssh/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/marciopaiva/runic-ssh/releases/tag/v0.1.0

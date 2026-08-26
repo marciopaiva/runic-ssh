@@ -3799,7 +3799,7 @@ dependencies = [
 
 [[package]]
 name = "runic-ssh"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "base64ct",
  "hmac 0.13.0",
