@@ -255,24 +255,40 @@ pub(crate) async fn ask<R: Runtime>(
 
 /// How tall the prompt window is, which depends on what it has to say.
 ///
-/// A jump host's prompt carries a paragraph the ordinary one does not, and at
-/// 340 pixels that paragraph pushed the keep options and the submit button off
-/// the bottom edge, leaving a window that could be read and not answered. Found
-/// by opening one. No test in this repository could have: the height is a
-/// number in Rust and the content is a component in a webview, and nothing
-/// measures one against the other.
+/// A jump host's prompt carries a paragraph the ordinary one does not, so there
+/// are two figures, and both have room for the longest of the three
+/// translations rather than for the English, which is the shortest.
 ///
-/// The taller figure has room for the longest of the three translations rather
-/// than for the English, which is the shortest of them.
-const PROMPT_HEIGHT: f64 = 340.0;
-const PROMPT_HEIGHT_WITH_HOP: f64 = 440.0;
+/// **These are a request, not a measurement, and the compositor may spend part
+/// of it on itself.** `inner_size` is the inner size where the window manager
+/// draws the frame around the window. Where it draws the title bar *inside* the
+/// surface, which is what client-side decorations are, the same number arrives
+/// as the outer size and the document gets what is left. Measured at 47 points
+/// on one such desktop: 340 asked for, 293 rendered into, which was enough to
+/// hide two of the three keep options.
+///
+/// Nothing here can find that out. There is no portable way to ask what a
+/// decoration will cost before the window exists, and resizing after it is
+/// mapped trades the clipping for a window that jumps. So the figures below
+/// carry an allowance, and the window says so when it is not enough: the
+/// component draws a rule above the buttons whenever there is more above them
+/// than fits. An interface that is short of room can be lived with. One that
+/// looks complete while hiding two thirds of a control cannot.
+const PROMPT_HEIGHT: f64 = 420.0;
+const PROMPT_HEIGHT_WITH_HOP: f64 = 540.0;
 
-/// How wide the prompt is, which does not depend on anything.
+/// How wide the prompt is, which does not depend on what it says.
+///
+/// The same 560 the host key screens are drawn at, because the prompt renders
+/// the same shape and a shape is not the same shape at two widths. It is also
+/// what makes the keep options fit on one line each in every catalogue; at 440
+/// the Portuguese wrapped, and wrapping was half of what pushed them out of
+/// sight.
 ///
 /// A constant rather than a literal because the placement below has to know
 /// it: a window is centred over another one by subtracting its own size, and
 /// reading that size from the builder is not something the builder offers.
-const PROMPT_WIDTH: f64 = 440.0;
+const PROMPT_WIDTH: f64 = 560.0;
 
 /// Where to open the prompt so it sits in the middle of the window that asked.
 ///
@@ -295,6 +311,31 @@ fn centre_over(origin: (i32, i32), size: (u32, u32), scale: f64, prompt: (f64, f
     (
         left + (f64::from(size.0) / scale - prompt.0) / 2.0,
         top + (f64::from(size.1) / scale - prompt.1) / 2.0,
+    )
+}
+
+/// Pulls a placement back onto the screen it is meant to be on.
+///
+/// Centring over the main window is right until the prompt is taller than the
+/// main window, and then it hangs off both ends. An earlier version avoided
+/// that by keeping the prompt smaller than the main window is allowed to be,
+/// which sounds tidy and is a ceiling on the content: it put the limit at 464
+/// points, and the prompt a jump host asks needs more than that to show every
+/// keep option in Portuguese. A window that is the wrong size for what it says
+/// is worse than one that needed a clamp.
+///
+/// The work area rather than the whole monitor, so a placement never lands
+/// under a task bar or a dock. Clamps the origin only: a prompt taller than the
+/// work area is not made to fit, because the alternative is deciding which end
+/// of it to cut off, and it scrolls.
+fn clamp_into(placement: (f64, f64), work: (f64, f64, f64, f64), prompt: (f64, f64)) -> (f64, f64) {
+    let (left, top, width, height) = work;
+
+    /* `max` after `min`, so a prompt larger than the work area lands at its
+    top left corner rather than off the near edge. */
+    (
+        placement.0.min(left + width - prompt.0).max(left),
+        placement.1.min(top + height - prompt.1).max(top),
     )
 }
 
@@ -326,12 +367,34 @@ fn open_window<R: Runtime>(
         let scale = main.scale_factor().ok()?;
         let origin = main.outer_position().ok()?;
         let size = main.outer_size().ok()?;
+        let prompt = (PROMPT_WIDTH, height);
 
-        Some(centre_over(
+        let centred = centre_over(
             (origin.x, origin.y),
             (size.width, size.height),
             scale,
-            (PROMPT_WIDTH, height),
+            prompt,
+        );
+
+        /* The monitor is a second question, and a failed answer to it is not a
+        reason to place nothing. Without one the prompt is centred and not
+        clamped, which is exactly what a main window bigger than the prompt
+        would have produced anyway. */
+        let Ok(Some(monitor)) = main.current_monitor() else {
+            return Some(centred);
+        };
+
+        let work = monitor.work_area();
+
+        Some(clamp_into(
+            centred,
+            (
+                f64::from(work.position.x) / scale,
+                f64::from(work.position.y) / scale,
+                f64::from(work.size.width) / scale,
+                f64::from(work.size.height) / scale,
+            ),
+            prompt,
         ))
     });
 
@@ -461,48 +524,49 @@ mod tests {
     }
 
     #[test]
-    fn the_prompt_lands_inside_the_window_that_asked() {
-        /* The main window's smallest allowed size, from `tauri.conf.json`. The
-        property this asserts is the one the placement rests on: the prompt is
-        smaller than any main window can be, so centring it over one can never
-        put it off a display that main window is on, and no clamping to a
-        monitor is needed.
+    fn a_prompt_never_lands_under_a_top_bar() {
+        /* A main window pushed to the top of the screen. Centring a prompt
+        over it puts the prompt above the work area, behind whatever the
+        desktop keeps up there, and the part that goes under is the heading:
+        the line that says which host is being asked about. */
+        let work = (0.0, 32.0, 1920.0, 1008.0);
+        let prompt = (PROMPT_WIDTH, PROMPT_HEIGHT_WITH_HOP);
 
-        Both heights, because the taller one exists for a reason and is the
-        one that was found to overflow once already. */
-        const MIN_WIDTH: f64 = 880.0;
-        const MIN_HEIGHT: f64 = 560.0;
-        /* Room for the title bar this window keeps. `centre_over` is told the
-        inner size, and the window manager adds its decorations above it. */
-        const DECORATIONS: f64 = 48.0;
+        let centred = centre_over((520, 0), (880, 560), 1.0, prompt);
+        assert!(centred.1 < 32.0, "the case needs the prompt to reach up");
 
-        for scale in [1.0, 1.25, 2.0] {
-            for height in [PROMPT_HEIGHT, PROMPT_HEIGHT_WITH_HOP] {
-                let origin = (320, 180);
-                let size = (
-                    (MIN_WIDTH * scale).round() as u32,
-                    (MIN_HEIGHT * scale).round() as u32,
-                );
+        let (x, y) = clamp_into(centred, work, prompt);
+        assert!(y >= 32.0, "top was {y}");
+        assert!(x >= 0.0 && x + prompt.0 <= 1920.0);
+        assert!(y + prompt.1 <= 32.0 + 1008.0);
+    }
 
-                let (x, y) = centre_over(origin, size, scale, (PROMPT_WIDTH, height));
-                let left = f64::from(origin.0) / scale;
-                let top = f64::from(origin.1) / scale;
+    #[test]
+    fn a_prompt_never_lands_under_the_task_bar() {
+        /* The work area, not the monitor. A main window at the bottom of the
+        screen centres a prompt into whatever the desktop has reserved down
+        there, and a prompt with its buttons behind a task bar is the same
+        failure as a prompt with its buttons off the bottom edge. */
+        let work = (0.0, 32.0, 1920.0, 1008.0);
+        let prompt = (PROMPT_WIDTH, PROMPT_HEIGHT);
 
-                assert!(
-                    x >= left,
-                    "at {scale}x the prompt started left of the window"
-                );
-                assert!(y >= top, "at {scale}x the prompt started above the window");
-                assert!(
-                    x + PROMPT_WIDTH <= left + MIN_WIDTH,
-                    "at {scale}x the prompt ran past the right edge"
-                );
-                assert!(
-                    y + height + DECORATIONS <= top + MIN_HEIGHT,
-                    "at {scale}x a {height} point prompt ran past the bottom edge"
-                );
-            }
-        }
+        let centred = centre_over((600, 900), (880, 560), 1.0, prompt);
+        let (_, y) = clamp_into(centred, work, prompt);
+
+        assert!(y + prompt.1 <= 32.0 + 1008.0, "bottom was {}", y + prompt.1);
+        assert!(y >= 32.0, "top was {y}");
+    }
+
+    #[test]
+    fn a_prompt_bigger_than_the_screen_starts_at_the_corner() {
+        /* Nothing can make it fit, and the choice is which end to lose. The
+        near corner keeps the heading, which says which host is asking, and
+        loses the bottom, which the window scrolls to reach. */
+        let work = (0.0, 32.0, 400.0, 300.0);
+        let prompt = (PROMPT_WIDTH, PROMPT_HEIGHT);
+
+        let placed = clamp_into(centre_over((0, 0), (880, 560), 1.0, prompt), work, prompt);
+        assert_eq!(placed, (0.0, 32.0));
     }
 
     /// Parses the URL the way the window does: split the query, read `request`.

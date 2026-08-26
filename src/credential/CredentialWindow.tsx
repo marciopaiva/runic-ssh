@@ -11,6 +11,12 @@ import { credentialPrompt, dismissCredential, submitCredential } from '../ipc/cr
 import type { CredentialPrompt, Keep } from '../ipc/credential';
 import { asIpcError } from '../ipc/errors';
 
+/* Presentational only, and checked as such: `tests/credential-window.test.ts`
+   walks this file's imports and fails on anything that reaches a session or a
+   byte a host sent. `JumpHostNotice` beside it does not qualify, because it
+   takes its type from the `ipc` barrel. */
+import { SessionSurface, SurfaceAction } from '../components/SessionSurface';
+
 type Method = 'password' | 'key';
 
 /**
@@ -135,177 +141,226 @@ export function CredentialWindow({ request }: { readonly request: number | null 
 
   if (failure !== null) {
     return (
-      <main className="bg-surface-base text-ink flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
-        <p className="text-danger-text text-[13px] font-semibold">
-          {i18n.t('credential.failed')}
-        </p>
-        <p className="text-ink-faint font-mono text-[11px]">{failure}</p>
-        <button
-          type="button"
-          onClick={cancel}
-          className="border-line-strong text-ink-secondary hover:text-ink mt-1 rounded border px-3 py-1.5 text-[12px]"
-        >
-          {i18n.t('credential.cancel')}
-        </button>
-      </main>
+      <SessionSurface
+        variant="window"
+        titleId="credential-failed"
+        tone="danger"
+        alert
+        title={i18n.t('credential.failed')}
+        icon={ALERT_ICON}
+        body={<span className="text-ink-faint font-mono text-[11.5px]">{failure}</span>}
+        actions={
+          <SurfaceAction onClick={cancel} variant="secondary">
+            {i18n.t('credential.cancel')}
+          </SurfaceAction>
+        }
+      />
     );
   }
 
   if (prompt === null) {
     return (
-      <main className="bg-surface-base text-ink-faint flex h-full items-center justify-center text-[12px]">
+      <main className="bg-surface-raised text-ink-faint flex h-full items-center justify-center text-[12.5px]">
         {i18n.t('credential.loading')}
       </main>
     );
   }
 
   return (
-    /* Two regions, and which is which is the whole point. Everything that can
-       grow scrolls. The two buttons never do.
+    /* The same shape the host key screens speak in, filling a window instead of
+       floating in a panel. ADR-0015 made one shape for a session to talk to the
+       user in because there had been five, and the user met three of them in
+       three consecutive screens. This window had a sixth, which nothing caught
+       because the rule was written about surfaces inside the main window and
+       this one is not inside anything.
 
-       The core sizes this window for what it is about to render, and that is a
-       number in Rust measured against a component in a webview, in three
-       languages. The two will disagree. What has to survive the disagreement is
-       the window staying answerable, and a scrollbar on its own did not give
-       that: with a private key asked for, Cancel and Authenticate went past the
-       bottom edge, so the window could be read and not answered. #188.
+       The form wraps the surface rather than sitting inside it: the submit
+       button is in the action row, which `SessionSurface` renders below the
+       part that scrolls, and a button can only submit a form it is inside. */
+    <form ref={form} onSubmit={onSubmit} className="h-full">
+      <SessionSurface
+        variant="window"
+        titleId="credential-title"
+        title={i18n.t(prompt.carrying === null ? 'credential.title' : 'credential.title.jump')}
+        icon={KEY_ICON}
+        body={i18n.t('credential.subject', {
+          name: prompt.sessionName,
+          user: prompt.user,
+          host: prompt.host,
+        })}
+        actions={
+          <>
+            <SurfaceAction onClick={cancel} variant="secondary">
+              {i18n.t('credential.cancel')}
+            </SurfaceAction>
+            <SurfaceAction type="submit" variant="primary" disabled={busy}>
+              {i18n.t('credential.submit')}
+            </SurfaceAction>
+          </>
+        }
+      >
+        {/* The whole of what ADR-0023 required before a jump host was allowed
+            to ask at all. Two prompts arrive in a row for two different
+            machines, and without this the second is indistinguishable from the
+            first. The title changes with it rather than only this block,
+            because a banner is a thing the eye learns to skip and a heading is
+            not.
 
-       Unreachable now by construction rather than by choosing the height
-       carefully, which is what was tried and what shipped anyway. */
-    <main className="bg-surface-base text-ink flex h-full flex-col p-5">
-      <form ref={form} onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-          <h1 className="text-[13.5px] font-semibold">
-            {i18n.t(prompt.carrying === null ? 'credential.title' : 'credential.title.jump')}
-          </h1>
-          <p className="text-ink-secondary mt-1 text-[12px]">
-            {i18n.t('credential.subject', {
-              name: prompt.sessionName,
-              user: prompt.user,
-              host: prompt.host,
-            })}
+            The same geometry as `JumpHostNotice` on the host key screens, in
+            warn rather than accent: that one says which host is being asked
+            about, this one says the secret about to be typed belongs to a
+            different machine than the one on the tab. */}
+        {prompt.carrying !== null && (
+          <p className="border-warn bg-warn-soft text-ink rounded border-l-2 px-3 py-2 text-[12.5px] leading-relaxed">
+            {i18n.t('credential.hop.bastion', { target: prompt.carrying })}
           </p>
+        )}
 
-          {/* The whole of what ADR-0023 required before a jump host was allowed to
-              ask at all. Two prompts arrive in a row for two different machines,
-              and without this the second is indistinguishable from the first. The
-              title changes with it rather than only this block, because a banner is
-              a thing the eye learns to skip and a heading is not. */}
-          {prompt.carrying !== null && (
-            <p className="bg-warn-soft text-warn border-warn/40 mt-3 rounded border px-2.5 py-1.5 text-[11.5px]">
-              {i18n.t('credential.hop.bastion', { target: prompt.carrying })}
-            </p>
-          )}
+        <div
+          role="radiogroup"
+          aria-label={i18n.t('credential.method')}
+          className="border-line-subtle bg-surface-base flex gap-1 rounded-lg border p-1"
+        >
+          {(['password', 'key'] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              role="radio"
+              aria-checked={method === option}
+              onClick={() => setMethod(option)}
+              className={`h-[30px] flex-1 rounded-md text-[12.5px] font-semibold ${
+                method === option
+                  ? 'bg-surface-raised text-ink border-line-strong border'
+                  : 'text-ink-muted hover:text-ink-secondary'
+              }`}
+            >
+              {i18n.t(
+                option === 'password' ? 'credential.method.password' : 'credential.method.key',
+              )}
+            </button>
+          ))}
+        </div>
 
-          <div
-            role="radiogroup"
-            aria-label={i18n.t('credential.method')}
-            className="border-line-subtle mt-4 flex gap-1 rounded border p-0.5"
-          >
-            {(['password', 'key'] as const).map((option) => (
-              <button
-                key={option}
-                type="button"
-                role="radio"
-                aria-checked={method === option}
-                onClick={() => setMethod(option)}
-                className={`flex-1 rounded px-2 py-1 text-[12px] ${
-                  method === option ? 'bg-surface-raised text-ink' : 'text-ink-muted'
-                }`}
-              >
-                {i18n.t(option === 'password' ? 'credential.method.password' : 'credential.method.key')}
-              </button>
-            ))}
-          </div>
-
-          <div className="mt-3 flex min-h-0 flex-1 flex-col gap-2">
-            {method === 'password' ? (
-              <label className="flex flex-col gap-1">
-                <span className="text-ink-muted text-[11px]">{i18n.t('credential.password')}</span>
-                <input
+        <div className="flex flex-col gap-3">
+          {method === 'password' ? (
+            <Field label={i18n.t('credential.password')}>
+              <input
+                ref={takeFirst}
+                name="password"
+                type="password"
+                autoComplete="off"
+                spellCheck={false}
+                className={INPUT}
+              />
+            </Field>
+          ) : (
+            <>
+              {/* A height of its own, never `flex-1`. Inside a region that
+                  scrolls, a child that grows to fill it has nothing to fill:
+                  it collapses, and what follows lands on top of it. That is
+                  twice this field has disappeared, by two different routes. */}
+              <Field label={i18n.t('credential.privateKey')}>
+                <textarea
                   ref={takeFirst}
-                  name="password"
+                  name="privateKey"
+                  autoComplete="off"
+                  spellCheck={false}
+                  className={`${INPUT} h-[124px] resize-none text-[11px] leading-snug`}
+                />
+              </Field>
+              <Field label={i18n.t('credential.passphrase')}>
+                <input
+                  name="passphrase"
                   type="password"
                   autoComplete="off"
                   spellCheck={false}
-                  className="bg-surface-input border-line-subtle text-ink rounded border px-2.5 py-1.5 font-mono text-[12.5px] outline-none"
+                  className={INPUT}
                 />
+              </Field>
+            </>
+          )}
+
+          {/* Three durations, each named. The middle one is the one most likely
+              to be misread, so it says where it goes rather than only how long:
+              somebody who restarts and is asked again has to be able to connect
+              that to a choice they made an hour ago. ADR-0025.
+
+              The last is absent rather than disabled when the machine has no
+              keychain. A control that can never be used is a feature somebody
+              is told about and then denied. */}
+          <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
+            <legend className="text-ink-faint p-0 pb-1.5 text-[9.5px] font-bold tracking-[0.09em]">
+              {i18n.t('credential.keep')}
+            </legend>
+
+            {(
+              [
+                'never',
+                'forThisRun',
+                ...(prompt.canRemember ? (['stored'] as const) : []),
+              ] as const
+            ).map((option) => (
+              <label
+                key={option}
+                className="text-ink-secondary flex cursor-pointer items-center gap-2.5 text-[12.5px]"
+              >
+                <input
+                  name="keep"
+                  type="radio"
+                  value={option}
+                  defaultChecked={option === 'never'}
+                  className="accent-accent h-3.5 w-3.5"
+                />
+                {i18n.t(`credential.keep.${option}`)}
               </label>
-            ) : (
-              <>
-                <label className="flex flex-1 flex-col gap-1">
-                  <span className="text-ink-muted text-[11px]">{i18n.t('credential.privateKey')}</span>
-                  <textarea
-                    ref={takeFirst}
-                    name="privateKey"
-                    autoComplete="off"
-                    spellCheck={false}
-                    className="bg-surface-input border-line-subtle text-ink min-h-[104px] flex-1 resize-none rounded border px-2.5 py-1.5 font-mono text-[11px] outline-none"
-                  />
-                </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-ink-muted text-[11px]">{i18n.t('credential.passphrase')}</span>
-                  <input
-                    name="passphrase"
-                    type="password"
-                    autoComplete="off"
-                    spellCheck={false}
-                    className="bg-surface-input border-line-subtle text-ink rounded border px-2.5 py-1.5 font-mono text-[12.5px] outline-none"
-                  />
-                </label>
-              </>
-            )}
-
-            {/* Three durations, each named. The middle one is the one most likely
-                to be misread, so it says where it goes rather than only how long:
-                somebody who restarts and is asked again has to be able to connect
-                that to a choice they made an hour ago. ADR-0025.
-
-                The last is absent rather than disabled when the machine has no
-                keychain. A control that can never be used is a feature somebody is
-                told about and then denied. */}
-            <fieldset className="m-0 mt-1 flex flex-col gap-1.5 border-0 p-0">
-              <legend className="text-ink-faint p-0 pb-1 text-[11px]">
-                {i18n.t('credential.keep')}
-              </legend>
-
-              {(['never', 'forThisRun', ...(prompt.canRemember ? (['stored'] as const) : [])] as const).map(
-                (option) => (
-                  <label key={option} className="text-ink-secondary flex items-center gap-2 text-[12px]">
-                    <input
-                      name="keep"
-                      type="radio"
-                      value={option}
-                      defaultChecked={option === 'never'}
-                      className="accent-accent"
-                    />
-                    {i18n.t(`credential.keep.${option}`)}
-                  </label>
-                ),
-              )}
-            </fieldset>
-          </div>
+            ))}
+          </fieldset>
         </div>
-
-        {/* Outside the scrolling region, so nothing above can push them
-            off the bottom of the window. */}
-        <div className="flex justify-end gap-2 pt-3">
-          <button
-            type="button"
-            onClick={cancel}
-            className="border-line-strong text-ink-secondary hover:text-ink rounded border px-3 py-1.5 text-[12px]"
-          >
-            {i18n.t('credential.cancel')}
-          </button>
-          <button
-            type="submit"
-            disabled={busy}
-            className="bg-accent text-surface-base rounded px-3 py-1.5 text-[12px] font-semibold disabled:opacity-50"
-          >
-            {i18n.t('credential.submit')}
-          </button>
-        </div>
-      </form>
-    </main>
+      </SessionSurface>
+    </form>
   );
 }
+
+/** The one input treatment, so the three fields cannot drift apart. */
+const INPUT =
+  'bg-surface-base border-line-subtle text-ink rounded-lg border px-3 py-2 font-mono text-[12.5px] outline-none focus:border-accent';
+
+/** A labelled field, in the scale the host key screens use for theirs. */
+function Field({
+  label,
+  children,
+}: {
+  readonly label: string;
+  readonly children: JSX.Element;
+}): JSX.Element {
+  return (
+    <label className="flex flex-col gap-1.5">
+      <span className="text-ink-faint text-[9.5px] font-bold tracking-[0.09em]">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+const KEY_ICON = (
+  <svg viewBox="0 0 16 16" width="19" height="19" fill="none" aria-hidden="true">
+    <path
+      d="M9.6 6.4a3 3 0 1 0-3.2 3.2L7 10.2l-.6.6.9.9-.9.9.9.9 2-2 3.3-3.3a3 3 0 0 0-3-2.1zM5.4 5.4h.01"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const ALERT_ICON = (
+  <svg viewBox="0 0 16 16" width="19" height="19" fill="none" aria-hidden="true">
+    <path
+      d="M8 1.8 1.5 13.2h13L8 1.8ZM8 6.2v3.4M8 11.4h.01"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
