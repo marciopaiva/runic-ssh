@@ -3,6 +3,10 @@
 * **Status**: Accepted
 * **Date**: 2026-08-25
 
+Its credential rule is amended by ADR-0027, dated 2026-08-26. A bastion with
+nothing saved now asks rather than being refused, which is the Option B below,
+taken for the reason this document predicted. Everything else here stands.
+
 ## Context
 
 Most hosts a system administrator reaches are not reachable directly. One
