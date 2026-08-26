@@ -41,7 +41,18 @@ export function CredentialWindow({ request }: { readonly request: number | null 
   const [busy, setBusy] = useState(false);
 
   const form = useRef<HTMLFormElement>(null);
-  const first = useRef<HTMLInputElement>(null);
+  /* Whichever field the answer starts in, which is not always an input: with a
+     private key asked for it is the key itself, not the passphrase under it.
+     Focusing the second field scrolled the heading out of the window, so the
+     prompt opened already looking as though something had gone wrong.
+
+     A callback rather than the object form, because the same ref lands on an
+     input in one branch and a textarea in the other and React's ref objects
+     are invariant: no single element type accepts both. */
+  const first = useRef<HTMLElement | null>(null);
+  const takeFirst = (node: HTMLElement | null): void => {
+    first.current = node;
+  };
 
   useEffect(() => {
     if (request === null) {
@@ -149,123 +160,136 @@ export function CredentialWindow({ request }: { readonly request: number | null 
   }
 
   return (
-    /* Scrolls rather than clips. The core sizes this window for what it is
-       about to render, and that is a number in Rust measured against a
-       component in a webview, in three languages. When the two disagree the
-       failure must be a scrollbar and not a window that can be read and not
-       answered. */
-    <main className="bg-surface-base text-ink flex h-full flex-col overflow-y-auto p-5">
-      <h1 className="text-[13.5px] font-semibold">
-        {i18n.t(prompt.carrying === null ? 'credential.title' : 'credential.title.jump')}
-      </h1>
-      <p className="text-ink-secondary mt-1 text-[12px]">
-        {i18n.t('credential.subject', {
-          name: prompt.sessionName,
-          user: prompt.user,
-          host: prompt.host,
-        })}
-      </p>
+    /* Two regions, and which is which is the whole point. Everything that can
+       grow scrolls. The two buttons never do.
 
-      {/* The whole of what ADR-0023 required before a jump host was allowed to
-          ask at all. Two prompts arrive in a row for two different machines,
-          and without this the second is indistinguishable from the first. The
-          title changes with it rather than only this block, because a banner is
-          a thing the eye learns to skip and a heading is not. */}
-      {prompt.carrying !== null && (
-        <p className="bg-warn-soft text-warn border-warn/40 mt-3 rounded border px-2.5 py-1.5 text-[11.5px]">
-          {i18n.t('credential.hop.bastion', { target: prompt.carrying })}
-        </p>
-      )}
+       The core sizes this window for what it is about to render, and that is a
+       number in Rust measured against a component in a webview, in three
+       languages. The two will disagree. What has to survive the disagreement is
+       the window staying answerable, and a scrollbar on its own did not give
+       that: with a private key asked for, Cancel and Authenticate went past the
+       bottom edge, so the window could be read and not answered. #188.
 
-      <div
-        role="radiogroup"
-        aria-label={i18n.t('credential.method')}
-        className="border-line-subtle mt-4 flex gap-1 rounded border p-0.5"
-      >
-        {(['password', 'key'] as const).map((option) => (
-          <button
-            key={option}
-            type="button"
-            role="radio"
-            aria-checked={method === option}
-            onClick={() => setMethod(option)}
-            className={`flex-1 rounded px-2 py-1 text-[12px] ${
-              method === option ? 'bg-surface-raised text-ink' : 'text-ink-muted'
-            }`}
-          >
-            {i18n.t(option === 'password' ? 'credential.method.password' : 'credential.method.key')}
-          </button>
-        ))}
-      </div>
+       Unreachable now by construction rather than by choosing the height
+       carefully, which is what was tried and what shipped anyway. */
+    <main className="bg-surface-base text-ink flex h-full flex-col p-5">
+      <form ref={form} onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          <h1 className="text-[13.5px] font-semibold">
+            {i18n.t(prompt.carrying === null ? 'credential.title' : 'credential.title.jump')}
+          </h1>
+          <p className="text-ink-secondary mt-1 text-[12px]">
+            {i18n.t('credential.subject', {
+              name: prompt.sessionName,
+              user: prompt.user,
+              host: prompt.host,
+            })}
+          </p>
 
-      <form ref={form} onSubmit={onSubmit} className="mt-3 flex min-h-0 flex-1 flex-col gap-2">
-        {method === 'password' ? (
-          <label className="flex flex-col gap-1">
-            <span className="text-ink-muted text-[11px]">{i18n.t('credential.password')}</span>
-            <input
-              ref={first}
-              name="password"
-              type="password"
-              autoComplete="off"
-              spellCheck={false}
-              className="bg-surface-input border-line-subtle text-ink rounded border px-2.5 py-1.5 font-mono text-[12.5px] outline-none"
-            />
-          </label>
-        ) : (
-          <>
-            <label className="flex min-h-0 flex-1 flex-col gap-1">
-              <span className="text-ink-muted text-[11px]">{i18n.t('credential.privateKey')}</span>
-              <textarea
-                name="privateKey"
-                autoComplete="off"
-                spellCheck={false}
-                className="bg-surface-input border-line-subtle text-ink min-h-0 flex-1 resize-none rounded border px-2.5 py-1.5 font-mono text-[11px] outline-none"
-              />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-ink-muted text-[11px]">{i18n.t('credential.passphrase')}</span>
-              <input
-                ref={first}
-                name="passphrase"
-                type="password"
-                autoComplete="off"
-                spellCheck={false}
-                className="bg-surface-input border-line-subtle text-ink rounded border px-2.5 py-1.5 font-mono text-[12.5px] outline-none"
-              />
-            </label>
-          </>
-        )}
-
-        {/* Three durations, each named. The middle one is the one most likely
-            to be misread, so it says where it goes rather than only how long:
-            somebody who restarts and is asked again has to be able to connect
-            that to a choice they made an hour ago. ADR-0025.
-
-            The last is absent rather than disabled when the machine has no
-            keychain. A control that can never be used is a feature somebody is
-            told about and then denied. */}
-        <fieldset className="m-0 mt-1 flex flex-col gap-1.5 border-0 p-0">
-          <legend className="text-ink-faint p-0 pb-1 text-[11px]">
-            {i18n.t('credential.keep')}
-          </legend>
-
-          {(['never', 'forThisRun', ...(prompt.canRemember ? (['stored'] as const) : [])] as const).map(
-            (option) => (
-              <label key={option} className="text-ink-secondary flex items-center gap-2 text-[12px]">
-                <input
-                  name="keep"
-                  type="radio"
-                  value={option}
-                  defaultChecked={option === 'never'}
-                  className="accent-accent"
-                />
-                {i18n.t(`credential.keep.${option}`)}
-              </label>
-            ),
+          {/* The whole of what ADR-0023 required before a jump host was allowed to
+              ask at all. Two prompts arrive in a row for two different machines,
+              and without this the second is indistinguishable from the first. The
+              title changes with it rather than only this block, because a banner is
+              a thing the eye learns to skip and a heading is not. */}
+          {prompt.carrying !== null && (
+            <p className="bg-warn-soft text-warn border-warn/40 mt-3 rounded border px-2.5 py-1.5 text-[11.5px]">
+              {i18n.t('credential.hop.bastion', { target: prompt.carrying })}
+            </p>
           )}
-        </fieldset>
 
-        <div className="mt-auto flex justify-end gap-2 pt-3">
+          <div
+            role="radiogroup"
+            aria-label={i18n.t('credential.method')}
+            className="border-line-subtle mt-4 flex gap-1 rounded border p-0.5"
+          >
+            {(['password', 'key'] as const).map((option) => (
+              <button
+                key={option}
+                type="button"
+                role="radio"
+                aria-checked={method === option}
+                onClick={() => setMethod(option)}
+                className={`flex-1 rounded px-2 py-1 text-[12px] ${
+                  method === option ? 'bg-surface-raised text-ink' : 'text-ink-muted'
+                }`}
+              >
+                {i18n.t(option === 'password' ? 'credential.method.password' : 'credential.method.key')}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-3 flex min-h-0 flex-1 flex-col gap-2">
+            {method === 'password' ? (
+              <label className="flex flex-col gap-1">
+                <span className="text-ink-muted text-[11px]">{i18n.t('credential.password')}</span>
+                <input
+                  ref={takeFirst}
+                  name="password"
+                  type="password"
+                  autoComplete="off"
+                  spellCheck={false}
+                  className="bg-surface-input border-line-subtle text-ink rounded border px-2.5 py-1.5 font-mono text-[12.5px] outline-none"
+                />
+              </label>
+            ) : (
+              <>
+                <label className="flex flex-1 flex-col gap-1">
+                  <span className="text-ink-muted text-[11px]">{i18n.t('credential.privateKey')}</span>
+                  <textarea
+                    ref={takeFirst}
+                    name="privateKey"
+                    autoComplete="off"
+                    spellCheck={false}
+                    className="bg-surface-input border-line-subtle text-ink min-h-[104px] flex-1 resize-none rounded border px-2.5 py-1.5 font-mono text-[11px] outline-none"
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-ink-muted text-[11px]">{i18n.t('credential.passphrase')}</span>
+                  <input
+                    name="passphrase"
+                    type="password"
+                    autoComplete="off"
+                    spellCheck={false}
+                    className="bg-surface-input border-line-subtle text-ink rounded border px-2.5 py-1.5 font-mono text-[12.5px] outline-none"
+                  />
+                </label>
+              </>
+            )}
+
+            {/* Three durations, each named. The middle one is the one most likely
+                to be misread, so it says where it goes rather than only how long:
+                somebody who restarts and is asked again has to be able to connect
+                that to a choice they made an hour ago. ADR-0025.
+
+                The last is absent rather than disabled when the machine has no
+                keychain. A control that can never be used is a feature somebody is
+                told about and then denied. */}
+            <fieldset className="m-0 mt-1 flex flex-col gap-1.5 border-0 p-0">
+              <legend className="text-ink-faint p-0 pb-1 text-[11px]">
+                {i18n.t('credential.keep')}
+              </legend>
+
+              {(['never', 'forThisRun', ...(prompt.canRemember ? (['stored'] as const) : [])] as const).map(
+                (option) => (
+                  <label key={option} className="text-ink-secondary flex items-center gap-2 text-[12px]">
+                    <input
+                      name="keep"
+                      type="radio"
+                      value={option}
+                      defaultChecked={option === 'never'}
+                      className="accent-accent"
+                    />
+                    {i18n.t(`credential.keep.${option}`)}
+                  </label>
+                ),
+              )}
+            </fieldset>
+          </div>
+        </div>
+
+        {/* Outside the scrolling region, so nothing above can push them
+            off the bottom of the window. */}
+        <div className="flex justify-end gap-2 pt-3">
           <button
             type="button"
             onClick={cancel}
