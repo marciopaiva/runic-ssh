@@ -38,12 +38,14 @@ import {
 } from './features/chrome';
 import type { Focus } from './features/chrome';
 import {
+  carrierName,
   editorDirty,
   editorKey,
   findEditor,
   invalidFields,
   isInProgress,
   isOverridable,
+  markCarried,
   needsConfirmation,
   hasStoredCredential,
   jumpHostChoice,
@@ -60,6 +62,7 @@ import {
   withoutEditor,
 } from './features/sessions';
 import type {
+  CarriedOn,
   DraftField,
   DraftValues,
   EditorTarget,
@@ -266,13 +269,31 @@ export function App(): JSX.Element {
      away. A map rather than a set because the two need different sentences,
      and the second one has to name the host the user cannot see. */
   const [unsaved, setUnsaved] = useState<ReadonlyMap<string, string | null>>(new Map());
+  /* Which host each open session is riding, when it is riding one. Written
+     once, when the session opens, and left alone afterwards: it is a fact
+     about a connection that exists, not about what the session file says now.
+     Entries for sessions that have since closed mark nothing, because
+     `markCarried` counts only the ones still holding a handle. See #168. */
+  const [carriedOn, setCarriedOn] = useState<ReadonlyMap<string, CarriedOn>>(new Map());
 
   const { attempt, connect, trust, abandon } = useConnect({
     onConnecting: (sessionId) => setState(sessionId, 'connecting'),
-    onOpened: (sessionId, handle) => {
+    onOpened: (sessionId, handle, via) => {
       attach(sessionId, handle);
       setState(sessionId, 'connected');
       setFocus({ kind: 'session', sessionId });
+      setCarriedOn((current) => {
+        const next = new Map(current);
+        /* The bastion's id comes from the saved record and the fact that there
+           is one at all comes from the core. Pairing them is what stops the
+           sidebar claiming a chain the connection never made. Through the ref
+           because a connect runs for as long as the network takes, and the
+           list this closure captured may be several reloads old by now. */
+        const bastionId = savedRef.current.find((one) => one.id === sessionId)?.proxyJump;
+        if (via === null || bastionId === null || bastionId === undefined) next.delete(sessionId);
+        else next.set(sessionId, { bastionId, name: via });
+        return next;
+      });
     },
     /* A changed key, a host that did not answer, and a credential window the
        user closed are three different things, and the marker says which. */
@@ -786,6 +807,19 @@ export function App(): JSX.Element {
   );
 
   const saved = useMemo(() => sessions.map((live) => live.session), [sessions]);
+  /* What the sidebar draws, which is not quite what is open. A bastion with no
+     tab of its own still has a live authenticated connection to it while a
+     session behind it is running, and the row has to say so. #168. */
+  const shown = useMemo(() => markCarried(sessions, carriedOn), [sessions, carriedOn]);
+  /* The host the focused session travels through, or `null`. Read only while
+     it is actually open: the entry outlives the connection by design, and a
+     bar still naming a hop after the session closed would be the same lie in
+     the other direction. */
+  const activeCarrier = useMemo(() => {
+    if (activeId === null || activeHandle === null) return null;
+    const carried = carriedOn.get(activeId);
+    return carried === undefined ? null : carrierName(saved, carried);
+  }, [activeId, activeHandle, carriedOn, saved]);
 
   /* What each form's tab says and whether it is holding unsaved work. The
      host's own name while it has one: a tab called "New session" that went on
@@ -1123,7 +1157,7 @@ export function App(): JSX.Element {
 
         {sidebarOpen && (
           <SessionsSidebar
-            sessions={sessions}
+            sessions={shown}
             selectedId={selected}
             receiving={reaching}
             spared={spared}
@@ -1465,6 +1499,7 @@ export function App(): JSX.Element {
         size={size}
         modifier={chrome?.commandModifier ?? 'control'}
         syncing={hostsReceiving}
+        via={activeCarrier}
         announcement={announcement}
         credentialUnsaved={
           activeId !== null && unsaved.has(activeId)

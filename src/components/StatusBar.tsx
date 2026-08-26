@@ -42,6 +42,15 @@ interface StatusBarProps {
    * is already reported. See #191.
    */
   readonly credentialUnsaved: { readonly via: string | null } | null;
+  /**
+   * The host this session's traffic travels through, or `null` when none.
+   *
+   * A bastion has no tab and no terminal, so this cell is the only place the
+   * window says where a chained session actually goes. The sidebar answers
+   * "what is open"; this answers "where does this go", and they are different
+   * questions about the same connection. See #168.
+   */
+  readonly via: string | null;
   readonly onDismissUnsaved: () => void;
 }
 
@@ -101,6 +110,7 @@ export function StatusBar({
   syncing,
   announcement,
   credentialUnsaved,
+  via,
   onDismissUnsaved,
 }: StatusBarProps): JSX.Element {
   const i18n = useTranslator();
@@ -158,6 +168,28 @@ export function StatusBar({
             <span className="text-ink-faint max-w-[200px] truncate font-mono">
               {identity.where}
             </span>
+          </>
+        </Cell>
+      )}
+
+      {/* Beside the host this bar is about, because it qualifies it: the name
+          on the left is where the keystrokes end up, and this is the machine
+          they cross to get there. */}
+      {via !== null && (
+        <Cell title={i18n.t('status.via', { host: via })}>
+          <>
+            <svg viewBox="0 0 16 16" className="text-accent h-3 w-3" fill="none" aria-hidden="true">
+              {/* The same turn the sidebar draws on a host that rides another,
+                  so one glyph means one thing in both places. */}
+              <path
+                d="M3.5 2.5v7a2.5 2.5 0 0 0 2.5 2.5h6.5M10 9l3 3-3 3"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <span className="text-ink-secondary max-w-[160px] truncate">{via}</span>
           </>
         </Cell>
       )}

@@ -12,6 +12,8 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { carrierName, markCarried } from '../src/features/sessions/carried';
+import type { CarriedOn } from '../src/features/sessions/carried';
 import {
   ALL_STATES,
   describeState,
@@ -97,5 +99,84 @@ describe('grouping', () => {
 
   it('has nothing to say about nothing', () => {
     expect(groupSessions([])).toEqual([]);
+  });
+});
+
+describe('a bastion carrying somebody else', () => {
+  function rider(kind: ConnectionKind, handle: number | null): LiveSession {
+    return { session: session('web'), handle, kind };
+  }
+
+  function bastion(kind: ConnectionKind): LiveSession {
+    return { session: session('jump'), handle: null, kind };
+  }
+
+  const through: ReadonlyMap<string, CarriedOn> = new Map([
+    ['web', { bastionId: 'jump', name: 'jump' }],
+  ]);
+
+  it('stops a carried host reading as one nothing has touched', () => {
+    /* The whole of #168 in one assertion. The application is logged in to
+       this host and its row used to say "saved, not connected". */
+    const marked = markCarried([rider('connected', 4), bastion('saved')], through);
+
+    expect(marked[1]?.kind).toBe('carrying');
+  });
+
+  it('leaves the bastion alone once it has a session of its own', () => {
+    /* `connected` already admits the connection exists, which is what was
+       being asked for. Replacing it would trade one silence for another. */
+    const marked = markCarried([rider('connected', 4), bastion('connected')], through);
+
+    expect(marked[1]?.kind).toBe('connected');
+  });
+
+  it('never covers a blocked host key', () => {
+    /* The one substitution that could get somebody hurt: a security state
+       painted over with a livelier marker because traffic is flowing. */
+    const marked = markCarried([rider('connected', 4), bastion('keyMismatch')], through);
+
+    expect(marked[1]?.kind).toBe('keyMismatch');
+  });
+
+  it('replaces a stale unreachable, because it is demonstrably reachable', () => {
+    /* The verdict of an earlier direct attempt, contradicted by a session
+       riding the host right now. */
+    const marked = markCarried([rider('connected', 4), bastion('unreachable')], through);
+
+    expect(marked[1]?.kind).toBe('carrying');
+  });
+
+  it('marks nothing for a session that has since closed', () => {
+    /* The entry outlives the connection on purpose, so the handle is what
+       decides. Otherwise closing the far session would leave the bastion
+       claiming to carry it forever. */
+    const marked = markCarried([rider('saved', null), bastion('saved')], through);
+
+    expect(marked[1]?.kind).toBe('saved');
+  });
+
+  it('leaves the list untouched when nothing is riding anything', () => {
+    const sessions = [rider('connected', 4), bastion('saved')];
+
+    expect(markCarried(sessions, new Map())).toBe(sessions);
+  });
+});
+
+describe('naming the host a session travels through', () => {
+  const carried: CarriedOn = { bastionId: 'jump', name: 'old name' };
+
+  it('uses the name the host has now', () => {
+    /* Renaming a bastion has to rename it everywhere at once, including on
+       the bar of a session that was already open. */
+    const jump: Session = { ...session('jump'), name: 'new name' };
+
+    expect(carrierName([jump], carried)).toBe('new name');
+  });
+
+  it('falls back to what the core reported when the host is gone', () => {
+    /* Deleted while something was still riding it. The connection is still
+       there and still has to be named. */
+    expect(carrierName([], carried)).toBe('old name');
   });
 });
