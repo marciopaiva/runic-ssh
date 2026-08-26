@@ -225,7 +225,15 @@ export function StatusBar({
               strokeLinejoin="round"
             />
           </svg>
-          {i18n.t('status.credentialUnsaved')}
+          {/* The badge says which of the two it was, rather than leaving the
+              difference in the title where it takes a hover to find. Both
+              refusals read identically at a glance otherwise, and the one
+              about a host with no tab is the one that needs naming. */}
+          {i18n.t(
+            credentialUnsaved.via === null
+              ? 'status.credentialUnsaved'
+              : 'status.credentialUnsaved.via',
+          )}
         </button>
       )}
 
