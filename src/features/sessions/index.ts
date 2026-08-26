@@ -32,6 +32,8 @@ export type { Failure } from './failure';
 export { menuPosition, sessionMenu } from './menu';
 export type { MenuItem, SessionAction } from './menu';
 export { differs, editorValues, isDirty, targetSession } from './editor';
+export { describeEditorFailure } from './editor-failure';
+export type { EditorAction, EditorFailure, EditorProblem } from './editor-failure';
 export {
   anyDirty,
   blankEditor,
