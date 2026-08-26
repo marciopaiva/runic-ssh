@@ -102,10 +102,19 @@ byte counters, and the chain glyphs in the sidebar.
 consults the service. Getting that check means setting the zone marker
 deliberately, or downloading through a browser.
 
+**ADR-0025 was exercised here, on DPAPI, and it is the part of that run worth
+keeping.** A new host kept its credential for the run only: nothing was written
+to `%APPDATA%\Microsoft\Credentials`, and `credentialId` stayed null in
+`sessions.json`, so a restarted process had no path to that secret even if it
+had wanted one. Reconnecting inside the run did not ask; closing and reopening
+did. Saving the same credential to the keyring afterwards wrote both halves, the
+store entry and the session pointer, which is the invariant `persist_credential`
+exists to hold. The keep modes have now run on both credential stores that
+exist.
+
 Still unchecked: the `.msi` (a different installer with a different code path,
 and per-machine, so it needs administrator rights), Windows SmartScreen on a
-downloaded file rather than a locally built one, the three credential keep modes
-from ADR-0025 against DPAPI, and everything about macOS.
+downloaded file rather than a locally built one, and everything about macOS.
 Gatekeeper quarantine and the `.app` bundle are described below from
 documentation rather than from having been seen.
 
