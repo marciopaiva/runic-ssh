@@ -116,9 +116,18 @@ export function SessionSurface({
       >
         {/* Filling a window, the heading and the content scroll and the action
             row does not. Floating in a panel, the panel scrolls and nothing
-            here needs to. */}
+            here needs to.
+
+            The negative margin puts the scrollbar where a scrollbar belongs,
+            against the edge of the window, and the padding it cancels is then
+            the gap between the content and it. Without the pair the region
+            stopped at the section's padding and the scrollbar was drawn on top
+            of where the fields end: a private key field with its right border
+            under the thumb, and no gap anywhere. */}
         {windowed ? (
-          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">{heading}</div>
+          <div className="-mr-5 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-5">
+            {heading}
+          </div>
         ) : (
           heading
         )}
