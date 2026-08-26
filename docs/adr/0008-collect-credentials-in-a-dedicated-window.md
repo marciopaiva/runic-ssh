@@ -3,6 +3,10 @@
 * **Status**: Accepted
 * **Date**: 2026-08-22
 
+Amended by ADR-0027, dated 2026-08-26, from one credential per connection to one
+per hop. Which document the prompt lives in is not amended and is the whole of
+what this decides.
+
 ## Context
 
 The client has to accept a password or a private key passphrase from the user.
