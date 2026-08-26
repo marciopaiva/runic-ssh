@@ -261,7 +261,11 @@ export function App(): JSX.Element {
      Held for the life of the session rather than shown once and forgotten: the
      fact stays true, and a message that leaves before it is read is the thing
      ADR-0015 argues against. See #167. */
-  const [unsaved, setUnsaved] = useState<ReadonlySet<string>>(new Set());
+  /* Which sessions have a refusal to report, and whose it was: `null` for the
+     session's own credential, a jump host's name when it happened one hop
+     away. A map rather than a set because the two need different sentences,
+     and the second one has to name the host the user cannot see. */
+  const [unsaved, setUnsaved] = useState<ReadonlyMap<string, string | null>>(new Map());
 
   const { attempt, connect, trust, abandon } = useConnect({
     onConnecting: (sessionId) => setState(sessionId, 'connecting'),
@@ -276,8 +280,8 @@ export function App(): JSX.Element {
     /* Back to a plain stored host. Nothing was learned about it — the attempt
        was let go, not answered — so anything else would be a claim. */
     onAbandoned: (sessionId) => setState(sessionId, 'saved'),
-    onCredentialRefused: (sessionId) =>
-      setUnsaved((current) => new Set(current).add(sessionId)),
+    onCredentialRefused: (sessionId, via) =>
+      setUnsaved((current) => new Map(current).set(sessionId, via)),
     /* The connection is already closed by the time this runs. The host goes
        back to being a plain saved host, and the list is reloaded because what
        may have changed is on disk: the session now carries a credential id, or
@@ -1462,11 +1466,15 @@ export function App(): JSX.Element {
         modifier={chrome?.commandModifier ?? 'control'}
         syncing={hostsReceiving}
         announcement={announcement}
-        credentialUnsaved={activeId !== null && unsaved.has(activeId)}
+        credentialUnsaved={
+          activeId !== null && unsaved.has(activeId)
+            ? { via: unsaved.get(activeId) ?? null }
+            : null
+        }
         onDismissUnsaved={() =>
           setUnsaved((current) => {
             if (activeId === null) return current;
-            const next = new Set(current);
+            const next = new Map(current);
             next.delete(activeId);
             return next;
           })

@@ -30,13 +30,18 @@ interface StatusBarProps {
    */
   readonly announcement: Announcement | null;
   /**
-   * Whether this session's credential was asked to be kept and refused.
+   * A credential this session needed that the keychain refused, or `null`.
    *
    * Here rather than over the terminal because the fact stays true for the
    * life of the session, and a strip above the panel would push the terminal
    * down and make it refit for a message. See #167.
+   *
+   * `via` names the jump host when the refusal was at that hop. It is a host
+   * with no tab, and it is reported here because the user reached it on the
+   * way to the session they are looking at, which is how a failure in a chain
+   * is already reported. See #191.
    */
-  readonly credentialUnsaved: boolean;
+  readonly credentialUnsaved: { readonly via: string | null } | null;
   readonly onDismissUnsaved: () => void;
 }
 
@@ -200,11 +205,15 @@ export function StatusBar({
       {/* Said once the session is already open, so it is never in the way of
           connecting. Dismissible because there is nothing to act on: the
           secret is gone, correctly, and the next connection will ask again. */}
-      {credentialUnsaved && (
+      {credentialUnsaved !== null && (
         <button
           type="button"
           onClick={onDismissUnsaved}
-          title={i18n.t('status.credentialUnsaved.detail')}
+          title={
+            credentialUnsaved.via === null
+              ? i18n.t('status.credentialUnsaved.detail')
+              : i18n.t('status.credentialUnsaved.detail.via', { host: credentialUnsaved.via })
+          }
           className="text-ink-secondary border-line-subtle hover:text-ink my-1 flex shrink-0 items-center gap-1.5 rounded border px-2"
         >
           <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" aria-hidden="true">

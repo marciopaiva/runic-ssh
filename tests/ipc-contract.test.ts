@@ -248,6 +248,40 @@ describe('reaching a host through another one', () => {
     expect(frontend).toContain("export type Hop = 'target' | 'bastion';");
   });
 
+  it('sends a refused jump host credential as a bool that is always there', () => {
+    /* #191 reports the refusal on a field of `OpenSession`. A bool skipped
+       when false arrives as `undefined`, and the frontend reads `undefined` as
+       whatever the comparison happens to say: `credentialId` and `proxyJump`
+       have each cost a screen that way. So the guard is not that the field
+       exists, it is that nothing skips it. */
+    const rust = readFileSync(
+      fileURLToPath(new URL('../src-tauri/src/commands/sessions.rs', import.meta.url)),
+      'utf8',
+    );
+
+    const struct = rust.slice(
+      rust.indexOf('pub struct OpenSession'),
+      rust.indexOf('\n}', rust.indexOf('pub struct OpenSession')),
+    );
+
+    const lines = struct.split('\n');
+    const field = lines.findIndex((line) => line.includes('pub keep_refused: bool'));
+
+    expect(field, 'the field is not in OpenSession').toBeGreaterThan(0);
+    /* The attribute sits on the line above the field, which is what made the
+       first version of this assertion pass with the defect in place. */
+    expect(lines[field - 1] ?? '').not.toContain('skip_serializing_if');
+
+    const wrapper = readFileSync(
+      fileURLToPath(new URL('../src/ipc/sessions.ts', import.meta.url)),
+      'utf8',
+    );
+
+    /* Not optional on this side either. `keepRefused?: boolean` would let the
+       core start skipping it and nothing would fail. */
+    expect(wrapper).toContain('readonly keepRefused: boolean;');
+  });
+
   it('names the stored field the same on both sides', () => {
     /* `proxy_jump` with a camelCase rename in Rust, `proxyJump` in the wrapper.
        A rename on one side alone leaves a session that saves its jump host and

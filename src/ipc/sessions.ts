@@ -92,6 +92,18 @@ export interface OpenSession {
    * happening cannot reason about it.
    */
   readonly via?: string;
+  /**
+   * Whether the jump host's credential was asked to be kept and refused.
+   *
+   * Only about the hop with no tab. The credential of the host the user
+   * clicked is answered by `authenticateInteractively`, which returns
+   * `Keeping`.
+   *
+   * Always sent, `false` rather than absent, which is why this is not
+   * optional. See the note on the Rust field: a bool that is skipped when
+   * false arrives as `undefined` and reads as a refusal on every session.
+   */
+  readonly keepRefused: boolean;
 }
 
 /**

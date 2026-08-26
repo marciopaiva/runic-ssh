@@ -221,6 +221,7 @@
   "shape.label": "Cómo se divide el área",
   "status.credentialUnsaved": "No guardada",
   "status.credentialUnsaved.detail": "Pidió guardar esta credencial y el llavero del sistema se negó a guardarla. La sesión está conectada; se le pedirá de nuevo la próxima vez. Pulse para descartar.",
+  "status.credentialUnsaved.detail.via": "Usted pidió guardar la contraseña de {host}, el host intermedio por el que pasa esta sesión, y el llavero del sistema la rechazó. La sesión está conectada; ese host la vuelve a pedir la próxima vez. Haga clic para descartar.",
   "status.encoding": "Codificación",
   "status.idle": "Sin sesión",
   "status.latency.fair": "Latencia: aceptable",
