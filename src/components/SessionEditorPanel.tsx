@@ -1,6 +1,7 @@
 import type { JSX } from 'react';
 
-import type { DraftField, DraftValues } from '../features/sessions';
+import { describeEditorFailure } from '../features/sessions';
+import type { DraftField, DraftValues, EditorFailure } from '../features/sessions';
 import { useTranslator } from '../features/settings';
 import type { Session } from '../ipc';
 
@@ -14,6 +15,15 @@ interface SessionEditorPanelProps {
   readonly wrong: readonly DraftField[];
   /** Whether something is waiting on an answer about unsaved work. */
   readonly discarding: boolean;
+  /**
+   * The last action on this form that the core refused, or `null`.
+   *
+   * Only ever a sentence about what did not happen. The fields below go on
+   * showing what is stored, which stays true through a refusal: a keychain
+   * that would not drop a credential still holds it. See #198.
+   */
+  readonly failure: EditorFailure | null;
+  readonly onDismissFailure: () => void;
   readonly onChange: (field: keyof DraftValues, value: string) => void;
   /** The saved hosts this one may be reached through. */
   readonly jumpHosts: readonly Session[];
@@ -53,6 +63,7 @@ export function SessionEditorPanel({
   values,
   wrong,
   discarding,
+  failure,
   onChange,
   jumpHosts,
   carried,
@@ -63,8 +74,10 @@ export function SessionEditorPanel({
   onDelete,
   onConfirmDiscard,
   onCancelDiscard,
+  onDismissFailure,
 }: SessionEditorPanelProps): JSX.Element {
   const i18n = useTranslator();
+  const problem = failure === null ? null : describeEditorFailure(failure);
 
   return (
     <div className="flex h-full flex-col gap-5 p-7">
@@ -97,6 +110,35 @@ export function SessionEditorPanel({
             className="text-danger-text border-danger rounded border px-2.5 py-1 text-[12px] font-semibold"
           >
             {i18n.t('settings.discard.confirm')}
+          </button>
+        </div>
+      )}
+
+      {problem !== null && (
+        /* Above the form, in the slot the discard question already uses, and
+           for the same reason: what it is about is the fields below, and a
+           dialog would cover them. Not a surface in place of the form, which
+           was the other candidate and would throw away a draft somebody is
+           still holding to show them why a save failed. */
+        <div
+          role="alert"
+          className="border-danger bg-danger-soft flex max-w-[440px] flex-col gap-2 rounded border px-3 py-2"
+        >
+          <div className="min-w-0">
+            <p className="text-danger-text text-[12px] font-semibold">{i18n.t(problem.title)}</p>
+            <p className="text-ink-secondary mt-0.5 text-[11.5px] leading-relaxed">
+              {i18n.t(problem.body)}
+            </p>
+          </div>
+          {/* At the trailing edge, where the discard question above puts its
+              answers. Two lines of message cannot share one row with a button,
+              so it takes a row of its own rather than wrapping into one. */}
+          <button
+            type="button"
+            onClick={onDismissFailure}
+            className="border-line-strong text-ink-secondary hover:text-ink self-end rounded border bg-transparent px-2.5 py-1 text-[12px]"
+          >
+            {i18n.t('editor.failed.dismiss')}
           </button>
         </div>
       )}

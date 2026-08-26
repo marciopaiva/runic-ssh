@@ -65,12 +65,21 @@ import type {
   CarriedOn,
   DraftField,
   DraftValues,
+  EditorAction,
+  EditorFailure,
   EditorTarget,
   OpenEditor,
   SessionAction,
 } from './features/sessions';
 import { preparePaste } from './features/terminal/clipboard';
-import { deleteSession, disconnectSession, forgetCredential, saveSession, sendInput } from './ipc';
+import {
+  asIpcError,
+  deleteSession,
+  disconnectSession,
+  forgetCredential,
+  saveSession,
+  sendInput,
+} from './ipc';
 import type { Session, SessionDraft } from './ipc';
 import { useLocale, useTheme } from './features/settings';
 import { announceBroadcast, useSessionStats } from './features/status';
@@ -275,6 +284,11 @@ export function App(): JSX.Element {
      Entries for sessions that have since closed mark nothing, because
      `markCarried` counts only the ones still holding a handle. See #168. */
   const [carriedOn, setCarriedOn] = useState<ReadonlyMap<string, CarriedOn>>(new Map());
+  /* The last action on each open form that the core refused, keyed the way the
+     form itself is. Cleared when the same form asks for something again, so
+     the line is always about the most recent attempt and never about one two
+     actions ago. See #198. */
+  const [editorFailed, setEditorFailed] = useState<ReadonlyMap<string, EditorFailure>>(new Map());
 
   const { attempt, connect, trust, abandon } = useConnect({
     onConnecting: (sessionId) => setState(sessionId, 'connecting'),
@@ -785,25 +799,48 @@ export function App(): JSX.Element {
   );
 
   const remove = useCallback(
-    (sessionId: string): void => {
-      void deleteSession(sessionId).then(() => reload());
+    async (sessionId: string): Promise<void> => {
+      await deleteSession(sessionId);
+      reload();
     },
     [reload],
   );
 
+  /* Which form to tell, and what it was trying to do. An action taken from a
+     form is answered on that form: the status bar was the other candidate and
+     cannot carry this, because it is keyed to the focused session and an
+     editor tab is not one. */
+  const failIn = useCallback((target: EditorTarget, action: EditorAction, rejection: unknown): void => {
+    const error = asIpcError(rejection);
+    setEditorFailed((current) =>
+      new Map(current).set(editorKey(target), { action, code: error?.code ?? null }),
+    );
+  }, []);
+
+  const clearFailure = useCallback((target: EditorTarget): void => {
+    setEditorFailed((current) => {
+      const key = editorKey(target);
+      if (!current.has(key)) return current;
+      const next = new Map(current);
+      next.delete(key);
+      return next;
+    });
+  }, []);
+
   /* Reloaded whichever way it goes, because the editor renders the fact rather
      than an outcome: a keychain that refused still holds the entry, and the
-     block goes on saying so, which is true. What is missing is the sentence
-     saying the click failed, and the editor has nowhere to put one. That is
-     its own gap and its own issue, not something to invent a channel for
-     here. */
+     block goes on saying so, which is true. What was missing, and is added
+     here, is the sentence saying the click failed. */
   const forgetPassword = useCallback(
-    (sessionId: string): void => {
-      void forgetCredential(sessionId)
-        .catch(() => undefined)
+    (target: EditorTarget): void => {
+      if (target.kind === 'new') return;
+      clearFailure(target);
+
+      void forgetCredential(target.sessionId)
+        .catch((rejection: unknown) => failIn(target, 'forget', rejection))
         .then(() => reload());
     },
-    [reload],
+    [reload, clearFailure, failIn],
   );
 
   const saved = useMemo(() => sessions.map((live) => live.session), [sessions]);
@@ -851,6 +888,8 @@ export function App(): JSX.Element {
     (target: EditorTarget, after?: (stored: Session) => void): void => {
       const open = findEditor(editorsRef.current, target);
       if (open === null) return;
+
+      clearFailure(target);
 
       /* Named after the host if it was left blank, which is what somebody
          would type if the form insisted. */
@@ -905,9 +944,14 @@ export function App(): JSX.Element {
         }
 
         setEditors((current) => updateEditor(current, target, () => settled(stored)));
+      }).catch((rejection: unknown) => {
+        /* The tab stays, holding what was typed. A form that closed on a save
+           the core refused would take the draft with it and leave the host
+           unsaved, which is the worst of both. */
+        failIn(target, 'save', rejection);
       });
     },
-    [saved, save, forget],
+    [saved, save, forget, clearFailure, failIn],
   );
 
   /* Save, then collect a password on the connection that proves it works.
@@ -933,12 +977,19 @@ export function App(): JSX.Element {
   const removeIn = useCallback(
     (target: EditorTarget): void => {
       if (target.kind === 'new') return;
+      clearFailure(target);
 
-      remove(target.sessionId);
-      forget({ kind: 'editor', target });
-      setEditors((current) => withoutEditor(current, target));
+      /* The tab closes when the host is gone, and not before. It used to close
+         first, which meant a delete the core refused left no form on screen to
+         say so and a host still in the sidebar that looked deleted. */
+      void remove(target.sessionId)
+        .then(() => {
+          forget({ kind: 'editor', target });
+          setEditors((current) => withoutEditor(current, target));
+        })
+        .catch((rejection: unknown) => failIn(target, 'delete', rejection));
     },
-    [remove, forget],
+    [remove, forget, clearFailure, failIn],
   );
 
   const discardIn = useCallback(
@@ -1362,13 +1413,15 @@ export function App(): JSX.Element {
                   values={open.values}
                   wrong={open.wrong}
                   discarding={open.discarding}
+                  failure={editorFailed.get(editorKey(open.target)) ?? null}
                   jumpHosts={jump.offered}
                   carried={jump.carried}
                   storedCredential={(() => {
                     const session = targetSession(open.target, saved);
                     return session !== null && hasStoredCredential(session);
                   })()}
-                  onForget={editingId === null ? null : () => forgetPassword(editingId)}
+                  onForget={editingId === null ? null : () => forgetPassword(open.target)}
+                  onDismissFailure={() => clearFailure(open.target)}
                   onChange={(field, value) => changeIn(open.target, field, value)}
                   onSubmit={() => submitIn(open.target)}
                   onSavePassword={() => savePasswordIn(open.target)}
