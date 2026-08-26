@@ -222,6 +222,7 @@
   "status.credentialUnsaved": "Not saved",
   "status.credentialUnsaved.detail": "You asked to keep this credential and the system keychain refused. The session is connected; you will be asked again next time. Click to dismiss.",
   "status.credentialUnsaved.detail.via": "You asked to keep the password for {host}, the jump host this session is reached through, and the system keychain refused. The session is connected; that host asks again next time. Click to dismiss.",
+  "status.credentialUnsaved.via": "Jump host not saved",
   "status.encoding": "Encoding",
   "status.idle": "No session",
   "status.latency.fair": "Latency: fair",

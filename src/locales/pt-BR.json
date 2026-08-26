@@ -222,6 +222,7 @@
   "status.credentialUnsaved": "Não salva",
   "status.credentialUnsaved.detail": "Você pediu para guardar esta credencial e o keychain do sistema recusou. A sessão está conectada; ela será pedida de novo na próxima vez. Clique para dispensar.",
   "status.credentialUnsaved.detail.via": "Você pediu para guardar a senha de {host}, o host intermediário por onde esta sessão passa, e o keychain do sistema recusou. A sessão está conectada; aquele host vai perguntar de novo na próxima vez. Clique para dispensar.",
+  "status.credentialUnsaved.via": "Intermediário não guardado",
   "status.encoding": "Codificação",
   "status.idle": "Sem sessão",
   "status.latency.fair": "Latência: razoável",
