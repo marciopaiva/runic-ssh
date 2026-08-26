@@ -190,8 +190,9 @@ pub enum IpcError {
         id: String,
     },
     /// The jump host a session names cannot be used. `problem` says which of
-    /// the three ways, because they need three different things from the
-    /// reader: pick another, restore the one that is gone, or shorten a chain.
+    /// the four ways, because they need different things from the reader: pick
+    /// another, restore the one that is gone, or shorten a chain from whichever
+    /// end is being edited.
     InvalidProxyJump {
         problem: &'static str,
     },
@@ -286,6 +287,7 @@ impl From<Error> for IpcError {
                     crate::config::sessions::ProxyJumpProblem::Itself => "itself",
                     crate::config::sessions::ProxyJumpProblem::Unknown => "unknown",
                     crate::config::sessions::ProxyJumpProblem::Chained => "chained",
+                    crate::config::sessions::ProxyJumpProblem::Serving => "serving",
                 },
             },
             Error::Chain { hop, inner } => Self::ChainFailed {

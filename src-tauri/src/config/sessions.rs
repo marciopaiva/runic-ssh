@@ -98,6 +98,15 @@ pub enum ProxyJumpProblem {
     /// and refuses the rest rather than connecting to the first and behaving as
     /// if the whole chain had been honoured.
     Chained,
+    /// The session being saved is itself a jump host for other saved sessions,
+    /// so giving it one of its own would make their chains two hops long.
+    ///
+    /// The same limit as [`Chained`], seen from the other end. Both refuse a
+    /// chain of two; this one refuses building it by editing the middle rather
+    /// than the far host.
+    ///
+    /// [`Chained`]: ProxyJumpProblem::Chained
+    Serving,
 }
 
 /// Checks a jump host reference against what is saved.
@@ -127,6 +136,42 @@ pub fn check_proxy_jump(
 
     if session.proxy_jump.is_some() {
         return Err(ProxyJumpProblem::Chained);
+    }
+
+    Ok(())
+}
+
+/// Refuses giving a jump host to a session that is already serving as one.
+///
+/// The limit is ADR-0023's, the same one [`check_proxy_jump`] enforces when a
+/// bastion is chosen. What this catches is the other order: `web-01` is saved
+/// behind `bastion`, and `bastion` is then edited and given a jump host of its
+/// own. Nothing about that edit looks wrong, and the host it breaks is a host
+/// the user did not open.
+///
+/// Deliberately its own function, called only from [`save_session`]. The
+/// connect path calls `check_proxy_jump` with the id of the session it is
+/// opening, and a bastion that carries other hosts is perfectly connectable on
+/// its own; folding this rule in there would refuse a connection that works.
+/// This is about what the file may come to hold, not about what may be opened.
+pub fn check_not_serving(
+    sessions: &Sessions,
+    editing: Option<&str>,
+    proxy_jump: Option<&str>,
+) -> Result<(), ProxyJumpProblem> {
+    /* Nothing to refuse for a session that is not being given a jump host, and
+    a session that does not exist yet cannot be carrying anything. */
+    let (Some(editing), Some(_)) = (editing, proxy_jump) else {
+        return Ok(());
+    };
+
+    let carries = sessions
+        .items
+        .iter()
+        .any(|session| session.proxy_jump.as_deref() == Some(editing));
+
+    if carries {
+        return Err(ProxyJumpProblem::Serving);
     }
 
     Ok(())
@@ -305,6 +350,8 @@ pub fn save_session(store: &SessionStore, draft: SessionDraft) -> Result<Session
         .map(str::trim)
         .filter(|jump| !jump.is_empty());
     check_proxy_jump(&sessions, draft.id.as_deref(), proxy_jump)
+        .map_err(|problem| Error::InvalidProxyJump { problem })?;
+    check_not_serving(&sessions, draft.id.as_deref(), proxy_jump)
         .map_err(|problem| Error::InvalidProxyJump { problem })?;
     let proxy_jump = proxy_jump.map(str::to_owned);
 
@@ -496,6 +543,67 @@ mod tests {
                 problem: ProxyJumpProblem::Chained
             })
         ));
+    }
+
+    #[test]
+    fn a_jump_host_cannot_be_given_one_of_its_own() {
+        /* The same two hops as the test above, built from the other end: the
+        far host is saved first and correctly, and the bastion under it is
+        edited afterwards. #171. */
+        let (store, _dir) = store();
+        let bastion = a_saved_bastion(&store);
+        let gateway = save_session(&store, draft("gateway")).expect("it saves");
+
+        let mut far = draft("web-01");
+        far.proxy_jump = Some(bastion.clone());
+        save_session(&store, far).expect("one hop is fine");
+
+        let mut edit = draft("bastion");
+        edit.id = Some(bastion);
+        edit.proxy_jump = Some(gateway.id);
+
+        assert!(matches!(
+            save_session(&store, edit),
+            Err(Error::InvalidProxyJump {
+                problem: ProxyJumpProblem::Serving
+            })
+        ));
+    }
+
+    #[test]
+    fn a_jump_host_can_still_be_edited_without_being_given_one() {
+        /* The refusal is about the field, not about the host. A bastion that
+        carries other sessions is renamed and moved like any other. */
+        let (store, _dir) = store();
+        let bastion = a_saved_bastion(&store);
+
+        let mut far = draft("web-01");
+        far.proxy_jump = Some(bastion.clone());
+        save_session(&store, far).expect("one hop is fine");
+
+        let mut edit = draft("bastion renamed");
+        edit.id = Some(bastion);
+        let saved = save_session(&store, edit).expect("the edit saves");
+        assert_eq!(saved.name, "bastion renamed");
+        assert_eq!(saved.proxy_jump, None);
+    }
+
+    #[test]
+    fn a_session_carrying_nothing_may_be_given_a_jump_host() {
+        /* The guard reads the file rather than assuming: a session nobody is
+        reached through takes a jump host as it always did, and so does one
+        that has not been saved yet. */
+        let (store, _dir) = store();
+        let bastion = a_saved_bastion(&store);
+        let plain = save_session(&store, draft("plain")).expect("it saves");
+
+        let mut edit = draft("plain");
+        edit.id = Some(plain.id);
+        edit.proxy_jump = Some(bastion);
+        assert!(save_session(&store, edit)
+            .expect("it saves")
+            .proxy_jump
+            .is_some());
     }
 
     #[test]

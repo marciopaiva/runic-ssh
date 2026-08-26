@@ -58,13 +58,16 @@ export type IpcError =
   /**
    * The jump host a session names cannot be used.
    *
-   * Three problems rather than one message, because they ask three different
-   * things of the reader: pick another host, restore the one that is gone, or
-   * shorten a chain that is longer than one hop.
+   * Four problems rather than one message, because they ask different things
+   * of the reader: pick another host, restore the one that is gone, or shorten
+   * a chain that is longer than one hop. `chained` and `serving` are that last
+   * one from its two ends: the host being saved is behind a bastion that is
+   * itself behind one, or the host being saved is the bastion and other
+   * sessions are already reached through it.
    */
   | {
       readonly code: 'invalidProxyJump';
-      readonly problem: 'itself' | 'unknown' | 'chained';
+      readonly problem: 'itself' | 'unknown' | 'chained' | 'serving';
     }
   /**
    * A connection failed at one hop of a chain.
