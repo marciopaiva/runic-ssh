@@ -276,6 +276,14 @@ export function App(): JSX.Element {
     onAbandoned: (sessionId) => setState(sessionId, 'saved'),
     onCredentialRefused: (sessionId) =>
       setUnsaved((current) => new Set(current).add(sessionId)),
+    /* The connection is already closed by the time this runs. The host goes
+       back to being a plain saved host, and the list is reloaded because what
+       may have changed is on disk: the session now carries a credential id, or
+       does not, and that is what the editor reads. */
+    onCredentialSettled: (sessionId) => {
+      setState(sessionId, 'saved');
+      reload();
+    },
   });
 
   /* The session an unresolved attempt names. It keeps its tab so that the

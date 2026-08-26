@@ -27,18 +27,20 @@ import {
 import type { HostKeyDecisionView, IpcErrorCode, SessionHandle } from '../../ipc';
 
 import { heldDecision, reportedFailure, shouldPromptAfterSaved, shouldTrySaved } from './connect';
-import type { ConnectStage, ReportedFailure } from './connect';
+import type { ConnectIntent, ConnectStage, ReportedFailure } from './connect';
 
 interface Attempt {
   readonly sessionId: string;
   readonly stage: ConnectStage;
+  /** What the attempt is for. Only the ending differs. See `ConnectIntent`. */
+  readonly intent: ConnectIntent;
   /** Filled once a decision needs rendering. */
   readonly decision: HostKeyDecisionView | null;
 }
 
 interface ConnectState {
   readonly attempt: Attempt | null;
-  readonly connect: (sessionId: string) => Promise<void>;
+  readonly connect: (sessionId: string, intent?: ConnectIntent) => Promise<void>;
   /** Accepts the held host key and connects again. */
   readonly trust: (confirmation?: string) => Promise<void>;
   readonly abandon: () => void;
@@ -66,6 +68,15 @@ interface Wiring {
    * says nothing is worse than one that is not offered at all. See #167.
    */
   readonly onCredentialRefused: (sessionId: string) => void;
+  /**
+   * Called when a credential attempt is over and its connection is closed.
+   *
+   * The session never became open, so nothing above knows anything changed,
+   * and what did change is on disk: the host may now have a credential. The
+   * caller reloads on this, which is also what puts the marker in the sidebar
+   * back to a plain saved host.
+   */
+  readonly onCredentialSettled: (sessionId: string) => void;
 }
 
 export function useConnect(wiring: Wiring): ConnectState {
@@ -83,16 +94,23 @@ export function useConnect(wiring: Wiring): ConnectState {
    * it has no tab, so nothing could ever reach it, and leaving it open holds a
    * channel on the server that nobody can see. */
   const generation = useRef(0);
-  const { onOpened, onConnecting, onFailed, onAbandoned, onCredentialRefused } = wiring;
+  const {
+    onOpened,
+    onConnecting,
+    onFailed,
+    onAbandoned,
+    onCredentialRefused,
+    onCredentialSettled,
+  } = wiring;
 
   const current = useCallback((mine: number): boolean => generation.current === mine, []);
 
   const fail = useCallback(
-    (sessionId: string, reported: ReportedFailure, mine: number): void => {
+    (sessionId: string, reported: ReportedFailure, mine: number, intent: ConnectIntent): void => {
       if (!current(mine)) return;
 
       const { code, hop } = reported;
-      setAttempt({ sessionId, stage: { stage: 'failed', code, hop }, decision: null });
+      setAttempt({ sessionId, stage: { stage: 'failed', code, hop }, intent, decision: null });
       /* The state machine sees the inner code, so a bastion that cannot be
          reached still marks the session unreachable. It is: the host cannot be
          reached, and the reason is one hop further away than usual. */
@@ -106,18 +124,19 @@ export function useConnect(wiring: Wiring): ConnectState {
       sessionId: string,
       handle: SessionHandle,
       mine: number,
+      intent: ConnectIntent,
     ): Promise<void> => {
       if (!current(mine)) {
         void disconnectSession(handle);
         return;
       }
 
-      setAttempt({ sessionId, stage: { stage: 'authenticating' }, decision: null });
+      setAttempt({ sessionId, stage: { stage: 'authenticating' }, intent, decision: null });
 
       /* A saved credential is tried first and silently. Prompting for a
          password the machine already holds is the reason people stop saving
-         them. */
-      if (shouldTrySaved()) {
+         them. Not when the point of the attempt is to collect one. */
+      if (shouldTrySaved(intent)) {
         try {
           await authenticateWithSaved(handle);
           if (!current(mine)) {
@@ -133,7 +152,7 @@ export function useConnect(wiring: Wiring): ConnectState {
             /* The connection is open and unusable. Closing it is the only
                way not to leave a socket nobody can reach. */
             void disconnectSession(handle);
-            fail(sessionId, reported, mine);
+            fail(sessionId, reported, mine, intent);
             return;
           }
         }
@@ -145,16 +164,29 @@ export function useConnect(wiring: Wiring): ConnectState {
           void disconnectSession(handle);
           return;
         }
+
+        /* The credential was the errand. The connection it was collected on is
+           closed here rather than handed to a terminal: nothing on screen asked
+           for a shell, and an authenticated connection with no tab is the
+           defect #168 names. The attempt stays, holding the tab, so the panel
+           that said "connecting" is where the outcome is read. */
+        if (intent === 'credential') {
+          void disconnectSession(handle);
+          setAttempt({ sessionId, stage: { stage: 'settled', keeping }, intent, decision: null });
+          onCredentialSettled(sessionId);
+          return;
+        }
+
         setAttempt(null);
         onOpened(sessionId, handle);
         /* After the session is open, never instead of it. */
         if (keeping === 'refused') onCredentialRefused(sessionId);
       } catch (rejection) {
         void disconnectSession(handle);
-        fail(sessionId, reportedFailure(asIpcError(rejection) ?? null), mine);
+        fail(sessionId, reportedFailure(asIpcError(rejection) ?? null), mine, intent);
       }
     },
-    [fail, onOpened, onCredentialRefused, current],
+    [fail, onOpened, onCredentialRefused, onCredentialSettled, current],
   );
 
   const attemptConnect = useCallback(
@@ -163,11 +195,11 @@ export function useConnect(wiring: Wiring): ConnectState {
        key is accepted, so without it the jump host is asked for a second time,
        in the position where the user is expecting the far host's prompt.
        ADR-0027, and #190 for the drive that found it. */
-    async (sessionId: string, continuing?: number): Promise<void> => {
+    async (sessionId: string, intent: ConnectIntent, continuing?: number): Promise<void> => {
       generation.current += 1;
       const mine = generation.current;
 
-      setAttempt({ sessionId, stage: { stage: 'connecting' }, decision: null });
+      setAttempt({ sessionId, stage: { stage: 'connecting' }, intent, decision: null });
       onConnecting(sessionId);
 
       let opened;
@@ -178,7 +210,7 @@ export function useConnect(wiring: Wiring): ConnectState {
         const held = error === null ? null : heldDecision(error);
 
         if (held === null) {
-          fail(sessionId, reportedFailure(error), mine);
+          fail(sessionId, reportedFailure(error), mine, intent);
           return;
         }
 
@@ -188,21 +220,21 @@ export function useConnect(wiring: Wiring): ConnectState {
           const decision = await readDecision(held.pending);
           if (!current(mine)) return;
 
-          setAttempt({ sessionId, stage: { stage: 'deciding', decision: held }, decision });
+          setAttempt({ sessionId, stage: { stage: 'deciding', decision: held }, intent, decision });
         } catch {
-          fail(sessionId, { code: 'unknownDecision', hop: null }, mine);
+          fail(sessionId, { code: 'unknownDecision', hop: null }, mine, intent);
         }
         return;
       }
 
-      await authenticate(sessionId, opened.handle, mine);
+      await authenticate(sessionId, opened.handle, mine, intent);
     },
     [authenticate, fail, onConnecting, current],
   );
 
   const connect = useCallback(
-    async (sessionId: string): Promise<void> => {
-      await attemptConnect(sessionId);
+    async (sessionId: string, intent: ConnectIntent = 'open'): Promise<void> => {
+      await attemptConnect(sessionId, intent);
     },
     [attemptConnect],
   );
@@ -210,7 +242,7 @@ export function useConnect(wiring: Wiring): ConnectState {
   const trust = useCallback(
     async (confirmation?: string): Promise<void> => {
       if (attempt === null || attempt.stage.stage !== 'deciding') return;
-      const { sessionId } = attempt;
+      const { sessionId, intent } = attempt;
       const { pending } = attempt.stage.decision;
 
       try {
@@ -220,6 +252,7 @@ export function useConnect(wiring: Wiring): ConnectState {
           sessionId,
           { code: asIpcError(rejection)?.code ?? 'unknownDecision', hop: null },
           generation.current,
+          intent,
         );
         return;
       }
@@ -228,7 +261,7 @@ export function useConnect(wiring: Wiring): ConnectState {
          transport has no "accept for this session" path, deliberately. See
          ssh::connection. The decision is named on the way back in so the chain
          does not ask again for a hop already answered. */
-      await attemptConnect(sessionId, pending);
+      await attemptConnect(sessionId, intent, pending);
     },
     [attempt, attemptConnect, fail],
   );
