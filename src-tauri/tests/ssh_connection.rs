@@ -13,7 +13,6 @@ use russh::keys::{encode_pkcs8_pem, encode_pkcs8_pem_encrypted, PrivateKey, Publ
 use russh::server::{Auth, ChannelOpenHandle, Handler as ServerHandler, Msg, Server as _, Session};
 use russh::Channel;
 use russh::MethodKind;
-use zeroize::Zeroizing;
 
 use runic_ssh::ssh::connection::{
     close_shared, connect, connect_via, connect_within, share, ConnectionError, Credential,
@@ -21,6 +20,7 @@ use runic_ssh::ssh::connection::{
 };
 use runic_ssh::ssh::known_hosts::KnownHosts;
 use runic_ssh::ssh::trust::Trust;
+use runic_ssh::vault::Secret;
 
 const USER: &str = "deploy";
 const PASSWORD: &str = "correct horse battery staple";
@@ -252,10 +252,7 @@ async fn a_password_authenticates() {
         .expect("the host key is trusted, so the connection opens");
 
     connection
-        .authenticate(
-            USER,
-            Credential::Password(Zeroizing::new(PASSWORD.to_owned())),
-        )
+        .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
         .await
         .expect("the password is accepted");
 
@@ -272,10 +269,7 @@ async fn a_wrong_password_is_refused() {
         .unwrap();
 
     let refused = connection
-        .authenticate(
-            USER,
-            Credential::Password(Zeroizing::new("wrong".to_owned())),
-        )
+        .authenticate(USER, Credential::Password(Secret::new("wrong".to_owned())))
         .await;
 
     assert!(matches!(
@@ -300,7 +294,7 @@ async fn an_unencrypted_private_key_authenticates() {
         .authenticate(
             USER,
             Credential::PrivateKey {
-                pem: Zeroizing::new(String::from_utf8(pem).expect("utf-8")),
+                pem: Secret::new(String::from_utf8(pem).expect("utf-8")),
                 passphrase: None,
             },
         )
@@ -325,8 +319,8 @@ async fn an_encrypted_private_key_authenticates() {
         .authenticate(
             USER,
             Credential::PrivateKey {
-                pem: Zeroizing::new(String::from_utf8(pem).expect("utf-8")),
-                passphrase: Some(Zeroizing::new(PASSPHRASE.to_owned())),
+                pem: Secret::new(String::from_utf8(pem).expect("utf-8")),
+                passphrase: Some(Secret::new(PASSPHRASE.to_owned())),
             },
         )
         .await
@@ -349,8 +343,8 @@ async fn the_wrong_passphrase_fails_before_the_network() {
         .authenticate(
             USER,
             Credential::PrivateKey {
-                pem: Zeroizing::new(String::from_utf8(pem).unwrap()),
-                passphrase: Some(Zeroizing::new("not the passphrase".to_owned())),
+                pem: Secret::new(String::from_utf8(pem).unwrap()),
+                passphrase: Some(Secret::new("not the passphrase".to_owned())),
             },
         )
         .await;
@@ -419,7 +413,7 @@ async fn an_rsa_private_key_is_refused_before_it_is_used() {
         .authenticate(
             USER,
             Credential::PrivateKey {
-                pem: Zeroizing::new(String::from_utf8(pem).expect("utf-8")),
+                pem: Secret::new(String::from_utf8(pem).expect("utf-8")),
                 passphrase: None,
             },
         )
@@ -445,10 +439,7 @@ async fn a_round_trip_is_measured_against_the_host() {
         .expect("connects");
 
     connection
-        .authenticate(
-            USER,
-            Credential::Password(Zeroizing::new(PASSWORD.to_owned())),
-        )
+        .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
         .await
         .expect("authenticates");
 
@@ -481,10 +472,7 @@ async fn a_round_trip_needs_no_shell() {
         .expect("connects");
 
     connection
-        .authenticate(
-            USER,
-            Credential::Password(Zeroizing::new(PASSWORD.to_owned())),
-        )
+        .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
         .await
         .expect("authenticates");
 
@@ -495,10 +483,10 @@ async fn a_round_trip_needs_no_shell() {
 fn a_credential_never_prints_itself() {
     /* Rule 2. A Debug that leaks is the usual way a secret reaches a log
     nobody meant to write. */
-    let password = Credential::Password(Zeroizing::new(PASSWORD.to_owned()));
+    let password = Credential::Password(Secret::new(PASSWORD.to_owned()));
     let key = Credential::PrivateKey {
-        pem: Zeroizing::new("-----BEGIN OPENSSH PRIVATE KEY-----".to_owned()),
-        passphrase: Some(Zeroizing::new(PASSPHRASE.to_owned())),
+        pem: Secret::new("-----BEGIN OPENSSH PRIVATE KEY-----".to_owned()),
+        passphrase: Some(Secret::new(PASSPHRASE.to_owned())),
     };
 
     for rendered in [format!("{password:?}"), format!("{key:?}")] {
@@ -656,7 +644,7 @@ async fn open_bastion(chain: &Chain) -> Shared {
     bastion
         .authenticate(
             USER,
-            Credential::Password(Zeroizing::new(BASTION_PASSWORD.to_owned())),
+            Credential::Password(Secret::new(BASTION_PASSWORD.to_owned())),
         )
         .await
         .expect("the bastion accepts its own password");
@@ -682,12 +670,9 @@ async fn a_session_rides_a_channel_through_a_bastion() {
 
     /* The far session is an ordinary connection: it authenticates with its own
     credential, end to end, over a transport that happens to be a channel. */
-    far.authenticate(
-        USER,
-        Credential::Password(Zeroizing::new(PASSWORD.to_owned())),
-    )
-    .await
-    .expect("the far host accepts its own password");
+    far.authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
+        .await
+        .expect("the far host accepts its own password");
 }
 
 #[tokio::test]
@@ -707,12 +692,9 @@ async fn a_bastion_is_never_offered_the_far_credential() {
     .map_err(|failure| failure.error)
     .expect("the far host is reached");
 
-    far.authenticate(
-        USER,
-        Credential::Password(Zeroizing::new(PASSWORD.to_owned())),
-    )
-    .await
-    .expect("the far host accepts its own password");
+    far.authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
+        .await
+        .expect("the far host accepts its own password");
 
     let seen = chain.bastion_saw.lock().expect("the log is readable");
     assert!(
@@ -933,10 +915,7 @@ async fn closing_one_host_leaves_the_others_connected() {
 
     /* And the survivor is not merely counted, it works. */
     second
-        .authenticate(
-            USER,
-            Credential::Password(Zeroizing::new(PASSWORD.to_owned())),
-        )
+        .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
         .await
         .expect("the surviving session still authenticates through the bastion");
 

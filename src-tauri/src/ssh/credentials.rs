@@ -79,13 +79,6 @@ pub struct CredentialPrompt {
     pub can_remember: bool,
 }
 
-/// How a request ended.
-///
-/// The secret travels in the shape the keychain holds rather than as a
-/// [`Credential`](crate::ssh::connection::Credential), for one reason: a user
-/// who asked to be remembered needs it written *and* used, and converting once
-/// here means the secret is not copied a second time to satisfy the second
-/// use.
 /// How long the user asked for a credential to be kept.
 ///
 /// Three answers rather than a boolean, because ADR-0025 added the one in the
@@ -104,6 +97,20 @@ pub enum Keep {
     Stored,
 }
 
+/// How a request ended.
+///
+/// The secret travels in the shape the keychain holds rather than as a
+/// [`Credential`](crate::ssh::connection::Credential), for one reason: a user
+/// who asked to be remembered needs it written *and* used, and converting once
+/// here means the secret is not copied a second time to satisfy the second
+/// use.
+///
+/// `Debug` is derived since ADR-0026 and prints no credential, because
+/// [`StoredCredential`] holds [`Secret`](crate::vault::Secret) fields and those
+/// render as `<redacted>`. It was written by hand before that. Deleting it is
+/// the check on whether the type worked: rule 2 now holds here without anybody
+/// having decided that it should.
+#[derive(Debug)]
 pub enum Answer {
     Submitted {
         credential: StoredCredential,
@@ -111,19 +118,6 @@ pub enum Answer {
     },
     /// The user cancelled, or closed the window.
     Dismissed,
-}
-
-impl std::fmt::Debug for Answer {
-    /// Never prints the credential. Rule 2: a `Debug` that leaks is the usual
-    /// way a secret reaches a log nobody meant to write.
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Submitted { keep, .. } => f.write_fmt(format_args!(
-                "Answer::Submitted {{ <redacted>, keep: {keep:?} }}"
-            )),
-            Self::Dismissed => f.write_str("Answer::Dismissed"),
-        }
-    }
 }
 
 struct Waiting {
@@ -187,6 +181,7 @@ impl CredentialRequests {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::vault::Secret;
 
     fn prompt() -> CredentialPrompt {
         CredentialPrompt {
@@ -200,7 +195,7 @@ mod tests {
 
     fn password() -> StoredCredential {
         StoredCredential::Password {
-            secret: "hunter2".to_owned(),
+            secret: Secret::new("hunter2"),
         }
     }
 

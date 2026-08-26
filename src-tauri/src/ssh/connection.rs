@@ -10,18 +10,18 @@
 //! connection and removes every code path in which a session proceeds on a key
 //! nobody trusted.
 //!
-//! **Rule 4.** Passwords and passphrases are held in [`Zeroizing`] and dropped
-//! as soon as authentication returns. Once a secret is handed to `russh` its
+//! **Rule 4.** Passwords and passphrases are held in [`Secret`], which wipes
+//! them, and dropped as soon as authentication returns. Once a secret is handed to `russh` its
 //! lifetime belongs to `russh`; what we can guarantee is that our copy does not
 //! outlive the call.
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use crate::vault::Secret;
 use russh::client::{self, Handle};
 use russh::keys::{decode_secret_key, PrivateKeyWithHashAlg};
 use russh::{ChannelId, Disconnect};
-use zeroize::Zeroizing;
 
 use crate::ssh::known_hosts::KnownHosts;
 use crate::ssh::trust::{decide, Trust};
@@ -51,29 +51,22 @@ pub enum Hop {
 
 /// How to prove who we are.
 ///
-/// Every field is [`Zeroizing`]: the value is wiped when this is dropped, which
-/// is immediately after the authentication attempt.
+/// Every field is a [`Secret`]: the value is wiped when this is dropped, which
+/// is immediately after the authentication attempt, and it renders as
+/// `<redacted>` wherever it is rendered at all.
+///
+/// `Debug` is derived since ADR-0026. It was written by hand before that, and
+/// the derive is the evidence the type did its job: nothing here has to
+/// remember anything, and `passphrase: Some(<redacted>)` still says the one
+/// thing that is not secret, which is whether the key is encrypted.
+#[derive(Debug)]
 pub enum Credential {
-    Password(Zeroizing<String>),
+    Password(Secret),
     /// An OpenSSH private key, with the passphrase if it is encrypted.
     PrivateKey {
-        pem: Zeroizing<String>,
-        passphrase: Option<Zeroizing<String>>,
+        pem: Secret,
+        passphrase: Option<Secret>,
     },
-}
-
-impl std::fmt::Debug for Credential {
-    /// Never prints the material. Rule 2: a `Debug` that leaks is the usual
-    /// way a secret reaches a log nobody meant to write.
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Password(_) => f.write_str("Credential::Password(<redacted>)"),
-            Self::PrivateKey { passphrase, .. } => f.write_fmt(format_args!(
-                "Credential::PrivateKey {{ pem: <redacted>, encrypted: {} }}",
-                passphrase.is_some()
-            )),
-        }
-    }
 }
 
 /// How long a connection may take to reach an open, authenticated-ready state.
@@ -457,12 +450,12 @@ impl Connection {
         let result = match &credential {
             Credential::Password(password) => self
                 .handle
-                .authenticate_password(user, password.as_str())
+                .authenticate_password(user, password.expose())
                 .await
                 .map_err(|_| ConnectionError::Transport)?,
 
             Credential::PrivateKey { pem, passphrase } => {
-                let key = decode_secret_key(pem, passphrase.as_ref().map(|p| p.as_str()))
+                let key = decode_secret_key(pem.expose(), passphrase.as_ref().map(Secret::expose))
                     .map_err(|_| ConnectionError::KeyUnreadable)?;
 
                 /* Refused before signing, which is the operation the attack

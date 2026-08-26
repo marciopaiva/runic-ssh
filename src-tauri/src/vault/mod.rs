@@ -12,9 +12,12 @@
 //! that answerable before a user is asked to type anything.
 
 use keyring::Entry;
-use zeroize::Zeroizing;
 
 use crate::error::Error;
+
+mod secret;
+
+pub use secret::Secret;
 
 /// The service name every entry is filed under.
 pub const SERVICE: &str = "com.runicssh.client";
@@ -80,18 +83,18 @@ impl Vault {
     }
 
     /// Saves a secret, replacing whatever was there.
-    pub fn store(&self, id: &CredentialId, secret: &Zeroizing<String>) -> Result<(), Error> {
+    pub fn store(&self, id: &CredentialId, secret: &Secret) -> Result<(), Error> {
         self.entry(id)?
-            .set_password(secret)
+            .set_password(secret.expose())
             .map_err(|source| Error::KeychainWriteFailed {
                 reason: describe(&source),
             })
     }
 
     /// Reads a secret back, wrapped so it is wiped when the caller drops it.
-    pub fn resolve(&self, id: &CredentialId) -> Result<Zeroizing<String>, Error> {
+    pub fn resolve(&self, id: &CredentialId) -> Result<Secret, Error> {
         match self.entry(id)?.get_password() {
-            Ok(secret) => Ok(Zeroizing::new(secret)),
+            Ok(secret) => Ok(Secret::new(secret)),
             Err(keyring::Error::NoEntry) => Err(Error::NoSavedCredential),
             Err(source) => Err(Error::KeychainReadFailed {
                 reason: describe(&source),
@@ -142,57 +145,75 @@ impl Vault {
 /// the store takes one string — so the shape is written down rather than
 /// guessed at on the way back out. A password read as a private key would fail
 /// authentication in a way that looks like the server rejecting the user.
-#[derive(serde::Serialize, serde::Deserialize)]
+///
+/// `Debug` is derived and safe, which is ADR-0026 working: it derived `Debug`
+/// once before and rendered `Password { secret: "hunter2" }`, because the field
+/// was a bare `String`. The redaction now lives in the field's type, so the
+/// next field added here is redacted whether or not anybody looks.
+///
+/// `Serialize` is deliberately absent, so this cannot become a field of
+/// something an IPC command returns. What the keychain needs is provided by
+/// [`Wire`], below.
+#[derive(Debug, serde::Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum StoredCredential {
     Password {
-        secret: String,
+        secret: Secret,
     },
     PrivateKey {
-        pem: String,
-        passphrase: Option<String>,
+        pem: Secret,
+        passphrase: Option<Secret>,
     },
 }
 
-impl std::fmt::Debug for StoredCredential {
-    /// Never prints the material.
-    ///
-    /// It derived `Debug` until this was written, and derived `Debug` on a type
-    /// holding a bare `String` renders it: `Password { secret: "hunter2" }`.
-    /// Rule 2 says nothing secret is logged at any level, and one `dbg!` was
-    /// the whole distance between that rule and a password in a terminal.
-    ///
-    /// Written by hand rather than solved properly, which is #131: the
-    /// guarantee is still a person remembering, and the next field added here
-    /// will be redacted only because somebody looked.
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Password { .. } => f.write_str("StoredCredential::Password(<redacted>)"),
-            Self::PrivateKey { passphrase, .. } => f.write_fmt(format_args!(
-                "StoredCredential::PrivateKey {{ pem: <redacted>, encrypted: {} }}",
-                passphrase.is_some()
-            )),
-        }
-    }
+/// The one place in the tree where secret material is named to serde.
+///
+/// Borrows through [`Secret::expose`] rather than owning, so encoding copies
+/// the material once, inside `serde_json`, instead of twice. It is private, it
+/// is four lines, and it sits against the type it serializes: ADR-0026 asks
+/// that the exception be small enough to read in one go rather than absent,
+/// because the keychain takes a string and something has to build it.
+#[derive(serde::Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+enum Wire<'a> {
+    Password {
+        secret: &'a str,
+    },
+    PrivateKey {
+        pem: &'a str,
+        passphrase: Option<&'a str>,
+    },
 }
 
 impl StoredCredential {
+    fn wire(&self) -> Wire<'_> {
+        match self {
+            Self::Password { secret } => Wire::Password {
+                secret: secret.expose(),
+            },
+            Self::PrivateKey { pem, passphrase } => Wire::PrivateKey {
+                pem: pem.expose(),
+                passphrase: passphrase.as_ref().map(Secret::expose),
+            },
+        }
+    }
+
     /// Serialises for the keychain.
     ///
     /// `serde_json` builds an ordinary `String` first, which is not wiped. It
     /// is wrapped the moment it exists and dropped as soon as it is stored;
     /// that intermediate is the one place the material is unprotected, and
     /// avoiding it would mean writing a serialiser rather than using one.
-    pub fn encode(&self) -> Result<Zeroizing<String>, Error> {
-        serde_json::to_string(self)
-            .map(Zeroizing::new)
+    pub fn encode(&self) -> Result<Secret, Error> {
+        serde_json::to_string(&self.wire())
+            .map(Secret::new)
             .map_err(|_| Error::KeychainWriteFailed {
                 reason: String::from("the credential could not be encoded"),
             })
     }
 
-    pub fn decode(stored: &Zeroizing<String>) -> Result<Self, Error> {
-        serde_json::from_str(stored).map_err(|_| Error::KeychainReadFailed {
+    pub fn decode(stored: &Secret) -> Result<Self, Error> {
+        serde_json::from_str(stored.expose()).map_err(|_| Error::KeychainReadFailed {
             reason: String::from("the stored credential is not readable"),
         })
     }
@@ -204,17 +225,19 @@ impl StoredCredential {
 /// otherwise and asking for it on every connection: a machine with no secret
 /// service can still stop asking for the afternoon somebody is working.
 ///
-/// Holds the encoded form rather than the parsed one, for two reasons. It is
-/// [`Zeroizing`], so it is wiped when it goes; and it is the same shape the
+/// Holds the encoded form rather than the parsed one, for two reasons. It is a
+/// [`Secret`], so it is wiped when it goes; and it is the same shape the
 /// keychain holds, so resolving from either store returns the same type and the
 /// caller cannot tell which answered.
 ///
 /// Deliberately not `Debug`. A store that can print itself is one `dbg!` away
-/// from every password in it, and the type it holds only stopped rendering
-/// itself this week.
+/// from every password in it. Since ADR-0026 that would print `<redacted>`
+/// rather than the material, and the reason to keep refusing is the count and
+/// the ids: which sessions somebody has unlocked this afternoon is not ours to
+/// put in a log either.
 #[derive(Default)]
 pub struct SessionSecrets {
-    held: std::sync::Mutex<std::collections::HashMap<CredentialId, Zeroizing<String>>>,
+    held: std::sync::Mutex<std::collections::HashMap<CredentialId, Secret>>,
 }
 
 impl SessionSecrets {
@@ -228,13 +251,13 @@ impl SessionSecrets {
     /// of what makes this acceptable under a threat model that does not defend
     /// against a local attacker already running as the user: a secret this
     /// process holds is not reachable by anything that model claims to stop.
-    pub fn keep(&self, id: &CredentialId, secret: &Zeroizing<String>) {
+    pub fn keep(&self, id: &CredentialId, secret: &Secret) {
         if let Ok(mut held) = self.held.lock() {
             held.insert(id.clone(), secret.clone());
         }
     }
 
-    pub fn resolve(&self, id: &CredentialId) -> Option<Zeroizing<String>> {
+    pub fn resolve(&self, id: &CredentialId) -> Option<Secret> {
         self.held.lock().ok()?.get(id).cloned()
     }
 
@@ -260,7 +283,7 @@ pub fn resolve_credential(
     secrets: &SessionSecrets,
     vault: &Vault,
     id: &CredentialId,
-) -> Result<Zeroizing<String>, Error> {
+) -> Result<Secret, Error> {
     match secrets.resolve(id) {
         Some(secret) => Ok(secret),
         None => vault.resolve(id),
@@ -331,10 +354,10 @@ mod tests {
         let vault = scratch();
         let id = CredentialId::for_session("web-01");
 
-        secrets.keep(&id, &Zeroizing::new("from-this-run".to_owned()));
+        secrets.keep(&id, &Secret::new("from-this-run"));
 
         let resolved = resolve_credential(&secrets, &vault, &id).expect("it resolves");
-        assert_eq!(resolved.as_str(), "from-this-run");
+        assert_eq!(resolved.expose(), "from-this-run");
     }
 
     #[test]
@@ -462,10 +485,13 @@ mod tests {
     fn a_secret_survives_a_round_trip() {
         let vault = scratch();
         let id = CredentialId::for_session("round-trip");
-        let secret = Zeroizing::new(String::from("correct horse battery staple"));
+        let secret = Secret::new("correct horse battery staple");
 
         vault.store(&id, &secret).expect("store");
-        assert_eq!(*vault.resolve(&id).expect("resolve"), *secret);
+        assert_eq!(
+            vault.resolve(&id).expect("resolve").expose(),
+            secret.expose()
+        );
 
         vault.forget(&id).expect("forget");
         assert!(matches!(vault.resolve(&id), Err(Error::NoSavedCredential)));

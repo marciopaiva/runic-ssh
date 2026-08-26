@@ -16,12 +16,12 @@ use std::sync::Arc;
 use russh::keys::{encode_pkcs8_pem_encrypted, PrivateKey};
 use russh::server::{Auth, ChannelOpenHandle, Handler as ServerHandler, Msg, Server as _, Session};
 use russh::{Channel, MethodKind};
-use zeroize::Zeroizing;
 
 use runic_ssh::error::IpcError;
 use runic_ssh::ssh::connection::{connect, ConnectionError, Credential, Endpoint};
 use runic_ssh::ssh::known_hosts::KnownHosts;
 use runic_ssh::ssh::trust::{decide, Trust};
+use runic_ssh::vault::Secret;
 
 /// Strings that must never appear in anything rendered.
 const PASSWORD: &str = "canary-password-6f2a";
@@ -125,13 +125,13 @@ fn no_connection_error_renders_a_secret() {
 #[test]
 fn a_credential_renders_nothing_of_itself() {
     let cases = [
-        Credential::Password(Zeroizing::new(PASSWORD.to_owned())),
+        Credential::Password(Secret::new(PASSWORD.to_owned())),
         Credential::PrivateKey {
-            pem: Zeroizing::new(format!("-----{PEM_MARKER}-----")),
-            passphrase: Some(Zeroizing::new(PASSPHRASE.to_owned())),
+            pem: Secret::new(format!("-----{PEM_MARKER}-----")),
+            passphrase: Some(Secret::new(PASSPHRASE.to_owned())),
         },
         Credential::PrivateKey {
-            pem: Zeroizing::new(format!("-----{PEM_MARKER}-----")),
+            pem: Secret::new(format!("-----{PEM_MARKER}-----")),
             passphrase: None,
         },
     ];
@@ -225,7 +225,7 @@ async fn a_refused_password_leaks_nothing_through_the_whole_path() {
     let error = connection
         .authenticate(
             "deploy",
-            Credential::Password(Zeroizing::new(PASSWORD.to_owned())),
+            Credential::Password(Secret::new(PASSWORD.to_owned())),
         )
         .await
         .expect_err("the server refuses");
@@ -263,8 +263,8 @@ async fn a_wrong_passphrase_leaks_neither_the_passphrase_nor_the_key() {
         .authenticate(
             "deploy",
             Credential::PrivateKey {
-                pem: Zeroizing::new(String::from_utf8(pem).unwrap()),
-                passphrase: Some(Zeroizing::new(PASSPHRASE.to_owned())),
+                pem: Secret::new(String::from_utf8(pem).unwrap()),
+                passphrase: Some(Secret::new(PASSPHRASE.to_owned())),
             },
         )
         .await
@@ -327,19 +327,30 @@ fn what_the_keychain_holds_never_renders_itself() {
     One `dbg!` was the whole distance between rule 2 and a password in a
     terminal. */
     let password = runic_ssh::vault::StoredCredential::Password {
-        secret: "hunter2".to_owned(),
+        secret: Secret::new("hunter2"),
     };
     assert_clean("a stored password", &format!("{password:?}"));
 
     let key = runic_ssh::vault::StoredCredential::PrivateKey {
-        pem: "-----BEGIN OPENSSH PRIVATE KEY-----hunter2".to_owned(),
-        passphrase: Some("correct horse battery staple".to_owned()),
+        pem: Secret::new("-----BEGIN OPENSSH PRIVATE KEY-----hunter2"),
+        passphrase: Some(Secret::new("correct horse battery staple")),
     };
     assert_clean("a stored key", &format!("{key:?}"));
 
     /* And it still says the one thing that is not a secret, or the redaction
-    would have taken the information with it. */
-    assert!(format!("{key:?}").contains("encrypted: true"));
+    would have taken the information with it. Since ADR-0026 the wording comes
+    from a derive rather than from a sentence somebody wrote, so this asserts
+    the fact rather than the phrasing: encrypted reads `Some`, unencrypted
+    reads `None`. */
+    assert!(format!("{key:?}").contains("passphrase: Some"));
+    assert!(format!(
+        "{:?}",
+        runic_ssh::vault::StoredCredential::PrivateKey {
+            pem: Secret::new("-----BEGIN OPENSSH PRIVATE KEY-----"),
+            passphrase: None,
+        }
+    )
+    .contains("passphrase: None"));
 }
 
 #[test]
@@ -348,7 +359,7 @@ fn a_secret_kept_for_this_run_never_renders_itself() {
     print itself is one `dbg!` away from every password in it. */
     let secrets = runic_ssh::vault::SessionSecrets::new();
     let id = runic_ssh::vault::CredentialId::for_session("web-01");
-    secrets.keep(&id, &zeroize::Zeroizing::new("hunter2".to_owned()));
+    secrets.keep(&id, &Secret::new("hunter2"));
 
     /* It does not implement `Debug` at all, which is the point: this asserts
     what can be reached rather than how it prints, because there is no way
@@ -359,4 +370,147 @@ fn a_secret_kept_for_this_run_never_renders_itself() {
     secrets.forget(&id);
     assert_eq!(secrets.count(), 0);
     assert!(secrets.resolve(&id).is_none());
+}
+
+/* ------------------------------------------------------------------------ *
+ * What cannot be written at all. #131, ADR-0026.
+ *
+ * The tests above assert that the types we thought of render safely. They pass
+ * unchanged when somebody adds a type nobody thought of, which is the failure
+ * that already happened once in this repository. These assert the shape of the
+ * types themselves, so the answer does not depend on the list being complete.
+ * ------------------------------------------------------------------------ */
+
+/// Asks, at compile time, whether a type implements a trait.
+///
+/// The mechanism is inherent method resolution. Rust tries an inherent method
+/// before a trait method, and skips the inherent one when its bound does not
+/// hold, so `Is<T>` answers `true` from the inherent impl when `T` satisfies
+/// the bound and falls through to the trait's default of `false` when it does
+/// not. It is the one way to ask this question on stable without a compile-fail
+/// harness, which would be a new dev dependency.
+///
+/// The controls in the tests below are not decoration. A probe that answered
+/// `false` for everything, by a typo or a change in resolution, would pass
+/// every assertion here and prove nothing, so each test asserts a type that
+/// *does* implement the trait first.
+mod is {
+    use std::marker::PhantomData;
+
+    pub struct Is<T>(pub PhantomData<T>);
+
+    pub trait NotSerialize {
+        fn serializes(&self) -> bool {
+            false
+        }
+    }
+    impl<T> NotSerialize for Is<T> {}
+    impl<T: serde::Serialize> Is<T> {
+        pub fn serializes(&self) -> bool {
+            true
+        }
+    }
+
+    pub trait NotDisplay {
+        fn displays(&self) -> bool {
+            false
+        }
+    }
+    impl<T> NotDisplay for Is<T> {}
+    impl<T: std::fmt::Display> Is<T> {
+        pub fn displays(&self) -> bool {
+            true
+        }
+    }
+}
+
+macro_rules! serializes {
+    ($t:ty) => {{
+        #[allow(unused_imports)]
+        use crate::is::NotSerialize as _;
+        is::Is::<$t>(std::marker::PhantomData).serializes()
+    }};
+}
+
+macro_rules! displays {
+    ($t:ty) => {{
+        #[allow(unused_imports)]
+        use crate::is::NotDisplay as _;
+        is::Is::<$t>(std::marker::PhantomData).displays()
+    }};
+}
+
+#[test]
+fn no_type_holding_a_secret_can_be_serialized() {
+    /* Rule 1 and rule 2 together: a secret must not cross toward the frontend,
+    and the way it would is by being a field of something a command returns.
+    Refusing `Serialize` on the types themselves means that does not compile,
+    rather than being caught by whoever reviews the new field. */
+    assert!(
+        serializes!(String),
+        "the probe answers true for a type that does"
+    );
+    assert!(serializes!(runic_ssh::error::IpcError));
+
+    assert!(!serializes!(runic_ssh::vault::Secret));
+    assert!(!serializes!(runic_ssh::vault::StoredCredential));
+    assert!(!serializes!(runic_ssh::vault::SessionSecrets));
+    assert!(!serializes!(Credential));
+    assert!(!serializes!(runic_ssh::ssh::credentials::Answer));
+}
+
+#[test]
+fn no_type_holding_a_secret_can_be_displayed() {
+    /* `Debug` is redacted, and `Display` is the hole a redacted `Debug` leaves
+    open: `format!("{secret}")` reads as harmless and prints the material. The
+    answer is not a second redaction to maintain but no implementation at all,
+    so the format string does not compile. */
+    assert!(
+        displays!(String),
+        "the probe answers true for a type that does"
+    );
+    assert!(displays!(ConnectionError));
+
+    assert!(!displays!(runic_ssh::vault::Secret));
+    assert!(!displays!(runic_ssh::vault::StoredCredential));
+    assert!(!displays!(Credential));
+}
+
+#[test]
+fn a_panic_while_holding_a_secret_carries_nothing_of_it() {
+    /* Rule 2 names the panic message specifically. A panic payload is not a
+    log, but it is printed to stderr by the default hook and captured by
+    anything watching the process, which is the same thing in every way that
+    matters. */
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+
+    let payload = std::panic::catch_unwind(|| {
+        let secret = Secret::new(PASSWORD);
+        let credential = Credential::Password(Secret::new(PASSWORD));
+
+        /* Written the way it would actually be written: somebody formatting
+        what they are holding into the message, because they want to know
+        which credential failed. */
+        panic!("authentication gave up on {secret:?} / {credential:?}");
+    })
+    .expect_err("the closure panics");
+
+    std::panic::set_hook(previous);
+
+    let rendered = payload
+        .downcast_ref::<String>()
+        .expect("a formatted panic payload");
+    assert_clean("a panic payload", rendered);
+}
+
+#[test]
+fn a_secret_says_nothing_about_its_length() {
+    /* Not even how long it is. A four character password and a 3000 character
+    private key are different facts about somebody's security, and a rendering
+    that distinguishes them has narrowed the search for whoever reads it. */
+    let short = format!("{:?}", Secret::new("a"));
+    let long = format!("{:?}", Secret::new("-".repeat(3000)));
+
+    assert_eq!(short, long);
 }

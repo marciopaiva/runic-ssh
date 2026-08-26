@@ -18,7 +18,7 @@ use crate::commands::sessions::{from_stored, persist_credential, saved_session, 
 use crate::error::{Error, IpcError};
 use crate::ssh::credentials::{Answer, CredentialPrompt, CredentialRequests, Keep, RequestId};
 use crate::ssh::registry::{Busy, Registry, SessionHandle};
-use crate::vault::{Availability, CredentialId, SessionSecrets, Vault};
+use crate::vault::{Availability, CredentialId, Secret, SessionSecrets, Vault};
 
 /// What became of a credential the user asked to keep.
 ///
@@ -165,9 +165,9 @@ pub async fn credential_prompt(
 pub async fn submit_credential(
     requests: State<'_, CredentialRequests>,
     request: RequestId,
-    password: Option<String>,
-    private_key: Option<String>,
-    passphrase: Option<String>,
+    password: Option<Secret>,
+    private_key: Option<Secret>,
+    passphrase: Option<Secret>,
     keep: Keep,
 ) -> Result<(), IpcError> {
     let credential = to_stored(password, private_key, passphrase)?;
