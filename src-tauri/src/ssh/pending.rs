@@ -103,7 +103,22 @@ impl PendingHostKeys {
 /// business either.
 #[derive(Default)]
 pub struct CarriedCredentials {
-    held: Mutex<HashMap<PendingId, Secret>>,
+    held: Mutex<HashMap<PendingId, Carried>>,
+}
+
+/// A credential waiting on a decision, and what the user asked to happen to it.
+///
+/// The flag travels with the secret because it has nowhere else to wait. A
+/// keychain that refuses at the bastion is a fact about an attempt, and an
+/// attempt that ends in a host key decision produces no session for it to be
+/// reported on. Without this it is lost on exactly the connection where it is
+/// most likely to happen: the first one to a host behind a bastion, where the
+/// far host's key is unknown and the bastion's password has just been typed.
+/// See #191.
+pub struct Carried {
+    pub credential: Secret,
+    /// The user asked to keep it and the store said no.
+    pub keep_refused: bool,
 }
 
 impl CarriedCredentials {
@@ -112,13 +127,13 @@ impl CarriedCredentials {
     }
 
     /// Holds a credential for one decision, replacing anything under that id.
-    pub async fn hold(&self, id: PendingId, credential: Secret) {
-        self.held.lock().await.insert(id, credential);
+    pub async fn hold(&self, id: PendingId, carried: Carried) {
+        self.held.lock().await.insert(id, carried);
     }
 
     /// Takes it out. Take-once, so a retry that arrives twice prompts the
     /// second time rather than reusing a secret nobody has re-authorised.
-    pub async fn take(&self, id: PendingId) -> Option<Secret> {
+    pub async fn take(&self, id: PendingId) -> Option<Carried> {
         self.held.lock().await.remove(&id)
     }
 
