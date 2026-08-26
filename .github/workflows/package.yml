@@ -180,12 +180,293 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  # Building an installer is not installing it, and nothing in this file used to
+  # tell the two apart. Three green build jobs published v0.2.0 carrying four
+  # installers from the previous version (#182), and a package that installs
+  # nothing, or installs and opens a blank window, would have gone out the same
+  # way. This job installs what the build produced, on the platform it is for,
+  # and `release` waits for it: a tag with a broken installer now creates no
+  # page at all, rather than one somebody has to clean up afterwards.
+  #
+  # It is deliberately not the whole of docs/testing.md. Connecting to a host
+  # needs a credential typed into a window and an `sshd` whose login grace
+  # period is running while a runner is busy, which is a test that fails for the
+  # wrong reason on the one day nobody wants to argue with it. #184 is where
+  # that is written down.
+  smoke:
+    name: smoke / ${{ matrix.os }}
+    needs: package
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: linux
+          - os: windows-latest
+            artifact: windows
+          - os: macos-latest
+            artifact: macos
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download this platform's installers
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: runic-ssh-${{ matrix.artifact }}
+          path: installers
+
+      - name: Read the version being built
+        shell: bash
+        run: echo "version=$(node -p "require('./src-tauri/tauri.conf.json').version")" >> "$GITHUB_ENV"
+
+      # The `.deb` is the package a Linux user actually installs, and `apt`
+      # resolving its dependencies is half of what is being checked: the webview
+      # is the system's, so a wrong or missing `libwebkit2gtk` dependency is an
+      # application that installs and cannot start.
+      - name: Install the deb
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          deb=$(ls installers/*.deb)
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq "./$deb"
+
+          installed=$(dpkg-query -W -f='${Version}' runic-ssh)
+          if [ "$installed" != "$version" ]; then
+            echo "::error::dpkg reports $installed, the build says $version"
+            exit 1
+          fi
+          test -x /usr/bin/runic-ssh
+
+      # A window that maps proves the entry point resolves. It does not prove
+      # the frontend is in the package, because a webview with nothing to render
+      # maps a window all the same. That is the failure `tauri dev` can never
+      # reproduce, since it serves the frontend from Vite, so the check is on
+      # the pixels.
+      #
+      # What is measured is the share of the image taken by its most common
+      # shade. A rendered window is a rail, a list, a strip and a body, and no
+      # one shade owns it; a webview showing nothing, or showing WebKit's own
+      # "not found" page, is one colour with a few glyphs on it. Measured, on
+      # this application's emptiest screen and on a mock of that error page:
+      #
+      #   0.72  the empty state, from an installed package
+      #   0.999 a white page carrying one line of error text
+      #   1.00  a flat fill
+      #
+      # Standard deviation was tried first and is not the right instrument: the
+      # error page scores 0.022 against the real window's 0.034, because a
+      # handful of black glyphs on white is a large deviation from a mean of
+      # almost one. It separates a *blank* window from a real one and calls an
+      # error page healthy, which is the case worth catching.
+      - name: Open it on a virtual display
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get install -y -qq xvfb openbox x11-utils xdotool imagemagick
+
+          export DISPLAY=:99
+          export XDG_RUNTIME_DIR="$RUNNER_TEMP/xdg"
+          mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
+
+          # Every one of these has to be killed, and their output has to go to a
+          # file. A background process holding the step's stdout keeps the pipe
+          # open after the script exits, and the job then sits there until the
+          # workflow times out, which is a six hour way of saying "passed".
+          started=
+          trap 'kill $started 2>/dev/null || true' EXIT
+
+          Xvfb :99 -screen 0 1600x1000x24 -nolisten tcp > "$RUNNER_TEMP/xvfb.log" 2>&1 &
+          started="$started $!"
+          sleep 2
+          openbox > "$RUNNER_TEMP/openbox.log" 2>&1 &
+          started="$started $!"
+          sleep 1
+
+          # WebKit needs somewhere to keep a runtime socket or it never maps a
+          # window at all, and every capture comes back black. The window
+          # manager is what gives the window keyboard focus; without one the
+          # window still maps, so this is belt for a later test rather than
+          # this one.
+          WEBKIT_DISABLE_COMPOSITING_MODE=1 /usr/bin/runic-ssh > "$RUNNER_TEMP/app.log" 2>&1 &
+          app=$!
+          started="$started $app"
+
+          # Width alone is not enough, and the runner is where that showed: a
+          # window exists from the moment it is created, and `import` refuses
+          # one that is not yet on screen with "Resource temporarily
+          # unavailable", which reads like a broken capture rather than a
+          # window that was asked about too early. `IsViewable` is the state
+          # that means it is mapped and its ancestors are.
+          geometry() {
+            xwininfo -id "$1" | awk '
+              /Absolute upper-left X/ { x = $NF }
+              /Absolute upper-left Y/ { y = $NF }
+              /^  Width:/  { w = $2 }
+              /^  Height:/ { h = $2 }
+              /Map State:/ { state = $NF }
+              END { print w, h, x, y, state }'
+          }
+
+          window=
+          for _ in $(seq 1 40); do
+            for candidate in $(xdotool search --name '^Runic SSH$' 2>/dev/null); do
+              read -r w h x y state <<<"$(geometry "$candidate")"
+              if [ "${w:-0}" -gt 800 ] && [ "${state:-}" = "IsViewable" ]; then
+                window=$candidate
+                break 2
+              fi
+            done
+            sleep 1
+          done
+
+          if [ -z "$window" ]; then
+            echo "::error::no window of the application's size was ever on screen"
+            cat "$RUNNER_TEMP/app.log" || true
+            exit 1
+          fi
+          echo "window $window is $w x $h at $x,$y"
+
+          # The root always exists and is always capturable, so the picture is
+          # taken from it and cut to where the window is. Capturing the window
+          # by id races with the compositor for no benefit.
+          sleep 4
+          import -window root root.png
+          convert root.png -crop "${w}x${h}+${x}+${y}" +repage window.png
+
+          total=$(convert window.png -format '%[fx:w*h]' info:)
+          share=$(convert window.png -colorspace Gray -depth 8 -format %c histogram:info:- |
+            awk -v total="$total" '
+              { gsub(/^ +/, ""); n = $1 + 0; if (n > max) max = n }
+              END { printf "%.4f", max / total }')
+          echo "most common shade covers $share of the window"
+
+          if ! awk -v s="$share" 'BEGIN { exit !(s < 0.95) }'; then
+            echo "::error::the window mapped and rendered nothing: one shade covers $share of it"
+            exit 1
+          fi
+
+      # Kept whether or not the step passed. A blank capture is the evidence for
+      # the failure it reports, and describing it in a log line instead would
+      # throw away the only thing worth looking at.
+      - name: Keep the capture
+        if: always() && runner.os == 'Linux'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: smoke-window
+          path: window.png
+          if-no-files-found: warn
+
+      # `/S` is a silent per-user install into `%LOCALAPPDATA%`, so it needs no
+      # elevation and a runner can drive it. The `.msi` is per-machine and wants
+      # a UAC prompt nobody is there to answer, which is why it is built here
+      # and installed nowhere.
+      - name: Install the NSIS package
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem installers\*-setup.exe | Select-Object -First 1
+          $result = Start-Process -FilePath $setup.FullName -ArgumentList '/S' -Wait -PassThru
+          if ($result.ExitCode -ne 0) {
+            Write-Output "::error::the installer exited $($result.ExitCode)"
+            exit 1
+          }
+
+          # Found rather than assumed: the layout under %LOCALAPPDATA% is the
+          # bundler's to choose, and hard-coding it here would turn a rename
+          # into a failure that reads like a broken install.
+          $found = @(Get-ChildItem "$env:LOCALAPPDATA" -Recurse -Depth 3 -Filter 'runic-ssh.exe' -ErrorAction SilentlyContinue)
+          if ($found.Count -ne 1) {
+            Write-Output "::error::expected one installed runic-ssh.exe, found $($found.Count)"
+            exit 1
+          }
+
+          $installed = $found[0].VersionInfo.FileVersion
+          Write-Output "installed $($found[0].FullName) reporting $installed"
+          if (-not $installed.StartsWith($env:version)) {
+            Write-Output "::error::the installed binary reports $installed, the build says $env:version"
+            exit 1
+          }
+
+          # The same structural check macOS makes, for the same reason: the
+          # frontend is compiled into the executable, so its absence is not a
+          # missing file but a missing string. Linux asks the stronger question
+          # by rendering; this one only asks whether anything was embedded.
+          $text = [System.Text.Encoding]::ASCII.GetString(
+            [System.IO.File]::ReadAllBytes($found[0].FullName))
+          foreach ($probe in 'index.html', 'assets/') {
+            if (-not $text.Contains($probe)) {
+              Write-Output "::error::no $probe in the executable: the frontend was not embedded"
+              exit 1
+            }
+          }
+          Write-Output "the frontend is embedded"
+
+      # macOS is mounted and read rather than opened. The runner could open it,
+      # but nobody has ever opened this application on a Mac and a green job
+      # here would read as if somebody had.
+      #
+      # There is not much bundle to read. It is `Info.plist`, an icon, and one
+      # executable; there is no frontend directory to look for, because Tauri
+      # compiles `dist/` into the binary. That is why Linux checks the pixels:
+      # on every platform, "the frontend is missing" is a fact about the inside
+      # of an executable rather than about a file being absent.
+      #
+      # Which is also how it can be checked here without a window server. The
+      # embedded assets leave their paths in the binary, so `index.html` and a
+      # hashed `assets/` name being present is a structural version of the same
+      # question. It is weaker than Linux's: it proves something was embedded,
+      # not that it renders.
+      - name: Mount the dmg and read the bundle
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          dmg=$(ls installers/*.dmg)
+          hdiutil attach -nobrowse -readonly "$dmg" -mountpoint /Volumes/runic
+          trap 'hdiutil detach /Volumes/runic >/dev/null 2>&1 || true' EXIT
+
+          app=$(ls -d /Volumes/runic/*.app)
+          exe="$app/Contents/MacOS/runic-ssh"
+          installed=$(plutil -extract CFBundleShortVersionString raw "$app/Contents/Info.plist")
+          echo "$app reports $installed"
+
+          if [ "$installed" != "$version" ]; then
+            echo "::error::the bundle reports $installed, the build says $version"
+            exit 1
+          fi
+
+          # The README says Apple Silicon only, because the runner is. Nothing
+          # tested that until now, and a build that quietly produced x86_64
+          # would be an installer nobody can run and every job green.
+          arch=$(lipo -archs "$exe")
+          echo "the executable is $arch"
+          if [ "$arch" != "arm64" ]; then
+            echo "::error::expected arm64, the executable is $arch"
+            exit 1
+          fi
+
+          # `grep -a` reads the binary itself. Piping `strings` into `grep -q`
+          # is the obvious spelling and it fails on the runner: `grep -q` exits
+          # at the first match, `strings` takes the broken pipe, and the
+          # `pipefail` this shell runs with turns that into a failed step
+          # reporting a frontend that is present.
+          for probe in index.html assets/; do
+            if ! LC_ALL=C grep -a -q -- "$probe" "$exe"; then
+              echo "::error::no $probe in the executable: the frontend was not embedded"
+              exit 1
+            fi
+          done
+          echo "the frontend is embedded"
+
   # Only on a tag. A `workflow_dispatch` build stays behind the Actions tab,
   # where reaching it takes an account and a deliberate click — which is the
   # right amount of friction for an unsigned binary nobody has installed yet.
   release:
     name: release
-    needs: package
+    needs: smoke
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
 
