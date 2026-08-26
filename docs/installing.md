@@ -46,7 +46,7 @@ workflow produced, and it is the answer to "is this usable yet".
 
 | Platform | Installed and driven | Version | Where the file came from |
 | --- | --- | --- | --- |
-| Linux, `.deb` | **yes**, 2026-08-24 | 0.1.1 | **downloaded from the release** |
+| Linux, `.deb` | **yes**, 2026-08-26 | 0.2.0 | **downloaded from the release** |
 | Linux, `.rpm` | no | | no RPM distribution to hand |
 | Linux, `.AppImage` | no | | discouraged anyway, see below |
 | Windows, `.exe` (NSIS) | **yes**, 2026-08-26 | 0.1.1 | **a workflow artifact, copied in through WSL** |
@@ -65,6 +65,19 @@ What it covered: `sha256sum -c SHA256SUMS` against the downloaded bytes,
 packaged frontend rather than the Vite dev server, and copy and paste driven in
 a real session. The Windows row is still a locally built package, and macOS
 still has nobody.
+
+**The 0.2.0 run, on 2026-08-26, was driven by a script rather than by hand.**
+The release it downloaded from also went out carrying four installers from the
+previous version, which were removed from the page the same day and are the
+subject of #182.
+Same path otherwise: downloaded from the release, checked against
+`SHA256SUMS`, `apt install` over the installed `0.1.1`, then the installed
+`/usr/bin/runic-ssh` on a virtual display, taking the unknown host key path
+against the container on 2222 with a fingerprint that matched `ssh-keyscan`,
+answering the credential window and running commands in the shell it opened.
+What a script cannot reach is in the table under "What synthetic input can and
+cannot drive" in `docs/testing.md`: the selection, and therefore copy, is not
+part of this run. A person drove that at 0.1.1 and nobody has driven it since.
 
 That distinction is the whole point of this table. It exists so that "the build
 is green", "somebody ran it", and "somebody ran the file a stranger would

@@ -115,6 +115,21 @@ jobs:
           pnpm test
         shell: bash
 
+      # The cache above restores `src-tauri/target`, and `target/release/bundle`
+      # is inside it, so a hit brings the previous run's installers back with
+      # the object files. The collect step below takes whatever it finds there,
+      # which is how v0.2.0 was published carrying four 0.1.1 installers beside
+      # its own. Nothing in the build removes them: a bundler writes the file
+      # for the version it is building and leaves every other one alone.
+      #
+      # It stayed hidden until v0.2.0 because a cache is scoped to the ref that
+      # wrote it, plus the default branch, so one tag cannot read another tag's.
+      # The first `workflow_dispatch` on main, run to get a Windows installer at
+      # 0.1.1, is what put a cache where the next tag could reach it.
+      - name: Clear any installer an earlier run left behind
+        shell: bash
+        run: rm -rf src-tauri/target/release/bundle
+
       # The quotes are load-bearing. On Windows this step runs under pwsh,
       # where a bare `msi,nsis` is an *array literal* — PowerShell splits it and
       # hands the CLI a single argument reading "msi nsis", which it rejects.
@@ -136,6 +151,19 @@ jobs:
             while IFS= read -r -d '' file; do
               cp "$file" "artifacts/$(basename "$file" | tr ' ' '-')"
             done
+
+          # Belt as well as braces. Clearing the bundle directory is what stops
+          # a stale installer being collected; this is what makes it loud if
+          # anything else ever puts one there. A release carrying two versions
+          # of the same installer is the failure being guarded against, and
+          # nothing else in this file would notice it.
+          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          for file in artifacts/*; do
+            case "$(basename "$file")" in
+              *"$version"*) ;;
+              *) echo "::error::$file is not version $version"; exit 1 ;;
+            esac
+          done
 
           # The instruction in docs/installing.md is to compare a download
           # against the run that produced it. That is only executable if the run
