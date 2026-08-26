@@ -280,6 +280,21 @@ window is where it starts.
 | Look at the window size in each of the three | **the same**. One height, set by the tallest of them |
 | Connect through a jump host | the same window, with the whole hop paragraph and every keep option visible without scrolling |
 
+**Paste into all three fields.** `capabilities/credential.json` grants this
+window nothing, deliberately, and pasting needs no grant because the browser
+raises the event from the keystroke. That is the theory; #116 is the check.
+
+| Paste into | With |
+| --- | --- |
+| the password field | Ctrl-V |
+| the private key box | Ctrl-V, and the line breaks survive |
+| the passphrase field | Ctrl-V |
+
+Confirmed on Linux under WebKitGTK on 2026-08-26, all three, on a window with
+an empty capability. Windows and macOS are unconfirmed, and #116 stays open for
+them: WebView2 and WKWebView are different engines and this is exactly the sort
+of thing they differ on.
+
 **Then close it four ways, because ADR-0028 spent the title bar on the fourth.**
 
 | Close it by | Expect |
