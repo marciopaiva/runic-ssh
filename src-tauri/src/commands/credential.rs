@@ -14,6 +14,7 @@
 
 use tauri::{AppHandle, Manager, Runtime, State, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 
+use crate::commands::chrome::MAIN_WINDOW;
 use crate::commands::sessions::{from_stored, persist_credential, saved_session, to_stored};
 use crate::error::{Error, IpcError};
 use crate::ssh::credentials::{Answer, CredentialPrompt, CredentialRequests, Keep, RequestId};
@@ -266,6 +267,37 @@ pub(crate) async fn ask<R: Runtime>(
 const PROMPT_HEIGHT: f64 = 340.0;
 const PROMPT_HEIGHT_WITH_HOP: f64 = 440.0;
 
+/// How wide the prompt is, which does not depend on anything.
+///
+/// A constant rather than a literal because the placement below has to know
+/// it: a window is centred over another one by subtracting its own size, and
+/// reading that size from the builder is not something the builder offers.
+const PROMPT_WIDTH: f64 = 440.0;
+
+/// Where to open the prompt so it sits in the middle of the window that asked.
+///
+/// Takes the parent's origin and size in physical pixels, which is what
+/// `outer_position` and `outer_size` report, and returns logical points, which
+/// is what the builder takes. The conversion is the whole of this function and
+/// the reason it exists separately: getting it backwards puts the prompt at
+/// twice the offset on a display that scales, which is a bug nobody sees until
+/// somebody with a high resolution screen opens one.
+///
+/// The parent's scale factor is used for both, on the assumption that a window
+/// centred inside another one is on the same display as it. That holds by
+/// construction here: the prompt is narrower and shorter than the smallest the
+/// main window is allowed to be, so its rectangle is always inside the
+/// parent's.
+fn centre_over(origin: (i32, i32), size: (u32, u32), scale: f64, prompt: (f64, f64)) -> (f64, f64) {
+    let left = f64::from(origin.0) / scale;
+    let top = f64::from(origin.1) / scale;
+
+    (
+        left + (f64::from(size.0) / scale - prompt.0) / 2.0,
+        top + (f64::from(size.1) / scale - prompt.1) / 2.0,
+    )
+}
+
 fn open_window<R: Runtime>(
     app: &AppHandle<R>,
     request: RequestId,
@@ -282,25 +314,71 @@ fn open_window<R: Runtime>(
     the bug. */
     let url = prompt_url(request);
 
-    let window = WebviewWindowBuilder::new(app, CREDENTIAL_WINDOW, WebviewUrl::App(url.into()))
-        .title("Runic SSH")
-        .inner_size(440.0, height)
-        .resizable(false)
-        .minimizable(false)
-        .center()
-        /* ADR-0008: "on some window managers a second window can open behind the
-        main one or without focus, which is a usability failure that reads as the
-        application hanging". Both are asked for explicitly. */
-        .focused(true)
-        .always_on_top(true)
-        /* Native decorations, deliberately, against ADR-0005's aesthetic and only
-        on this window. A prompt whose script fails to load and has no OS close
-        button is a connection that can never be cancelled — the exact hang
-        ADR-0008 calls the worst failure of this design. The guaranteed way out is
-        worth more here than the chrome. */
-        .decorations(true)
-        .build()
-        .map_err(|_| Error::PromptUnavailable)?;
+    /* The window that asked, when there is one. Everything below degrades to
+    what shipped before rather than failing: a prompt centred on the screen is
+    worse than one centred on the application, and both are better than a
+    connection waiting on a window that was never opened. */
+    let main = app.get_webview_window(MAIN_WINDOW);
+
+    /* Read from the main window, not from the prompt, because the prompt does
+    not exist yet and the builder cannot be asked where it would land. */
+    let placement = main.as_ref().and_then(|main| {
+        let scale = main.scale_factor().ok()?;
+        let origin = main.outer_position().ok()?;
+        let size = main.outer_size().ok()?;
+
+        Some(centre_over(
+            (origin.x, origin.y),
+            (size.width, size.height),
+            scale,
+            (PROMPT_WIDTH, height),
+        ))
+    });
+
+    /* Built in a closure because parenting can fail and takes the builder with
+    it when it does. There is no way to hand a builder back out of an `Err`, so
+    the unparented window is built from the start rather than recovered. */
+    let build = || {
+        let builder =
+            WebviewWindowBuilder::new(app, CREDENTIAL_WINDOW, WebviewUrl::App(url.clone().into()))
+                .title("Runic SSH")
+                .inner_size(PROMPT_WIDTH, height)
+                .resizable(false)
+                .minimizable(false)
+                /* ADR-0008: "on some window managers a second window can open behind the
+                main one or without focus, which is a usability failure that reads as the
+                application hanging". Both are asked for explicitly. */
+                .focused(true)
+                .always_on_top(true)
+                /* Native decorations, deliberately, against ADR-0005's aesthetic and only
+                on this window. A prompt whose script fails to load and has no OS close
+                button is a connection that can never be cancelled, which is the exact
+                hang ADR-0008 calls the worst failure of this design. The guaranteed way
+                out is worth more here than the chrome. #188 asked whether the
+                decorations could go; they can once something else guarantees the way
+                out, and today nothing does. */
+                .decorations(true);
+
+        match placement {
+            Some((x, y)) => builder.position(x, y),
+            None => builder.center(),
+        }
+    };
+
+    /* Owned by the application rather than standing beside it. The desktop
+    stacks it over the window that asked, groups it with us in the task
+    switcher, and takes it away when we go. On Windows an owned window is also
+    hidden while its owner is minimised, which is the one visible cost: the
+    prompt goes with the window and comes back with it. */
+    let window = match main.as_ref().map(|main| build().parent(main)) {
+        Some(Ok(parented)) => parented,
+        /* A main window that was there a moment ago and cannot produce a
+        native handle now, which is what shutting down looks like from here.
+        Unparented is worse than parented and better than nothing at all. */
+        Some(Err(_)) | None => build(),
+    }
+    .build()
+    .map_err(|_| Error::PromptUnavailable)?;
 
     let handle = app.clone();
     window.on_window_event(move |event| {
@@ -365,6 +443,66 @@ mod tests {
             typed.passphrase.as_ref().map(Secret::expose),
             Some("phrase")
         );
+    }
+
+    #[test]
+    fn the_prompt_is_centred_in_logical_points_and_not_physical_ones() {
+        /* A parent 1000 by 800 physical pixels at (100, 50), on a display that
+        scales by two: 500 by 400 logical points at (50, 25). A 440 by 340
+        prompt has 60 points of slack in each direction, so it starts 30 in.
+
+        The number that catches the mistake is the origin. Dividing the size
+        and forgetting the position is the shape this bug takes, and at scale
+        one it is invisible. */
+        let (x, y) = centre_over((100, 50), (1000, 800), 2.0, (440.0, 340.0));
+
+        assert!((x - 80.0).abs() < f64::EPSILON, "x was {x}");
+        assert!((y - 55.0).abs() < f64::EPSILON, "y was {y}");
+    }
+
+    #[test]
+    fn the_prompt_lands_inside_the_window_that_asked() {
+        /* The main window's smallest allowed size, from `tauri.conf.json`. The
+        property this asserts is the one the placement rests on: the prompt is
+        smaller than any main window can be, so centring it over one can never
+        put it off a display that main window is on, and no clamping to a
+        monitor is needed.
+
+        Both heights, because the taller one exists for a reason and is the
+        one that was found to overflow once already. */
+        const MIN_WIDTH: f64 = 880.0;
+        const MIN_HEIGHT: f64 = 560.0;
+        /* Room for the title bar this window keeps. `centre_over` is told the
+        inner size, and the window manager adds its decorations above it. */
+        const DECORATIONS: f64 = 48.0;
+
+        for scale in [1.0, 1.25, 2.0] {
+            for height in [PROMPT_HEIGHT, PROMPT_HEIGHT_WITH_HOP] {
+                let origin = (320, 180);
+                let size = (
+                    (MIN_WIDTH * scale).round() as u32,
+                    (MIN_HEIGHT * scale).round() as u32,
+                );
+
+                let (x, y) = centre_over(origin, size, scale, (PROMPT_WIDTH, height));
+                let left = f64::from(origin.0) / scale;
+                let top = f64::from(origin.1) / scale;
+
+                assert!(
+                    x >= left,
+                    "at {scale}x the prompt started left of the window"
+                );
+                assert!(y >= top, "at {scale}x the prompt started above the window");
+                assert!(
+                    x + PROMPT_WIDTH <= left + MIN_WIDTH,
+                    "at {scale}x the prompt ran past the right edge"
+                );
+                assert!(
+                    y + height + DECORATIONS <= top + MIN_HEIGHT,
+                    "at {scale}x a {height} point prompt ran past the bottom edge"
+                );
+            }
+        }
     }
 
     /// Parses the URL the way the window does: split the query, read `request`.
