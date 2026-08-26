@@ -94,8 +94,9 @@ carries your keys.
 - **A command palette** on `Ctrl+Shift+P`.
 - **Light and dark**, from one token set, chosen in settings or left to follow
   the system.
-- **English and Brazilian Portuguese.** Spanish is translated and held back
-  until a native speaker reviews its security copy.
+- **English, Brazilian Portuguese and Spanish.** Spanish was held out of the
+  selector from the first release until a native speaker read the copy that
+  describes a security decision, which happened for v0.2.1.
 
 Not yet: **SFTP**, **port forwarding**, snippets, and a signed
 installer of any kind. Those are the roadmap further down, not this
@@ -180,7 +181,7 @@ sha256sum -c SHA256SUMS --ignore-missing   # before installing anything
 - **Terminal:** xterm.js, DOM renderer, no GPU path ([ADR-0011](docs/adr/0011-drop-the-webgl-renderer.md))
 - **SSH:** the `russh` crate, in process, no OpenSSH binary ([ADR-0003](docs/adr/0003-use-russh-instead-of-openssh.md)). `russh-sftp` is the plan for v0.3.0 and is not wired up yet
 - **Secrets:** the OS keychain, referenced by opaque id ([ADR-0004](docs/adr/0004-store-credentials-in-the-os-keychain.md))
-- **Languages:** English and Brazilian Portuguese; Spanish is translated and waiting on a native review of its security copy ([ADR-0007](docs/adr/0007-localize-in-the-frontend-from-typed-error-codes.md))
+- **Languages:** English, Brazilian Portuguese and Spanish, each with its security copy read by a native speaker before being offered ([ADR-0007](docs/adr/0007-localize-in-the-frontend-from-typed-error-codes.md))
 
 ## 🧑‍💻 Building it
 

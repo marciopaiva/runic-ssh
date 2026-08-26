@@ -87,16 +87,31 @@ describe('catalogues', () => {
 
 describe('locale resolution', () => {
   it('offers only the locales cleared to be offered', () => {
+    /* All three, since v0.2.1. Spanish was held back until a native speaker
+       read its security copy, which is the condition ADR-0007 attached and
+       which #4 tracked; the catalogue was complete and correct long before it
+       was offered, and that gap was the whole point of carrying availability
+       separately from existence. */
     const offered = offeredLocales().map((l) => l.tag);
     expect(offered).toContain('en');
     expect(offered).toContain('pt-BR');
-    /* Held back until its security copy is reviewed. See ADR-0007 and #4. */
-    expect(offered).not.toContain('es');
+    expect(offered).toContain('es');
   });
 
   it('never resolves to a locale that is not offered', () => {
-    expect(resolveLocale('es').tag).not.toBe('es');
-    expect(resolveLocale('es-AR').tag).not.toBe('es');
+    /* Nothing is held back today, so this names no locale: what it guards is
+       that every resolution lands on something the selector would show, which
+       is a property of the fallback rather than of any one flag. It held when
+       Spanish was the locale being kept out and it holds now that none is, and
+       it is the assertion that catches a fallback chain returning a catalogue
+       the user cannot choose. */
+    for (const requested of ['es', 'es-AR', 'pt-PT', 'de', 'zz']) {
+      const resolved = resolveLocale(requested);
+      expect(
+        offeredLocales().map((locale) => locale.tag),
+        `${requested} resolved to a locale that is not offered`,
+      ).toContain(resolved.tag);
+    }
   });
 
   it('prefers the same language over the default', () => {
