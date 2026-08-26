@@ -65,7 +65,7 @@ import type {
   SessionAction,
 } from './features/sessions';
 import { preparePaste } from './features/terminal/clipboard';
-import { deleteSession, disconnectSession, saveSession, sendInput } from './ipc';
+import { deleteSession, disconnectSession, forgetCredential, saveSession, sendInput } from './ipc';
 import type { Session, SessionDraft } from './ipc';
 import { useLocale, useTheme } from './features/settings';
 import { announceBroadcast, useSessionStats } from './features/status';
@@ -750,6 +750,21 @@ export function App(): JSX.Element {
     [reload],
   );
 
+  /* Reloaded whichever way it goes, because the editor renders the fact rather
+     than an outcome: a keychain that refused still holds the entry, and the
+     block goes on saying so, which is true. What is missing is the sentence
+     saying the click failed, and the editor has nowhere to put one. That is
+     its own gap and its own issue, not something to invent a channel for
+     here. */
+  const forgetPassword = useCallback(
+    (sessionId: string): void => {
+      void forgetCredential(sessionId)
+        .catch(() => undefined)
+        .then(() => reload());
+    },
+    [reload],
+  );
+
   const saved = useMemo(() => sessions.map((live) => live.session), [sessions]);
 
   /* What each form's tab says and whether it is holding unsaved work. The
@@ -1239,11 +1254,8 @@ export function App(): JSX.Element {
           {editors.map((open) => {
             const mine: Focus = { kind: 'editor', target: open.target };
             const box = boxOf(mine);
-            const jump = jumpHostChoice(
-              saved,
-              open.target.kind === 'existing' ? open.target.sessionId : null,
-              open.values.proxyJump,
-            );
+            const editingId = open.target.kind === 'existing' ? open.target.sessionId : null;
+            const jump = jumpHostChoice(saved, editingId, open.values.proxyJump);
 
             return (
               /* One panel per open form, all mounted, only the ones a group is
@@ -1273,6 +1285,8 @@ export function App(): JSX.Element {
                   discarding={open.discarding}
                   jumpHosts={jump.offered}
                   carried={jump.carried}
+                  storedCredential={targetSession(open.target, saved)?.credentialId != null}
+                  onForget={editingId === null ? null : () => forgetPassword(editingId)}
                   onChange={(field, value) => changeIn(open.target, field, value)}
                   onSubmit={() => submitIn(open.target)}
                   onDelete={() => removeIn(open.target)}
