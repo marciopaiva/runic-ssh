@@ -46,17 +46,28 @@ workflow produced, and it is the answer to "is this usable yet".
 
 | Platform | Installed and driven | Version | Where the file came from |
 | --- | --- | --- | --- |
-| Linux, `.deb` | **yes**, 2026-08-26 | 0.2.0 | **downloaded from the release** |
+| Linux, `.deb` | **yes**, 2026-08-26 | 0.2.1 | **downloaded from the release** |
 | Linux, `.rpm` | no | | no RPM distribution to hand |
 | Linux, `.AppImage` | no | | discouraged anyway, see below |
 | Windows, `.exe` (NSIS) | **yes**, 2026-08-26 | 0.1.1 | **a workflow artifact, copied in through WSL** |
 | Windows, `.msi` (WiX) | built, not installed | | the NSIS package was the one exercised |
 | macOS, `.dmg` | **no** | | needs an Apple Silicon Mac |
 
-**Nothing from v0.2.1 appears above, because nobody has installed one yet.** The
-newest file anyone has run is the 0.2.0 `.deb`, and the Windows row is older
-still. A row here moves when somebody runs the file, not when the tag is pushed,
-and this paragraph is what stops the table's silence being read as coverage.
+The 0.2.1 `.deb` was downloaded from the release, checked against
+`SHA256SUMS`, and installed over the 0.2.0 package already on this machine
+with `apt install ./Runic-SSH_0.2.1_amd64.deb`, an upgrade rather than a fresh
+install. Driven against `src-tauri/tests/fixtures/sshd` on an isolated
+display: an unknown host key on a port never connected to before, its
+fingerprint checked by eye against `ssh-keyscan`, the credential window
+answered twice, once discarding the password and once keeping it in memory
+for the run, a shell opened, three commands run in it with the output
+checked, and the session closed from its tab.
+
+**The Windows and macOS rows are still what they were.** The newest Windows
+file anyone has run is the 0.1.1 NSIS build, off a developer's machine rather
+than a release, and macOS has never been opened by anyone. A row here moves
+when somebody runs the file, not when the tag is pushed, and this paragraph is
+what stops the table's silence being read as coverage.
 
 **The Linux row is now a release download, and that is a different claim.** The
 files attached to a release come off the CI runners: same commit, different
