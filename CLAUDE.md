@@ -244,6 +244,10 @@ whose cause you have demonstrated, documentation.
 * `strict: true`. No `any`, no non-null assertion to silence the compiler.
 * Every Tauri command gets a typed wrapper in `src/ipc/`. Components never call
   `invoke` directly, so the IPC surface stays greppable in one directory.
+* An IPC wrapper returns its value and rejects on failure. `asIpcError` narrows
+  the rejection and gives back `undefined` when it was not one of ours, which is
+  how a caller separates a domain error from a bug in here. That `undefined`
+  carries weight; do not trade it for a result type with nowhere to put it.
 * Components stay presentational. State and effects live in the feature slice.
 * No secret ever enters React state, `localStorage`, or a component prop.
 * Nothing under `src/` logs, and `pnpm prose` checks it. `src/credential/` holds
