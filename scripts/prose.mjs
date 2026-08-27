@@ -1,8 +1,15 @@
-// The two rules a machine can check: the long dash, and the commit prefix.
+// The rules a machine can check: the long dash, the commit prefix, and the
+// console statement.
 //
 // Section 1 forbids the long dash as a general connector, and section 9 lists
 // the prefixes a subject may start with. Both were being enforced by whoever
 // happened to read the diff, which is another way of saying sometimes.
+//
+// The third is security rule 2 in the only place the frontend can break it.
+// `src/credential/` is a window that holds a typed password in the clear, by
+// design, because somewhere has to. One logging statement there is the leak
+// rule 2 describes, and there is no linter in this repository to catch it.
+// The count is zero today and nothing would say when it stopped being zero.
 //
 // It looks only at lines this branch adds. That is not a shortcut, it is the
 // rule: section 1 corrected the documents people read and deliberately left
@@ -30,6 +37,11 @@
 import { spawnSync } from 'node:child_process';
 
 const DASH = '—';
+
+/* Where a logging statement is a leak rather than a stray debug line. The
+   scripts in this directory print for a living and are not frontend code. */
+const FRONTEND = /^src\/.+\.tsx?$/;
+const CONSOLE = /\bconsole\s*\.\s*[a-zA-Z]/;
 
 const ALLOWED_PREFIXES = ['feat', 'fix', 'refactor', 'docs', 'test', 'chore', 'ci', 'design'];
 const SUBJECT_LIMIT = 72;
@@ -98,8 +110,17 @@ const base = baseRef();
 const problems = [];
 
 for (const added of addedLines(base)) {
-  if (!added.text.includes(DASH) || isExempt(added.text)) continue;
-  problems.push(`${added.file}:${added.line}  ${added.text.trim()}`);
+  const where = `${added.file}:${added.line}`;
+
+  if (added.text.includes(DASH) && !isExempt(added.text)) {
+    problems.push(`${where}  ${added.text.trim()}`);
+  }
+
+  if (FRONTEND.test(added.file) && CONSOLE.test(added.text)) {
+    problems.push(
+      `${where}  ${added.text.trim()}\n          nothing in src/ logs: security rule 2, and the credential\n          window is the one place a secret is in the clear to log`,
+    );
+  }
 }
 
 /* `--no-merges` is not tidiness. On a pull request GitHub checks out the merge
@@ -125,4 +146,5 @@ for (const problem of problems) console.log(`  ${problem}`);
 console.log(`\n  Section 1: the long dash is not a general connector, and a sentence`);
 console.log(`  needing one to hold it together usually wants to be two sentences.`);
 console.log(`  Section 9 lists the prefixes. Old comments are exempt on purpose.`);
+console.log(`  Section 6: the frontend does not log. Section 7 rule 2 says why.`);
 process.exit(1);

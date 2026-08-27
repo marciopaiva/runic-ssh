@@ -246,6 +246,9 @@ whose cause you have demonstrated, documentation.
   `invoke` directly, so the IPC surface stays greppable in one directory.
 * Components stay presentational. State and effects live in the feature slice.
 * No secret ever enters React state, `localStorage`, or a component prop.
+* Nothing under `src/` logs, and `pnpm prose` checks it. `src/credential/` holds
+  a typed password in the clear because somewhere has to, so one logging
+  statement there is exactly the leak security rule 2 describes.
 
 ---
 
@@ -302,9 +305,9 @@ was verified cites the loud form.
 `pnpm gate rust` and `pnpm gate front` run one half, for when only one half
 changed.
 
-`pnpm prose` checks the two rules in this document a machine can decide: the
-long dash from section 1, and the commit prefix and subject length from section
-9. It reads only what the branch adds, which is the rule rather than a
+`pnpm prose` checks the three rules in this document a machine can decide: the
+long dash from section 1, the commit prefix and subject length from section 9,
+and the logging statement from section 6. It reads only what the branch adds, which is the rule rather than a
 shortcut. The tree holds around 180 long dashes in code comments and every one
 of them is meant to be there, for the reason section 1 gives. It is not one of
 the canonical five, and it does not gate a merge on its own; it is there so the
