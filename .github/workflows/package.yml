@@ -477,9 +477,16 @@ jobs:
       contents: write
 
     steps:
-      - name: Collect every platform's artifact
+      # Named, not everything. This used to take every artifact the run
+      # produced and then subtract the checksum files, which was a list of what
+      # happened to be there rather than a list of what belongs on a release.
+      # The smoke job's screenshot was added later, matched the subtraction, and
+      # went out as a download on v0.2.1 (#204). A fifth artifact now has to be
+      # opted in, which is the direction this mistake keeps travelling.
+      - name: Collect the three platform artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
+          pattern: runic-ssh-*
           path: artifacts
 
       # Each platform wrote its own SHA256SUMS beside its own installers. They
@@ -493,6 +500,23 @@ jobs:
           cat artifacts/*/SHA256SUMS > release/SHA256SUMS
           ( cd release && sha256sum -c SHA256SUMS )
           ls -lh release
+
+      # The notes below tell people SHA256SUMS covers every file attached here.
+      # That was an assertion; this makes it a check. It was false on v0.2.1 and
+      # nothing noticed, because the only thing verifying the hashes was the
+      # step above, which verifies the files it was given rather than the files
+      # about to be published.
+      - name: Refuse to publish a file no hash covers
+        run: |
+          cd release
+          attached=$(ls | grep -v '^SHA256SUMS$' | sort)
+          covered=$(awk '{ sub(/^\*/, "", $2); print $2 }' SHA256SUMS | sort)
+          if [ "$attached" != "$covered" ]; then
+            echo "::error::the files about to be attached are not the files SHA256SUMS covers"
+            diff <(echo "$covered") <(echo "$attached") || true
+            exit 1
+          fi
+          echo "every attached file is covered: $(echo "$attached" | wc -l) of them"
 
       - name: Publish
         env:
