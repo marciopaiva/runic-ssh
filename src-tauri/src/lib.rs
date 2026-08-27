@@ -1,4 +1,10 @@
 #![forbid(unsafe_code)]
+// Section 6 of `CLAUDE.md` asked for this in prose, and the prose was the only
+// thing asking. A panic in the core takes the whole application down, and with
+// it every other session it was holding open, so the rule is worth more as a
+// lint than as a sentence. Inactive under `cfg(test)`, where a panic is how a
+// test reports a failure.
+#![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]
 
 //! The privileged half of Runic SSH.
 //!
