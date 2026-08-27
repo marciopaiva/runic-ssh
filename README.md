@@ -155,11 +155,11 @@ commands in it.
 that is all anyone can say about it. `docs/installing.md` tracks which packages
 a human has actually installed, per platform, which is not the same list as the
 one CI produces. The Linux `.deb` has now been downloaded from a release,
-checked against its hash, installed and driven twice, at v0.1.1 and again at
-v0.2.0, which is the only path where somebody has run the same file a stranger
-would. On Windows the newest package anyone has installed is a v0.1.1 build, and
-it came off a developer's machine rather than a release. Nobody has installed
-anything from v0.2.1.
+checked against its hash, installed and driven three times, at v0.1.1, at
+v0.2.0, and again at v0.2.1 as an upgrade over the 0.2.0 already on the
+machine, which is the only path where somebody has run the same file a
+stranger would. On Windows the newest package anyone has installed is a
+v0.1.1 build, and it came off a developer's machine rather than a release.
 
 Work is tracked in [issues](https://github.com/marciopaiva/runic-ssh/issues) and
 the decisions behind it in [`docs/adr/`](docs/adr/).
