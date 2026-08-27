@@ -257,6 +257,69 @@ says why. That is the case worth having a machine for: the middle answer is the
 only one such a machine can honour, and it is the reason there are three
 answers rather than a tick box.
 
+### The password block on a host's form
+
+A host's form says whether a password is stored for it, saves one, and forgets
+one, and none of that puts a password field on the form. The credential is
+collected by connecting once, in the window every other host uses, and the
+connection closes as soon as the server accepts it (#189). What that leaves to
+check is mostly whether the form tells the truth afterwards.
+
+| Do this | Expect |
+| --- | --- |
+| Open a host with no saved password | the block says none is stored, and offers *Connect once and save a password* |
+| Press it | the tab you are taken to is **the session's**, not the form's, and the host key screen appears there |
+| Answer the credential window, choose *in the system keychain* | a result surface saying the password is saved, and no terminal opens |
+| Go back to the form | the block now says one is stored, and offers to replace or to forget it |
+| Press *Forget it* | the block goes back to saying none is stored |
+| Connect normally | it asks again |
+
+The second row is the one worth reading twice. It was wrong when built: focus
+stayed on the form, so the whole sequence ran in a tab nobody was looking at
+and the button appeared to do nothing, with the host key screen among the
+things nobody saw.
+
+**A password kept for this run does not show in the block** (#197). The block
+reads what is on disk, and a credential held in memory until the application
+closes is written nowhere, so it shows as no password at all. That is a known
+gap, not a failure of this check.
+
+**Forgetting clears both copies.** A credential kept for the run is answered
+before the keychain is read, so clearing only the store would leave the next
+connection finding it anyway. Check it the slow way: keep one for the run, save
+another to the keychain for the same host, forget, and connect. It must ask.
+
+#### Forcing the core to refuse
+
+Two things on this form are only visible when something fails, and neither
+failure is easy to arrange: a keychain that refuses a write, and a session file
+that cannot be written. Both were driven by making the core return the error,
+which is worth writing down because the alternative is not driving them at all.
+
+Patch the command to return the failure, run, then revert before the gate:
+
+```rust
+// in commands/sessions.rs, temporarily
+return Err(IpcError::from(Error::KeychainWriteFailed {
+    reason: "forced for driving".to_owned(),
+}));
+```
+
+`SettingsUnwritable` needs a `PathBuf` and an `io::Error`, not two strings,
+which the compiler will tell you.
+
+| Force this | Expect |
+| --- | --- |
+| `forget_credential` refuses | a line above the form: *The password was not removed*, saying the keychain refused and to unlock it |
+| `save_session` refuses | *This host was not saved*, the tab **still open**, and what you typed still in the fields |
+| Either, then press *Dismiss* | the line goes, and the fields are untouched throughout |
+
+The tab staying open is the point of the second row. A form that closed on a
+save the core refused would take the draft with it and leave the host unsaved.
+
+Revert the patch. A forced failure left in the tree passes every test in this
+repository, because nothing here connects to a keychain.
+
 ### Where the credential prompt opens, and how it is closed
 
 The prompt is its own window, and everything about that window is decided in
@@ -466,6 +529,77 @@ Host keys survive `podman stop` and `podman start`, because `ssh-keygen -A`
 generates only what is missing and the writable layer persists. They do not
 survive `podman rm`, which is the same trade the single-host fixture makes.
 
+#### What the window admits while a chain is open
+
+A session behind a bastion opens a second connection, to the bastion, which is
+authenticated and which used to appear nowhere at all (#168). The bastion's own
+row said "saved, not connected" while the application was logged in to it.
+
+Two places say it now, answering two different questions, and both are worth
+checking because both are derived rather than reported.
+
+| Do this | Expect |
+| --- | --- |
+| With everything closed, connect to the target | the **bastion's row** takes a marker of its own, a dot with the line continuing past it on both sides |
+| Read the status bar | a cell naming the host this session travels through, beside the host it is about |
+| Connect a second host behind the same bastion | the bastion's row is unchanged: it is carrying, not carrying twice |
+| Close the first of the two | still carrying, because the second still rides it |
+| Close the second | back to a plain saved host |
+| Connect a host with no jump host | **no** cell on the bar |
+| Open the bastion as its own session, then a host behind it | its row says connected, **not** carrying |
+
+The last row is a rule rather than a detail. `connected` already admits a
+connection exists, which is the whole complaint, so carrying never replaces it.
+It does replace `unreachable`, because a host currently carrying a session is
+demonstrably reachable, and it never replaces the blocked-host-key marker.
+
+**Take the jump host off a connected session and the row must not change.** The
+fact is captured when the session opens, not recomputed from the session file,
+because the connection does not close when the file is edited. Doing it the
+other way was tried and is wrong in both directions: this way, and giving a jump
+host to a session already open directly, which would mark a bastion carrying
+nothing.
+
+**The sharing is narrower than the sidebar implies** (#200). A bastion the chain
+opens itself is not registered, so two hosts behind an unopened bastion cost it
+two connections. `podman exec runic-test-bastion ps` is where that is visible,
+and the row says "carrying" either way, which is true and is not a count.
+
+#### A jump host whose password the keychain refused
+
+The keychain refusing is reported for the host you clicked and used to be
+dropped silently for the hop with no tab (#191). Forcing that refusal is the
+same technique as in *Forcing the core to refuse* above, applied to
+`persist_credential`.
+
+| Do this | Expect |
+| --- | --- |
+| Force the refusal, connect to the target, ask to keep the **bastion's** password | the session opens, and the status bar carries *Jump host not saved* |
+| Hover it | it names the bastion and says that host asks again next time |
+| Ask to keep the **target's** password instead | *Not saved*, with the wording for this session's own credential |
+| Accept a host key so the chain rebuilds | the refusal is still reported, once, and the bastion is not asked a second time |
+
+Two different badges rather than one with a tooltip. They read identically at a
+glance otherwise, and the difference is which machine will ask again.
+
+### A host that already serves as a jump host
+
+The core refuses a jump host for a host that other saved hosts are reached
+through, because allowing it would break hosts the user never opened (#171).
+The form is where that is visible, and what it does is stop offering the
+control rather than let the save be turned down.
+
+| Do this | Expect |
+| --- | --- |
+| Open the form for a host nothing is behind | *Reached through* offers every eligible host |
+| Open the form for the **bastion** | no select at all, and a sentence naming the hosts reached through it |
+| With two behind it | the sentence lists both, joined the way the language joins a list |
+| A host saved with a jump host **before** this rule existed | the select appears holding that value alone, plus a way to clear it |
+
+The last row is the only way a broken session gets repaired, so it is worth
+building one: write the `proxyJump` into `sessions.json` by hand on a host that
+already carries others, and open the form.
+
 ### On WSL2
 
 Reaching a container in WSL *from a Windows build* is a separate problem:
@@ -521,6 +655,19 @@ plain `xdotool type` with the window activated. And a drag failing silently is
 what makes it expensive: the pointer moves, the button goes down and up, and
 the application simply never hears it, which reads exactly like a bug in the
 feature being driven.
+
+**Read coordinates off `xwininfo`, not off `xdotool getwindowgeometry.`** With a
+window manager running they disagree: `xdotool` reports the frame and
+`xwininfo`'s *Absolute upper-left* reports the client area. On the credential
+window that is 22 points, which is enough to miss the password field and look
+exactly like a webview ignoring clicks. `getwindowgeometry` is right for
+measuring whether a window *moved*, which is what the capability section below
+uses it for, because there only the delta matters.
+
+Crop and enlarge what you captured rather than trusting a coordinate twice.
+`import -window root -crop WxH+X+Y +repage -resize 400%` on the row or the cell
+being checked is how three of today's defects were found, and each of them
+passed every test in this repository.
 
 A host key prompt or a credential window will time out while you debug the
 coordinates. `sshd` closes the connection after its login grace period, and the
