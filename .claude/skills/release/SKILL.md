@@ -44,6 +44,11 @@ the ones that go missing, every time, because nothing fails when they do.
 Then run the five commands from section 8 of `CLAUDE.md` in their loud form and
 quote the real output. `pnpm gate` is for the edit loop and is not evidence.
 
+Run `pnpm prose` as well. It is not one of the five and it does not gate the
+tag, but a release branch adds the changelog, and the changelog is the prose in
+this repository most likely to be written in a hurry. Catching it here costs a
+second. Catching it in CI costs a push.
+
 ---
 
 ## Phase 2: the tag
@@ -82,6 +87,14 @@ Walk the path a stranger walks:
 gh release download vX.Y.Z -D <dir> -p "SHA256SUMS" -p "*.deb" ...
 cd <dir> && sha256sum -c SHA256SUMS --ignore-missing
 ```
+
+That answers one direction only: the files you asked for match the list. It
+cannot see a file on the release page that no line of `SHA256SUMS` covers, and
+`--ignore-missing` forgives an absence by design. v0.2.1 shipped a `window.png`
+that way, with every hash verifying (#204, and #182 before it). The workflow now
+refuses to publish a file no hash covers, which is the right place for it
+because it runs before the page exists. If that step is ever loosened, list the
+page against the sums by hand.
 
 Then install the downloaded package and open it. A packaged build serves the
 bundled frontend; `tauri dev` serves it from Vite and exercises none of the
