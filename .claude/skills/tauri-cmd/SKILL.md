@@ -1,6 +1,6 @@
 ---
 name: tauri-cmd
-description: Add a Tauri IPC command to Runic SSH end to end: the Rust handler, its error type, registration in main.rs, the typed TypeScript wrapper in src/ipc/, and the error-path test. Use whenever the frontend needs to reach something only the Rust side can do.
+description: Add a Tauri IPC command to Runic SSH end to end: the Rust handler, its error type, registration in lib.rs, the capability check, the typed TypeScript wrapper in src/ipc/, and the error-path test. Use whenever the frontend needs to reach something only the Rust side can do.
 ---
 
 # Add an IPC command
@@ -79,11 +79,34 @@ crosses the boundary is the sanitized form.
 
 ### 4. Register it
 
-Add the handler to `tauri::generate_handler![...]` in `src-tauri/src/main.rs`.
+Add the handler to `tauri::generate_handler![...]` in `src-tauri/src/lib.rs`.
 An unregistered command fails at runtime with a message that reads like a
 frontend bug, so register it in the same edit that creates it.
 
-### 5. Typed wrapper
+### 5. Check whether this needed a capability, not whether it needs one added
+
+A command you write yourself and register through `generate_handler!` is not
+gated by `src-tauri/capabilities/*.json`. That ACL governs the Tauri **plugin**
+surface, `core:window:*`, `core:event:*`, and so on, and nothing in
+`capabilities/` names an application command; grep for one and you will find
+none. Adding a permission entry for the command itself is a no-op, and writing
+one would look like a control that is not there.
+
+There is a real check, just a different one. Ask what the domain function
+underneath the handler actually does, not what the handler is called:
+
+* Does it call a Tauri plugin API under the hood, filesystem, shell, dialog, or
+  open a new window? Then that plugin's permission may need to widen, or a new
+  window may need its own capability file, the way `credential.json` is its own
+  file rather than a line added to `default.json`.
+* If it only touches `ssh/`, `sftp/`, `vault/`, or `config/` through plain Rust,
+  as most commands do, `capabilities/` is untouched. Say so plainly rather than
+  leaving the question unanswered.
+
+Either way this is CLAUDE.md 7.6: widening a capability is a Phase 2 proposal
+with an ADR, decided before this skill runs, never inside it.
+
+### 6. Typed wrapper
 
 In `src/ipc/`, one file per command module:
 
@@ -113,7 +136,7 @@ misleading message, so check it against the handler signature.
 Keep the TypeScript types in step with the Rust types by hand, in the same
 commit. A drifted IPC type is a bug that only shows up in production.
 
-### 6. Test the error path
+### 7. Test the error path
 
 Every command gets at least one test covering the failure case, because the
 failure case is what users actually hit:
@@ -132,7 +155,7 @@ async fn connect_session_rejects_unknown_id() {
 Also assert that a credential-bearing failure does not leak: given a wrong
 password, the returned error must not contain it.
 
-### 7. Gate
+### 8. Gate
 
 ```bash
 cargo fmt --all -- --check
@@ -147,6 +170,7 @@ pnpm typecheck
 - [ ] Handler has no `unwrap`, `expect`, or panic path
 - [ ] Error type serializes and carries no secret
 - [ ] Registered in `generate_handler!`
+- [ ] Said plainly whether `capabilities/` needed a change, and why or why not
 - [ ] Typed wrapper exists in `src/ipc/`; no direct `invoke` in components
 - [ ] Argument casing matches between Rust and TypeScript
 - [ ] Error-path test passes, including the no-leak assertion
