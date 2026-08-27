@@ -213,6 +213,11 @@ Stop and ask the maintainer before:
 * changing anything in `vault/` or how credentials move across the IPC boundary;
 * changing host key verification behavior;
 * adding a runtime dependency;
+* upgrading `russh`, `russh-sftp`, `tauri`, `keyring` or `zeroize` across a
+  major version. Adding a dependency is already on this list, and a major bump
+  is the same decision arriving as a version number. These five are the ones
+  whose behavior is itself a security rule: a `russh` major can change what host
+  key verification does without a line of ours moving;
 * changing the IPC contract in a way that breaks an existing frontend caller;
 * changing the on-disk format of stored sessions without a migration;
 * any network call to a host the user did not configure.
