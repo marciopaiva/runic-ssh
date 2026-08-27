@@ -230,8 +230,10 @@ whose cause you have demonstrated, documentation.
 * `#![forbid(unsafe_code)]` at the crate root. If a task appears to need
   `unsafe`, that is a Phase 2 proposal, not a local decision.
 * Errors are typed with `thiserror` per module and surfaced across IPC as a
-  serializable enum. Never `unwrap()` or `expect()` on anything reachable from a
-  command handler or from network input. Tests may unwrap.
+  serializable enum. `unwrap()` and `expect()` are denied at both crate roots
+  under `cfg(not(test))`, so the compiler holds this rule and not the reader. A
+  panic in the core takes the application down and every session it was holding
+  open with it. Tests may unwrap, which is how a test reports a failure.
 * Anything touching the network or the filesystem is `async` on the Tokio
   runtime Tauri already provides. Never block the IPC thread.
 * Public items carry doc comments explaining why, not what.

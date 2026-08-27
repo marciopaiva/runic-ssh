@@ -1,4 +1,6 @@
 #![forbid(unsafe_code)]
+// The lint the library denies, so the binary cannot be the way one lands.
+#![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]
 // A release build must not open a console window behind the app on Windows.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
