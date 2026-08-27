@@ -254,6 +254,17 @@ whose cause you have demonstrated, documentation.
   a typed password in the clear because somewhere has to, so one logging
   statement there is exactly the leak security rule 2 describes.
 
+### Anything that outlives the call that started it
+
+A spawned task, an event listener, an observer, an interval. Each one gets a
+teardown path, and a test that proves the path runs.
+
+This is not tidiness. `ssh/registry.rs` keeps the reason next to `has_shell`: a
+second shell opened on one connection abandoned the first, which kept running,
+held a pty, and counted against the server's `MaxSessions` (#94, ADR-0014). The
+fix was a guard at one call site. This is that bug written down once, so the
+next call site does not have to learn it again.
+
 ---
 
 ## 7. Security rules
@@ -272,7 +283,10 @@ if the maintainer asked for it in passing; raise it instead.
    keys block the connection and require an explicit, deliberate override.
    Never verify-none, never a silent trust-on-first-use.
 4. **Private key material is zeroized after use** (`zeroize`), and never written
-   to a temporary file.
+   to a temporary file. A task that outlives the call which spawned it can hold
+   a secret past that point, or hold an authenticated session open after
+   everything that asked for it is gone. Both are this rule, and section 6 says
+   what the teardown has to prove.
 5. **No telemetry, no crash reporting, no auto-update ping** without an explicit
    opt-in that defaults to off.
 6. `tauri.conf.json` capabilities stay minimal. Widening a capability is a Phase

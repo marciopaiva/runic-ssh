@@ -84,6 +84,17 @@ and a rule that claims more than it can do is worth less than one that names its
 edge. What is guaranteed is that Runic's own copy is zeroized and does not
 outlive the attempt.
 
+There is a second way to hold a secret too long, and it is not about `zeroize`
+at all. Anything that outlives the call which spawned it, a task or a listener
+or an interval, can keep a secret reachable after the attempt it belonged to
+finished, and can keep an authenticated session open after everything that
+asked for it is gone. An open session on a bastion is the asset row at the top
+of this document, so a task nobody can stop is a credential nobody can put
+down. Section 6 of `CLAUDE.md` asks every one of them for a teardown path and
+for a test that proves the path runs. `ssh/registry.rs` carries the case that
+taught this: a second shell abandoned the first, which kept running and held a
+pty (#94, ADR-0014).
+
 ### 5. No telemetry without opt-in
 
 No usage reporting, no crash reporting, no update ping, unless the user turns it
