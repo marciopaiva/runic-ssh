@@ -21,6 +21,7 @@ import {
   gridBoxes,
   gridCount,
   groupOf,
+  groupSyncState,
   inputTargets,
   moveEntry,
   placeEntry,
@@ -326,6 +327,40 @@ describe('where a keystroke goes', () => {
 
   it('counts nothing from an empty group', () => {
     expect(receivingSessions(held([session('web-01')], []), NONE)).toEqual(['web-01']);
+  });
+});
+
+describe("a strip's own switch", () => {
+  /* The bug this guards: the switch used to stay visible and clickable on a
+     group showing settings or a host form, because the strip disabled it only
+     for the whole window's shape and pane count. Pressing it there still
+     armed a broadcast that reached sessions in other groups, a control with
+     no session behind it deciding where a keystroke typed somewhere else
+     goes. `null` rather than `'unavailable'`: the strip draws no switch at
+     all here, rather than one it disables. */
+  it('is absent on a group not showing a session, even with two elsewhere', () => {
+    expect(groupSyncState('2x1', 2, null, false, NONE)).toBeNull();
+    expect(groupSyncState('2x1', 2, null, true, NONE)).toBeNull();
+  });
+
+  it('is unavailable on an undivided window', () => {
+    expect(groupSyncState('1x1', 1, 'web-01', false, NONE)).toBe('unavailable');
+  });
+
+  it('is unavailable when arming would reach nowhere', () => {
+    expect(groupSyncState('2x1', 1, 'web-01', false, NONE)).toBe('unavailable');
+  });
+
+  it('is on for a session showing and not muted, once armed', () => {
+    expect(groupSyncState('2x1', 2, 'web-01', true, NONE)).toBe('on');
+  });
+
+  it('is off for a session muted out of an armed broadcast', () => {
+    expect(groupSyncState('2x1', 2, 'web-01', true, new Set(['web-01']))).toBe('off');
+  });
+
+  it('is off for a session showing while nothing is armed', () => {
+    expect(groupSyncState('2x1', 2, 'web-01', false, NONE)).toBe('off');
   });
 });
 

@@ -48,6 +48,13 @@ interface SessionFormProps {
   readonly onSubmit: () => void;
   /** `null` for a session that does not exist yet. */
   readonly onDelete: (() => void) | null;
+  /**
+   * Drops this draft. With no tab to close any more (ADR-0029: Hosts is a
+   * list beside one form, not a strip of them), this is the only way to
+   * abandon a new host nobody is going to save, or back out of a change to
+   * an existing one without making it.
+   */
+  readonly onCancel: () => void;
 }
 
 /**
@@ -77,6 +84,7 @@ export function SessionForm({
   onSavePassword,
   onSubmit,
   onDelete,
+  onCancel,
 }: SessionFormProps): JSX.Element {
   const i18n = useTranslator();
   const first = useRef<HTMLInputElement>(null);
@@ -272,8 +280,15 @@ export function SessionForm({
           </button>
         )}
         <button
+          type="button"
+          onClick={onCancel}
+          className="text-ink-secondary hover:bg-surface-raised ml-auto rounded px-2.5 py-1.5 text-[12px]"
+        >
+          {i18n.t('session.editor.cancel')}
+        </button>
+        <button
           type="submit"
-          className="bg-accent text-surface-base ml-auto rounded px-3 py-1.5 text-[12px] font-semibold"
+          className="bg-accent text-surface-base rounded px-3 py-1.5 text-[12px] font-semibold"
         >
           {i18n.t('session.editor.save')}
         </button>

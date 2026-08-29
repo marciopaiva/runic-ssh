@@ -14,6 +14,15 @@ interface TitlebarProps {
   /** How the main area is divided right now. */
   readonly layout: Grid;
   readonly onLayout: (kind: Grid) => void;
+  /** Whether a session is open anywhere in the window. */
+  readonly canSplit: boolean;
+  /**
+   * Whether the Sessions workspace is showing. ADR-0029: the shape control
+   * divides that workspace's main area, not "the window" in general, so it
+   * has nothing to do while Home is showing and draws nothing at all rather
+   * than a control aimed at a grid nobody can see.
+   */
+  readonly showShapeControl: boolean;
   readonly onAct: (action: WindowAction) => void;
 }
 
@@ -51,6 +60,8 @@ export function Titlebar({
   leadingInset,
   layout,
   onLayout,
+  canSplit,
+  showShapeControl,
   onAct,
 }: TitlebarProps): JSX.Element {
   const i18n = useTranslator();
@@ -101,7 +112,7 @@ export function Titlebar({
         </span>
       </div>
 
-      <ShapeControl layout={layout} onChoose={onLayout} />
+      {showShapeControl && <ShapeControl layout={layout} onChoose={onLayout} canSplit={canSplit} />}
 
       <WindowControls controls={controls} onAct={onAct} />
     </header>

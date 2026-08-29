@@ -80,13 +80,17 @@ describe('the light theme is reachable at all', () => {
     expect(context).toContain('applyTheme(document.documentElement');
   });
 
-  it('offers all three choices in the settings panel', () => {
+  it('offers all three choices on the dashboard card', () => {
     /* A control that offers two of them is the boolean this deliberately is
        not: "follow the system" has to stay reachable after a user has picked
-       something else, or the choice is one way. */
-    const panel = source('components/SettingsPanel.tsx');
+       something else, or the choice is one way. Moved here from a settings
+       tab of its own (ADR-0029's follow-up): three icons in a `radiogroup`
+       now, not three radios in a `fieldset`, but the same three choices. */
+    const card = source('components/HomeDashboard.tsx');
 
-    expect(panel).toContain("const THEMES: readonly Theme[] = ['system', 'light', 'dark']");
-    expect(panel).toContain("name=\"theme\"");
+    for (const theme of ['system', 'light', 'dark'] satisfies Theme[]) {
+      expect(card).toContain(`value="${theme}"`);
+    }
+    expect(card).toContain('role="radiogroup"');
   });
 });

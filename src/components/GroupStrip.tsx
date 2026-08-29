@@ -60,8 +60,11 @@ interface GroupStripProps {
   readonly dense: boolean;
   /** What this strip is called, for a screen reader walking four of them. */
   readonly label: string;
-  /** What this rectangle does with what you type. */
-  readonly sync: SyncState;
+  /**
+   * What this rectangle does with what you type, or `null` when the question
+   * does not apply: the active tab is a host form or settings, not a session.
+   */
+  readonly sync: SyncState | null;
   readonly onToggleSync: () => void;
   readonly onFocus: (focus: Focus) => void;
   /** Closing any tab, whichever kind. The shell knows what each one means. */
@@ -294,10 +297,16 @@ export function GroupStrip({
 
       {/* At the end of the strip of the rectangle it decides for. It was a
           square on the active tab, which meant it appeared only once something
-          was armed, and nothing anywhere could arm it but the palette. */}
-      <div className="flex shrink-0 items-center pr-2">
-        <SyncToggle state={sync} onToggle={onToggleSync} />
-      </div>
+          was armed, and nothing anywhere could arm it but the palette.
+
+          Absent rather than disabled when `sync` is `null`: the active tab is
+          not a session, so which of them receive typed keys is not a question
+          this rectangle has an answer to. */}
+      {sync !== null && (
+        <div className="flex shrink-0 items-center pr-2">
+          <SyncToggle state={sync} onToggle={onToggleSync} />
+        </div>
+      )}
     </div>
   );
 }

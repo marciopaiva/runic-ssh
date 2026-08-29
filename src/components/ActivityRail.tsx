@@ -91,17 +91,26 @@ function RailSlot({
   );
 }
 
+/** Which main area the window is showing. */
+export type Workspace = 'home' | 'sessions';
+
 interface ActivityRailProps {
-  /** Whether the session list is showing beside the rail. */
+  /** Which workspace is showing right now. */
+  readonly workspace: Workspace;
+  /** Whether the sessions sidebar is beside the rail, while Sessions is active. */
   readonly sidebarOpen: boolean;
   /** Whether what is typed reaches more than the host being looked at. */
   readonly armed: boolean;
-  /** How many sessions are open, drawn on the sessions icon. */
+  /** How many sessions are open, drawn on the Sessions icon. */
   readonly openCount: number;
-  /** Whether the settings tab exists somewhere in the window. */
-  readonly settingsOpen: boolean;
-  readonly onToggleSidebar: () => void;
-  readonly onOpenSettings: () => void;
+  /**
+   * Switches to a workspace, or toggles the sessions sidebar when that
+   * workspace is already showing. One click target for both: a rail icon
+   * that only ever switched a sidebar had nothing left to do once it was
+   * already where it pointed, and that is exactly the moment "show or hide
+   * the list" becomes the useful question.
+   */
+  readonly onChoose: (workspace: Workspace) => void;
 }
 
 /**
@@ -112,19 +121,20 @@ interface ActivityRailProps {
  * sidebar is the way back to it, so there is no state the window can get into
  * where the session list is gone and nothing on screen offers it.
  *
- * There is one view here and not three. SFTP has no code behind it yet (#127),
- * and an icon that switches to nothing is exactly the interface rule 6 refuses.
- * It arrives with the feature. The gear is an action rather than a view: it
- * opens the settings tab, takes no selection marker, and leaves the sidebar
- * alone.
+ * Two views today, not three. SFTP has no code behind it yet (#127), and an
+ * icon that switches to nothing is exactly the interface rule 6 refuses. It
+ * arrives with the feature (ADR-0029). Home and Sessions are both real
+ * destinations now, not one view and one action wedged into its rail slot:
+ * ADR-0029 moved settings and the host editor out of the Sessions workspace
+ * and into Home, so a rail icon that only "opened a tab" would be lying about
+ * what switching to it actually does.
  */
 export function ActivityRail({
+  workspace,
   sidebarOpen,
   armed,
   openCount,
-  settingsOpen,
-  onToggleSidebar,
-  onOpenSettings,
+  onChoose,
 }: ActivityRailProps): JSX.Element {
   const i18n = useTranslator();
 
@@ -133,17 +143,46 @@ export function ActivityRail({
       aria-label={i18n.t('rail.label')}
       className="bg-surface-chrome border-line-subtle flex w-12 shrink-0 flex-col items-center border-r py-1.5"
     >
+      {/* Held shut while armed, the way the gear used to be: switching away is
+          not what somebody reaching for it mid-broadcast meant to do. */}
+      <RailSlot
+        on={workspace === 'home'}
+        tone={armed ? 'warn' : 'accent'}
+        locked={armed}
+        label={i18n.t(armed ? 'rail.home.locked' : 'rail.home')}
+        onClick={() => onChoose('home')}
+      >
+        <svg
+          viewBox="0 0 24 24"
+          className="h-[21px] w-[21px]"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M4 11.5 12 4l8 7.5M6 10v9.5h5V14h2v5.5h5V10" />
+        </svg>
+      </RailSlot>
+
       {/* Still live while armed. ADR-0020 is explicit that the sidebar may be
           closed with a broadcast on: every receiving host has a tab naming it,
           so the markers survive, and the list answers a second question rather
           than being required. */}
       <RailSlot
-        on={sidebarOpen}
+        on={workspace === 'sessions'}
         tone={armed ? 'warn' : 'accent'}
-        label={i18n.t(sidebarOpen ? 'rail.sessions.hide' : 'rail.sessions.show')}
+        label={i18n.t(
+          workspace === 'sessions'
+            ? sidebarOpen
+              ? 'rail.sessions.hide'
+              : 'rail.sessions.show'
+            : 'rail.sessions',
+        )}
         badge={openCount}
         badgeLabel={i18n.t('rail.sessions.open', { count: String(openCount) })}
-        onClick={onToggleSidebar}
+        onClick={() => onChoose('sessions')}
       >
         <svg
           viewBox="0 0 24 24"
@@ -160,33 +199,6 @@ export function ActivityRail({
       </RailSlot>
 
       <div className="flex-1" />
-
-      {/* Held shut while armed. Opening settings puts a tab in a group, which
-          changes what that group is showing, which changes which hosts receive
-          what you type. `paneKey` in the shell notices and disarms, so nothing
-          is sent anywhere unannounced either way; the lock is so that reaching
-          for the gear does not silently cost the arming. */}
-      <RailSlot
-        on={settingsOpen}
-        tone={armed ? 'warn' : 'accent'}
-        locked={armed}
-        label={i18n.t(armed ? 'rail.settings.locked' : 'rail.settings')}
-        onClick={onOpenSettings}
-      >
-        <svg
-          viewBox="0 0 24 24"
-          className="h-[21px] w-[21px]"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <circle cx="12" cy="12" r="3.1" />
-          <path d="M12 3.5v2.2M12 18.3v2.2M20.5 12h-2.2M5.7 12H3.5M18 6l-1.6 1.6M7.6 16.4L6 18M18 18l-1.6-1.6M7.6 7.6L6 6" />
-        </svg>
-      </RailSlot>
     </nav>
   );
 }
