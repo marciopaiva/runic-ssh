@@ -94,7 +94,7 @@ export function ShapeControl({ layout, onChoose, canSplit }: ShapeControlProps):
 
   /* Nothing open and nothing to divide it into: there is nothing this control
      could do, so there is nothing to show. Mirrors the palette, which offers
-     no split command in the same state — `sources.ts` needs `tabs.length > 0`
+     no split command in the same state. `sources.ts` needs `tabs.length > 0`
      for "divide into N" and `layout !== '1x1'` for "back to one", and here
      both are already false.
 

@@ -369,7 +369,7 @@ export function inputTargets(
  * `null` when the strip should not show one at all.
  *
  * `shown` is this group's own active session, `null` when it is showing
- * something else — a host form or settings. The switch used to stay visible
+ * something else, a host form or settings. The switch used to stay visible
  * and clickable in that case, because the strip disabled it only for `layout`
  * and `filled`, which describe the window and not this rectangle. Pressing it
  * from a group showing settings still armed a broadcast, which reached
