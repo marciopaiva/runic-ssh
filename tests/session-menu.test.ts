@@ -1,11 +1,10 @@
 /**
  * Guards the row menu.
  *
- * It exists because the sidebar row only ever connected. Changing a port,
- * renaming, deleting — all of it lived behind the command palette, which is
- * fine as a second way to reach something and useless as the only one. The
- * first person to run a build hit exactly that: a saved session with the wrong
- * port and no visible way to change it.
+ * Connect or disconnect, one or the other, never both and never anything
+ * else: ADR-0029 moved editing and deleting to Home's Hosts section, on the
+ * argument that driving a connection and changing the record behind it are
+ * different tasks. This is the row's half of that split holding.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -32,16 +31,13 @@ function live(kind: LiveSession['kind'], handle: number | null = null): LiveSess
 }
 
 describe('the row menu', () => {
-  it('always offers a way to change the session', () => {
-    /* The whole reason it exists. A saved host with the wrong port and no
-       visible way to edit it is a dead end. */
+  it('never offers to edit or delete', () => {
+    /* That moved to Home's Hosts section. A row here does one thing. */
     for (const entry of [live('saved'), live('connected', 1), live('unreachable')]) {
-      expect(sessionMenu(entry).map((item) => item.action)).toContain('edit');
+      const actions = sessionMenu(entry).map((item) => item.action);
+      expect(actions).not.toContain('edit');
+      expect(actions).not.toContain('delete');
     }
-  });
-
-  it('always offers a way to delete it', () => {
-    expect(sessionMenu(live('saved')).map((item) => item.action)).toContain('delete');
   });
 
   it('offers to connect what is closed', () => {
@@ -64,12 +60,12 @@ describe('the row menu', () => {
     }
   });
 
-  it('marks only the item that loses something', () => {
-    const destructive = sessionMenu(live('connected', 1))
-      .filter((item) => item.destructive)
-      .map((item) => item.action);
-
-    expect(destructive).toEqual(['delete']);
+  it('marks nothing as destructive', () => {
+    /* Disconnecting loses nothing a reconnect does not get back; the one
+       action that does, deleting the record, is not offered here any more. */
+    for (const entry of [live('saved'), live('connected', 1)]) {
+      expect(sessionMenu(entry).some((item) => item.destructive)).toBe(false);
+    }
   });
 
   it('says every item in every language', () => {

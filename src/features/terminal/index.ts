@@ -11,6 +11,7 @@ export {
   gridCount,
   groupLabel,
   groupOf,
+  groupSyncState,
   inputTargets,
   moveEntry,
   placeEntry,

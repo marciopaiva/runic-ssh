@@ -18,8 +18,9 @@ interface SessionsSidebarProps {
   /** Which host is being dragged towards a rectangle, or `null` when none is. */
   readonly onDrag: (sessionId: string | null) => void;
   readonly onSelect: (sessionId: string) => void;
-  readonly onAdd: () => void;
-  /** Opens the row's menu at a point on screen. */
+  /** Opens the row's menu at a point on screen. Connect or disconnect only:
+   * creating, editing and deleting a host live in Home's Hosts section now
+   * (ADR-0029). */
   readonly onMenu: (sessionId: string, at: { readonly x: number; readonly y: number }) => void;
 }
 
@@ -36,7 +37,6 @@ export function SessionsSidebar({
   spared,
   onDrag,
   onSelect,
-  onAdd,
   onMenu,
 }: SessionsSidebarProps): JSX.Element {
   const i18n = useTranslator();
@@ -66,23 +66,6 @@ export function SessionsSidebar({
             {i18n.t('sessions.receiving', { count: String(receiving.size) })}
           </span>
         )}
-
-        <button
-          type="button"
-          onClick={onAdd}
-          aria-label={i18n.t('sessions.add')}
-          title={i18n.t('sessions.add')}
-          className="text-ink-muted hover:text-ink shrink-0"
-        >
-          <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" aria-hidden="true">
-            <path
-              d="M8 3.5v9M3.5 8h9"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-          </svg>
-        </button>
       </header>
 
       {sessions.length === 0 ? (

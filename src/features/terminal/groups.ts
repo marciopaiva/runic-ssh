@@ -364,6 +364,38 @@ export function inputTargets(
   return receiving;
 }
 
+/**
+ * What a group's strip should show for the switch at its trailing edge, or
+ * `null` when the strip should not show one at all.
+ *
+ * `shown` is this group's own active session, `null` when it is showing
+ * something else, a host form or settings. The switch used to stay visible
+ * and clickable in that case, because the strip disabled it only for `layout`
+ * and `filled`, which describe the window and not this rectangle. Pressing it
+ * from a group showing settings still armed a broadcast, which reached
+ * sessions in other groups entirely: a control with no session behind it,
+ * deciding where a keystroke typed somewhere else goes.
+ *
+ * `null` rather than a disabled `'unavailable'` for that case specifically:
+ * "which rectangles receive" (`SyncToggle`'s own docstring) is not a real
+ * question about a rectangle showing settings, the way it is a real, merely
+ * not-yet-actionable one for a lone session waiting on a second group to
+ * split into. The same distinction ADR-0020 draws for the rail's SFTP slot,
+ * held out entirely rather than drawn disabled until #127 gives it something
+ * to switch to.
+ */
+export function groupSyncState(
+  layout: Grid,
+  filled: number,
+  shown: string | null,
+  armed: boolean,
+  muted: ReadonlySet<string>,
+): 'unavailable' | 'on' | 'off' | null {
+  if (shown === null) return null;
+  if (layout === '1x1' || filled < 2) return 'unavailable';
+  return armed && !muted.has(shown) ? 'on' : 'off';
+}
+
 /** What a group's tab says it is. */
 export interface GroupLabel {
   readonly name: string;

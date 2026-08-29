@@ -2,9 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, JSX } from 'react';
 
 import { ActivityRail } from './components/ActivityRail';
+import type { Workspace } from './components/ActivityRail';
 import { CommandPalette } from './components/CommandPalette';
 import { ConnectingSurface } from './components/ConnectingSurface';
 import { EmptyPanel } from './components/EmptyPanel';
+import { HomeDashboard } from './components/HomeDashboard';
+import { HomeNav } from './components/HomeNav';
+import type { HomeSection } from './components/HomeNav';
+import { HostsSection } from './components/HostsSection';
 import { GroupMenu } from './components/GroupMenu';
 import { GroupStrip, entryTitle } from './components/GroupStrip';
 import type { GroupMenuItem } from './components/GroupMenu';
@@ -17,7 +22,6 @@ import { PasteConfirm } from './components/PasteConfirm';
 import { SessionMenu } from './components/SessionMenu';
 import { SessionEditorPanel } from './components/SessionEditorPanel';
 import { SessionsSidebar } from './components/SessionsSidebar';
-import { SettingsPanel } from './components/SettingsPanel';
 import { StatusBar } from './components/StatusBar';
 import { TerminalView } from './components/TerminalView';
 import { Titlebar } from './components/Titlebar';
@@ -42,6 +46,7 @@ import {
   editorDirty,
   editorKey,
   findEditor,
+  groupSessions,
   invalidFields,
   isInProgress,
   isOverridable,
@@ -90,6 +95,7 @@ import {
   gridCount,
   groupLabel,
   groupOf,
+  groupSyncState,
   inputTargets,
   mountedTerminals,
   moveEntry,
@@ -209,20 +215,35 @@ export function App(): JSX.Element {
   const { i18n, chosen, choose } = useLocale();
   const { theme, chooseTheme } = useTheme();
   const [selected, setSelected] = useState<string | null>(null);
+  /* Which main area is showing. ADR-0029: Sessions keeps groups, splitting and
+     the sync switch; Home holds the dashboard, the host editor and settings,
+     none of which are terminal-shaped, in a strip of their own with neither.
+     Home first: it is where a count of what is here and the way to add to it
+     both live, and a window that opens straight into a pool of hosts has
+     nowhere to point a user who has none yet. */
+  const [workspace, setWorkspace] = useState<Workspace>('home');
   /* Whether the session list is beside the rail. ADR-0020 rule 4: this closes
      and the rail does not, so the icon that closed it is the way back and the
      window has no state where the list is gone with nothing offering it. */
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  /* What the strip is pointing at. A union rather than a session id with a
-     reserved value for settings — see `features/chrome/focus.ts`. */
+  /* What the Sessions groups are pointing at. Only ever a `session` focus
+     since ADR-0029: the editor and settings moved to their own ring below,
+     `homeFocus`, once they stopped being tabs a group could hold. */
   const [focus, setFocus] = useState<Focus | null>(null);
+  /* What Home's own strip is pointing at: the host editor or settings, never
+     a session. Home has no groups to place an entry into, so this is the
+     whole of its focus model, unlike `focus` above. */
+  const [homeFocus, setHomeFocus] = useState<Focus | null>(null);
   /* `closeFocus` runs before the handlers below and has to read the current
      forms. A ref rather than reordering the component: the handlers depend on
      `save` and `remove`, which depend on `reload`, and hoisting all of it to
      satisfy one call would be the worse trade. */
   const editorsRef = useRef<readonly OpenEditor[]>([]);
   const savedRef = useRef<readonly Session[]>([]);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  /* Which section of Home is showing. Settings has no draft and nothing to
+     discard, unlike a host form, so it needs no more state than this: it is
+     not open or closed, only the section or not the section. */
+  const [homeSection, setHomeSection] = useState<HomeSection>('dashboard');
   /* Every host form that is open, in the order they were opened. One per host
      rather than one slot: the unsaved question then belongs to a host and not
      to a shared form, which is the shape #96 recorded and parked. The strip
@@ -336,10 +357,11 @@ export function App(): JSX.Element {
      clicked. Resolving on render is what keeps the active tab pointing at
      something that is still there. */
   const editing = useMemo(() => editors.map((editor) => editor.target), [editors]);
-  const entries = useMemo(
-    () => stripEntries(tabs, editing, settingsOpen),
-    [tabs, editing, settingsOpen],
-  );
+  /* Sessions only, since ADR-0029: the editor and settings tabs used to ride
+     in this same list, which is how they ended up inside a group and picked
+     up chrome (the sync switch, the shape control) that made no sense for
+     them. `homeEntries` below is their own list now. */
+  const entries = useMemo(() => stripEntries(tabs, [], false), [tabs]);
   const resolvedFocus = resolveFocus(entries, focus);
   const activeId = focusedSession(resolvedFocus);
   const activeTab = tabs.find((tab) => tab.sessionId === activeId) ?? null;
@@ -347,14 +369,23 @@ export function App(): JSX.Element {
   const stats = useSessionStats(activeHandle);
   /* One terminal per open session, kept mounted across tab switches. */
   const mounted = useMemo(() => mountedTerminals(tabs), [tabs]);
-  /* Everything on the strip goes in a group, not only the sessions: a host
-     form and the settings page are tabs like any other, so a question about
-     one host can sit in one rectangle while the terminals around it stay
-     readable. That is ADR-0020 rule 3, and `Focus` already said it. */
+  /* Every open session goes in a group; nothing else does any more (ADR-0029).
+     That is what makes rule 3 of ADR-0020 true within the Sessions workspace
+     rather than across the whole window: a group's active tab is always a
+     session, so there is no longer a rectangle to ask "is this really one" of. */
   const groups = useMemo(
     () => resolveGroups(layout, held, entries, resolvedFocus),
     [layout, held, entries, resolvedFocus],
   );
+  /* Home's own ring: the host editor and settings, never a session, and never
+     placed in a group. Home has exactly one rectangle, so there is nothing
+     here shaped like `held` or `boxOf`: whichever of these is focused is what
+     Home shows, full size. */
+  /* Editors only, since the Hosts/Settings split (ADR-0029's own follow-up):
+     settings is a section of Home, chosen from `HomeNav`, not a tab that can
+     be open or closed, so it is never one of these entries. */
+  const homeEntries = useMemo(() => stripEntries([], editing, false), [editing]);
+  const resolvedHomeFocus = resolveFocus(homeEntries, homeFocus);
   const focusedGroup = groupOf(groups, resolvedFocus);
   const filled = groups.filter((group) => group.entries.length > 0).length;
   const receiving = useMemo(() => receivingSessions(groups, muted), [groups, muted]);
@@ -425,6 +456,11 @@ export function App(): JSX.Element {
            itself, so one place saying "this is the one you are looking at"
            costs nothing and stops the two disagreeing. */
         setSelected(sessionId);
+        /* Focusing a session is always about Sessions, wherever it was asked
+           from. The palette can activate a tab while Home is showing, and the
+           window would otherwise say a session has the keyboard while
+           drawing something else entirely. */
+        setWorkspace('sessions');
       }
 
       setFocus(next);
@@ -495,7 +531,8 @@ export function App(): JSX.Element {
   /* Taking a tab off the strip also takes it out of the group that held it.
      Without this the group remembers a tab nobody can see, and reopening the
      same host form puts it back in a rectangle nobody chose rather than in the
-     one being worked in. */
+     one being worked in. Sessions only, since ADR-0029: nothing else is ever
+     placed in a group any more. */
   const forget = useCallback(
     (target: Focus): void => {
       setHeld((current) => removeEntry(current, target));
@@ -504,37 +541,14 @@ export function App(): JSX.Element {
     [entries],
   );
 
-  /* Closing any tab, whichever kind it is. One handler because the strip is
-     one ring: a group should not have to know that a session disconnects, an
-     editor may have unsaved work, and settings just goes away. */
+  /* Closing a session's tab. The X and the row menu's disconnect both land
+     here. An editor form leaves its draft through `cancelEditing` below, and
+     settings has no such question at all: both were folded into this one
+     function before ADR-0029, back when all three shared a ring and a group
+     could hold any of them. */
   const closeFocus = useCallback(
-    (target: Focus): void => {
-      if (target.kind === 'editor') {
-        const open = findEditor(editorsRef.current, target.target);
-        if (open === null) return;
-
-        /* Unsaved work is answered for on the tab it is on. With a form per
-           host, the question is finally about the host you are closing rather
-           than about whichever form the one slot happened to hold. */
-        if (editorDirty(open)) {
-          setEditors((current) =>
-            updateEditor(current, target.target, (editor) => ({ ...editor, discarding: true })),
-          );
-          setFocus(target);
-          return;
-        }
-
-        forget(target);
-        setEditors((current) => withoutEditor(current, target.target));
-        return;
-      }
-
+    (target: { readonly kind: 'session'; readonly sessionId: string }): void => {
       forget(target);
-
-      if (target.kind === 'settings') {
-        setSettingsOpen(false);
-        return;
-      }
 
       /* The part that was missing entirely. This moved the focus and stopped,
          so the X on a tab disconnected nothing, and the tab did not even go
@@ -547,7 +561,47 @@ export function App(): JSX.Element {
     [forget, attentionId, abandon, disconnect],
   );
 
-  /* Sending a tab to another rectangle by name.
+  /* Closing an editor or settings tab in Home. No group to take it out of and
+     no session to disconnect: unsaved work is the only thing this has to ask
+     about, the same rule `closeFocus` used to carry for the editor case. */
+  /* Taking a tab off Home's strip, the `forget` of that ring: nothing here
+     is ever in a group, so there is nothing to remove an entry from, only the
+     focus to resolve past what is closing. */
+  const forgetHome = useCallback(
+    (target: Focus): void => {
+      setHomeFocus(focusAfterClosing(homeEntries, target));
+    },
+    [homeEntries],
+  );
+
+  /* The form's own Cancel button. No tab to close since ADR-0029's follow-up
+     put Hosts behind a list rather than a strip, so this is reached from
+     inside the form instead of from an X beside its name. */
+  const cancelEditing = useCallback(
+    (target: EditorTarget): void => {
+      const focus: Focus = { kind: 'editor', target };
+      const open = findEditor(editorsRef.current, target);
+      if (open === null) return;
+
+      /* Unsaved work is answered for on the form it is on. With one draft per
+         host, the question is about the host being backed out of rather than
+         about whichever form a shared slot happened to hold. */
+      if (editorDirty(open)) {
+        setEditors((current) =>
+          updateEditor(current, target, (editor) => ({ ...editor, discarding: true })),
+        );
+        setHomeFocus(focus);
+        return;
+      }
+
+      setEditors((current) => withoutEditor(current, target));
+      forgetHome(focus);
+    },
+    [forgetHome],
+  );
+
+  /* Sending a tab to another rectangle by name. Sessions only: Home has one
+     rectangle and nowhere else to send a tab to.
      Not `focusOn`, which asks `placeEntry`, which deliberately refuses to move
      anything a group already holds. This is the case that rule was protecting
      against guessing at, so it says so out loud. */
@@ -559,55 +613,27 @@ export function App(): JSX.Element {
     if (sessionId !== null) setSelected(sessionId);
   }, []);
 
-  /* Closing every tab in one group.
+  /* Closing every tab in one group. Sessions only, since ADR-0029: a group
+     holds nothing but sessions any more, so there is no unsaved editor to ask
+     about here, unlike before that decision.
      Not a loop over `closeFocus`. That one reads `entries` from this render to
      decide what takes the focus next, so four calls in a row would each answer
      from the same stale list and the last one would win, possibly landing the
-     focus on a tab it had just closed.
-
-     Unsaved work is never thrown out in bulk either. A form holding changes
-     stays where it is and asks, and everything else closes around it. */
+     focus on a tab it had just closed. */
   const closeGroup = useCallback(
     (at: number): void => {
       const group = groups[at];
       if (group === undefined) return;
 
-      const asking = group.entries.filter((entry) => {
-        if (entry.kind !== 'editor') return false;
-        const open = findEditor(editorsRef.current, entry.target);
-        return open !== null && editorDirty(open);
-      });
-      const going = group.entries.filter(
-        (entry) => !asking.some((held_) => sameFocus(held_, entry)),
-      );
+      setHeld((current) => group.entries.reduce((acc, entry) => removeEntry(acc, entry), current));
 
-      for (const entry of asking) {
-        if (entry.kind !== 'editor') continue;
-        setEditors((current) =>
-          updateEditor(current, entry.target, (editor) => ({ ...editor, discarding: true })),
-        );
-      }
-
-      setHeld((current) => going.reduce((acc, entry) => removeEntry(acc, entry), current));
-
-      /* The question, if one is being asked, so it is on screen when it is
-         asked. Otherwise whatever is left anywhere. */
       const survivors = entries.filter(
-        (entry) => !going.some((held_) => sameFocus(held_, entry)),
+        (entry) => !group.entries.some((held_) => sameFocus(held_, entry)),
       );
-      setFocus(asking[0] ?? survivors[0] ?? null);
+      setFocus(survivors[0] ?? null);
 
-      for (const entry of going) {
-        if (entry.kind === 'settings') {
-          setSettingsOpen(false);
-          continue;
-        }
-
-        if (entry.kind === 'editor') {
-          setEditors((current) => withoutEditor(current, entry.target));
-          continue;
-        }
-
+      for (const entry of group.entries) {
+        if (entry.kind !== 'session') continue;
         if (attentionId === entry.sessionId) abandon();
         disconnect(entry.sessionId);
       }
@@ -646,13 +672,14 @@ export function App(): JSX.Element {
     [sessions, attempt, connect],
   );
 
-  /* The gear on the rail, and the palette. Both land here so the tab is opened
-     and placed in one move; ADR-0020 keeps it an action rather than a view, so
-     it takes no marker on the rail and leaves the sidebar alone. */
+  /* The palette's "open settings" lands here. Appearance is a card on Home's
+     dashboard now rather than its own section, so opening it means going to
+     Home and showing that section, the same place the gear used to point at
+     before ADR-0029 and the maintainer's own follow-up to it. */
   const openSettings = useCallback((): void => {
-    setSettingsOpen(true);
-    focusOn({ kind: 'settings' });
-  }, [focusOn]);
+    setHomeSection('dashboard');
+    setWorkspace('home');
+  }, []);
 
   /* Shown in the main area rather than as a toast: the user just clicked the
      session and is looking at exactly this space, and a message that
@@ -672,6 +699,9 @@ export function App(): JSX.Element {
   const activate = useCallback(
     (sessionId: string): void => {
       setSelected(sessionId);
+      /* Connecting or switching to a session is always about Sessions, even
+         when it was asked for from the palette while Home was showing. */
+      setWorkspace('sessions');
 
       const live = sessions.find((entry) => entry.session.id === sessionId);
       if (live === undefined) return;
@@ -938,7 +968,7 @@ export function App(): JSX.Element {
            Editing a host that already existed leaves the tab open, because
            there the name on it stays true. */
         if (target.kind === 'new') {
-          forget({ kind: 'editor', target });
+          forgetHome({ kind: 'editor', target });
           setEditors((current) => withoutEditor(current, target));
           return;
         }
@@ -951,7 +981,7 @@ export function App(): JSX.Element {
         failIn(target, 'save', rejection);
       });
     },
-    [saved, save, forget, clearFailure, failIn],
+    [saved, save, forgetHome, clearFailure, failIn],
   );
 
   /* Save, then collect a password on the connection that proves it works.
@@ -968,6 +998,7 @@ export function App(): JSX.Element {
            one screen that must never be answered without being read was the
            screen behind the one on top. */
         setFocus({ kind: 'session', sessionId: stored.id });
+        setWorkspace('sessions');
         void connect(stored.id, 'credential');
       });
     },
@@ -984,12 +1015,12 @@ export function App(): JSX.Element {
          say so and a host still in the sidebar that looked deleted. */
       void remove(target.sessionId)
         .then(() => {
-          forget({ kind: 'editor', target });
+          forgetHome({ kind: 'editor', target });
           setEditors((current) => withoutEditor(current, target));
         })
         .catch((rejection: unknown) => failIn(target, 'delete', rejection));
     },
-    [remove, forget, clearFailure, failIn],
+    [remove, forgetHome, clearFailure, failIn],
   );
 
   const discardIn = useCallback(
@@ -1001,23 +1032,22 @@ export function App(): JSX.Element {
         return;
       }
 
-      forget({ kind: 'editor', target });
       setEditors((current) => withoutEditor(current, target));
+      setHomeFocus(focusAfterClosing(homeEntries, { kind: 'editor', target }));
     },
-    [forget],
+    [homeEntries],
   );
 
-  /* Opening the form is what puts its tab in a group: the sidebar's `+` and
-     the row menu's Edit both land here rather than each knowing about tabs.
-     Through `focusOn`, so the form appears in the rectangle being worked in
-     and not in whichever one the resolver would have picked. */
-  const openEditor = useCallback(
-    (target: EditorTarget): void => {
-      setEditors((current) => withEditor(current, target, savedRef.current));
-      focusOn({ kind: 'editor', target });
-    },
-    [focusOn],
-  );
+  /* Opening the form switches to Home and puts its tab on that workspace's
+     strip: the sidebar's `+` and the row menu's Edit both land here rather
+     than each knowing about tabs. A host form has lived in Home rather than a
+     Sessions group since ADR-0029. */
+  const openEditor = useCallback((target: EditorTarget): void => {
+    setEditors((current) => withEditor(current, target, savedRef.current));
+    setHomeFocus({ kind: 'editor', target });
+    setWorkspace('home');
+    setHomeSection('hosts');
+  }, []);
 
   const chooseFromMenu = useCallback(
     (action: SessionAction): void => {
@@ -1032,15 +1062,9 @@ export function App(): JSX.Element {
         case 'disconnect':
           disconnect(open.sessionId);
           return;
-        case 'edit':
-          openEditor({ kind: 'existing', sessionId: open.sessionId });
-          return;
-        case 'delete':
-          remove(open.sessionId);
-          return;
       }
     },
-    [menu, activate, disconnect, openEditor, remove],
+    [menu, activate, disconnect],
   );
 
   const context = useMemo<CommandContext>(
@@ -1084,7 +1108,7 @@ export function App(): JSX.Element {
         openSettings,
       },
     }),
-    [i18n, sessions, tabs, activeId, chosen, maximized, nativeDecorations, act, choose, closeFocus, activate, useNativeDecorations, openSettings, settingsOpen, resolvedFocus, focusOn, entries, chooseLayout, layout, sync, filled, muted, armed, receiving, groups, focusedGroup, editorTabs, moveTo, closeGroup],
+    [i18n, sessions, tabs, activeId, chosen, maximized, nativeDecorations, act, choose, closeFocus, activate, useNativeDecorations, openSettings, resolvedFocus, focusOn, entries, chooseLayout, layout, sync, filled, muted, armed, receiving, groups, focusedGroup, editorTabs, moveTo, closeGroup],
   );
 
   const sources = useMemo(
@@ -1099,6 +1123,14 @@ export function App(): JSX.Element {
      the kind of thing that reads as fine and is not. */
   const paneLabels = useMemo(
     () => new Map(sessions.map((live) => [live.session.id, groupLabel(live.session)])),
+    [sessions],
+  );
+
+  /* Home's dashboard counts. A named group only, not the ungrouped bucket
+     `groupSessions` returns for hosts with none: that bucket is not a group
+     anybody made. */
+  const namedGroupCount = useMemo(
+    () => groupSessions(sessions).filter((group) => group.name !== null).length,
     [sessions],
   );
 
@@ -1193,20 +1225,27 @@ export function App(): JSX.Element {
         leadingInset={chrome?.leadingInset ?? 0}
         layout={layout}
         onLayout={chooseLayout}
+        canSplit={tabs.length > 0}
+        showShapeControl={workspace === 'sessions'}
         onAct={act}
       />
 
       <div className="flex min-h-0 flex-1">
         <ActivityRail
+          workspace={workspace}
           sidebarOpen={sidebarOpen}
           armed={armed}
           openCount={tabs.length}
-          settingsOpen={settingsOpen}
-          onToggleSidebar={() => setSidebarOpen((open) => !open)}
-          onOpenSettings={openSettings}
+          onChoose={(next) => {
+            if (next === workspace && next === 'sessions') {
+              setSidebarOpen((open) => !open);
+              return;
+            }
+            setWorkspace(next);
+          }}
         />
 
-        {sidebarOpen && (
+        {workspace === 'sessions' && sidebarOpen && (
           <SessionsSidebar
             sessions={shown}
             selectedId={selected}
@@ -1217,16 +1256,17 @@ export function App(): JSX.Element {
               if (sessionId === null) setDropOver(null);
             }}
             onSelect={activate}
-            onAdd={() => openEditor({ kind: 'new' })}
             onMenu={(sessionId, at) => setMenu({ sessionId, at })}
           />
         )}
 
-        {/* `relative` is what every group and every surface is positioned
-            against. Surfaces are stacked rather than swapped: one per session
-            and one per open form, only the ones a group is showing visible, so
-            switching tabs neither destroys an xterm nor loses a half-typed
-            host. ADR-0014. */}
+        {workspace === 'sessions' && (
+        /* `relative` is what every group and every surface is positioned
+            against. Surfaces are stacked rather than swapped, one per
+            session, only the ones a group is showing visible, so switching
+            tabs never destroys an xterm. ADR-0014. Sessions only, since
+            ADR-0029: the host editor and settings draw in Home's own main
+            below. */
         <main
           /* `overflow-hidden` is not tidying. xterm sizes its screen to a whole
              number of rows, and the remainder — up to one cell height — is
@@ -1288,16 +1328,10 @@ export function App(): JSX.Element {
                       ? i18n.t('tabs.label')
                       : i18n.t('group.tabs', { number: String(at + 1) })
                   }
-                  /* Refusing on an undivided window and on one where arming
-                     would reach nowhere: a broadcast to a single rectangle
-                     sends exactly where an ordinary keystroke goes. */
-                  sync={
-                    layout === '1x1' || filled < 2
-                      ? 'unavailable'
-                      : sync && shown !== null && !muted.has(shown)
-                        ? 'on'
-                        : 'off'
-                  }
+                  /* Refusing on an undivided window, one where arming would
+                     reach nowhere, and a group not showing a session at all:
+                     a host form or settings has nothing here to arm. */
+                  sync={groupSyncState(layout, filled, shown, sync, muted)}
                   onToggleSync={() => {
                     /* The first press arms, and arming has always started with
                        every rectangle receiving. Pressing one while armed
@@ -1318,10 +1352,13 @@ export function App(): JSX.Element {
                     });
                   }}
                   onFocus={focusOn}
-                  /* One handler for every strip. Closing an editor goes through
-                     the hook, because that is one of the ways unsaved work gets
-                     thrown out. */
-                  onClose={closeFocus}
+                  /* A group holds only sessions since ADR-0029, but the prop is
+                     still typed for the general `Focus` `GroupStrip` also draws
+                     for Home; the guard documents the invariant rather than
+                     trusting it silently. */
+                  onClose={(entry) => {
+                    if (entry.kind === 'session') closeFocus(entry);
+                  }}
                   onMenu={(entry, point) =>
                     setGroupMenu({ group: at, entry, at: point })
                   }
@@ -1380,89 +1417,6 @@ export function App(): JSX.Element {
               />
             );
           })}
-
-          {editors.map((open) => {
-            const mine: Focus = { kind: 'editor', target: open.target };
-            const box = boxOf(mine);
-            const editingId = open.target.kind === 'existing' ? open.target.sessionId : null;
-            const jump = jumpHostChoice(saved, editingId, open.values.proxyJump);
-
-            return (
-              /* One panel per open form, all mounted, only the ones a group is
-                 showing visible, the same trick the terminals use. A
-                 half-typed host survives a glance at a session and is still
-                 there on the way back, and now so does the *other* half-typed
-                 host. */
-              <div
-                key={editorKey(open.target)}
-                id={panelElementId(mine)}
-                role="tabpanel"
-                aria-labelledby={tabElementId(mine)}
-                className={`absolute overflow-y-auto ${
-                  box === null ? 'invisible pointer-events-none' : ''
-                }`}
-                style={bodyStyle(box ?? WHOLE_AREA)}
-                aria-hidden={box === null ? true : undefined}
-              >
-                <SessionEditorPanel
-                  title={
-                    editorTabs.find((candidate) => sameFocus({ kind: 'editor', target: candidate.target }, mine))
-                      ?.title ?? ''
-                  }
-                  isNew={open.target.kind === 'new'}
-                  values={open.values}
-                  wrong={open.wrong}
-                  discarding={open.discarding}
-                  failure={editorFailed.get(editorKey(open.target)) ?? null}
-                  jumpHosts={jump.offered}
-                  carried={jump.carried}
-                  storedCredential={(() => {
-                    const session = targetSession(open.target, saved);
-                    return session !== null && hasStoredCredential(session);
-                  })()}
-                  onForget={editingId === null ? null : () => forgetPassword(open.target)}
-                  onDismissFailure={() => clearFailure(open.target)}
-                  onChange={(field, value) => changeIn(open.target, field, value)}
-                  onSubmit={() => submitIn(open.target)}
-                  onSavePassword={() => savePasswordIn(open.target)}
-                  onDelete={() => removeIn(open.target)}
-                  onConfirmDiscard={() => discardIn(open.target, true)}
-                  onCancelDiscard={() => discardIn(open.target, false)}
-                />
-              </div>
-            );
-          })}
-
-          {settingsOpen &&
-            (() => {
-              const mine: Focus = { kind: 'settings' };
-              const box = boxOf(mine);
-
-              return (
-                /* Mounted for as long as the tab is on a strip, and hidden the
-                   same way the terminals are, so the section you were reading
-                   is still the section you come back to. */
-                <div
-                  id={panelElementId(mine)}
-                  role="tabpanel"
-                  aria-labelledby={tabElementId(mine)}
-                  className={`absolute overflow-y-auto ${
-                    box === null ? 'invisible pointer-events-none' : ''
-                  }`}
-                  style={bodyStyle(box ?? WHOLE_AREA)}
-                  aria-hidden={box === null ? true : undefined}
-                >
-                  <SettingsPanel
-                    chosenLocale={chosen}
-                    onChooseLocale={(locale) => void choose(locale)}
-                    nativeDecorations={nativeDecorations}
-                    theme={theme}
-                    onChooseTheme={(next) => void chooseTheme(next)}
-                    onUseNativeDecorations={useNativeDecorations}
-                  />
-                </div>
-              );
-            })()}
 
           {/* A paste waiting on an answer, in the group of the session that
               asked. Ahead of the attempt surface in document order because a
@@ -1532,6 +1486,84 @@ export function App(): JSX.Element {
             </div>
           )}
         </main>
+        )}
+
+        {workspace === 'home' && (
+        /* One rectangle, always: nothing here is a session, so there is
+           nothing to split and no `boxOf` to ask. ADR-0029. */
+        <main className="bg-surface-base relative flex min-w-0 flex-1 flex-col overflow-hidden">
+          <HomeNav section={homeSection} onChoose={setHomeSection} />
+
+          <div className="min-h-0 flex-1 overflow-hidden">
+            {homeSection === 'dashboard' && (
+              <HomeDashboard
+                hostCount={sessions.length}
+                groupCount={namedGroupCount}
+                onAddHost={() => openEditor({ kind: 'new' })}
+                onOpenHosts={() => setHomeSection('hosts')}
+                theme={theme}
+                onChooseTheme={(next) => void chooseTheme(next)}
+                chosenLocale={chosen}
+                onChooseLocale={(locale) => void choose(locale)}
+              />
+            )}
+
+            {homeSection === 'hosts' &&
+              (() => {
+                const target =
+                  resolvedHomeFocus?.kind === 'editor' ? resolvedHomeFocus.target : null;
+                const open = target === null ? null : findEditor(editors, target);
+                const editingId = target?.kind === 'existing' ? target.sessionId : null;
+                const jump =
+                  open === null ? null : jumpHostChoice(saved, editingId, open.values.proxyJump);
+
+                return (
+                  <HostsSection
+                    sessions={sessions}
+                    selectedId={editingId}
+                    creatingNew={target?.kind === 'new'}
+                    onSelect={(sessionId) => openEditor({ kind: 'existing', sessionId })}
+                    onNew={() => openEditor({ kind: 'new' })}
+                    detail={
+                      open === null || target === null || jump === null ? null : (
+                        <SessionEditorPanel
+                          title={
+                            editorTabs.find((candidate) =>
+                              sameFocus({ kind: 'editor', target: candidate.target }, {
+                                kind: 'editor',
+                                target,
+                              }),
+                            )?.title ?? ''
+                          }
+                          isNew={target.kind === 'new'}
+                          values={open.values}
+                          wrong={open.wrong}
+                          discarding={open.discarding}
+                          failure={editorFailed.get(editorKey(target)) ?? null}
+                          jumpHosts={jump.offered}
+                          carried={jump.carried}
+                          storedCredential={(() => {
+                            const session = targetSession(target, saved);
+                            return session !== null && hasStoredCredential(session);
+                          })()}
+                          onForget={editingId === null ? null : () => forgetPassword(target)}
+                          onDismissFailure={() => clearFailure(target)}
+                          onChange={(field, value) => changeIn(target, field, value)}
+                          onSubmit={() => submitIn(target)}
+                          onSavePassword={() => savePasswordIn(target)}
+                          onDelete={() => removeIn(target)}
+                          onCancel={() => cancelEditing(target)}
+                          onConfirmDiscard={() => discardIn(target, true)}
+                          onCancelDiscard={() => discardIn(target, false)}
+                        />
+                      )
+                    }
+                  />
+                );
+              })()}
+          </div>
+        </main>
+        )}
       </div>
 
       {refused !== null && (

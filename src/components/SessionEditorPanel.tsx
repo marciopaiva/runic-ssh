@@ -37,6 +37,7 @@ interface SessionEditorPanelProps {
   readonly onSavePassword: () => void;
   readonly onSubmit: () => void;
   readonly onDelete: () => void;
+  readonly onCancel: () => void;
   readonly onConfirmDiscard: () => void;
   readonly onCancelDiscard: () => void;
 }
@@ -72,6 +73,7 @@ export function SessionEditorPanel({
   onSavePassword,
   onSubmit,
   onDelete,
+  onCancel,
   onConfirmDiscard,
   onCancelDiscard,
   onDismissFailure,
@@ -156,6 +158,7 @@ export function SessionEditorPanel({
         /* No delete on a host that was never saved: there is nothing to
            delete, and the button would be asking about the form itself. */
         onDelete={isNew ? null : onDelete}
+        onCancel={onCancel}
       />
     </div>
   );
