@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url';
 
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 import { benchmarkCollector } from './vite-benchmark-plugin';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
@@ -43,5 +43,11 @@ export default defineConfig({
     // A release build ships no source map: it would hand anyone who opens the
     // bundle a readable map of the IPC surface.
     sourcemap: false,
+  },
+  test: {
+    // Pays the cold-start cost of a non-English `Intl` formatter once, before
+    // any test's timeout starts counting, rather than charging it to whichever
+    // test happens to construct one first (#186).
+    setupFiles: ['./tests/setup/warm-intl.ts'],
   },
 });
