@@ -397,6 +397,9 @@ decision that lives only there is already lost.
 | `/tauri-cmd` | Adding an IPC command end to end, Rust through to typed wrapper. |
 | `/adr` | Recording an architectural decision under `docs/adr/`. |
 | `/release` | Cutting a version: the sweep before the tag, and driving what the tag produced. |
+| `/tdd` | Writing code with an observable behavior: a failing test first, then the minimum that passes it. Phase 4's usual tool. |
+| `/diagnosing-bugs` | A bug whose cause is not yet known: reproduce, minimize, hypothesize, instrument, fix, test. Phase 1's tool when the request names a symptom. |
+| `/handoff` | Work that stops before Phase 5, mid-task or blocked. Writes the state into the repository record for a session with no memory of this one. |
 
 Skills live in `.claude/skills/`. Extend them when a workflow repeats often
 enough to be worth encoding.
