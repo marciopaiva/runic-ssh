@@ -11,6 +11,13 @@ sentence nobody checks.
 
 The change being built is described in `$ARGUMENTS`.
 
+## Language
+
+Code, tests, and comments follow CLAUDE.md section 1: English, always,
+regardless of what language this conversation is in. Whatever is said about
+the loop while it runs, what is red, what made it green, what changed in
+refactor, follows the maintainer's own language instead.
+
 ## Why the order matters
 
 A test written after the code passes on the first run, which proves nothing:

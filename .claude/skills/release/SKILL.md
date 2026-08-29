@@ -13,6 +13,14 @@ an earlier release claimed, a minor opens ground the roadmap named. Read that
 first and say plainly which one this is and why. If neither fits, that is a
 question for the maintainer, not a coin toss.
 
+## Language
+
+`CHANGELOG.md`, `README.md`, the other docs in the sweep below, and the tag's
+own annotation are repository content: English, per CLAUDE.md section 1,
+regardless of what language this conversation is in. The sweep table, the
+reporting, and anything else said to the maintainer along the way follow
+whatever language they are using instead.
+
 ---
 
 ## Phase 1: the sweep

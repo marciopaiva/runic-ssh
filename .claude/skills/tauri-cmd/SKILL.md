@@ -12,6 +12,13 @@ to review all of them.
 
 The command being added is described in `$ARGUMENTS`.
 
+## Language
+
+Everything under Steps below, code, comments, error messages that cross the
+boundary, is English: it lands in the tree, and CLAUDE.md section 1 already
+covers it. The checklist and any narrative report to the maintainer follow
+whatever language they are using in this conversation instead.
+
 ## Rules that are not negotiable
 
 * The handler is **thin**. Validate, delegate, map the error. Logic lives in
