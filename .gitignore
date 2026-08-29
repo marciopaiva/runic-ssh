@@ -1,43 +1,57 @@
-# Rust
-/src-tauri/target/
-/src-tauri/gen/
-**/*.rs.bk
-
-# Node
-node_modules/
+```
+# Build artifacts
 dist/
-dist-ssr/
-.vite/
-*.tsbuildinfo
+src-tauri/target/
 
-# Tauri build output
-/src-tauri/WixTools/
-/src-tauri/.cargo/*
-# The audit ignore list is reviewed source, not build output.
-!/src-tauri/.cargo/audit.toml
+# Dependencies
+node_modules/
+package-lock.json
 
-# Environment and secrets
+# Logs and temp files
+*.log
+*.tmp
+
+# Environment
 .env
-.env.*
-!.env.example
-*.pem
-*.key
-!assets/**/*.key
+.env.local
+*.env.*
 
-# Editors and OS
-.vscode/*
-!.vscode/extensions.json
+# Editors
+.vscode/
 .idea/
+
+# OS generated files
 .DS_Store
 Thumbs.db
 
-# Logs
-*.log
-npm-debug.log*
-pnpm-debug.log*
+# Rust build artifacts
+**/*.rs.bk
+**/*.rmeta
+**/*.d
+**/target/**
 
-# Claude Code local overrides (personal, never committed)
-.claude/settings.local.json
+# Compressed files
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
 
-# Design canvas build output (2 MB generated payload; rebuild from the .dc.html sources)
-/design/canvas/runic-ssh-interface.html
+```
