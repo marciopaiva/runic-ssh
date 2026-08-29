@@ -208,26 +208,39 @@ export async function measurePaced(
   const frames = watchFrames();
   const started = performance.now();
   let written = 0;
+  let gaps: FrameGaps;
 
-  await new Promise<void>((resolve) => {
-    const pump = setInterval(() => {
-      if (performance.now() - started >= seconds * 1000) {
-        clearInterval(pump);
-        resolve();
-        return;
-      }
-      for (const terminal of opened) {
-        terminal.write(chunk);
-        written += BATCH_BYTES;
-      }
-    }, 16);
-  });
+  /* The pump used to clear itself only on the branch that checks elapsed
+     time. A `terminal.write` that throws mid-run never reaches that branch,
+     so nothing cleared the interval or disposed the terminals it had opened:
+     the timer went on firing every 16 ms, throwing again on the same
+     terminals, and this function's promise never settled to say so (#208). */
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const pump = setInterval(() => {
+        try {
+          if (performance.now() - started >= seconds * 1000) {
+            clearInterval(pump);
+            resolve();
+            return;
+          }
+          for (const terminal of opened) {
+            terminal.write(chunk);
+            written += BATCH_BYTES;
+          }
+        } catch (error) {
+          clearInterval(pump);
+          reject(error instanceof Error ? error : new Error(String(error)));
+        }
+      }, 16);
+    });
+  } finally {
+    gaps = frames.stop();
+    for (const terminal of opened) terminal.dispose();
+    host.replaceChildren();
+  }
 
   const milliseconds = performance.now() - started;
-  const gaps = frames.stop();
-  for (const terminal of opened) terminal.dispose();
-  host.replaceChildren();
-
   const perSecond = (bytes: number): number =>
     Number((bytes / 1024 / 1024 / (milliseconds / 1000)).toFixed(1));
 
