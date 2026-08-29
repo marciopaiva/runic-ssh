@@ -514,3 +514,131 @@ fn a_secret_says_nothing_about_its_length() {
 
     assert_eq!(short, long);
 }
+
+#[test]
+fn no_field_named_like_a_secret_escapes_the_secret_type() {
+    /* The tests in `mod is`, above, catch a type nobody wrapped, once
+    somebody lists it in `serializes!` or `displays!`. This catches the type
+    nobody listed: a field whose name reads as secret material but whose
+    declared type does not mention `Secret` at all. It is a lint over the
+    source, in the same spirit as `the_ssh_layer_never_reaches_for_the_filesystem`
+    above, and it shares that test's honesty about what it cannot see: a type
+    built up across two lines, or a type alias hiding `String` behind another
+    name, gets past it. What it does catch is #177's ordinary case, a field
+    written as `token: String`.
+
+    Scoped to `src/`, not `tests/`: `tests/ssh_connection.rs` has fixture
+    structs with fields like `password: &'static str`, which are literal test
+    credentials rather than anything the application itself renders. */
+    let src = std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/src"));
+    let markers = ["password", "secret", "passphrase", "pem", "token"];
+
+    /* `vault::mod::Wire` is the one deliberate exception: ADR-0026 names it
+    "the one place in the tree secret material is named to serde". Its
+    fields borrow through `Secret::expose` into a bare `&str` rather than
+    holding one, which is why they read as a violation here and are exempted
+    by name instead of by the pattern happening to miss them. */
+    let exempt = |enclosing: &str| enclosing == "Wire";
+
+    let mut violations = Vec::new();
+    for path in rust_files(&src) {
+        let source = std::fs::read_to_string(&path).expect("readable source");
+        let mut enclosing = String::new();
+
+        for line in source.lines() {
+            let trimmed = line.trim_start();
+            let after_vis = trimmed
+                .strip_prefix("pub(crate) ")
+                .or_else(|| trimmed.strip_prefix("pub "))
+                .unwrap_or(trimmed);
+
+            if let Some(name) = after_vis
+                .strip_prefix("struct ")
+                .or_else(|| after_vis.strip_prefix("enum "))
+            {
+                enclosing = name
+                    .split(|c: char| !c.is_alphanumeric() && c != '_')
+                    .find(|part| !part.is_empty())
+                    .unwrap_or("")
+                    .to_owned();
+                continue;
+            }
+
+            let Some(colon) = after_vis.find(':') else {
+                continue;
+            };
+            let field = after_vis[..colon].trim();
+            let is_field = !field.is_empty()
+                && field
+                    .chars()
+                    .next()
+                    .is_some_and(|c| c == '_' || c.is_ascii_lowercase())
+                && field.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+            if !is_field || !markers.iter().any(|marker| field.contains(marker)) {
+                continue;
+            }
+
+            let ty = after_vis[colon + 1..].trim().trim_end_matches(',');
+            if !looks_like_a_type(ty) || ty.contains("Secret") || exempt(&enclosing) {
+                continue;
+            }
+            violations.push(format!("{}: `{field}: {ty}`", path.display()));
+        }
+    }
+
+    assert!(
+        violations.is_empty(),
+        "a field named like a secret is not typed as one; wrap it in `Secret`:\n{}",
+        violations.join("\n")
+    );
+}
+
+/// Tells a type from a value with the same `name: X` shape.
+///
+/// A struct literal (`Wire::Password { secret: secret.expose() }`) and a
+/// `match` pattern (`Credential::PrivateKey { passphrase: Some(_), .. }`) read
+/// exactly like a field declaration to a scanner that only looks at one line.
+/// What tells them apart is what `X` looks like: a type starts with an
+/// uppercase identifier or a primitive keyword, optionally behind a reference
+/// and a lifetime; `Some(..)`, `None`, `Ok(..)`, `Err(..)` and a bare
+/// lowercase identifier are a pattern or a value instead.
+fn looks_like_a_type(ty: &str) -> bool {
+    if ty.starts_with("Some(") || ty == "None" || ty.starts_with("Ok(") || ty.starts_with("Err(") {
+        return false;
+    }
+
+    let mut rest = ty.strip_prefix('&').unwrap_or(ty);
+    if rest.starts_with('\'') {
+        rest = rest.split_whitespace().nth(1).unwrap_or("");
+    }
+    let ident: String = rest
+        .chars()
+        .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+        .collect();
+
+    match ident.chars().next() {
+        Some(c) if c.is_ascii_uppercase() => true,
+        Some(_) => {
+            const PRIMITIVES: [&str; 17] = [
+                "str", "bool", "char", "u8", "u16", "u32", "u64", "u128", "usize", "i8", "i16",
+                "i32", "i64", "i128", "isize", "f32", "f64",
+            ];
+            PRIMITIVES.contains(&ident.as_str())
+        }
+        None => false,
+    }
+}
+
+/// Every `.rs` file under `dir`, recursively.
+fn rust_files(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let mut out = Vec::new();
+    for entry in std::fs::read_dir(dir).expect("a readable directory") {
+        let path = entry.expect("a directory entry").path();
+        if path.is_dir() {
+            out.extend(rust_files(&path));
+        } else if path.extension().and_then(|e| e.to_str()) == Some("rs") {
+            out.push(path);
+        }
+    }
+    out
+}
