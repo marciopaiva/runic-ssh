@@ -87,6 +87,23 @@ jobs:
       - name: Enable pnpm
         run: corepack enable
 
+      # Same cache as gate.yml, kept in step with it for the same reason the
+      # five commands below are (#210): a hit here skips downloading and
+      # extracting every package again.
+      # `run:` defaults to pwsh on Windows, where `$(...)` and `$GITHUB_OUTPUT`
+      # do not mean this.
+      - name: Get pnpm store path
+        id: pnpm-store
+        shell: bash
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache pnpm store
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
+
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
