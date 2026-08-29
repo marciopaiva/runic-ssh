@@ -12,12 +12,16 @@
 //! side already knows when a credential is needed; it does not need to be
 //! asked to open a window, only told the answer.
 
-use tauri::{AppHandle, Manager, Runtime, State, WebviewUrl, WebviewWindowBuilder, WindowEvent};
+use tauri::{
+    AppHandle, Emitter, Manager, Runtime, State, WebviewUrl, WebviewWindowBuilder, WindowEvent,
+};
 
 use crate::commands::chrome::MAIN_WINDOW;
 use crate::commands::sessions::{from_stored, persist_credential, saved_session, to_stored};
 use crate::error::{Error, IpcError};
-use crate::ssh::credentials::{Answer, CredentialPrompt, CredentialRequests, Keep, RequestId};
+use crate::ssh::credentials::{
+    Answer, CredentialPrompt, CredentialRequests, Keep, RequestId, SuggestedMethod,
+};
 use crate::ssh::registry::{Busy, Registry, SessionHandle};
 use crate::vault::{Availability, CredentialId, Secret, SessionSecrets, StoredCredential, Vault};
 
@@ -67,6 +71,11 @@ pub async fn authenticate_interactively<R: Runtime>(
     vault: State<'_, Vault>,
     secrets: State<'_, SessionSecrets>,
     handle: SessionHandle,
+    /* Chosen on the editor's own form before this connection was ever opened,
+    when this is ADR-0030's own test rather than an ordinary connect. `None`
+    for the ordinary case: the interface has no opinion, and the window falls
+    back to its own default. */
+    suggested_method: Option<SuggestedMethod>,
 ) -> Result<Keeping, IpcError> {
     let session_id = registry
         .session_of(handle)
@@ -83,6 +92,7 @@ pub async fn authenticate_interactively<R: Runtime>(
         /* The host the user clicked. Nothing is being crossed on the way to
         anywhere, which is what `None` says. */
         carrying: None,
+        suggested_method,
     };
 
     let (credential, keep) = ask(&app, &requests, prompt).await?;
@@ -238,6 +248,38 @@ pub(crate) async fn ask<R: Runtime>(
     let answer = answer.await.map_err(|_| Error::CredentialDismissed)?;
 
     close_window(app);
+
+    match answer {
+        Answer::Submitted { credential, keep } => Ok((credential, keep)),
+        Answer::Dismissed => Err(Error::CredentialDismissed),
+    }
+}
+
+/// The event an inline request's id arrives on, in place of a window.
+pub const INLINE_CREDENTIAL_EVENT: &str = "credential://inline-request";
+
+/// [`ask`]'s sibling, ADR-0033: the same request, answered without a window.
+///
+/// `CredentialRequests` was never window-specific — an opaque id, a prompt
+/// readable by it, an answer sent down a channel. `open_window` is the only
+/// part of `ask` that is, so this calls everything else the same way and
+/// emits the id instead, for whichever caller is driving an inline test to
+/// pick up and answer through `submit_credential`, unchanged. The pause is
+/// the same pause: this call stays right here, awaiting the same channel,
+/// for exactly as long as `ask` would have.
+pub(crate) async fn ask_inline<R: Runtime>(
+    app: &AppHandle<R>,
+    requests: &CredentialRequests,
+    prompt: CredentialPrompt,
+) -> Result<(StoredCredential, Keep), Error> {
+    let (request, answer) = requests.open(prompt).await;
+
+    /* A failed emit means every window is gone, which is what shutting down
+    looks like from here — the same case `open_window`'s own failure covers
+    for the window path, and there is equally nobody left to answer. */
+    let _ = app.emit(INLINE_CREDENTIAL_EVENT, request.raw());
+
+    let answer = answer.await.map_err(|_| Error::CredentialDismissed)?;
 
     match answer {
         Answer::Submitted { credential, keep } => Ok((credential, keep)),
@@ -600,6 +642,7 @@ mod tests {
                         port: 22,
                         can_remember: false,
                         carrying: None,
+                        suggested_method: None,
                     })
                     .await
             });

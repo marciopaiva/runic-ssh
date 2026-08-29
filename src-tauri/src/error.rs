@@ -58,6 +58,11 @@ pub enum Error {
         problem: crate::config::sessions::ProxyJumpProblem,
     },
 
+    /// Another saved session already names this exact host, port and user.
+    /// `name` is that session's, so the refusal can say which one.
+    #[error("another saved session already reaches this host")]
+    DuplicateSession { name: String },
+
     /// A chain failed, and this says at which host. See [`Hop`].
     ///
     /// A wrapper rather than a field on every variant: "connection refused" is
@@ -196,6 +201,11 @@ pub enum IpcError {
     InvalidProxyJump {
         problem: &'static str,
     },
+    /// Another saved session already reaches this exact host, port and user.
+    /// `name` is that session's own name.
+    DuplicateSession {
+        name: String,
+    },
     /// A failure that happened at one hop of a chain. `hop` names which host
     /// it happened at; `inner` is the failure itself.
     ///
@@ -290,6 +300,7 @@ impl From<Error> for IpcError {
                     crate::config::sessions::ProxyJumpProblem::Serving => "serving",
                 },
             },
+            Error::DuplicateSession { name } => Self::DuplicateSession { name },
             Error::Chain { hop, inner } => Self::ChainFailed {
                 hop,
                 inner: Box::new(Self::from(*inner)),

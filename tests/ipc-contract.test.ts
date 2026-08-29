@@ -427,6 +427,52 @@ describe('how long to keep a credential', () => {
   });
 });
 
+describe('a credential kind suggested ahead of the window (ADR-0030)', () => {
+  it('is spelled the same on both sides', () => {
+    const rust = readFileSync(
+      fileURLToPath(new URL('../src-tauri/src/ssh/credentials.rs', import.meta.url)),
+      'utf8',
+    );
+
+    expect(rust).toContain(String.raw`r#""password""#`);
+    expect(rust).toContain(String.raw`r#""privateKey""#`);
+
+    const wrapper = readFileSync(
+      fileURLToPath(new URL('../src/ipc/credential.ts', import.meta.url)),
+      'utf8',
+    );
+
+    expect(wrapper).toContain("export type SuggestedMethod = 'password' | 'privateKey';");
+  });
+});
+
+describe('what a host is (ADR-0031)', () => {
+  it('is spelled the same on both sides', () => {
+    const rust = readFileSync(
+      fileURLToPath(new URL('../src-tauri/src/config/sessions.rs', import.meta.url)),
+      'utf8',
+    );
+
+    for (const wire of [
+      String.raw`r#""jumpServer""#`,
+      String.raw`r#""database""#`,
+      String.raw`r#""web""#`,
+      String.raw`r#""other""#`,
+    ]) {
+      expect(rust).toContain(wire);
+    }
+
+    const wrapper = readFileSync(
+      fileURLToPath(new URL('../src/ipc/sessions.ts', import.meta.url)),
+      'utf8',
+    );
+
+    expect(wrapper).toContain(
+      "export type HostKind = 'jumpServer' | 'database' | 'web' | 'other';",
+    );
+  });
+});
+
 describe('every command the frontend calls exists in the core', () => {
   /* A wrapper for a command nobody registered compiles, typechecks, and fails
      only when somebody clicks the thing. The two lists live in two languages

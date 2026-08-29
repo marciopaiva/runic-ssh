@@ -9,7 +9,7 @@ use std::sync::Arc;
 use serde::Serialize;
 use tauri::{AppHandle, Manager, Runtime, State};
 
-use crate::commands::credential::ask;
+use crate::commands::credential::{ask, ask_inline};
 use crate::config::sessions::{
     check_proxy_jump, delete_session as remove_session, save_session as store_session, Session,
     SessionDraft, SessionStore,
@@ -348,6 +348,41 @@ pub async fn remember_credential<R: Runtime>(
     Ok(())
 }
 
+/// Keeps a secret for the life of this run, without writing it anywhere.
+///
+/// ADR-0032. The wizard's own inline test authenticates through
+/// [`authenticate_session`] rather than the credential window, which is the
+/// one place `SessionSecrets::keep` was previously reached from. Without
+/// this, "until Runic SSH closes, in memory only" — the middle tier
+/// ADR-0025 built because it is what most people actually want — would be
+/// unreachable from that path, leaving two of its three answers instead of
+/// three.
+#[tauri::command]
+pub async fn keep_credential_for_run<R: Runtime>(
+    app: AppHandle<R>,
+    secrets: State<'_, SessionSecrets>,
+    session_id: String,
+    password: Option<Secret>,
+    private_key: Option<Secret>,
+    passphrase: Option<Secret>,
+) -> Result<(), IpcError> {
+    /* The same check `remember_credential` makes, for the same reason: a run
+    holding a secret keyed to a session that does not exist is a secret with
+    nothing to be used for. */
+    if SessionStore::new(config_dir(&app)?)
+        .load()?
+        .find(&session_id)
+        .is_none()
+    {
+        return Err(Error::UnknownSession { id: session_id }.into());
+    }
+
+    let secret = to_stored(password, private_key, passphrase)?.encode()?;
+    secrets.keep(&CredentialId::for_session(&session_id), &secret);
+
+    Ok(())
+}
+
 /// Writes a secret to the keychain and points the saved session at it.
 ///
 /// Both halves or neither: a keychain entry no session references is a secret
@@ -517,6 +552,12 @@ struct Chain<'a, R: Runtime> {
     secrets: &'a SessionSecrets,
     /// The decision this attempt is continuing, when it is a retry.
     continuing: Option<PendingId>,
+    /// Whether a bastion's credential, if one is needed, should be asked for
+    /// inline rather than through the separate window. ADR-0033: set only by
+    /// the wizard's own test, which has nowhere else for the answer to be
+    /// typed that would not reopen the problem ADR-0032 already closed for
+    /// the target's own credential.
+    inline: bool,
 }
 
 /// Opens the chain to a host that is behind a bastion.
@@ -699,9 +740,19 @@ async fn open_bastion<R: Runtime>(
                     two different hosts, which is what ADR-0023 refused to
                     ship. */
                     carrying: Some(carrying.to_owned()),
+                    /* Nobody has an opinion about a bastion's credential kind
+                    ahead of time; only the editor's own test, on the host the
+                    user clicked, ever suggests one. ADR-0030. */
+                    suggested_method: None,
                 };
 
-                match ask(chain.app, chain.requests, prompt).await {
+                let answer = if chain.inline {
+                    ask_inline(chain.app, chain.requests, prompt).await
+                } else {
+                    ask(chain.app, chain.requests, prompt).await
+                };
+
+                match answer {
                     Ok((stored, keep)) => (stored, keep, keep == Keep::Never),
                     Err(error) => {
                         /* Including a dismissal. A bastion left open on a
@@ -802,6 +853,10 @@ pub async fn connect_session<R: Runtime>(
     crosses as: it names a thing the webview cannot forge and carries nothing
     about the session. */
     continuing: Option<PendingId>,
+    /* Whether a bastion's own credential, if this session needs one and
+    nothing is saved, should be asked for inline rather than through the
+    separate window. ADR-0033. */
+    inline: bool,
 ) -> Result<OpenSession, IpcError> {
     let sessions = SessionStore::new(config_dir(&app)?).load()?;
     let session = sessions
@@ -843,6 +898,7 @@ pub async fn connect_session<R: Runtime>(
                 vault: &vault,
                 secrets: &secrets,
                 continuing,
+                inline,
             };
 
             let (connection, keep_refused) =

@@ -67,7 +67,14 @@ export function CredentialWindow({ request }: { readonly request: number | null 
     }
 
     void credentialPrompt(request)
-      .then(setPrompt)
+      .then((fetched) => {
+        setPrompt(fetched);
+        /* ADR-0030. Seeded once, from the answer this fetch itself carries,
+           never re-applied on a later render: the user's own tab switch must
+           win once they have made one, and nothing after this ever changes
+           `fetched.suggestedMethod` to disagree with a choice already made. */
+        if (fetched.suggestedMethod === 'privateKey') setMethod('key');
+      })
       .catch((rejection: unknown) => {
         /* The real rejection, not a guess at it. An earlier version fell back
            to 'unknownRequest' for anything it could not parse, which meant

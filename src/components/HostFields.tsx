@@ -1,11 +1,13 @@
-import { useRef } from 'react';
-import type { FormEvent, JSX } from 'react';
+import type { RefObject } from 'react';
+import type { JSX } from 'react';
 
 import type { DraftField, DraftValues } from '../features/sessions';
 import { useTranslator } from '../features/settings';
 import type { Session } from '../ipc';
 
-interface SessionFormProps {
+import { HostKindPicker } from './HostKindPicker';
+
+interface HostFieldsProps {
   readonly values: DraftValues;
   /** The fields a submit found wrong; empty until one has been attempted. */
   readonly wrong: readonly DraftField[];
@@ -27,79 +29,52 @@ interface SessionFormProps {
    * hosts depend on it.
    */
   readonly carried: readonly Session[];
-  /** Whether the keychain holds a password for this host. */
-  readonly storedCredential: boolean;
   /**
-   * Drops the stored password, or `null` on a host that does not exist yet.
-   *
-   * Both copies go: the keychain's and the one this run may be holding. A
-   * button that left the second behind would say the password was gone while
-   * the next connection went on not asking for one.
+   * The saved session already reaching this exact host, port and user, if
+   * there is one. Computed live off `values`, the same way `jumpHosts` and
+   * `carried` are — a duplicate is knowable the moment all three fields hold
+   * something, not only once a submit is attempted.
    */
-  readonly onForget: (() => void) | null;
-  /**
-   * Saves the form and collects a password by connecting once.
-   *
-   * The sequence is the ordinary one and that is the point of it: the host key
-   * is decided before anything is typed, the password is typed in the window
-   * ADR-0008 put it in, and nothing is kept until the server has accepted it.
-   */
-  readonly onSavePassword: () => void;
-  readonly onSubmit: () => void;
-  /** `null` for a session that does not exist yet. */
-  readonly onDelete: (() => void) | null;
-  /**
-   * Drops this draft. With no tab to close any more (ADR-0029: Hosts is a
-   * list beside one form, not a strip of them), this is the only way to
-   * abandon a new host nobody is going to save, or back out of a change to
-   * an existing one without making it.
-   */
-  readonly onCancel: () => void;
+  readonly duplicate: Session | null;
+  /** Focused on mount, when the caller wants it — the wizard's Host step
+   * does, so this is the caller's call and not a fixed choice. */
+  readonly firstRef?: RefObject<HTMLInputElement | null>;
 }
 
 /**
- * The form for a saved host.
+ * Everything about a host that is not a secret and not the way it is reached
+ * through: name, address, group, jump host, and the ADR-0031 kind picker.
  *
- * Nothing secret is here. A password or a passphrase is collected in its own
- * window at the moment of connecting — ADR-0008 — and a field for one on this
- * form would put it in the same document that renders terminal output, which
- * is the whole thing that decision exists to avoid.
- *
- * Errors appear per field and only after a submit. Marking a field red while
- * somebody is still typing into it is telling them they are wrong before they
- * have finished being right.
- *
- * Presentational: it holds no draft of its own. The values live in the shell
- * because the settings tab outlives being looked at, and a form that kept its
- * own copy would lose it the moment somebody glanced at a terminal.
+ * Extracted out of `SessionForm` so ADR-0030's wizard can draw the same
+ * fields in its own first step without a second, drifting copy of the
+ * validation-linked markup. Presentational, like the form it came from: the
+ * values live in whichever caller holds the draft.
  */
-export function SessionForm({
+export function HostFields({
   values,
   wrong,
   onChange,
   jumpHosts,
   carried,
-  storedCredential,
-  onForget,
-  onSavePassword,
-  onSubmit,
-  onDelete,
-  onCancel,
-}: SessionFormProps): JSX.Element {
+  duplicate,
+  firstRef,
+}: HostFieldsProps): JSX.Element {
   const i18n = useTranslator();
-  const first = useRef<HTMLInputElement>(null);
-
-  const submit = (event: FormEvent<HTMLFormElement>): void => {
-    event.preventDefault();
-    onSubmit();
-  };
 
   const field = (
     name: keyof DraftValues,
     label: string,
-    extra: { readonly ref?: typeof first; readonly hint?: string } = {},
+    extra: {
+      readonly ref?: RefObject<HTMLInputElement | null> | undefined;
+      readonly hint?: string;
+    } = {},
   ): JSX.Element => {
-    const invalid = wrong.includes(name as DraftField);
+    /* The host field also turns red for a duplicate target, without the
+       generic text below it — the paragraph under the user/port row already
+       says which host it collides with, and showing both would be the same
+       fact twice in two different sentences. */
+    const duplicateHere = name === 'host' && duplicate !== null;
+    const invalid = wrong.includes(name as DraftField) || duplicateHere;
 
     return (
       <label className="flex flex-col gap-1">
@@ -116,7 +91,7 @@ export function SessionForm({
             invalid ? 'border-danger' : 'border-line-subtle'
           }`}
         />
-        {invalid && (
+        {invalid && !duplicateHere && (
           <span id={`session-error-${name}`} className="text-danger-text text-[11px]">
             {i18n.t('session.editor.invalid')}
           </span>
@@ -164,13 +139,19 @@ export function SessionForm({
   );
 
   return (
-    <form onSubmit={submit} className="flex max-w-[440px] flex-col gap-3">
-      {field('host', i18n.t('session.editor.host'), { ref: first })}
+    <div className="flex flex-col gap-3">
+      {field('host', i18n.t('session.editor.host'), { ref: firstRef })}
 
       <div className="grid grid-cols-[1fr_96px] gap-3">
         {field('user', i18n.t('session.editor.user'))}
         {field('port', i18n.t('session.editor.port'))}
       </div>
+
+      {duplicate !== null && (
+        <p className="border-danger bg-danger-soft text-ink rounded border-l-2 px-3 py-2 text-[12.5px] leading-relaxed">
+          {i18n.t('session.editor.duplicate', { name: duplicate.name })}
+        </p>
+      )}
 
       {field('name', i18n.t('session.editor.name'), {
         hint: i18n.t('session.editor.nameHint'),
@@ -178,6 +159,11 @@ export function SessionForm({
       {field('group', i18n.t('session.editor.group'), {
         hint: i18n.t('session.editor.groupHint'),
       })}
+
+      <div className="flex flex-col gap-1">
+        <span className="text-ink-muted text-[11px]">{i18n.t('hostKind.label')}</span>
+        <HostKindPicker value={values.kind} onChange={(kind) => onChange('kind', kind)} />
+      </div>
 
       {/* Absent rather than disabled when there is nothing to pick. A control
           that can never be used is a feature the user is told about and then
@@ -230,69 +216,6 @@ export function SessionForm({
           </label>
         )
       )}
-
-      {/* What the host has, rather than a field for it. A password box on this
-          form would put the secret in the document that renders terminal
-          output, which is the whole of what ADR-0008 exists to avoid, and the
-          window it is collected in is what makes the claim above it true. */}
-      <div className="flex flex-col items-start gap-1">
-        <span className="text-ink-muted text-[11px]">{i18n.t('session.editor.credential')}</span>
-        <span className="text-ink-faint text-[11px] leading-snug">
-          {i18n.t(
-            storedCredential ? 'session.editor.credential.stored' : 'session.editor.noSecret',
-          )}
-        </span>
-        <div className="mt-0.5 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={onSavePassword}
-            className="text-ink-secondary border-line-subtle hover:text-ink rounded border px-2 py-1 text-[11.5px]"
-          >
-            {i18n.t(
-              storedCredential
-                ? 'session.editor.credential.replace'
-                : 'session.editor.credential.save',
-            )}
-          </button>
-          {storedCredential && onForget !== null && (
-            <button
-              type="button"
-              onClick={onForget}
-              className="text-danger-text hover:bg-danger-soft rounded px-2 py-1 text-[11.5px]"
-            >
-              {i18n.t('session.editor.credential.forget')}
-            </button>
-          )}
-        </div>
-        <span className="text-ink-faint text-[11px] leading-snug">
-          {i18n.t('session.editor.credential.saveHint')}
-        </span>
-      </div>
-
-      <div className="mt-1 flex items-center gap-2">
-        {onDelete !== null && (
-          <button
-            type="button"
-            onClick={onDelete}
-            className="text-danger-text hover:bg-danger-soft mr-auto rounded px-2 py-1.5 text-[12px]"
-          >
-            {i18n.t('session.editor.delete')}
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={onCancel}
-          className="text-ink-secondary hover:bg-surface-raised ml-auto rounded px-2.5 py-1.5 text-[12px]"
-        >
-          {i18n.t('session.editor.cancel')}
-        </button>
-        <button
-          type="submit"
-          className="bg-accent text-surface-base rounded px-3 py-1.5 text-[12px] font-semibold"
-        >
-          {i18n.t('session.editor.save')}
-        </button>
-      </div>
-    </form>
+    </div>
   );
 }

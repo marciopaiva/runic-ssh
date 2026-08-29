@@ -152,14 +152,9 @@ export const SECURITY_COPY_KEYS: readonly MessageKey[] = [
   'failure.rsaRefused.title',
 
   // The editor's password block, added in the v0.2.1 sweep.
-  'session.editor.credential',
   'session.editor.credential.forget',
-  'session.editor.credential.replace',
-  'session.editor.credential.save',
-  'session.editor.credential.saveHint',
   'session.editor.credential.stored',
   'session.editor.jumpHostHint',
-  'session.editor.noSecret',
   'settings.sessions.lead',
 
   // The four endings a kept credential can have, added in the v0.2.1 sweep.
@@ -222,8 +217,12 @@ export const REVIEWS: Readonly<
   Record<string, { readonly date: string; readonly hash: string; readonly keys: readonly MessageKey[] }>
 > = {
   'pt-BR': {
+    /* Hash recomputed 2026-08-29 when five keys tied to `SessionForm` left
+       SECURITY_COPY_KEYS (ADR-0034 retired the component). Every surviving
+       key's translated text is unchanged from the review date below — this
+       is coverage shrinking to match a smaller list, not a new review. */
     date: '2026-08-26',
-    hash: '0c97a951d1729808445616f6ea082b16a8ba6172a51f5660c8693f9b8d536394',
+    hash: 'e324864f806a6b9a3344efa1d1729b7ba29ca6582a7f9d6b06b0863682d140c6',
     keys: SECURITY_COPY_KEYS,
   },
   es: {

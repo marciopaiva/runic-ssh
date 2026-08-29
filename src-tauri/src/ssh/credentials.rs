@@ -89,6 +89,26 @@ pub struct CredentialPrompt {
     /// with an explanation. ADR-0027 is that permission, and this field is the
     /// condition it was granted on.
     pub carrying: Option<String>,
+    /// A credential kind chosen before this prompt was asked for, if any.
+    ///
+    /// ADR-0030. Not a secret — which kind a host takes is a fact about the
+    /// host, not about what somebody types — so it is chosen on the plain
+    /// editor form rather than in the window ADR-0008 keeps for the value
+    /// itself, and carried here so the window can open on that tab instead of
+    /// always guessing password. `None` for every ordinary connect: nothing
+    /// upstream has an opinion, and the window falls back to its own default.
+    pub suggested_method: Option<SuggestedMethod>,
+}
+
+/// Which kind of credential a host is expected to take.
+///
+/// Two variants because the wire only ever needs to say one of two things, the
+/// same shape [`Keep`] takes below.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SuggestedMethod {
+    Password,
+    PrivateKey,
 }
 
 /// How long the user asked for a credential to be kept.
@@ -203,6 +223,7 @@ mod tests {
             port: 22,
             can_remember: true,
             carrying: None,
+            suggested_method: None,
         }
     }
 
@@ -352,7 +373,7 @@ mod tests {
 
         assert_eq!(
             json,
-            r#"{"sessionName":"web-01","user":"deploy","host":"10.0.4.31","port":22,"canRemember":true,"carrying":null}"#
+            r#"{"sessionName":"web-01","user":"deploy","host":"10.0.4.31","port":22,"canRemember":true,"carrying":null,"suggestedMethod":null}"#
         );
     }
 
@@ -368,5 +389,28 @@ mod tests {
         .expect("serializes");
 
         assert!(json.contains(r#""carrying":"web-01""#));
+    }
+
+    #[test]
+    fn a_suggested_method_crosses_as_two_words() {
+        /* Pinned as a literal on both sides, the way `Keep` is. ADR-0030: the
+        window seeds its own method choice from this, and a renamed variant
+        that still compiles would leave it silently seeding nothing. */
+        assert_eq!(
+            serde_json::to_string(&SuggestedMethod::Password).expect("serializes"),
+            r#""password""#
+        );
+        assert_eq!(
+            serde_json::to_string(&SuggestedMethod::PrivateKey).expect("serializes"),
+            r#""privateKey""#
+        );
+
+        let json = serde_json::to_string(&CredentialPrompt {
+            suggested_method: Some(SuggestedMethod::PrivateKey),
+            ..prompt()
+        })
+        .expect("serializes");
+
+        assert!(json.contains(r#""suggestedMethod":"privateKey""#));
     }
 }

@@ -5,6 +5,7 @@ import { groupSessions } from '../features/sessions/state';
 import type { LiveSession } from '../features/sessions/state';
 import { useTranslator } from '../features/settings';
 
+import { HostKindIcon } from './HostKindIcon';
 import { JumpMark } from './JumpMark';
 import { SessionMarker } from './SessionMarker';
 
@@ -141,6 +142,10 @@ export function SessionsSidebar({
                         }`}
                       >
                         <SessionMarker kind={kind} />
+                        {/* What the host is, ADR-0031 — beside the state dot
+                            rather than instead of it: the two answer different
+                            questions and neither can stand in for the other. */}
+                        <HostKindIcon kind={session.kind} className="text-ink-faint h-3 w-3 shrink-0" />
                         <JumpMark role={jumpRole(session, saved)} />
                         <span className="truncate text-[12.5px]">{session.name}</span>
 

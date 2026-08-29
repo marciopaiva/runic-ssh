@@ -18,7 +18,15 @@ export function eligibleJumpHosts(
   /** The session being edited, or `null` when creating one. */
   editing: string | null,
 ): readonly Session[] {
-  return sessions.filter((session) => session.id !== editing && !hasJumpHost(session));
+  /* ADR-0031's kind is otherwise decoration; this is the one place it
+     narrows a choice rather than only labelling one. A bastion is a role
+     the maintainer tags a host with on purpose, and a database or a web
+     host offered in the same list invites picking one that happens to be
+     reachable rather than one that is meant to carry other connections. */
+  return sessions.filter(
+    (session) =>
+      session.id !== editing && !hasJumpHost(session) && session.kind === 'jumpServer',
+  );
 }
 
 /**
@@ -103,7 +111,20 @@ export function jumpHostChoice(
   const carried = editing === null ? [] : sessions.filter((other) => other.proxyJump === editing);
 
   if (carried.length === 0) {
-    return { offered: eligibleJumpHosts(sessions, editing), carried };
+    const offered = eligibleJumpHosts(sessions, editing);
+
+    /* A bastion already chosen stays offered even if its kind is not, or is
+       no longer, `jumpServer` — a session saved before ADR-0031 existed, or
+       retagged since, must not have its own field make its stored choice
+       disappear. The same reasoning `carried` below already rests on: a
+       form that stops offering a value it is still holding needs a way to
+       clear it, not a silent mismatch between the select and the string. */
+    if (chosen !== '' && !offered.some((session) => session.id === chosen)) {
+      const current = sessions.find((session) => session.id === chosen);
+      if (current !== undefined) return { offered: [...offered, current], carried };
+    }
+
+    return { offered, carried };
   }
 
   /* A host in this state can already be in the file: the check is new and the

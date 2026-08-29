@@ -13,8 +13,13 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+import type { UnlistenFn } from '@tauri-apps/api/event';
 
 import type { SessionHandle } from './sessions';
+
+/** Which kind of credential a host is expected to take. Not a secret. */
+export type SuggestedMethod = 'password' | 'privateKey';
 
 /** What the prompt window renders. No secret, and nothing a host chose. */
 export interface CredentialPrompt {
@@ -33,6 +38,15 @@ export interface CredentialPrompt {
    * could be said, so rendering it is not optional.
    */
   readonly carrying: string | null;
+  /**
+   * A credential kind chosen before this prompt was asked for, if any.
+   *
+   * ADR-0030: the editor's own "save & test" already knows which kind of
+   * credential the host takes, chosen on the plain form rather than typed
+   * here. `null` for every ordinary connect, which is what makes the window
+   * fall back to its own default.
+   */
+  readonly suggestedMethod: SuggestedMethod | null;
 }
 
 /**
@@ -70,8 +84,14 @@ export type Keep = 'never' | 'forThisRun' | 'stored';
  *
  * Resolving says what happened to the credential, never what it was.
  */
-export async function authenticateInteractively(handle: SessionHandle): Promise<Keeping> {
-  return invoke<Keeping>('authenticate_interactively', { handle });
+export async function authenticateInteractively(
+  handle: SessionHandle,
+  suggestedMethod?: SuggestedMethod,
+): Promise<Keeping> {
+  return invoke<Keeping>('authenticate_interactively', {
+    handle,
+    suggestedMethod: suggestedMethod ?? null,
+  });
 }
 
 export async function credentialPrompt(request: number): Promise<CredentialPrompt> {
@@ -115,4 +135,23 @@ export async function submitCredential(
  */
 export async function dismissCredential(request: number | null): Promise<void> {
   return invoke<void>('dismiss_credential', { request });
+}
+
+/** The event `ask_inline` emits in place of opening a window. ADR-0033. */
+const INLINE_CREDENTIAL_EVENT = 'credential://inline-request';
+
+/**
+ * Subscribes to a bastion's own credential being needed inline.
+ *
+ * Only ever fires while the wizard's own test is in flight — ADR-0033 names
+ * this the reason a bare request id is enough: one attempt at a time, one
+ * caller that ever asks this way. `credentialPrompt(request)` reads what to
+ * show for it, the same call the window itself would have made; answering is
+ * `submitCredential`, unchanged, because answering was never window-specific
+ * either.
+ */
+export async function onInlineCredentialRequest(
+  onRequest: (request: number) => void,
+): Promise<UnlistenFn> {
+  return listen<number>(INLINE_CREDENTIAL_EVENT, (event) => onRequest(event.payload));
 }

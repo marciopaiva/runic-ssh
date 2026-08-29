@@ -18,6 +18,29 @@ use crate::error::Error;
 
 pub const SESSIONS_FILE: &str = "sessions.json";
 
+/// What a host is, for recognising a row rather than for reaching it.
+///
+/// ADR-0031. A closed set on purpose: the request was four named kinds with an
+/// icon each, not an open taxonomy, and a free-text label reintroduces the
+/// exact defect #221 already named in the group field — two hosts a person
+/// thinks of as the same kind, spelled differently by a typo. Growing this
+/// enum later is an ordinary change; `Trust` and `ConnectionKind` have both
+/// grown variants without needing a decision this size again.
+///
+/// No behaviour reads this. It is not a secret, it is not part of how a
+/// connection is made, and rule 7 has nothing to say about it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum HostKind {
+    JumpServer,
+    Database,
+    Web,
+    /// What a host has until somebody says otherwise, and `#[serde(default)]`
+    /// is what a `sessions.json` written before this field existed reads as.
+    #[default]
+    Other,
+}
+
 /// A host the user has saved.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -43,6 +66,10 @@ pub struct Session {
     /// ADR-0023.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub proxy_jump: Option<String>,
+    /// Every host has one; `Other` is the answer nobody has chosen yet.
+    /// ADR-0031.
+    #[serde(default)]
+    pub kind: HostKind,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -82,6 +109,8 @@ pub struct SessionDraft {
     /// The id of the saved session to reach this host through.
     #[serde(default)]
     pub proxy_jump: Option<String>,
+    #[serde(default)]
+    pub kind: HostKind,
 }
 
 /// Why a jump host reference cannot be used.
@@ -175,6 +204,36 @@ pub fn check_not_serving(
     }
 
     Ok(())
+}
+
+/// The saved session already reaching this exact host, port and user, if
+/// there is one.
+///
+/// Case-insensitive on the host, the way a hostname is looked up; exact on
+/// the port and the user, because two accounts on the same machine are two
+/// different ways in and neither refuses the other. `deploy@web-01:22` and
+/// `admin@web-01:22` are both legitimate saved sessions; `deploy@web-01:22`
+/// twice, under two names, is the mistake this catches.
+///
+/// `editing` excludes the session being saved from matching itself — without
+/// it, editing any field but the connection target on an existing session
+/// would report it as a duplicate of itself.
+pub fn duplicate_of<'a>(
+    sessions: &'a Sessions,
+    editing: Option<&str>,
+    host: &str,
+    port: u16,
+    user: &str,
+) -> Option<&'a Session> {
+    let host = host.trim().to_lowercase();
+    let user = user.trim();
+
+    sessions.items.iter().find(|session| {
+        Some(session.id.as_str()) != editing
+            && session.host.trim().to_lowercase() == host
+            && session.port == port
+            && session.user.trim() == user
+    })
 }
 
 /// Characters that must never reach a session name.
@@ -355,6 +414,18 @@ pub fn save_session(store: &SessionStore, draft: SessionDraft) -> Result<Session
         .map_err(|problem| Error::InvalidProxyJump { problem })?;
     let proxy_jump = proxy_jump.map(str::to_owned);
 
+    if let Some(existing) = duplicate_of(
+        &sessions,
+        draft.id.as_deref(),
+        &draft.host,
+        draft.port,
+        &draft.user,
+    ) {
+        return Err(Error::DuplicateSession {
+            name: existing.name.clone(),
+        });
+    }
+
     let session = match draft.id {
         Some(id) => {
             let index = sessions
@@ -373,6 +444,7 @@ pub fn save_session(store: &SessionStore, draft: SessionDraft) -> Result<Session
                 group: draft.group.map(|g| g.trim().to_owned()),
                 credential_id: existing.credential_id.clone(),
                 proxy_jump,
+                kind: draft.kind,
             };
             sessions.items[index] = session.clone();
             session
@@ -387,6 +459,7 @@ pub fn save_session(store: &SessionStore, draft: SessionDraft) -> Result<Session
                 group: draft.group.map(|g| g.trim().to_owned()),
                 credential_id: None,
                 proxy_jump,
+                kind: draft.kind,
             };
             sessions.items.push(session.clone());
             session
@@ -427,6 +500,7 @@ mod tests {
             group: Some("Production".to_owned()),
             credential_id: Some("keychain-4f21".to_owned()),
             proxy_jump: None,
+            kind: HostKind::Other,
         }
     }
 
@@ -449,8 +523,9 @@ mod tests {
     #[test]
     fn a_file_written_before_jump_hosts_existed_still_loads() {
         /* The whole migration, such as it is. A build that never heard of a
-        jump host wrote this, and a build that has must not treat it as a
-        malformed file and take every saved session down with it. */
+        jump host, or of a host kind (ADR-0031), wrote this, and a build that
+        has must not treat it as a malformed file and take every saved
+        session down with it. */
         let (store, _dir) = store();
         std::fs::write(
             store.path(),
@@ -461,6 +536,23 @@ mod tests {
         let sessions = store.load().expect("an older file still loads");
         assert_eq!(sessions.items.len(), 1);
         assert_eq!(sessions.items[0].proxy_jump, None);
+        assert_eq!(sessions.items[0].kind, HostKind::Other);
+    }
+
+    #[test]
+    fn a_kind_is_spelled_the_same_on_both_sides() {
+        /* Pinned as a literal, the way `Keep` and `SuggestedMethod` both are:
+        a renamed variant compiles here and leaves the wizard's icon picker
+        silently matching nothing. The matching assertion lives in
+        tests/ipc-contract.test.ts. */
+        for (kind, wire) in [
+            (HostKind::JumpServer, r#""jumpServer""#),
+            (HostKind::Database, r#""database""#),
+            (HostKind::Web, r#""web""#),
+            (HostKind::Other, r#""other""#),
+        ] {
+            assert_eq!(serde_json::to_string(&kind).expect("serializes"), wire);
+        }
     }
 
     #[test]
@@ -606,6 +698,140 @@ mod tests {
             .is_some());
     }
 
+    /* ---------------------------------------------------------------- *
+     * A second session at the same connection target. The check the
+     * maintainer asked for after registering the same fixture host twice
+     * while driving ADR-0030's wizard.
+     * ---------------------------------------------------------------- */
+
+    #[test]
+    fn a_second_session_at_the_same_host_port_and_user_is_refused() {
+        let (store, _dir) = store();
+        let first = save_session(
+            &store,
+            SessionDraft {
+                host: "web-01.example.com".to_owned(),
+                ..draft("web-01")
+            },
+        )
+        .expect("the first saves");
+
+        let second = SessionDraft {
+            host: "web-01.example.com".to_owned(),
+            ..draft("web-01 again")
+        };
+
+        match save_session(&store, second) {
+            Err(Error::DuplicateSession { name }) => assert_eq!(name, first.name),
+            other => panic!("expected a duplicate refusal, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn different_users_on_the_same_host_and_port_are_not_duplicates() {
+        /* Two accounts on one machine are two different ways in, and neither
+        namesake refuses the other. */
+        let (store, _dir) = store();
+        let host = "web-01.example.com".to_owned();
+
+        save_session(
+            &store,
+            SessionDraft {
+                host: host.clone(),
+                user: "deploy".to_owned(),
+                ..draft("deploy on web-01")
+            },
+        )
+        .expect("deploy saves");
+
+        assert!(save_session(
+            &store,
+            SessionDraft {
+                host,
+                user: "admin".to_owned(),
+                ..draft("admin on web-01")
+            },
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn different_ports_on_the_same_host_are_not_duplicates() {
+        let (store, _dir) = store();
+        let host = "web-01.example.com".to_owned();
+
+        save_session(
+            &store,
+            SessionDraft {
+                host: host.clone(),
+                port: 22,
+                ..draft("web-01 on 22")
+            },
+        )
+        .expect("port 22 saves");
+
+        assert!(save_session(
+            &store,
+            SessionDraft {
+                host,
+                port: 2222,
+                ..draft("web-01 on 2222")
+            },
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn the_host_comparison_ignores_case_and_surrounding_space() {
+        let (store, _dir) = store();
+        save_session(
+            &store,
+            SessionDraft {
+                host: "Web-01.Example.com".to_owned(),
+                ..draft("web-01")
+            },
+        )
+        .expect("the first saves");
+
+        let second = SessionDraft {
+            host: "  web-01.example.com  ".to_owned(),
+            ..draft("web-01 again")
+        };
+
+        assert!(matches!(
+            save_session(&store, second),
+            Err(Error::DuplicateSession { .. })
+        ));
+    }
+
+    #[test]
+    fn editing_a_session_is_not_a_duplicate_of_itself() {
+        /* `editing` excludes the session being saved from matching itself —
+        without it, saving any other field on an existing session would
+        report it as a duplicate of the very row it is. */
+        let (store, _dir) = store();
+        let saved = save_session(
+            &store,
+            SessionDraft {
+                host: "web-01.example.com".to_owned(),
+                ..draft("web-01")
+            },
+        )
+        .expect("it saves");
+
+        let edit = SessionDraft {
+            id: Some(saved.id.clone()),
+            host: "web-01.example.com".to_owned(),
+            group: Some("Staging".to_owned()),
+            ..draft("web-01")
+        };
+
+        assert_eq!(
+            save_session(&store, edit).expect("the edit saves").group,
+            Some("Staging".to_owned())
+        );
+    }
+
     #[test]
     fn an_empty_jump_host_is_no_jump_host() {
         /* An empty select reaches the core as an empty string, and a session
@@ -662,15 +888,24 @@ mod tests {
         assert!(json.contains("keychain-4f21"));
     }
 
+    /// A draft naming its own host, derived from `name`.
+    ///
+    /// Every draft used to share one constant host, which made every pair of
+    /// them a duplicate the moment `duplicate_of` existed to notice — three
+    /// tests across this module were building two or more sessions this way
+    /// without meaning to test that. Deriving the host from the name is what
+    /// they already intended: two different names were always meant to be
+    /// two different hosts here, and now they are.
     fn draft(name: &str) -> SessionDraft {
         SessionDraft {
             id: None,
             name: name.to_owned(),
-            host: "10.0.4.12".to_owned(),
+            host: format!("{}.internal", name.trim()),
             port: 22,
             user: "deploy".to_owned(),
             group: Some("Production".to_owned()),
             proxy_jump: None,
+            kind: HostKind::Other,
         }
     }
 

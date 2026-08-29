@@ -89,10 +89,10 @@ describe('a saved credential', () => {
 
   it('is not tried when the point of the attempt is to collect one', () => {
     /* Somebody who asked to save a password is asking to type it. A host that
-       already has a working one would authenticate silently, the window would
-       never open, and the button would have done nothing anybody could see on
-       a host where something was in fact stored. */
-    expect(shouldTrySaved('credential')).toBe(false);
+       already has a working one would authenticate silently, the field would
+       never appear, and the wizard would have proven nothing anybody could
+       see on a host where something was in fact stored. */
+    expect(shouldTrySaved('inline')).toBe(false);
   });
 
   it('falls back to asking when the host refuses it', () => {
@@ -208,6 +208,7 @@ describe('reading whether a host has a stored password', () => {
     group: null,
     credentialId: null,
     proxyJump: null,
+    kind: 'other',
     ...overrides,
   });
 

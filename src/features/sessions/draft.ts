@@ -10,6 +10,8 @@
  * because the core is what writes the file; a test pins the limits against it.
  */
 
+import type { HostKind } from '../../ipc';
+
 /**
  * A field a submit can find wrong.
  *
@@ -42,6 +44,9 @@ export interface DraftValues {
    * See `jumpHostChoice`.
    */
   readonly proxyJump: string;
+  /** ADR-0031. Never wrong on its own — every value the picker offers is one
+   * the core accepts, the same reason `proxyJump` needs no check here. */
+  readonly kind: HostKind;
 }
 
 export const EMPTY_DRAFT: DraftValues = {
@@ -53,6 +58,7 @@ export const EMPTY_DRAFT: DraftValues = {
   user: '',
   group: '',
   proxyJump: '',
+  kind: 'other',
 };
 
 /**

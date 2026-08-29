@@ -31,6 +31,7 @@ export function editorValues(session: Session | null): DraftValues {
     user: session.user,
     group: session.group ?? '',
     proxyJump: session.proxyJump ?? '',
+    kind: session.kind,
   };
 }
 
@@ -53,7 +54,8 @@ export function differs(values: DraftValues, baseline: DraftValues): boolean {
     values.port !== baseline.port ||
     values.user !== baseline.user ||
     values.group !== baseline.group ||
-    values.proxyJump !== baseline.proxyJump
+    values.proxyJump !== baseline.proxyJump ||
+    values.kind !== baseline.kind
   );
 }
 

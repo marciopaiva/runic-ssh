@@ -69,6 +69,9 @@ export type IpcError =
       readonly code: 'invalidProxyJump';
       readonly problem: 'itself' | 'unknown' | 'chained' | 'serving';
     }
+  /** Another saved session already reaches this exact host, port and user.
+   * `name` is that session's own, so the refusal can say which one. */
+  | { readonly code: 'duplicateSession'; readonly name: string }
   /**
    * A connection failed at one hop of a chain.
    *
@@ -167,6 +170,7 @@ export const CODES: ReadonlySet<IpcErrorCode> = new Set<IpcErrorCode>([
   'terminalAlreadyOpen',
   'invalidSession',
   'invalidProxyJump',
+  'duplicateSession',
   'chainFailed',
   'hostKeyDecision',
   'unknownDecision',

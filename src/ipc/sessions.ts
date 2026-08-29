@@ -17,6 +17,15 @@ import type { Hop } from './errors';
  */
 export type SessionHandle = number;
 
+/**
+ * What a host is, for recognising a row rather than for reaching it.
+ *
+ * ADR-0031. Purely categorisation: nothing in the connect path or the
+ * credential flow reads this, and adding a kind never changes how a host is
+ * verified or authenticated.
+ */
+export type HostKind = 'jumpServer' | 'database' | 'web' | 'other';
+
 /** A saved session. Names a host; never holds a secret. */
 export interface Session {
   readonly id: string;
@@ -39,6 +48,7 @@ export interface Session {
    * its own key to verify and its own credential. See ADR-0023.
    */
   readonly proxyJump: string | null;
+  readonly kind: HostKind;
 }
 
 /**
@@ -57,6 +67,7 @@ export interface SessionDraft {
   readonly group?: string | null;
   /** The id of the saved session to reach this host through. */
   readonly proxyJump?: string | null;
+  readonly kind: HostKind;
 }
 
 export async function listSessions(): Promise<readonly Session[]> {
@@ -125,10 +136,17 @@ export async function connectSession(
    * asking for it a second time. See ADR-0027.
    */
   continuing?: number,
+  /**
+   * Whether a bastion's own credential, if this session needs one and
+   * nothing is saved, should be asked for inline rather than through the
+   * separate window. ADR-0033: set only by the wizard's own test.
+   */
+  inline = false,
 ): Promise<OpenSession> {
   return invoke<OpenSession>('connect_session', {
     sessionId,
     continuing: continuing ?? null,
+    inline,
   });
 }
 
@@ -146,21 +164,29 @@ export type Secret =
   | { readonly password: string }
   | { readonly privateKey: string; readonly passphrase?: string };
 
+/**
+ * Splits a `Secret` into the three fields every command that takes one
+ * expects — always all three, `null` for whichever the caller did not send,
+ * because the core refuses to guess which one arrived. Three call sites
+ * built this ternary by hand before it was worth naming.
+ */
+function secretFields(
+  secret: Secret,
+): { password: string | null; privateKey: string | null; passphrase: string | null } {
+  return 'password' in secret
+    ? { password: secret.password, privateKey: null, passphrase: null }
+    : {
+        password: null,
+        privateKey: secret.privateKey,
+        passphrase: secret.passphrase ?? null,
+      };
+}
+
 export async function authenticateSession(
   handle: SessionHandle,
   secret: Secret,
 ): Promise<void> {
-  const payload =
-    'password' in secret
-      ? { handle, password: secret.password, privateKey: null, passphrase: null }
-      : {
-          handle,
-          password: null,
-          privateKey: secret.privateKey,
-          passphrase: secret.passphrase ?? null,
-        };
-
-  return invoke<void>('authenticate_session', payload);
+  return invoke<void>('authenticate_session', { handle, ...secretFields(secret) });
 }
 
 /**
@@ -216,17 +242,23 @@ export async function rememberCredential(
   sessionId: string,
   secret: Secret,
 ): Promise<void> {
-  const payload =
-    'password' in secret
-      ? { sessionId, password: secret.password, privateKey: null, passphrase: null }
-      : {
-          sessionId,
-          password: null,
-          privateKey: secret.privateKey,
-          passphrase: secret.passphrase ?? null,
-        };
+  return invoke<void>('remember_credential', { sessionId, ...secretFields(secret) });
+}
 
-  return invoke<void>('remember_credential', payload);
+/**
+ * Keeps a secret for the life of this run, without writing it anywhere.
+ *
+ * ADR-0032. The wizard's own inline test authenticates through
+ * `authenticateSession` rather than the credential window, so this is how it
+ * reaches the middle of ADR-0025's three tiers — the window reaches it
+ * through the core's own internal call, this is the same store reached
+ * directly.
+ */
+export async function keepCredentialForRun(
+  sessionId: string,
+  secret: Secret,
+): Promise<void> {
+  return invoke<void>('keep_credential_for_run', { sessionId, ...secretFields(secret) });
 }
 
 export async function forgetCredential(sessionId: string): Promise<void> {

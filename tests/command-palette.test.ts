@@ -25,7 +25,17 @@ function command(id: string, title: string, extra: Partial<Command> = {}): Comma
 }
 
 function session(id: string, name: string, host: string, group: string | null = null): Session {
-  return { id, name, host, port: 22, user: 'deploy', group, credentialId: null, proxyJump: null };
+  return {
+    id,
+    name,
+    host,
+    port: 22,
+    user: 'deploy',
+    group,
+    credentialId: null,
+    proxyJump: null,
+    kind: 'other',
+  };
 }
 
 function live(saved: Session, kind: LiveSession['kind'] = 'saved'): LiveSession {

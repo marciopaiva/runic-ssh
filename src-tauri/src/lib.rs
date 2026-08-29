@@ -69,6 +69,7 @@ pub fn run() -> tauri::Result<()> {
             commands::sessions::host_key_decision,
             commands::sessions::credential_store_status,
             commands::sessions::remember_credential,
+            commands::sessions::keep_credential_for_run,
             commands::sessions::forget_credential,
             commands::sessions::authenticate_with_saved,
             commands::sessions::authenticate_session,

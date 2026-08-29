@@ -14,7 +14,6 @@
  * decides anything is testable without a DOM, and the component only draws.
  */
 
-import { EMPTY_DRAFT } from './draft';
 import type { DraftField, DraftValues } from './draft';
 import { differs, editorValues, targetSession } from './editor';
 import type { EditorTarget } from './editor';
@@ -29,6 +28,15 @@ export interface OpenEditor {
   readonly wrong: readonly DraftField[];
   /** Whether this form is waiting on an answer about throwing work away. */
   readonly discarding: boolean;
+  /**
+   * Which of the wizard's two steps is showing. ADR-0034: every host, new or
+   * already saved, is drawn by the same two steps now, so there is nothing
+   * left for a second mode to distinguish. Kept here rather than in
+   * component state so that looking away to another host and back does not
+   * reset it — Home has one rectangle, and switching what it shows unmounts
+   * whichever form was drawing it.
+   */
+  readonly step: 1 | 2;
 }
 
 /**
@@ -81,7 +89,14 @@ export function withEditor(
 
   return [
     ...editors,
-    { target, values: loaded, baseline: loaded, wrong: [], discarding: false },
+    {
+      target,
+      values: loaded,
+      baseline: loaded,
+      wrong: [],
+      discarding: false,
+      step: 1,
+    },
   ];
 }
 
@@ -121,14 +136,23 @@ export function typedInto(
   };
 }
 
+/** Moves the wizard to a given step. */
+export function withStep(editor: OpenEditor, step: OpenEditor['step']): OpenEditor {
+  return { ...editor, step };
+}
+
 /**
  * A form that has just been saved, re-aimed at what was stored.
  *
  * For a host that did not exist this is the first time the form learns its id.
  * Without it the form stays on "new session" after saving one, and the tab goes
  * on claiming unsaved work for a host that is already on disk.
+ *
+ * `step` is the caller's to carry through, not recomputed here: this function
+ * has no way to tell a wizard's own save-and-test from an ordinary edit.
+ * Callers that do not care pass `1`, the wizard's own opening step.
  */
-export function settled(stored: Session): OpenEditor {
+export function settled(stored: Session, step: OpenEditor['step'] = 1): OpenEditor {
   const values = editorValues(stored);
 
   return {
@@ -137,16 +161,6 @@ export function settled(stored: Session): OpenEditor {
     baseline: values,
     wrong: [],
     discarding: false,
-  };
-}
-
-/** A blank form for a host that does not exist yet. */
-export function blankEditor(): OpenEditor {
-  return {
-    target: { kind: 'new' },
-    values: EMPTY_DRAFT,
-    baseline: EMPTY_DRAFT,
-    wrong: [],
-    discarding: false,
+    step,
   };
 }

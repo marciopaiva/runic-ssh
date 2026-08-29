@@ -28,6 +28,7 @@ const valid: DraftValues = {
   user: 'deploy',
   group: 'Production',
   proxyJump: '',
+  kind: 'other',
 };
 
 const withValue = (field: keyof DraftValues, value: string): DraftValues => ({
@@ -49,7 +50,7 @@ describe('a session draft', () => {
   it('names every field that is wrong, not just the first', () => {
     /* Reporting one at a time makes somebody submit four times to find out
        about four mistakes. */
-    expect([...invalidFields({ name: '', host: '', port: 'x', user: '', group: '', proxyJump: '' })].sort()).toEqual(
+    expect([...invalidFields({ name: '', host: '', port: 'x', user: '', group: '', proxyJump: '', kind: 'other' })].sort()).toEqual(
       ['host', 'name', 'port', 'user'].sort(),
     );
   });
