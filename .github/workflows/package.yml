@@ -90,8 +90,11 @@ jobs:
       # Same cache as gate.yml, kept in step with it for the same reason the
       # five commands below are (#210): a hit here skips downloading and
       # extracting every package again.
+      # `run:` defaults to pwsh on Windows, where `$(...)` and `$GITHUB_OUTPUT`
+      # do not mean this.
       - name: Get pnpm store path
         id: pnpm-store
+        shell: bash
         run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
 
       - name: Cache pnpm store

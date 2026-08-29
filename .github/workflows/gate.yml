@@ -85,8 +85,13 @@ jobs:
       # every package again; `pnpm install` still runs, and still checks
       # `pnpm-lock.yaml` against `package.json`, but links from what is
       # already on disk instead of fetching it.
+      # `run:` defaults to pwsh on Windows, where `$(...)` and `$GITHUB_OUTPUT`
+      # do not mean this. Named explicitly rather than relying on the
+      # runner's default, the way package.yml already does for its own
+      # platform-sensitive steps.
       - name: Get pnpm store path
         id: pnpm-store
+        shell: bash
         run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
 
       - name: Cache pnpm store
