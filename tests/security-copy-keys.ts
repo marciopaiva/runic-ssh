@@ -1,0 +1,275 @@
+/**
+ * Which catalogue keys describe a security decision to the user, per section
+ * 1 of `CLAUDE.md`: "a mistranslated host key warning is a vulnerability, not
+ * a typo." These are the keys a locale's review has to cover before its
+ * translation is presented as reviewed (#192).
+ *
+ * This list is a draft, built by reading `en.json` against the review scope
+ * `src/lib/i18n/locales.ts` already describes in prose, not by whoever did
+ * the actual reading. Correct it against them, not against this file's own
+ * reasoning. `tests/security-copy.test.ts` uses it two ways: a marker-word
+ * scan over every catalogue key fails when a new key reads as security copy
+ * and is not listed here, and a content hash fails when a listed key's
+ * reviewed translation changes without the record in `REVIEWS` moving. Both
+ * checks are a floor, not a ceiling: a string that describes a security
+ * decision without using any of the marker words below passes the first
+ * check silently, the way `hostKey.changed.confirmPrompt`'s all-caps
+ * instruction or `failure.rsaRefused.body`'s cryptographic policy would if
+ * they were not already listed by hand.
+ */
+
+import { createHash } from 'node:crypto';
+
+import type { MessageKey } from '../src/lib/i18n/messages';
+
+/**
+ * Substrings that make a key's name or English text worth a second look.
+ * Deliberately without a bare "key": `empty.hint`'s "press {keys} for
+ * commands" is a keyboard shortcut, not key material, and a marker that
+ * loose would flag it on every run.
+ */
+export const MARKER_WORDS: readonly string[] = [
+  'password',
+  'passphrase',
+  'credential',
+  'secret',
+  'keychain',
+  'trust',
+  'revoked',
+  'fingerprint',
+  'override',
+  'certificate',
+  'authenticat',
+  'host key',
+];
+
+/** Every key whose English text or dotted name matches a marker above. */
+export function matchesMarker(key: string, message: string): boolean {
+  const hay = `${key} ${message}`.toLowerCase();
+  return MARKER_WORDS.some((marker) => hay.includes(marker));
+}
+
+/**
+ * A hash over one locale's translated values for a set of keys, in key
+ * order so the result does not depend on where a key sits in the JSON file.
+ * Recompute this by hand whenever `REVIEWS` needs a new entry; there is no
+ * other way to get it right, which is the point.
+ */
+export function hashOf(catalog: Readonly<Record<string, string>>, keys: readonly MessageKey[]): string {
+  const hash = createHash('sha256');
+  for (const key of [...keys].sort()) {
+    hash.update(key);
+    hash.update(':');
+    hash.update(catalog[key] ?? '');
+    hash.update('\n');
+  }
+  return hash.digest('hex');
+}
+
+/**
+ * Every key a review has to cover. Grouped the way the review notes in
+ * `locales.ts` describe their own scope, so a block here maps to a sentence
+ * there.
+ */
+export const SECURITY_COPY_KEYS: readonly MessageKey[] = [
+  // The credential prompt window itself (ADR-0008). Every string is either
+  // asking for a secret or saying where it is about to go.
+  'credential.cancel',
+  'credential.failed',
+  'credential.hop.bastion',
+  'credential.keep',
+  'credential.keep.forThisRun',
+  'credential.keep.never',
+  'credential.keep.stored',
+  'credential.loading',
+  'credential.method',
+  'credential.method.key',
+  'credential.method.password',
+  'credential.passphrase',
+  'credential.password',
+  'credential.privateKey',
+  'credential.subject',
+  'credential.submit',
+  'credential.title',
+  'credential.title.jump',
+
+  // The connection screen's explicit security claims: a secret never enters
+  // the document that renders terminal output, and the host key is checked
+  // before anything is sent. `connecting.cancel`, `.host` and `.title` are
+  // plain chrome around those two sentences and stay out.
+  'connecting.auth.body',
+  'connecting.auth.title',
+  'connecting.body',
+
+  // Both host key screens, their fingerprint and their override copy.
+  'hostKey.action.cancel',
+  'hostKey.action.trust',
+  'hostKey.certificate.body',
+  'hostKey.certificate.title',
+  'hostKey.changed.body',
+  'hostKey.changed.cancel',
+  'hostKey.changed.confirmPrompt',
+  'hostKey.changed.offered',
+  'hostKey.changed.replace',
+  'hostKey.changed.title',
+  'hostKey.changed.trusted',
+  'hostKey.field.fingerprint',
+  'hostKey.field.host',
+  'hostKey.field.keyType',
+  'hostKey.field.randomart',
+  'hostKey.hop.bastion',
+  'hostKey.refused.note',
+  'hostKey.revoked.body',
+  'hostKey.revoked.title',
+  'hostKey.savedTo',
+  'hostKey.unknown.body',
+  'hostKey.unknown.title',
+  'hostKey.verify.hint',
+  'hostKey.verify.label',
+
+  // The vault failures, including the no-secret-service fallback ADR-0004
+  // requires an explanation for.
+  'editor.failed.body.keychain',
+  'editor.failed.forget',
+  'failure.jumpCredential.body',
+  'failure.jumpCredential.title',
+  'failure.keychain.body',
+  'failure.keychain.title',
+
+  // The authentication and key errors that say what to do next.
+  'failure.authentication.body',
+  'failure.authentication.title',
+  'failure.cancelled.body',
+  'failure.certificate.body',
+  'failure.keyUnreadable.body',
+  'failure.keyUnreadable.title',
+  'failure.prompt.body',
+  'failure.prompt.title',
+  'failure.proxyJump.body',
+  'failure.proxyJump.title',
+  'failure.revoked.body',
+  'failure.rsaRefused.body',
+  'failure.rsaRefused.title',
+
+  // The editor's password block, added in the v0.2.1 sweep.
+  'session.editor.credential',
+  'session.editor.credential.forget',
+  'session.editor.credential.replace',
+  'session.editor.credential.save',
+  'session.editor.credential.saveHint',
+  'session.editor.credential.stored',
+  'session.editor.jumpHostHint',
+  'session.editor.noSecret',
+  'settings.sessions.lead',
+
+  // The four endings a kept credential can have, added in the v0.2.1 sweep.
+  'kept.done',
+  'kept.none.body',
+  'kept.none.title',
+  'kept.refused.body',
+  'kept.refused.title',
+  'kept.run.body',
+  'kept.run.title',
+  'kept.stored.body',
+  'kept.stored.title',
+
+  // The jump host's refused keep, added in the v0.2.1 sweep.
+  'status.credentialUnsaved',
+  'status.credentialUnsaved.detail',
+  'status.credentialUnsaved.detail.via',
+  'status.credentialUnsaved.via',
+
+  // A host carrying somebody else's session, and a host key mismatch state.
+  'session.state.carrying',
+  'session.state.keyMismatch',
+  'sessions.jump.carries',
+  'sessions.jump.direct',
+  'sessions.jump.rides',
+
+  // Which sessions receive what you type, added in the v0.2.1 sweep.
+  'command.split.sync.detail',
+  'command.split.sync.off',
+  'command.split.sync.on',
+  'status.sync',
+  'status.sync.announce.off',
+  'status.sync.announce.one',
+  'status.sync.announce.other',
+  'status.sync.nowhere',
+  'status.sync.off',
+  'status.sync.on',
+  'terminal.group.sync.off',
+  'terminal.group.sync.on',
+  'terminal.paste.body',
+  'terminal.paste.body.one',
+  'terminal.paste.cancel',
+  'terminal.paste.confirm',
+  'terminal.paste.hosts',
+  'terminal.paste.line',
+  'terminal.paste.more',
+  'terminal.paste.title',
+
+  // The sentence that states the review guarantee itself.
+  'settings.language.hint',
+];
+
+/**
+ * What each offered locale's review actually covered, per the prose in
+ * `src/lib/i18n/locales.ts`. A locale earns a review by covering some or all
+ * of `SECURITY_COPY_KEYS`; it does not have to cover all of it at once, the
+ * way `es`'s scope is narrower than `pt-BR`'s by design (#4).
+ */
+export const REVIEWS: Readonly<
+  Record<string, { readonly date: string; readonly hash: string; readonly keys: readonly MessageKey[] }>
+> = {
+  'pt-BR': {
+    date: '2026-08-26',
+    hash: '0c97a951d1729808445616f6ea082b16a8ba6172a51f5660c8693f9b8d536394',
+    keys: SECURITY_COPY_KEYS,
+  },
+  es: {
+    date: '2026-08-26',
+    hash: '3575d9b9df47f1f326a5c2eebf3660cb117ef9164626858896fa0b3d1fd6e2a8',
+    keys: [
+      'editor.failed.body.keychain',
+      'failure.authentication.body',
+      'failure.authentication.title',
+      'failure.cancelled.body',
+      'failure.certificate.body',
+      'failure.jumpCredential.body',
+      'failure.jumpCredential.title',
+      'failure.keyUnreadable.body',
+      'failure.keyUnreadable.title',
+      'failure.keychain.body',
+      'failure.keychain.title',
+      'failure.proxyJump.body',
+      'failure.proxyJump.title',
+      'failure.revoked.body',
+      'failure.rsaRefused.body',
+      'failure.rsaRefused.title',
+      'hostKey.action.cancel',
+      'hostKey.action.trust',
+      'hostKey.certificate.body',
+      'hostKey.certificate.title',
+      'hostKey.changed.body',
+      'hostKey.changed.cancel',
+      'hostKey.changed.confirmPrompt',
+      'hostKey.changed.offered',
+      'hostKey.changed.replace',
+      'hostKey.changed.title',
+      'hostKey.changed.trusted',
+      'hostKey.field.fingerprint',
+      'hostKey.field.host',
+      'hostKey.field.keyType',
+      'hostKey.field.randomart',
+      'hostKey.hop.bastion',
+      'hostKey.refused.note',
+      'hostKey.revoked.body',
+      'hostKey.revoked.title',
+      'hostKey.savedTo',
+      'hostKey.unknown.body',
+      'hostKey.unknown.title',
+      'hostKey.verify.hint',
+      'hostKey.verify.label',
+    ],
+  },
+};
