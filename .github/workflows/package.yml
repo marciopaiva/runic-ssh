@@ -108,12 +108,26 @@ jobs:
 
       # The gate runs on every pull request, but a tag can point anywhere. An
       # installer built from code that does not pass its own tests is worse
-      # than no installer, because somebody will install it.
-      - name: Run the gate
-        run: |
-          pnpm typecheck
-          pnpm test
-        shell: bash
+      # than no installer, because somebody will install it. The five steps
+      # below are section 8 of CLAUDE.md, in the same order and the same form
+      # gate.yml runs them, so this and the PR gate cannot drift apart (#210).
+      - name: cargo fmt
+        working-directory: src-tauri
+        run: cargo fmt --all -- --check
+
+      - name: cargo clippy
+        working-directory: src-tauri
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: cargo test
+        working-directory: src-tauri
+        run: cargo test
+
+      - name: pnpm typecheck
+        run: pnpm typecheck
+
+      - name: pnpm test
+        run: pnpm test
 
       # The cache above restores `src-tauri/target`, and `target/release/bundle`
       # is inside it, so a hit brings the previous run's installers back with
