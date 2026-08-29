@@ -44,7 +44,16 @@
  * catalogue gained twenty-three, fifteen of which say where a keystroke or a
  * secret goes, and the note above them still read as though it covered them. It
  * happened again before v0.2.1, by thirty. Nothing failed either time, because
- * nothing can. See #192.
+ * nothing could (#192).
+ *
+ * Now something can. `tests/security-copy-keys.ts` lists which catalogue keys
+ * describe a security decision and, for each reviewed locale, which of those
+ * keys the review above actually covered and a hash of their translated text
+ * at review time. `tests/security-copy.test.ts` fails when a new key reads as
+ * security copy and was never added to that list, and fails again when a
+ * listed key's translation changes without the hash moving with it. Extending
+ * the paragraph above without touching that file is how the claim goes stale
+ * again; update both together.
  *
  * Keeping the catalogue in the tree rather than deleting it is what keeps the
  * parity guards covering it. A removed catalogue rots silently.
