@@ -353,8 +353,8 @@ pub async fn remember_credential<R: Runtime>(
 /// ADR-0032. The wizard's own inline test authenticates through
 /// [`authenticate_session`] rather than the credential window, which is the
 /// one place `SessionSecrets::keep` was previously reached from. Without
-/// this, "until Runic SSH closes, in memory only" — the middle tier
-/// ADR-0025 built because it is what most people actually want — would be
+/// this, "until Runic SSH closes, in memory only", the middle tier
+/// ADR-0025 built because it is what most people actually want, would be
 /// unreachable from that path, leaving two of its three answers instead of
 /// three.
 #[tauri::command]

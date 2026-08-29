@@ -219,7 +219,7 @@ export const REVIEWS: Readonly<
   'pt-BR': {
     /* Hash recomputed 2026-08-29 when five keys tied to `SessionForm` left
        SECURITY_COPY_KEYS (ADR-0034 retired the component). Every surviving
-       key's translated text is unchanged from the review date below — this
+       key's translated text is unchanged from the review date below. This
        is coverage shrinking to match a smaller list, not a new review. */
     date: '2026-08-26',
     hash: 'e324864f806a6b9a3344efa1d1729b7ba29ca6582a7f9d6b06b0863682d140c6',

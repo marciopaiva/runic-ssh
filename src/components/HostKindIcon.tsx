@@ -8,7 +8,7 @@ import type { HostKind } from '../ipc';
  * The glyph for a host kind. ADR-0031.
  *
  * Four hand-drawn shapes, the same style every other icon in the tree is
- * drawn in — no icon library, so the whole set is these four paths and
+ * drawn in. No icon library, so the whole set is these four paths and
  * nothing an upgrade can change out from under them.
  */
 export function HostKindIcon({

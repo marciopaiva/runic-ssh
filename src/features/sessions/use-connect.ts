@@ -197,8 +197,8 @@ export function useConnect(wiring: Wiring): ConnectState {
         return;
       }
 
-      /* ADR-0032. The wizard's own step 3 collects the secret itself and
-         never opens the credential window at all — `submitInlineCredential`
+      /* ADR-0032. The wizard's own proof phase collects the secret itself
+         and never opens the credential window at all: `submitInlineCredential`
          picks up from here once its form is answered. No `'authenticating'`
          flash first: that stage means the window is open, which is never
          true on this path. */
@@ -253,7 +253,7 @@ export function useConnect(wiring: Wiring): ConnectState {
       try {
         /* Only `'open'` ever reaches this call: `'inline'` returned above,
            before `'authenticating'` was even set. ADR-0034 retired the
-           intent that used to end here without a terminal — every caller
+           intent that used to end here without a terminal. Every caller
            that only wanted a credential collects it inline now, through
            `submitInlineCredential`, which is the only place left that ends
            an attempt on `onCredentialSettled` rather than `onOpened`. */
@@ -442,7 +442,7 @@ export function useConnect(wiring: Wiring): ConnectState {
       void dismissCredential(null).catch(() => undefined);
     }
 
-    /* ADR-0032. There is no window to answer for `'awaitingInline'` — the
+    /* ADR-0032. There is no window to answer for `'awaitingInline'`. The
        connection itself is what has to be let go, open and unauthenticated,
        or it holds a slot against the server's `MaxSessions` with nothing on
        screen able to reach it again. */
@@ -451,7 +451,7 @@ export function useConnect(wiring: Wiring): ConnectState {
     }
 
     /* ADR-0033. No window either, for the same reason `awaitingInline` has
-       none — but there is no connection to let go by hand here: the bastion
+       none. There is no connection to let go by hand here, though: the bastion
        connection is held inside the still-running `connect_session` call,
        and dismissing its request is what lets that call unwind on its own,
        closing everything it opened exactly as a dismissed window already
@@ -469,10 +469,10 @@ export function useConnect(wiring: Wiring): ConnectState {
    *
    * Authenticates directly against the connection `attemptConnect` already
    * opened and verified the host key for, through `authenticateSession`
-   * rather than the credential window's protocol — there is no window here
+   * rather than the credential window's protocol: there is no window here
    * to protocol with. The connection closes either way, because a test is
    * what this is, never a session left open for a terminal nobody asked to
-   * see — the same ending the retired `'credential'` intent used to reach
+   * see. The same ending the retired `'credential'` intent used to reach
    * through the window instead. ADR-0034.
    */
   const submitInlineCredential = useCallback(
@@ -497,7 +497,7 @@ export function useConnect(wiring: Wiring): ConnectState {
       }
 
       /* Encoded as `Keeping` to reuse the same settled surface `authenticate`
-         already renders for the credential window's path — the endings agree
+         already renders for the credential window's path. The endings agree
          on what to say, only how the secret got there differs. */
       let keeping: Keeping = 'notAsked';
       if (keep !== 'never') {

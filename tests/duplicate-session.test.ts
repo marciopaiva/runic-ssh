@@ -60,7 +60,7 @@ describe('the saved session already reaching a target', () => {
   });
 
   it('skips the check while the port has not parsed to a number yet', () => {
-    /* A draft mid-typing, or one whose port is still invalid — `invalidFields`
+    /* A draft mid-typing, or one whose port is still invalid: `invalidFields`
        already refuses that on its own, and matching everything against a
        `null` port here would report a duplicate that is not one yet. */
     const saved = [session('web-01', { host: 'web-01.example.com' })];

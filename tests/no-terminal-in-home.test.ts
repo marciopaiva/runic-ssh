@@ -3,13 +3,13 @@
  *
  * The wizard's own inline credential field (`InlineCredentialForm`) lives in
  * the same document as the terminal, which is exactly what ADR-0008
- * refused to do — unless nothing renders remote output while the field is
+ * refused to do, unless nothing renders remote output while the field is
  * on screen. ADR-0032 checked that and found it true: every `TerminalView`
  * is mounted inside `{workspace === 'sessions' && (...)}`, a plain
  * conditional, so switching to Home unmounts every one of them rather than
  * hiding them the way switching tabs *within* Sessions does (ADR-0014).
  *
- * That is a runtime condition, not a structural one — nothing like the
+ * That is a runtime condition, not a structural one, nothing like the
  * separate bundle `tests/credential-window.test.ts` checks for the
  * credential window. This is the equivalent floor for the wizard's inline
  * field: a change that widens the gate, or adds a second `TerminalView`
@@ -47,8 +47,8 @@ describe('nothing renders remote output while Home is showing (ADR-0032)', () =>
   });
 
   it('gates the Sessions branch on workspace alone, not workspace plus something narrower', () => {
-    /* `sidebarOpen` also gates a `workspace === 'sessions'` block — the
-       sidebar, not the terminal — and must not be mistaken for the one this
+    /* `sidebarOpen` also gates a `workspace === 'sessions'` block, for the
+       sidebar and not the terminal, and must not be mistaken for the one this
        file is about. Matched literally so a rename of either constant is
        caught here rather than by this test quietly checking nothing. */
     const gate = "{workspace === 'sessions' && (\n";

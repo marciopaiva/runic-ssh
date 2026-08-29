@@ -46,8 +46,8 @@ model. Its own follow-up section named the Home workspace's interior as
 undecided. This is that: Home never got a place to show a connection attempt,
 because nothing in Home has needed one before now.
 
-A second gap sits next to it. Which kind of credential a host takes — a
-password or a private key — is chosen only inside the dedicated credential
+A second gap sits next to it. Which kind of credential a host takes, a
+password or a private key, is chosen only inside the dedicated credential
 window, as local state (`CredentialWindow.tsx:46`, `Method = 'password' |
 'key'`, seeded to `'password'` every time). Nothing upstream can tell it which
 one is likely wanted. That value is not a secret; ADR-0008 and rule 6 of
@@ -60,7 +60,7 @@ shape, gained the method field and stopped switching workspace. It worked, and
 running it was what surfaced the actual request: the maintainer's own framing
 from the start of this conversation was *"nesse wizard o usuario já informaria
 o tipo de autenticação... e o ultimo step poderia ser o teste antes de
-concluir"* — an explicit sequence, not a single page that happens to have
+concluir"*: an explicit sequence, not a single page that happens to have
 grown a method field. Seeing Option A running was what made that gap legible;
 the decision below is Option B, chosen after Option A shipped and was found
 short of what was actually asked for.
@@ -72,8 +72,8 @@ short of what was actually asked for.
 Render `attemptSurface` (or a Home-scoped equivalent driven by the same
 `ConnectStage`) inside the host's editor tab instead of inside a Sessions
 group box, and stop `savePasswordIn` from switching workspace at all. The
-sequence connect.ts already runs — host key decision, credential window,
-settle — plays out without leaving Home. `SessionForm` gains a plain,
+sequence connect.ts already runs (host key decision, credential window,
+settle) plays out without leaving Home. `SessionForm` gains a plain,
 non-secret method selector (password or private key), and `CredentialPrompt`
 gains an optional field the credential window uses to seed its own `Method`
 state instead of always starting on `'password'`.
@@ -92,13 +92,13 @@ without it.
 Replace the single-page form with an explicit sequence for a **new** host:
 host details, then the method choice, then the test, each its own step with
 its own forward and back controls. Editing an existing host keeps the
-single-page form exactly as Option A built it — there is no unsaved sequence
+single-page form exactly as Option A built it: there is no unsaved sequence
 to walk through for a host every field of which is already filled in, and a
 wizard that immediately shows three steps of already-true answers is not
 doing the job a wizard is for.
 
-It needs everywhere Option A needs — the attempt still has to render inside
-Home, and the method field is still chosen outside the credential window — so
+It needs everywhere Option A needs: the attempt still has to render inside
+Home, and the method field is still chosen outside the credential window. So
 it carries Option A's whole cost and adds step state (which step a draft is
 on, kept alongside the draft itself so switching to look at another host and
 back does not lose it), forward and back navigation, and a second component
@@ -121,17 +121,17 @@ absence of warning.
 
 Option B, on top of Option A, and the method field with both.
 
-Option A's attempt surface and method field are not undone — Option B needs
+Option A's attempt surface and method field are not undone. Option B needs
 both and reuses them exactly as built. What changes is what wraps a *new*
 host: three steps (host details, then authentication method, then an
 optional test) instead of one page. An existing host keeps the plain form,
-because the question a wizard answers — what do I fill in next — has no
+because the question a wizard answers, what do I fill in next, has no
 content once every field already holds a true answer.
 
 The reason is not a property of the code; it is that Option A, once running,
 was short of what was asked for. The maintainer's own description of the
-feature, given before any of this was built, was already a sequence — host,
-then how you will get in, then prove it — and a single page with a button at
+feature, given before any of this was built, was already a sequence: host,
+then how you will get in, then prove it. And a single page with a button at
 the bottom is a different shape even when it does the same work underneath.
 Building Option A first was not wasted: it is the state machine, the
 attempt-surface plumbing and the method field that Option B's steps 1 and 2
@@ -141,14 +141,14 @@ The test step (step 3) stays exactly as the earlier conversation settled it:
 skippable. "Concluir sem testar" saves the host and closes the wizard without
 connecting, the same ending the plain form's Save button has always had.
 "Testar agora" saves, connects, and renders the same attempt surface Option A
-built, inline in the step. Once the attempt is dismissed — settled, failed,
-or cancelled — a "Concluir" action closes the wizard; the host is already on
+built, inline in the step. Once the attempt is dismissed, settled, failed,
+or cancelled, a "Concluir" action closes the wizard; the host is already on
 disk by then, so this does not save it again.
 
 ## Consequences
 
 **Good**: registering a host now reads the way it was described from the
-start — three moments, not one form — while the mechanics underneath (host
+start: three moments, not one form, while the mechanics underneath (host
 key first, credential window second, nothing kept until the server accepts)
 are exactly what `connect.ts` already guaranteed and Option A already surfaced
 inside Home. The method field removes the same friction it removed under
@@ -162,19 +162,19 @@ change to a shared field still touches one place; a change to navigation or
 layout now touches two.
 
 **Bad**: which step a draft is on has to survive being looked away from and
-back — Home has one rectangle, and switching to look at a different host
+back. Home has one rectangle, and switching to look at a different host
 unmounts whichever editor was showing. This document accepts keeping the step
 number on the draft itself (`OpenEditor`, alongside the values and the
 baseline) rather than only in component state, which is one more field two
 functions (`withEditor`, `settled`) have to carry through correctly.
 
-**Bad**: everything Option A's own Bad section named still holds —
+**Bad**: everything Option A's own Bad section named still holds:
 `attemptSurface` is two call sites now, and `CredentialPrompt` carries a field
 one caller uses. Neither is made worse by wrapping the same surface in steps;
 neither is made better either.
 
 **Follow-up**: split `App.tsx` along the seam this creates, on top of the ones
-ADR-0017 and ADR-0029 already named — now two components' worth of editor
+ADR-0017 and ADR-0029 already named: now two components' worth of editor
 wiring rather than one. Decide whether the chosen method persists across an
 abandoned-and-reopened draft or resets every time; this document assumes the
 latter, matching `CredentialWindow`'s own always-fresh default. Revisit the

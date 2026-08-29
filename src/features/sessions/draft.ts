@@ -44,7 +44,7 @@ export interface DraftValues {
    * See `jumpHostChoice`.
    */
   readonly proxyJump: string;
-  /** ADR-0031. Never wrong on its own — every value the picker offers is one
+  /** ADR-0031. Never wrong on its own: every value the picker offers is one
    * the core accepts, the same reason `proxyJump` needs no check here. */
   readonly kind: HostKind;
 }

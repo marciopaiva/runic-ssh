@@ -11,9 +11,9 @@ interface InlineCredentialFormProps {
   /**
    * Fixed, or `null` meaning the form offers the choice itself.
    *
-   * Fixed for the target's own credential — chosen on the wizard's own step
-   * 2, and ADR-0032 exists so it is asked once, not asked again. `null` for
-   * a bastion's, ADR-0033: step 2 answered a question about the target, and
+   * Fixed for the target's own credential, chosen on the wizard's own Access
+   * step: ADR-0032 exists so it is asked once, not asked again. `null` for
+   * a bastion's, ADR-0033: Access answered a question about the target, and
    * a different host nothing has asked about yet gets the same choice the
    * separate window always gave it, defaulting to password.
    */
@@ -30,12 +30,12 @@ interface InlineCredentialFormProps {
 }
 
 /**
- * The wizard's own step 3 credential field. ADR-0032, and ADR-0033 for the
- * `carrying` case.
+ * The wizard's own credential field, once Access has led into the proof
+ * phase. ADR-0032, and ADR-0033 for the `carrying` case.
  *
  * Everything ADR-0008 asks of the credential window applies here too, minus
- * the window itself: nothing typed is ever held in React state — the field
- * is uncontrolled and read from the DOM only at the moment of submitting —
+ * the window itself. Nothing typed is ever held in React state: the field
+ * is uncontrolled and read from the DOM only at the moment of submitting,
  * and the form is reset the instant that happens, whichever way it went.
  * What the separate window adds on top, and what this deliberately does
  * without, is a document with nothing else in it; ADR-0032 is the record of
@@ -53,14 +53,15 @@ export function InlineCredentialForm({
   const takeFirst = (node: HTMLElement | null): void => {
     first.current = node;
   };
-  /* Only reachable while `fixedMethod` is `null` — nothing else ever reads
+  /* Only reachable while `fixedMethod` is `null`. Nothing else ever reads
    * or writes it, so a bastion's own choice cannot leak into the target's
    * fixed one on a later render of this same component. */
   const [chosenMethod, setChosenMethod] = useState<SuggestedMethod>('password');
   const method = fixedMethod ?? chosenMethod;
-  /* `undefined` while the probe is in flight, so the keychain option is
-   * absent rather than briefly offered and then withdrawn — the same rule
-   * `credential.method` in the separate window already follows for it. */
+  /* `undefined` while the probe is in flight. `submit` below and the status
+   * line both wait on a real answer rather than assuming a keychain exists,
+   * the same caution `credential.method` in the separate window carries for
+   * the same probe. */
   const [canRemember, setCanRemember] = useState<boolean | undefined>(undefined);
 
   useEffect(() => {
@@ -77,7 +78,7 @@ export function InlineCredentialForm({
     event.preventDefault();
     /* ADR-0034: not a choice read off the form any more. The wizard is the
        only place a host's credential is set, and the whole point is that
-       finishing it leaves Sessions with nothing left to ask — so this keeps
+       finishing it leaves Sessions with nothing left to ask. So this keeps
        for good when there is a keychain to keep it in, and for the run when
        there is not, rather than defaulting to `'never'` and asking the
        question a checkbox used to answer. */
@@ -154,8 +155,8 @@ export function InlineCredentialForm({
         </>
       )}
 
-      {/* Stated, not asked. ADR-0034: this form has one ending, not three —
-          reusing the separate window's own reviewed strings for the two that
+      {/* Stated, not asked. ADR-0034: this form has one ending, not three.
+          Reuses the separate window's own reviewed strings for the two that
           survive here rather than writing new copy for the same claim. */}
       <p className="text-ink-faint text-[11px] leading-snug">
         {i18n.t(canRemember === true ? 'credential.keep.stored' : 'credential.keep.forThisRun')}

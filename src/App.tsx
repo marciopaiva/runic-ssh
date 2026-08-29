@@ -247,7 +247,7 @@ export function App(): JSX.Element {
      `testInWizard` adds one the moment its save turns a new host into a real
      id, `finishWizard` clears it when the maintainer says to keep it, and the
      effect below deletes it again if the tab holding it closes any other
-     way — cancelled, discarded, or backed out of. A ref rather than state:
+     way: cancelled, discarded, or backed out of. A ref rather than state:
      nothing here is drawn, only consulted at the moment a tab actually
      closes. */
   const provisional = useRef<Set<string>>(new Set());
@@ -847,9 +847,9 @@ export function App(): JSX.Element {
     [reload],
   );
 
-  /* The other half of `provisional`: a tab can close through several doors —
+  /* The other half of `provisional`: a tab can close through several doors,
      `cancelEditing`'s direct close, `discardIn`'s confirmed discard, or
-     anything else that ever calls `withoutEditor` — and this is the one
+     anything else that ever calls `withoutEditor`, and this is the one
      place all of them are already visible, as an entry leaving `editors`,
      rather than four call sites each remembering to check the same set. A
      host `finishWizard` already released is gone from `provisional` by the
@@ -948,9 +948,9 @@ export function App(): JSX.Element {
 
   const submitIn = useCallback(
     /* `after` runs on what was stored, once the form has been re-aimed at it.
-       `wasNew` is how "connect once and save" and the plain Save button tell
-       a host that did not exist a moment ago from one that already did — the
-       id itself is the same either way, the one the core has just assigned. */
+       `wasNew` is how a caller tells a host that did not exist a moment ago
+       from one that already did. The id itself is the same either way, the
+       one the core has just assigned. */
     (target: EditorTarget, after?: (stored: Session, wasNew: boolean) => void): void => {
       const open = findEditor(editorsRef.current, target);
       if (open === null) return;
@@ -1022,7 +1022,7 @@ export function App(): JSX.Element {
 
         /* `homeFocus` still names the old target, and `sameFocus` refuses to
            match a `new` target against an `existing` one on purpose (#96's
-           rule, holding here too) — so without this the strip resolves to
+           rule, holding here too), so without this the strip resolves to
            whatever else is open, or to nothing, the instant a new host is
            saved. This keeps the form the test is running on the one on
            screen, which is ADR-0030's whole point. */
@@ -1066,7 +1066,7 @@ export function App(): JSX.Element {
   );
 
   /* The wizard's own ending once an attempt has settled. The host is already
-     on disk — the test's own `submitIn` call put it there — so this only
+     on disk (the test's own `submitIn` call put it there), so this only
      closes the tab. */
   const finishWizard = useCallback(
     (target: EditorTarget): void => {
@@ -1079,8 +1079,8 @@ export function App(): JSX.Element {
 
   /* Host to Access is the one transition with something to check: the six
      fields have to be fillable before there is anything to authenticate.
-     Access itself has nowhere further to advance to — ADR-0034: what
-     follows is a phase `SessionWizard` enters on its own, not a third step —
+     Access itself has nowhere further to advance to. ADR-0034: what
+     follows is a phase `SessionWizard` enters on its own, not a third step,
      so this is a no-op once already there.
 
      `suggestName` runs here too, before the check rather than only at save
@@ -1093,7 +1093,7 @@ export function App(): JSX.Element {
 
     const filled = suggestName(open.values);
     const problems = invalidFields(filled);
-    /* Same file-aware check `submitIn` runs before an ordinary save — a
+    /* Same file-aware check `submitIn` runs before an ordinary save. A
        duplicate target is knowable the moment host, port and user are all
        filled in, and the wizard should say so before Access rather than
        after a test that was always going to be refused underneath it. */
@@ -1656,7 +1656,7 @@ export function App(): JSX.Element {
                   })();
                 /* ADR-0030: the same host key and credential screens Sessions
                    shows over a group's terminal, found here when the attempt
-                   in flight is this host's own — the surface that makes
+                   in flight is this host's own. The surface that makes
                    staying in Home possible to watch, for the wizard's own
                    proof phase. */
                 const testSurface =
@@ -1678,7 +1678,7 @@ export function App(): JSX.Element {
                       }
                     : null;
                 /* ADR-0033: the bastion's own field, asked for before
-                   `inlineCredential` above is ever reached — a session behind
+                   `inlineCredential` above is ever reached. A session behind
                    a jump host authenticates it first. `submitCredential` is
                    the same command the separate window already answers
                    through; nothing about answering a request was ever

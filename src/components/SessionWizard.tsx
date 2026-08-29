@@ -28,9 +28,9 @@ interface SessionWizardProps {
    * the only surface left that can say so, now that `SessionForm` is gone. */
   readonly storedCredential: boolean;
   /** Drops the stored credential, or `null` on a host that does not exist
-   * yet — there is nothing to drop. */
+   * yet: there is nothing to drop. */
   readonly onForget: (() => void) | null;
-  /** Deletes this host outright, or `null` on one that does not exist yet —
+  /** Deletes this host outright, or `null` on one that does not exist yet:
    * there is nothing on disk to delete. */
   readonly onDelete: (() => void) | null;
   readonly onBack: () => void;
@@ -44,7 +44,7 @@ interface SessionWizardProps {
    * The host key and credential screens, exactly as Sessions renders them,
    * or `null` when nothing is attempting a connection for this host right
    * now. Owned by `App.tsx`, which already reads the shared `ConnectStage`
-   * machine ADR-0030 built — this component only decides where to put it.
+   * machine ADR-0030 built; this component only decides where to put it.
    */
   readonly testSurface: ReactNode | null;
   /**
@@ -74,7 +74,7 @@ interface SessionWizardProps {
 /**
  * Registering or editing a host, as the sequence it was asked for: the host,
  * then how you will get in, then proving it works. ADR-0030, consolidated by
- * ADR-0034 into the only way either happens — a new host and one already
+ * ADR-0034 into the only way either happens: a new host and one already
  * saved are drawn by the same two steps, pre-filled for the second.
  *
  * Host and Access are the only real, navigable steps. What follows Access is
@@ -119,12 +119,12 @@ export function SessionWizard({
   /* Whether an attempt has run at least once since `proving` last became
      true. Doubles as the effect's own fire-once guard and as the flag the
      render below uses to switch from "nothing to show yet, the attempt is
-     starting" to "Back / Test again / Finish" — one piece of state answers
+     starting" to "Back / Test again / Finish": one piece of state answers
      both questions because they are the same question asked twice. */
   const [attempted, setAttempted] = useState(false);
 
-  /* Leaving Access — Back to Host, or Access itself remounting for a
-     different host — resets both. ADR-0034's own rule is "every reopen
+  /* Leaving Access, Back to Host, or Access itself remounting for a
+     different host, resets both. ADR-0034's own rule is "every reopen
      retests", and this is what makes a reopen actually count as one rather
      than finding `attempted` already true from the last time. */
   useEffect(() => {
@@ -139,7 +139,7 @@ export function SessionWizard({
      render of `App.tsx`, so naming them here would refire this on every
      unrelated re-render while the attempt is in flight. Setting `attempted`
      synchronously, in the same tick as the call, is what a dependency array
-     cannot do and a ref alone cannot drive the render off — see the field
+     cannot do and a ref alone cannot drive the render off. See the field
      doc comment above for why one flag serves both. */
   useEffect(() => {
     if (
@@ -279,7 +279,7 @@ export function SessionWizard({
           <div className="flex max-w-[440px] flex-col gap-3">
             <MethodPicker value={method} onChange={setMethod} />
 
-            {/* What the host already has, rather than a field for it — the
+            {/* What the host already has, rather than a field for it: the
                 same fact `SessionForm` used to state, moved here since this
                 is the only screen left that asks about access at all. */}
             {storedCredential && (
@@ -330,7 +330,7 @@ export function SessionWizard({
         (testSurface !== null ? (
           <div className="relative min-h-[220px] max-w-[560px] flex-1">{testSurface}</div>
         ) : bastionCredential !== null ? (
-          /* ADR-0033. Asked about before the target's own field — a session
+          /* ADR-0033. Asked about before the target's own field: a session
              behind a jump host authenticates it first, and this is that
              order rendered rather than only enforced. No fixed `method`:
              step 2 answered a question about the target, and the bastion is
@@ -348,7 +348,7 @@ export function SessionWizard({
             onCancel={inlineCredential.onCancel}
           />
         ) : attempted ? (
-          /* The attempt has already settled once — successfully, refused, or
+          /* The attempt has already settled once. Successfully, refused, or
              cancelled, it does not matter which, the host is on disk either
              way. Just the row: retry, or leave. */
           <div className="flex max-w-[440px] items-center gap-2">
@@ -378,7 +378,7 @@ export function SessionWizard({
           /* Nothing to show yet: the effect above has already started the
              save that puts the host on disk and, from there, the attempt
              that proves it. This is only ever on screen for the width of
-             that round trip — the status bar already reads "connecting"
+             that round trip. The status bar already reads "connecting"
              underneath it, so nothing here repeats that. */
           <div className="max-w-[440px]" />
         ))}

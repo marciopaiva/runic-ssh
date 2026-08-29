@@ -187,7 +187,7 @@ describe('which kind may be a jump host (ADR-0031)', () => {
 
   it('keeps a chosen bastion offered even if its kind no longer qualifies', () => {
     /* A host saved before ADR-0031 existed, or retagged since, must not have
-       its own field make the choice it is already holding disappear — the
+       its own field make the choice it is already holding disappear. The
        same reasoning `carried` below rests on: a form that stops offering a
        value it still holds needs a way to clear it, not a silent mismatch
        between the select and the string underneath it. */

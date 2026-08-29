@@ -143,7 +143,7 @@ const INLINE_CREDENTIAL_EVENT = 'credential://inline-request';
 /**
  * Subscribes to a bastion's own credential being needed inline.
  *
- * Only ever fires while the wizard's own test is in flight — ADR-0033 names
+ * Only ever fires while the wizard's own test is in flight. ADR-0033 names
  * this the reason a bare request id is enough: one attempt at a time, one
  * caller that ever asks this way. `credentialPrompt(request)` reads what to
  * show for it, the same call the window itself would have made; answering is

@@ -114,7 +114,7 @@ export function jumpHostChoice(
     const offered = eligibleJumpHosts(sessions, editing);
 
     /* A bastion already chosen stays offered even if its kind is not, or is
-       no longer, `jumpServer` — a session saved before ADR-0031 existed, or
+       no longer, `jumpServer`. A session saved before ADR-0031 existed, or
        retagged since, must not have its own field make its stored choice
        disappear. The same reasoning `carried` below already rests on: a
        form that stops offering a value it is still holding needs a way to

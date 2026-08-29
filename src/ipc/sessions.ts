@@ -166,7 +166,7 @@ export type Secret =
 
 /**
  * Splits a `Secret` into the three fields every command that takes one
- * expects — always all three, `null` for whichever the caller did not send,
+ * expects: always all three, `null` for whichever the caller did not send,
  * because the core refuses to guess which one arrived. Three call sites
  * built this ternary by hand before it was worth naming.
  */
@@ -250,8 +250,8 @@ export async function rememberCredential(
  *
  * ADR-0032. The wizard's own inline test authenticates through
  * `authenticateSession` rather than the credential window, so this is how it
- * reaches the middle of ADR-0025's three tiers — the window reaches it
- * through the core's own internal call, this is the same store reached
+ * reaches the middle of ADR-0025's three tiers. The window reaches it
+ * through the core's own internal call; this is the same store reached
  * directly.
  */
 export async function keepCredentialForRun(

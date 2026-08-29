@@ -33,7 +33,7 @@ export interface OpenEditor {
    * already saved, is drawn by the same two steps now, so there is nothing
    * left for a second mode to distinguish. Kept here rather than in
    * component state so that looking away to another host and back does not
-   * reset it — Home has one rectangle, and switching what it shows unmounts
+   * reset it. Home has one rectangle, and switching what it shows unmounts
    * whichever form was drawing it.
    */
   readonly step: 1 | 2;

@@ -91,9 +91,9 @@ pub struct CredentialPrompt {
     pub carrying: Option<String>,
     /// A credential kind chosen before this prompt was asked for, if any.
     ///
-    /// ADR-0030. Not a secret — which kind a host takes is a fact about the
-    /// host, not about what somebody types — so it is chosen on the plain
-    /// editor form rather than in the window ADR-0008 keeps for the value
+    /// ADR-0030. Not a secret: which kind a host takes is a fact about the
+    /// host, not about what somebody types. So it is chosen on the wizard's
+    /// own Access step rather than in the window ADR-0008 keeps for the value
     /// itself, and carried here so the window can open on that tab instead of
     /// always guessing password. `None` for every ordinary connect: nothing
     /// upstream has an opinion, and the window falls back to its own default.

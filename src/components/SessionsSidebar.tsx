@@ -142,7 +142,7 @@ export function SessionsSidebar({
                         }`}
                       >
                         <SessionMarker kind={kind} />
-                        {/* What the host is, ADR-0031 — beside the state dot
+                        {/* What the host is, ADR-0031, beside the state dot
                             rather than instead of it: the two answer different
                             questions and neither can stand in for the other. */}
                         <HostKindIcon kind={session.kind} className="text-ink-faint h-3 w-3 shrink-0" />
@@ -189,8 +189,8 @@ export function SessionsSidebar({
                           onMenu(session.id, { x: box.right - 4, y: box.bottom + 2 });
                         }}
                         /* Hidden until the row is hovered or the button is
-                           focused, so the list stays quiet — but never hidden
-                           from the keyboard, which is how a hover-only
+                           focused, so the list stays quiet. Never hidden
+                           from the keyboard, though, which is how a hover-only
                            affordance becomes unreachable. */
                         className="text-ink-faint hover:text-ink mr-1 flex h-5 w-5 shrink-0 items-center justify-center rounded opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
                       >

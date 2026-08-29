@@ -22,7 +22,7 @@ pub const SESSIONS_FILE: &str = "sessions.json";
 ///
 /// ADR-0031. A closed set on purpose: the request was four named kinds with an
 /// icon each, not an open taxonomy, and a free-text label reintroduces the
-/// exact defect #221 already named in the group field — two hosts a person
+/// exact defect #221 already named in the group field: two hosts a person
 /// thinks of as the same kind, spelled differently by a typo. Growing this
 /// enum later is an ordinary change; `Trust` and `ConnectionKind` have both
 /// grown variants without needing a decision this size again.
@@ -215,7 +215,7 @@ pub fn check_not_serving(
 /// `admin@web-01:22` are both legitimate saved sessions; `deploy@web-01:22`
 /// twice, under two names, is the mistake this catches.
 ///
-/// `editing` excludes the session being saved from matching itself — without
+/// `editing` excludes the session being saved from matching itself. Without
 /// it, editing any field but the connection target on an existing session
 /// would report it as a duplicate of itself.
 pub fn duplicate_of<'a>(
@@ -806,8 +806,8 @@ mod tests {
 
     #[test]
     fn editing_a_session_is_not_a_duplicate_of_itself() {
-        /* `editing` excludes the session being saved from matching itself —
-        without it, saving any other field on an existing session would
+        /* `editing` excludes the session being saved from matching itself.
+        Without it, saving any other field on an existing session would
         report it as a duplicate of the very row it is. */
         let (store, _dir) = store();
         let saved = save_session(
@@ -891,7 +891,7 @@ mod tests {
     /// A draft naming its own host, derived from `name`.
     ///
     /// Every draft used to share one constant host, which made every pair of
-    /// them a duplicate the moment `duplicate_of` existed to notice — three
+    /// them a duplicate the moment `duplicate_of` existed to notice. Three
     /// tests across this module were building two or more sessions this way
     /// without meaning to test that. Deriving the host from the name is what
     /// they already intended: two different names were always meant to be

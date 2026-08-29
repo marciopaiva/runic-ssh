@@ -4,13 +4,13 @@ import { useTranslator } from '../features/settings';
 import type { SuggestedMethod } from '../ipc';
 
 /**
- * Which kind of credential a host takes. Not a secret — ADR-0030 — so it
- * lives on the plain form (or the wizard's own step) rather than inside the
- * window ADR-0008 keeps for the value itself.
+ * Which kind of credential a host takes. Not a secret, ADR-0030, so it
+ * lives on the wizard's own Access step rather than inside the window
+ * ADR-0008 keeps for the value itself.
  *
  * Same chip shape as `HostKindPicker`: a hand-drawn glyph next to the label,
- * no enclosing box. The two pickers used to look like different controls —
- * this one a segmented toggle, that one a row of tags — for no reason
+ * no enclosing box. The two pickers used to look like different controls,
+ * this one a segmented toggle, that one a row of tags, for no reason
  * either was drawn that way.
  */
 export function MethodPicker({
@@ -50,7 +50,7 @@ export function MethodPicker({
 }
 
 /* Two glyphs, the same hand-drawn style `HostKindIcon` uses (16x16, a
-   1.3-weight stroke, no fill except the odd solid dot) — kept local rather
+   1.3-weight stroke, no fill except the odd solid dot). Kept local rather
    than pulled out into a file of its own, since nothing else in the tree
    draws a credential method yet. If that changes, it moves out the way
    `HostKindIcon` already did. */

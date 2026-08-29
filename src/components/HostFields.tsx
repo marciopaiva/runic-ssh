@@ -32,11 +32,11 @@ interface HostFieldsProps {
   /**
    * The saved session already reaching this exact host, port and user, if
    * there is one. Computed live off `values`, the same way `jumpHosts` and
-   * `carried` are — a duplicate is knowable the moment all three fields hold
+   * `carried` are. A duplicate is knowable the moment all three fields hold
    * something, not only once a submit is attempted.
    */
   readonly duplicate: Session | null;
-  /** Focused on mount, when the caller wants it — the wizard's Host step
+  /** Focused on mount, when the caller wants it. The wizard's Host step
    * does, so this is the caller's call and not a fixed choice. */
   readonly firstRef?: RefObject<HTMLInputElement | null>;
 }
@@ -70,7 +70,7 @@ export function HostFields({
     } = {},
   ): JSX.Element => {
     /* The host field also turns red for a duplicate target, without the
-       generic text below it — the paragraph under the user/port row already
+       generic text below it. The paragraph under the user/port row already
        says which host it collides with, and showing both would be the same
        fact twice in two different sentences. */
     const duplicateHere = name === 'host' && duplicate !== null;

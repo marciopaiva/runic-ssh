@@ -1,8 +1,8 @@
 /**
  * Whether a draft's connection target already exists under another name.
  *
- * Mirrors `config::sessions::duplicate_of`, which is what actually refuses —
- * this is the form saying so before a round trip has to, the same relation
+ * Mirrors `config::sessions::duplicate_of`, which is what actually refuses.
+ * This is the form saying so before a round trip has to, the same relation
  * `jump.ts` already has with `check_proxy_jump`.
  */
 
@@ -15,7 +15,7 @@ import type { Session } from '../../ipc';
  * Case-insensitive on the host, the way a hostname is looked up; exact on
  * the port and the user, because two accounts on the same machine are two
  * different ways in and neither refuses the other. `null` port skips the
- * check rather than matching everything — a draft whose port has not been
+ * check rather than matching everything: a draft whose port has not been
  * typed as a number yet has nothing to compare.
  */
 export function duplicateOf(

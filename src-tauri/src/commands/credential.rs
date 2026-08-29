@@ -260,7 +260,7 @@ pub const INLINE_CREDENTIAL_EVENT: &str = "credential://inline-request";
 
 /// [`ask`]'s sibling, ADR-0033: the same request, answered without a window.
 ///
-/// `CredentialRequests` was never window-specific — an opaque id, a prompt
+/// `CredentialRequests` was never window-specific: an opaque id, a prompt
 /// readable by it, an answer sent down a channel. `open_window` is the only
 /// part of `ask` that is, so this calls everything else the same way and
 /// emits the id instead, for whichever caller is driving an inline test to
@@ -275,7 +275,7 @@ pub(crate) async fn ask_inline<R: Runtime>(
     let (request, answer) = requests.open(prompt).await;
 
     /* A failed emit means every window is gone, which is what shutting down
-    looks like from here — the same case `open_window`'s own failure covers
+    looks like from here, the same case `open_window`'s own failure covers
     for the window path, and there is equally nobody left to answer. */
     let _ = app.emit(INLINE_CREDENTIAL_EVENT, request.raw());
 

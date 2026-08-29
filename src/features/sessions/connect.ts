@@ -32,9 +32,9 @@ import type {
  * step, ADR-0032. ADR-0034 retired `'credential'` along with the single-page
  * form it belonged to: the wizard is the only path that ever collects a
  * credential without opening a terminal, so there is only one name for it
- * now. The window itself is not gone — `authenticateInteractively` is still
- * what `'open'` falls back to when nothing usable is saved — only the second
- * intent that used to ask for it on purpose.
+ * now. The window itself is not gone: `authenticateInteractively` is still
+ * what `'open'` falls back to when nothing usable is saved. What is gone is
+ * only the second intent that used to open it on purpose.
  */
 export type ConnectIntent = 'open' | 'inline';
 
@@ -49,13 +49,13 @@ export type ConnectStage =
   /**
    * The host key is settled and the connection is open, unauthenticated,
    * waiting on the wizard's own inline form rather than a window. Only ever
-   * reached by the `'inline'` intent — ADR-0032.
+   * reached by the `'inline'` intent, ADR-0032.
    */
   | { readonly stage: 'awaitingInline'; readonly handle: SessionHandle }
   /**
    * A bastion needs a credential nobody has saved, mid-chain, before the
    * target is even reached. ADR-0033: also only the `'inline'` intent's own
-   * doing — `request` names the same opaque request `submitCredential`
+   * doing. `request` names the same opaque request `submitCredential`
    * already answers for the separate window, and `prompt` is what came back
    * for it, `carrying` included, so the wizard's form can say which host
    * this credential actually belongs to.
