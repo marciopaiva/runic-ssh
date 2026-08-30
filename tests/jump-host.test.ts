@@ -11,7 +11,13 @@
 import { describe, expect, it } from 'vitest';
 
 import { reportedFailure } from '../src/features/sessions/connect';
-import { eligibleJumpHosts, jumpHostChoice, jumpRole } from '../src/features/sessions/jump';
+import {
+  bastionName,
+  eligibleJumpHosts,
+  jumpHostChoice,
+  jumpRole,
+  orderChain,
+} from '../src/features/sessions/jump';
 import { describeFailure } from '../src/features/sessions/failure';
 import { createTranslator } from '../src/lib/i18n';
 import type { IpcError, Session } from '../src/ipc';
@@ -263,20 +269,127 @@ describe('saying which hosts are in a chain', () => {
     });
   });
 
-  it('says all three marks in every language', () => {
-    /* Three shapes of one family, so a screen reader gets three sentences
-       rather than one and two silences. */
+  it('says both marks in every language', () => {
+    /* Two shapes of one family, so a screen reader gets two sentences rather
+       than one and a silence. A direct host draws neither: `JumpMark` returns
+       null for it, so there is no third string to check here any more. */
     for (const locale of ['en', 'pt-BR', 'es']) {
       const i18n = createTranslator(locale);
 
-      for (const key of [
-        'sessions.jump.carries',
-        'sessions.jump.rides',
-        'sessions.jump.direct',
-      ] as const) {
+      for (const key of ['sessions.jump.carries', 'sessions.jump.rides'] as const) {
         expect(i18n.t(key), `${locale} ${key}`).not.toBe(key);
       }
     }
+  });
+});
+
+describe('naming the bastion a host rides', () => {
+  /* Riding is always exactly one bastion, so it is always namable, unlike
+     carrying (a bastion can carry more than one). This is what a sidebar row
+     shows in place of the address when position cannot: a bastion filed
+     under its own group, and DEV, HOM and PRD apart from it. */
+
+  it('names it when the bastion is still in the saved list', () => {
+    const saved = [session('bastion1'), session('dev-web', { proxyJump: 'bastion1' })];
+
+    expect(bastionName(session('dev-web', { proxyJump: 'bastion1' }), saved)).toBe('bastion1');
+  });
+
+  it('says nothing for a host that rides no one', () => {
+    expect(bastionName(session('plain', { proxyJump: null }), [])).toBeNull();
+  });
+
+  it('says nothing for a reference that no longer resolves', () => {
+    /* The bastion it named was deleted, or the id is stale. Silence here is
+       what tells `SessionsSidebar` to fall back to `JumpMark`'s icon instead
+       of a label with nothing to say. */
+    const saved = [session('dev-web', { proxyJump: 'gone' })];
+
+    expect(bastionName(session('dev-web', { proxyJump: 'gone' }), saved)).toBeNull();
+  });
+});
+
+describe('ordering a chain by position instead of by mark', () => {
+  /* The row used to carry the relation as a glyph. This places a rider
+     directly under the bastion it rides instead, so the sidebar can draw the
+     relation as indentation and skip the mark for exactly the rows where the
+     indentation already says it. */
+
+  it('leaves a host with no chain at the top, unindented', () => {
+    const saved = [session('plain', { proxyJump: null })];
+
+    expect(orderChain(saved)).toEqual([{ id: 'plain', depth: 0, childrenShown: false }]);
+  });
+
+  it('nests a rider directly beneath the bastion it rides', () => {
+    const saved = [session('bastion'), session('web-01', { proxyJump: 'bastion' })];
+
+    expect(orderChain(saved)).toEqual([
+      { id: 'bastion', depth: 0, childrenShown: true },
+      { id: 'web-01', depth: 1, childrenShown: false },
+    ]);
+  });
+
+  it('keeps a rider unindented when its bastion is not in this list', () => {
+    /* The bastion is filed under a different group heading, or was deleted
+       out from under a stale reference. Either way there is nothing here to
+       nest under, so the sidebar falls back to `JumpMark`'s glyph for this
+       row rather than losing the fact silently. */
+    const saved = [session('web-01', { proxyJump: 'bastion' })];
+
+    expect(orderChain(saved)).toEqual([{ id: 'web-01', depth: 0, childrenShown: false }]);
+  });
+
+  it('places every rider right after its bastion, in the order they were saved', () => {
+    const saved = [
+      session('bastion'),
+      session('web-01', { proxyJump: 'bastion' }),
+      session('web-02', { proxyJump: 'bastion' }),
+      session('plain', { proxyJump: null }),
+    ];
+
+    expect(orderChain(saved).map((row) => row.id)).toEqual([
+      'bastion',
+      'web-01',
+      'web-02',
+      'plain',
+    ]);
+  });
+
+  it('nests a chain two hops deep, however the file lists them', () => {
+    /* A state the file can hold and connecting refuses (`jumpRole`'s own
+       test above). Ordering does not get to assume the chain is one this
+       app would ever let somebody make; it only draws the one on disk. */
+    const saved = [
+      session('inner', { proxyJump: 'middle' }),
+      session('outer'),
+      session('middle', { proxyJump: 'outer' }),
+    ];
+
+    expect(orderChain(saved)).toEqual([
+      { id: 'outer', depth: 0, childrenShown: true },
+      { id: 'middle', depth: 1, childrenShown: true },
+      { id: 'inner', depth: 2, childrenShown: false },
+    ]);
+  });
+
+  it('does not nest a host under itself', () => {
+    const saved = [session('confused', { proxyJump: 'confused' })];
+
+    expect(orderChain(saved)).toEqual([{ id: 'confused', depth: 0, childrenShown: false }]);
+  });
+
+  it('does not loop forever on a cycle written by hand', () => {
+    /* Nothing in this app writes one, but the file is something a person can
+       edit directly, and a rendering function that hangs on malformed input
+       is its own bug report. */
+    const saved = [
+      session('a', { proxyJump: 'b' }),
+      session('b', { proxyJump: 'a' }),
+    ];
+
+    const rows = orderChain(saved);
+    expect(rows.map((row) => row.id).sort()).toEqual(['a', 'b']);
   });
 });
 

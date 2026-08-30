@@ -23,34 +23,22 @@ interface JumpMarkProps {
  * Static, and deliberately so. Both facts come from the saved list, so a host
  * says what it is before anything is connected. What is open is a different
  * question and is #168.
+ *
+ * A direct host draws nothing here, not even a quiet mark: most hosts are
+ * direct, and a glyph on almost every row is the row's own complaint, not
+ * information. Tried the other way first, a straight line at the quietest
+ * weight the palette has; the row was already carrying a state dot and a kind
+ * icon beside it, and a third mark that says "nothing to report" was the one
+ * the maintainer asked to cut.
  */
 export function JumpMark({ role }: JumpMarkProps): JSX.Element | null {
   const i18n = useTranslator();
 
-  /* Three shapes of one family, all about the path a connection takes: a
-     straight line goes there, a fork sends others on, a turn arrives from
-     somewhere else. The straight one is drawn at the quietest weight the
-     palette has, because most hosts connect directly and a mark on almost
-     every row stops being a mark. The fork is the only coloured thing in the
-     column, so it still finds the eye first. */
-  if (!role.carries && !role.rides) {
-    return (
-      <svg
-        viewBox="0 0 16 16"
-        className="text-ink-disabled w-3 shrink-0"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        role="img"
-        aria-label={i18n.t('sessions.jump.direct')}
-      >
-        <path d="M2 8h9M10 5.5 12.5 8 10 10.5" />
-      </svg>
-    );
-  }
+  if (!role.carries && !role.rides) return null;
 
+  /* Two shapes of one family, both about the path a connection takes: a fork
+     sends others on, a turn arrives from somewhere else. The fork is the only
+     coloured thing in the column, so it still finds the eye first. */
   return (
     <span className="flex w-3 shrink-0 items-center justify-center gap-0.5">
       {role.carries && (
