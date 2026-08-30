@@ -125,3 +125,10 @@ What is left of the move through the top strip is the correction to ADR-0020,
 which listed the count **and the way off** as the status bar's job. The bar
 keeps the count and the whole top edge turning warn. The way off is beside the
 way on, on the strip of the rectangle it is about.
+
+**Resolved on 2026-08-30.** Bad #2 above named the cost and accepted it:
+"splitting with nothing open gives empty rectangles, which is a legitimate
+way to set up." ADR-0029 later hid the control anyway, on nothing open, as a
+guard against a different bug (a group showing settings). That guard is gone
+(#226); the control is visible and fully enabled on an empty Sessions
+workspace again, which is what this document already decided it should be.
