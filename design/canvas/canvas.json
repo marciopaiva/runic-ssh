@@ -42,15 +42,6 @@
       "title": "Nothing open yet"
     },
     {
-      "file": "NewSession.dc.html",
-      "x": 1920,
-      "y": 0,
-      "w": 1440,
-      "h": 900,
-      "page": "page-2",
-      "title": "The + opens a host form"
-    },
-    {
       "file": "Main.dc.html",
       "x": 3840,
       "y": 0,
@@ -165,7 +156,7 @@
       "w": 1440,
       "h": 900,
       "page": "page-2",
-      "title": "Exploratory: Host step, redrawn"
+      "title": "Host step, the real wizard"
     },
     {
       "file": "HostsAccess.dc.html",
@@ -174,7 +165,7 @@
       "w": 1440,
       "h": 900,
       "page": "page-2",
-      "title": "Exploratory: Access, before proving"
+      "title": "Access step, the real wizard"
     },
     {
       "file": "MainLight.dc.html",

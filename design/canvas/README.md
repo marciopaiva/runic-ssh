@@ -40,7 +40,7 @@ ADR-0020 exists to stop.
 | Page | What is on it |
 | --- | --- |
 | `System` | The anatomy and its seven rules, and the token, type, density and marker sheet |
-| `Surfaces` | Fourteen screens |
+| `Surfaces` | Fifteen screens |
 | `Variants` | Light, and the same window in pt-BR and neutral es |
 
 ## Files
@@ -50,7 +50,6 @@ ADR-0020 exists to stop.
 | `Anatomy.dc.html` | Window regions, a group in detail, the seven rules, what ADR-0020 amends |
 | `Tokens.dc.html` | Surfaces, accent and state, type, density, connection markers |
 | `Empty.dc.html` | Nothing open yet |
-| `NewSession.dc.html` | The sidebar `+`, and the host form it opens as a tab |
 | `Main.dc.html` | One group, three sessions |
 | `Collapsed.dc.html` | The sidebar closed |
 | `Groups.dc.html` | Four groups, six sessions |
@@ -63,6 +62,8 @@ ADR-0020 exists to stop.
 | `Palette.dc.html` | The command palette |
 | `HomeDashboard.dc.html` | Home's own landing: a card per domain |
 | `HomeHosts.dc.html` | Hosts, chosen from Home's own nav |
+| `HostsHost.dc.html` | The wizard's Host step, opened from Hosts |
+| `HostsAccess.dc.html` | The wizard's Access step, credential and all |
 | `Main{Light,PtBr,Es}.dc.html` | The same window, generated |
 
 Every screen a user can meet is drawn here. That is the point of the set rather
@@ -74,39 +75,29 @@ with it rather than staying as a drawing of a screen nobody can open.
 `Settings.dc.html` went the same way (#236): ADR-0029 folded it into a card on
 Home's own dashboard, already drawn in `HomeDashboard.dc.html`, so the
 artboard was retired rather than redrawn against a premise, a rail gear
-opening a tab, that no longer exists.
+opening a tab, that no longer exists. `NewSession.dc.html` went the same way
+again (#233): its pre-wizard, pre-Home-split premise, a single form saved
+with no credential asked for, was gone once ADR-0030 through ADR-0034 landed,
+and `HostsHost.dc.html`/`HostsAccess.dc.html` already drew the two-step
+wizard that replaced it.
 
 Screens that live inside the main window are drawn **inside it**, and now
 inside the group that owns them. The host key artboards used to be standalone
 cards at 940x640, which is why the components built from them arrived with the
 card right and the surface around it wrong. They are drawn in place here.
 
-## Exploratory
-
-`HostsHost.dc.html` and `HostsAccess.dc.html` are not part of the set above.
-They answer the maintainer's own complaint, 2026-08-30, that the wizard's
-Access step "não mostra onde você está" once it hands off to its automatic
-phase, and redraw the real current shape (`HostFields`, the missing-credential
-notice, ADR-0039) against the pre-Home-split mockup `NewSession.dc.html` still
-carries. `NewSession.dc.html` retires once a direction is picked for it too
-(closing #233).
-
-A third artboard, `HostsPhase.dc.html`, proposed the actual fix for the
-breadcrumb complaint: a third, unclickable item naming which sub-phase (a
-host key check, a bastion's own credential, the target's, the result) Access
-had handed off to. Accepted and shipped 2026-08-30 (`wizard_breadcrumb` in
-`gen.py` now draws the real thing, and `SessionWizard.tsx` computes it); the
-mockup was retired the same day rather than keep drawing a screen the app now
-draws itself.
-
-The remaining two also draw with the corrected rail, two slots, Home and
-Sessions, matching `ActivityRail.tsx` since ADR-0029. #234, the staleness they
-uncovered, is now closed everywhere: `Settings.dc.html` was the one exception,
-its rail gear opening a tab a screen whose whole premise ADR-0029 removed
-rather than a stale rail drawing, and #236 retired it rather than redraw it,
-since `HomeDashboard.dc.html` already draws the card it folded into.
-`NewSession.dc.html` carries the same three-slot rail for the same reason,
-folded into #233 rather than tracked twice.
+`HostsHost.dc.html` and `HostsAccess.dc.html` were exploratory from
+2026-08-30 until the same day: drawn against the maintainer's own complaint
+that the wizard's Access step "não mostra onde você está" once it hands off
+to its automatic phase, they redrew the real current shape (`HostFields`,
+the missing-credential notice, ADR-0039) while a third artboard,
+`HostsPhase.dc.html`, proposed the actual breadcrumb fix, a third,
+unclickable item naming which sub-phase Access had handed off to. That
+proposal was accepted and shipped the same day (`wizard_breadcrumb` in
+`gen.py`, computed for real by `SessionWizard.tsx`), `HostsPhase.dc.html`
+retired rather than keep drawing a screen the app now draws itself, and the
+remaining two joined the set above, closing #233 along with
+`NewSession.dc.html`'s retirement.
 
 ## What is drawn here and not built
 

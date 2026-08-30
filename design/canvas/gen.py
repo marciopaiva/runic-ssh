@@ -655,63 +655,13 @@ def build_sftp():
     write("Sftp.dc.html", page(f'      <div style="flex: 1; min-height: 0; display: flex;">{g}</div>',
                                sidebar_shell(hdr, tree), home_rail(workspace="sessions", badge="2"), st))
 
-# ---------- 8. the + opens a host form
-def build_newsession():
-    def fld(v, mono=True, chev=False):
-        c = ' class="mono"' if mono else ''
-        tail = ic("chev", 14, T['faint']) if chev else ''
-        just = 'justify-content: space-between;' if chev else ''
-        return (f'<div style="height: 34px; background: {T["input"]}; border: 1px solid {T["line"]}; border-radius: 6px;'
-                f' display: flex; align-items: center; {just} padding: 0 11px;">'
-                f'<span{c} style="font-size: 12.5px; color: {T["ink"]};">{v}</span>{tail}</div>')
-    def lab(s): return f'<span style="font-size: 11.5px; font-weight: 600; color: {T["ink2"]}; display: block; margin-bottom: 6px;">{s}</span>'
-    def hint(s): return f'<span style="font-size: 11px; color: {T["faint"]}; margin-top: 6px; display: block;">{s}</span>'
-    form = f"""        <div style="flex: 1; padding: 28px 38px; overflow: hidden;">
-          <div style="max-width: 620px;">
-            <div style="font-size: 19px; font-weight: 700;">New session</div>
-            <div style="font-size: 12.5px; color: {T['muted']}; margin-top: 6px;">A saved host. Connecting to it comes later, and asks for the credential then.</div>
-            <div style="margin-top: 24px; display: flex; flex-direction: column; gap: 19px;">
-              <div>{lab('Name')}{fld('web-04', mono=False)}{hint('Leave empty to use the host')}</div>
-              <div style="display: flex; gap: 16px;">
-                <div style="flex: 1;">{lab('Host')}{fld('10.4.1.23')}</div>
-                <div style="width: 128px;">{lab('Port')}{fld('22')}</div>
-              </div>
-              <div style="display: flex; gap: 16px;">
-                <div style="flex: 1;">{lab('User')}{fld('deploy')}</div>
-                <div style="flex: 1;">{lab('Group')}{fld('Production', mono=False, chev=True)}{hint('Optional. Sessions are listed under it.')}</div>
-              </div>
-              <div style="display: flex; align-items: flex-start; gap: 11px; background: {T['overlay']}; border: 1px solid {T['line']}; border-radius: 7px; padding: 13px 15px;">
-                <svg class="ic" viewBox="0 0 24 24" style="color: {T['accent']}; margin-top: 1px;">{ICON['lock']}</svg>
-                <span style="font-size: 12px; color: {T['muted']}; line-height: 1.55;">No password is stored here. You are asked for one when you connect, in a window of its own.</span>
-              </div>
-              <div style="display: flex; gap: 10px; margin-top: 3px;">
-                <span style="font-size: 12.5px; font-weight: 600; color: {T['base']}; background: {T['accent']}; border-radius: 6px; padding: 8px 20px;">Save</span>
-                <span style="font-size: 12.5px; color: {T['muted']}; border: 1px solid {T['line']}; border-radius: 6px; padding: 8px 20px;">Cancel</span>
-              </div>
-            </div>
-          </div>
-        </div>"""
-    g = group(strip([tab("web-01", dot="ok"), tab("New session", state="on", icon="newsession", dot=None, dirty=True)]),
-              f'<div style="flex: 1; min-height: 0; display: flex; background: {T["base"]};">{form}</div>')
-    rows = "\n".join([group_row("PRODUCTION", 3),
-                      host_row("web-01", "deploy@10.4.1.20", "ok"),
-                      host_row("web-02", "deploy@10.4.1.21", "saved"),
-                      host_row("db-prod", "postgres@10.4.1.31", "saved", kind="target"),
-                      f'<div class="row" style="border: 1px dashed {T["line2"]}; border-radius: 6px; margin-top: 2px; align-items: center;">'
-                      f'<span class="dot" style="border: 1.5px dashed {T["off"]}; box-sizing: border-box;"></span>'
-                      f'<span style="font-size: 12px; color: {T["faint"]}; font-style: italic;">unsaved, in the tab</span></div>'])
-    st = status(stat_text("New session", T['muted'], mono=False) + "\n" + sep() + "\n" + stat_text("Unsaved changes", T['warn'], mono=False),
-                stat_text("SYNC OFF", T['faint'], mono=False))
-    write("NewSession.dc.html", page(f'      <div style="flex: 1; min-height: 0; display: flex;">{g}</div>',
-                                     sidebar_shell(sessions_header(plus_lit=True), rows), rail(badge="1"), st))
-
 # ---------- 10. Home: the rail, the nav, and the wizard's own breadcrumb
-# Exploratory. Drawn 2026-08-30 against the maintainer's own complaint that
-# the wizard "não mostra onde você está" once Access hands off to its
-# automatic phase (#233, #234). Two things here are proposed rather than
-# shipped: the third breadcrumb item `wizard_breadcrumb` can draw, and the
-# copy on it. Everything else, the rail, HomeNav, HostFields, the stored/kept
-# block, the missing-credential notice, is the real, current shape.
+# Drawn 2026-08-30 against the maintainer's own complaint that the wizard
+# "não mostra onde você está" once Access hands off to its automatic phase
+# (#234). The third breadcrumb item this proposed shipped the same day
+# (`SessionWizard.tsx`'s own `phase`), closing #233 along with it: these two
+# artboards already drew the real, current wizard shape, and were held back
+# from the canonical set only by that one still-proposed piece.
 
 def home_rail(workspace="home", badge=None, armed=False):
     """ADR-0029's rail: two peer workspaces today, not three slots inside
@@ -731,8 +681,10 @@ def home_rail(workspace="home", badge=None, armed=False):
     pre-ADR-0029 three-slot shape, on purpose, not by oversight. Neither was
     a rail-only fix: Settings' whole premise, a rail gear opening a tab, was
     gone, not only its rail, so #236 retired the artboard rather than redraw
-    it against `HomeDashboard.dc.html`'s own card. NewSession predates the
-    wizard entirely and is still open as #233."""
+    it against `HomeDashboard.dc.html`'s own card. NewSession predated the
+    wizard entirely and #233 retired it the same way, once `HostsHost.dc.html`
+    and `HostsAccess.dc.html` had nothing left holding them out of the
+    canonical set."""
     accent = T['warn'] if armed else T['accent']
     def slot(icon, on, locked=False, bad=None):
         color = T['ink'] if on else (T['off'] if locked else T['faint'])
@@ -872,10 +824,12 @@ def wizard_actions(*items):
     return f'<div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">{"".join(out)}</div>'
 
 def build_hosts_host():
-    """Host step, redrawn against the real `HostFields.tsx`: kind picker
+    """Host step, drawn against the real `HostFields.tsx`: kind picker
     (ADR-0031), jump host selector, group with suggestions (#221), none of
-    which the old `NewSession.dc.html` (pre-ADR-0029, pre-wizard) drew.
-    See #233."""
+    which the old `NewSession.dc.html` (pre-ADR-0029, pre-wizard) drew
+    before #233 retired it. The missing-credential notice (ADR-0039) shows
+    here too, the same as on Access: it names why the screen changed under
+    a click in Sessions regardless of which step that landed on."""
     fields = f"""<div style="max-width: 440px; display: flex; flex-direction: column; gap: 14px;">
       <div>{wizard_label('Host')}{wizard_field('target.internal')}</div>
       <div style="display: flex; gap: 12px;">
@@ -891,19 +845,29 @@ def build_hosts_host():
     </div>"""
     rows = "\n".join([host_row("bastion", "jump@127.0.0.1", "saved", kind="jumpServer"),
                       host_row("target.internal", "deploy@target.internal", "saved", active=True, via="bastion", depth=1)])
-    panel = wizard_panel("target.internal", step=1, content=fields)
+    panel = wizard_panel("target.internal", step=1, notice=True, content=fields)
     body = home_nav("hosts") + hosts_shell(rows, panel)
     st = status(stat_text("target.internal", T['muted'], mono=False), stat_text("2 hosts", T['faint']))
     write("HostsHost.dc.html", page(body, None, home_rail(), st, show_shapes=False))
 
 def build_hosts_access():
-    """Access step, not yet proving. The missing-credential notice (ADR-0039)
-    shown here is the state that reaches this screen without a click on it:
-    Sessions sent the user here, so there is a note saying why."""
+    """Access step. The missing-credential notice (ADR-0039) shown here is
+    the state that reaches this screen without a click on it: Sessions sent
+    the user here, so there is a note saying why, on both steps
+    (`SessionWizard.tsx` draws it outside the `step` branch, not only on
+    Access), which `build_hosts_host` now also carries.
+
+    The stored/kept block below the method picker is #197: what the
+    keychain and the run each already hold, in the same two sentences
+    `SessionWizard.tsx` renders when either answers yes."""
     fields = f"""<div style="max-width: 440px; display: flex; flex-direction: column; gap: 14px;">
       <div role="radiogroup" style="display: flex; gap: 3px; background: {T['input']}; border: 1px solid {T['line']}; border-radius: 8px; padding: 3px; max-width: 260px;">
         <span style="flex: 1; text-align: center; font-size: 11.5px; font-weight: 600; color: {T['ink']}; background: {T['raised']}; border-radius: 6px; padding: 6px 0;">Password</span>
         <span style="flex: 1; text-align: center; font-size: 11.5px; color: {T['muted']}; padding: 6px 0;">Private key</span>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 4px;">
+        <span style="font-size: 11px; color: {T['faint']}; line-height: 1.5;">One is stored for this host in the system keychain. It is never shown on this form and never sent to this window.</span>
+        <span style="font-size: 12px; color: {T['danger']};">Forget it</span>
       </div>
       {wizard_actions(('Cancel', False), ('Back', False), ('Next', True))}
     </div>"""
@@ -1357,7 +1321,7 @@ if LIGHT_MODE:
     build_main()
 else:
     for fn in (build_empty, build_main, build_groups, build_collapsed, build_broadcast,
-               build_hostkey, build_sftp, build_newsession,
+               build_hostkey, build_sftp,
                build_hosts_host, build_hosts_access, build_home_dashboard, build_home_hosts,
                build_anatomy, build_tokens,
                build_hostkeychanged, build_failure, build_paste, build_palette):
