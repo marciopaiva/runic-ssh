@@ -91,6 +91,7 @@ pub fn run() -> tauri::Result<()> {
             commands::sessions::reset_internal_vault,
             commands::sessions::remember_credential,
             commands::sessions::keep_credential_for_run,
+            commands::sessions::session_credential_kept,
             commands::sessions::forget_credential,
             commands::sessions::authenticate_with_saved,
             commands::sessions::authenticate_session,

@@ -32,6 +32,7 @@ export {
   keepCredentialForRun,
   listSessions,
   saveSession,
+  sessionCredentialKept,
   trustHostKey,
   hostKeyDecision,
 } from './sessions';

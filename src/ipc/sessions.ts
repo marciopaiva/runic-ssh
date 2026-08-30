@@ -266,6 +266,17 @@ export async function forgetCredential(sessionId: string): Promise<void> {
 }
 
 /**
+ * Whether a credential is kept for this session for the life of the run.
+ *
+ * ADR-0038. The counterpart to `credentialId` on a saved `Session`, which
+ * only ever named the keychain half; this is how the editor asks about the
+ * other one, since nothing local can answer it.
+ */
+export async function sessionCredentialKept(sessionId: string): Promise<boolean> {
+  return invoke<boolean>('session_credential_kept', { sessionId });
+}
+
+/**
  * Authenticates with the credential saved for this session.
  *
  * Names the session and nothing else. The secret is resolved in the core, used

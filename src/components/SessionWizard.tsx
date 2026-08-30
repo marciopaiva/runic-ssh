@@ -30,6 +30,9 @@ interface SessionWizardProps {
   /** Whether the keychain already holds a credential for this host. ADR-0034:
    * the only surface left that can say so, now that `SessionForm` is gone. */
   readonly storedCredential: boolean;
+  /** Whether a credential is kept for this host for the life of the run.
+   * ADR-0038: the other half `storedCredential` never named. */
+  readonly keptCredential: boolean;
   /**
    * Whether Access has nothing left to prove. ADR-0036: true only for an
    * existing host, already carrying a stored credential, whose host, port
@@ -108,6 +111,7 @@ export function SessionWizard({
   duplicate,
   groupNames,
   storedCredential,
+  keptCredential,
   skipTest,
   onSkipTest,
   onForget,
@@ -298,12 +302,23 @@ export function SessionWizard({
 
             {/* What the host already has, rather than a field for it: the
                 same fact `SessionForm` used to state, moved here since this
-                is the only screen left that asks about access at all. */}
-            {storedCredential && (
+                is the only screen left that asks about access at all.
+                ADR-0038: the keychain and the run are two different stores,
+                so both sentences render when both answer yes, reusing
+                `kept.ts`'s own vocabulary for the run half rather than
+                inventing a second way to say it. */}
+            {(storedCredential || keptCredential) && (
               <div className="flex flex-col items-start gap-1">
-                <span className="text-ink-faint text-[11px] leading-snug">
-                  {i18n.t('session.editor.credential.stored')}
-                </span>
+                {storedCredential && (
+                  <span className="text-ink-faint text-[11px] leading-snug">
+                    {i18n.t('session.editor.credential.stored')}
+                  </span>
+                )}
+                {keptCredential && (
+                  <span className="text-ink-faint text-[11px] leading-snug">
+                    {i18n.t('kept.run.body')}
+                  </span>
+                )}
                 {onForget !== null && (
                   <button
                     type="button"

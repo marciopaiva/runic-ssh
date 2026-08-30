@@ -115,3 +115,9 @@ Option B if a reason turns up that is stronger than convenience. #131, which
 this makes more urgent rather than less: a second holder of secret material is a
 second thing that must not render itself, and the guarantee is still a
 hand-written `Debug` plus everyone remembering.
+
+**Amended by ADR-0038 (2026-08-30).** "The frontend stops deciding whether a
+stored credential exists... it asks the core" above was the intent; the host
+editor never got the way to ask, and read `session.credentialId` instead, the
+exact stale-field pattern this document already argued against, for the store
+this decision introduced.

@@ -89,6 +89,7 @@ import {
   internalVaultStatus,
   saveSession,
   sendInput,
+  sessionCredentialKept,
   submitCredential,
 } from './ipc';
 import type { Keep, Secret, Session, SessionDraft, SuggestedMethod } from './ipc';
@@ -411,6 +412,39 @@ export function App(): JSX.Element {
      be open or closed, so it is never one of these entries. */
   const homeEntries = useMemo(() => stripEntries([], editing, false), [editing]);
   const resolvedHomeFocus = resolveFocus(homeEntries, homeFocus);
+  /* The host the editor is open on, or `null` for a new one or none. Read
+     again here, at the top level, because the hook below needs it as a
+     dependency and a hook cannot live inside the conditional render further
+     down that already computes the same thing for its own purposes. */
+  const homeEditingId =
+    resolvedHomeFocus?.kind === 'editor' && resolvedHomeFocus.target.kind === 'existing'
+      ? resolvedHomeFocus.target.sessionId
+      : null;
+  /* ADR-0038: the keychain half of "is a credential kept here" is
+     `credentialId` on the session itself, read locally. This is the other
+     half, which nothing local can answer, so it is asked for again each time
+     the editor opens on a different host. Keyed by session id, the same
+     reason `unsaved` above is: switching from a host that answered `true` to
+     one not yet asked about must never show the first host's answer for the
+     second, even for the one render before the effect below resolves. */
+  const [keptCredentials, setKeptCredentials] = useState<ReadonlyMap<string, boolean>>(new Map());
+  useEffect(() => {
+    if (homeEditingId === null) return;
+
+    const id = homeEditingId;
+    let cancelled = false;
+    void sessionCredentialKept(id)
+      .then((kept) => {
+        if (!cancelled) setKeptCredentials((current) => new Map(current).set(id, kept));
+      })
+      .catch(() => {
+        if (!cancelled) setKeptCredentials((current) => new Map(current).set(id, false));
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [homeEditingId]);
   const focusedGroup = groupOf(groups, resolvedFocus);
   const filled = groups.filter((group) => group.entries.length > 0).length;
   const receiving = useMemo(() => receivingSessions(groups, muted), [groups, muted]);
@@ -1772,6 +1806,7 @@ export function App(): JSX.Element {
                           duplicate={duplicate}
                           groupNames={availableGroups}
                           storedCredential={storedCredential}
+                          keptCredential={editingId !== null && (keptCredentials.get(editingId) ?? false)}
                           skipTest={skipTest}
                           onSkipTest={() => submitIn(target)}
                           onForget={editingId === null ? null : () => forgetPassword(target)}
