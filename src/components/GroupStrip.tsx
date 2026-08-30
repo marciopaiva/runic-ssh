@@ -280,11 +280,14 @@ export function GroupStrip({
               </svg>
             </button>
 
-            {hasKeyboard && dense && (
-              /* Which rectangle the status bar is describing. With typing
-                 synchronised every group carries the same warning border on
-                 purpose, which leaves the border with nothing left to say
-                 about focus. */
+            {hasKeyboard && sync === 'on' && (
+              /* Which rectangle the status bar is describing, spelled out
+                 only where the border cannot: with typing synchronised every
+                 group carries the same warning border on purpose, which
+                 leaves the border with nothing left to say about focus.
+                 Outside a broadcast the accent border already says it, and
+                 a word repeating a border everyone can already see is the
+                 one the maintainer asked to cut. */
               <span className="text-ink-secondary shrink-0 font-mono text-[10px] font-bold tracking-[0.08em]">
                 {i18n.t('terminal.group.focused')}
               </span>
