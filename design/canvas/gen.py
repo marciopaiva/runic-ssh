@@ -408,7 +408,7 @@ def build_empty():
       </div>"""
     st = status(f'    <div style="display: flex; align-items: center; gap: 7px;"><span class="dot" style="border: 1.5px solid {T["off"]}; box-sizing: border-box;"></span><span style="font-size: 11px; color: {T["faint"]};">No session</span></div>',
                 stat_text("5 hosts saved", T['faint']))
-    write("Empty.dc.html", page(body, sessions_sidebar(), rail(sftp_off=True), st))
+    write("Empty.dc.html", page(body, sessions_sidebar(), home_rail(workspace="sessions"), st))
 
 def rowkeys(label, keys):
     caps = f'<span style="color: {T["off"]}; font-size: 11px;">+</span>'.join(f'<span class="cap">{k}</span>' for k in keys)
@@ -434,7 +434,7 @@ def build_main():
                 stat_text("SYNC OFF", T['faint'], mono=False) + "\n" + sep() + "\n" + stat_text("UTF-8", T['faint']))
     write("Main.dc.html", page(f'      <div style="flex: 1; min-height: 0; display: flex;">{group(s, body)}</div>',
                                sessions_sidebar(active="web-01", states={"web-01": "ok", "db-prod": "ok"}),
-                               rail(badge="3"), st))
+                               home_rail(workspace="sessions", badge="3"), st))
 
 # ---------- 3. four groups, six sessions
 def build_groups():
@@ -461,10 +461,13 @@ def build_groups():
             f' grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 1px; background: {T["line"]};">{g1}{g2}{g3}{g4}</div>')
     st = status(stat_session("deploy@10.4.1.20") + "\n" + sep() + "\n" + stat_text("114 x 20") + "\n" + stat_text("14 ms"),
                 stat_text("6 sessions in 4 groups", T['faint']) + "\n" + sep() + "\n" + stat_text("SYNC OFF", T['faint'], mono=False))
-    write("Groups.dc.html", page(grid, None, rail(badge="6"), st, shape="grid"))
+    write("Groups.dc.html", page(grid, None, home_rail(workspace="sessions", badge="6"), st, shape="grid"))
 
 # ---------- 4. sidebar closed
 def build_collapsed():
+    # The Sessions icon stays lit here: closing the sidebar toggles
+    # `sidebarOpen`, not `workspace` (ActivityRail.tsx), so it is wrong to
+    # draw it dim the way the pre-#234 rail() call used to.
     s = strip([tab("web-01", "deploy@10.4.1.20", "on"), tab("db-prod", "postgres@10.4.1.31")])
     body = term(
         prompt("deploy", "web-01", "docker compose ps") + "\n"
@@ -485,7 +488,7 @@ def build_collapsed():
     st = status(stat_session("deploy@10.4.1.20") + "\n" + sep() + "\n" + stat_text("232 x 42") + "\n" + stat_text("14 ms") + "\n" + stat_text("2,4 MB"),
                 stat_text("SYNC OFF", T['faint'], mono=False) + "\n" + sep() + "\n" + stat_text("UTF-8", T['faint']))
     write("Collapsed.dc.html", page(f'      <div style="flex: 1; min-height: 0; display: flex;">{group(s, body)}</div>',
-                                    None, rail(active=None, badge="2"), st))
+                                    None, home_rail(workspace="sessions", badge="2"), st))
 
 # ---------- 5. broadcast armed
 def build_broadcast():
@@ -515,7 +518,7 @@ def build_broadcast():
     st = status_warn(stat_session("deploy@10.4.1.20") + "\n" + sep() + "\n" + stat_text("74 x 42") + "\n" + stat_text("14 ms"),
                      f'    <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: {T["warnsoft"]}; background: {T["warn"]}; border-radius: 4px; padding: 4px 10px;">TYPING INTO 2 HOSTS</span>\n'
                      f'    <span style="font-size: 11px; color: {T["warn"]}; border: 1px solid {T["warn"]}; border-radius: 4px; padding: 3px 10px;">Turn off</span>')
-    write("Broadcast.dc.html", page(grid, sb, rail(locked=True, badge="4", accent=T['warn']), st, shape="columns"))
+    write("Broadcast.dc.html", page(grid, sb, home_rail(workspace="sessions", badge="4", armed=True), st, shape="columns"))
 
 # ---------- 6. unknown host key, inside the group that asked
 # A real picture, from `ssh-keygen -lv` on the key whose fingerprint is
@@ -586,7 +589,7 @@ def build_hostkey():
     st = status(f'    <div style="display: flex; align-items: center; gap: 7px;"><span class="dot" style="border: 1.5px solid {T["warn"]}; box-sizing: border-box;"></span><span style="font-size: 11px; color: {T["warn"]};">Waiting on you</span></div>'
                 + "\n" + sep() + "\n" + stat_text("log-01 &#183; key not yet trusted", T['muted'], mono=False),
                 stat_text("SYNC OFF", T['faint'], mono=False))
-    write("HostKey.dc.html", page(grid, sessions_sidebar(active="web-01", states={"web-01": "ok"}), rail(badge="2"), st))
+    write("HostKey.dc.html", page(grid, sessions_sidebar(active="web-01", states={"web-01": "ok"}), home_rail(workspace="sessions", badge="2"), st))
 
 # ---------- 7. sftp
 def build_sftp():
@@ -642,8 +645,11 @@ def build_sftp():
       </div>"""
     st = status(stat_session("deploy@10.4.1.20") + "\n" + sep() + "\n" + stat_text("SFTP v3") + "\n" + stat_text("1 transferring"),
                 stat_text("SYNC OFF", T['faint'], mono=False))
+    # Still reached through Sessions here: #127 has not shipped SFTP its own
+    # rail icon yet (ADR-0029), so today's rail shows the same two slots
+    # every other Sessions screen does, whatever this becomes once it does.
     write("Sftp.dc.html", page(f'      <div style="flex: 1; min-height: 0; display: flex;">{g}</div>',
-                               sidebar_shell(hdr, tree), rail(active="sftp", badge="2"), st))
+                               sidebar_shell(hdr, tree), home_rail(workspace="sessions", badge="2"), st))
 
 # ---------- 8. the + opens a host form
 def build_newsession():
@@ -746,21 +752,44 @@ def build_settings():
 # copy on it. Everything else, the rail, HomeNav, HostFields, the stored/kept
 # block, the missing-credential notice, is the real, current shape.
 
-def home_rail(workspace="home"):
-    """ADR-0029's rail: two peer workspaces, not three slots inside one.
-    No gear (moved to a Home card), no SFTP (#127, no code yet, and never a
-    slot *inside* this rail even once built). See #234: every other
-    artboard's rail still draws the pre-ADR-0029 three-slot shape; this is
-    the first one that does not."""
-    def slot(icon, on):
+def home_rail(workspace="home", badge=None, armed=False):
+    """ADR-0029's rail: two peer workspaces today, not three slots inside
+    one. No gear (moved to a Home card). No SFTP either, but only because
+    #127 has no code yet, not because it never gets a slot: ADR-0029's own
+    Consequences name the third icon as a cost accepted up front ("the rail
+    grows a second real view before SFTP exists to justify the third"),
+    arriving with the feature rather than before it, per rule 6.
+
+    `armed` matches `ActivityRail.tsx`'s own prop exactly: it warn-tints
+    both slots and locks Home, never Sessions, since typing reaches hosts
+    from inside Sessions and switching away is not what someone reaching
+    for the rail mid-broadcast meant to do. `badge` draws the open-session
+    count on the Sessions slot, the same as `openCount` there.
+
+    #234: `Settings.dc.html` and `NewSession.dc.html` still draw the
+    pre-ADR-0029 three-slot shape, on purpose, not by oversight. Settings'
+    whole premise, a rail gear opening a tab, is gone, not only its rail;
+    NewSession predates the wizard entirely (#233). Neither is a rail-only
+    fix, so neither was given one."""
+    accent = T['warn'] if armed else T['accent']
+    def slot(icon, on, locked=False, bad=None):
+        color = T['ink'] if on else (T['off'] if locked else T['faint'])
         bar = (f'<div style="position: absolute; left: 0; top: 8px; bottom: 8px; width: 2px;'
-               f' background: {T["accent"]}; border-radius: 0 2px 2px 0;"></div>') if on else ''
-        color = T['ink'] if on else T['faint']
+               f' background: {accent}; border-radius: 0 2px 2px 0;"></div>') if on else ''
+        badge_html = ''
+        if bad:
+            badge_html = (f'<span class="mono" style="position: absolute; right: 6px; bottom: 7px; min-width: 15px; height: 15px;'
+                          f' border-radius: 8px; background: {accent}; color: {T["base"]}; font-size: 9.5px; font-weight: 700;'
+                          f' display: flex; align-items: center; justify-content: center; padding: 0 4px;">{bad}</span>')
+        lock_html = ''
+        if locked:
+            lock_html = (f'<svg viewBox="0 0 24 24" fill="none" stroke="{T["warn"]}" stroke-width="2" style="width: 10px; height: 10px;'
+                         f' position: absolute; right: 7px; bottom: 8px;">{ICON["lock"]}</svg>')
         return (f'<div style="width: 100%; height: 44px; display: flex; align-items: center; justify-content: center;'
-                f' position: relative; color: {color};">{bar}{ic(icon, 21, cls="rail-ic")}</div>')
+                f' position: relative; color: {color};">{bar}{ic(icon, 21, cls="rail-ic")}{badge_html}{lock_html}</div>')
     return f"""    <div style="width: 48px; flex: none; background: {T['chrome']}; border-right: 1px solid {T['line']}; display: flex; flex-direction: column; align-items: center; padding: 6px 0;">
-      {slot('home', workspace == 'home')}
-      {slot('ssh', workspace == 'sessions')}
+      {slot('home', workspace == 'home', locked=armed)}
+      {slot('ssh', workspace == 'sessions', bad=badge)}
     </div>"""
 
 def home_nav(section="hosts"):
@@ -1142,7 +1171,7 @@ def build_hostkeychanged():
     st = status(f'    <div style="display: flex; align-items: center; gap: 7px;"><svg viewBox="0 0 24 24" fill="none" stroke="{T["danger"]}" stroke-width="2" style="width: 12px; height: 12px;"><path d="M12 4l9 16H3z"></path><path d="M12 10v4M12 17v.01"></path></svg>'
                 f'<span style="font-size: 11px; color: {T["dangertext"]};">db-prod blocked</span></div>',
                 stat_text("SYNC OFF", T['faint'], mono=False))
-    write("HostKeyChanged.dc.html", page(grid, sidebar_shell(sessions_header(), rows), rail(badge="2"), st))
+    write("HostKeyChanged.dc.html", page(grid, sidebar_shell(sessions_header(), rows), home_rail(workspace="sessions", badge="2"), st))
 
 # ---------- 11. connection failure, in the group that tried
 def build_failure():
@@ -1168,7 +1197,7 @@ def build_failure():
     st = status(f'    <div style="display: flex; align-items: center; gap: 7px;"><svg viewBox="0 0 24 24" fill="none" stroke="{T["faint"]}" stroke-width="2" style="width: 12px; height: 12px;"><circle cx="12" cy="12" r="8.5"></circle><path d="M6 6l12 12"></path></svg>'
                 f'<span style="font-size: 11px; color: {T["muted"]};">stg-app unreachable</span></div>',
                 stat_text("SYNC OFF", T['faint'], mono=False))
-    write("Failure.dc.html", page(grid, sessions_sidebar(active="web-01", states={"web-01": "ok"}), rail(badge="2"), st))
+    write("Failure.dc.html", page(grid, sessions_sidebar(active="web-01", states={"web-01": "ok"}), home_rail(workspace="sessions", badge="2"), st))
 
 # ---------- 12. paste, with typing synchronised
 def build_paste():
@@ -1204,7 +1233,7 @@ def build_paste():
     st = status_warn(stat_session("deploy@10.4.1.20") + "\n" + sep() + "\n" + stat_text("waiting on you", T['warn'], mono=False),
                      f'    <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: {T["warnsoft"]}; background: {T["warn"]}; border-radius: 4px; padding: 4px 10px;">TYPING INTO 3 HOSTS</span>')
     write("PasteConfirm.dc.html", page(f'      <div style="flex: 1; min-height: 0; padding: 8px; display: flex;">{g}</div>',
-                                       sidebar_shell(hdr, rows), rail(locked=True, badge="3", accent=T['warn']), st))
+                                       sidebar_shell(hdr, rows), home_rail(workspace="sessions", badge="3", armed=True), st))
 
 # ---------- 13. the command palette
 def build_palette():
@@ -1242,7 +1271,7 @@ def build_palette():
     st = status(stat_session("deploy@10.4.1.20") + "\n" + sep() + "\n" + stat_text("198 x 42"),
                 stat_text("SYNC OFF", T['faint'], mono=False))
     write("Palette.dc.html", page(f'      <div style="flex: 1; min-height: 0; display: flex;">{g}</div>',
-                                  sessions_sidebar(active="web-01", states={"web-01": "ok", "db-prod": "ok"}), rail(badge="2"), st))
+                                  sessions_sidebar(active="web-01", states={"web-01": "ok", "db-prod": "ok"}), home_rail(workspace="sessions", badge="2"), st))
 
 if LIGHT_MODE:
     _w = write

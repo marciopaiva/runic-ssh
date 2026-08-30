@@ -94,11 +94,13 @@ had handed off to. Accepted and shipped 2026-08-30 (`wizard_breadcrumb` in
 mockup was retired the same day rather than keep drawing a screen the app now
 draws itself.
 
-The remaining two also draw with a corrected rail, two slots, Home and
-Sessions, matching `ActivityRail.tsx` since ADR-0029. Every other artboard's
-rail still draws the three-slot shape from before that split (#234), so these
-two are among the only ones in the whole set that currently agree with the
-tree on what the rail is.
+The remaining two also draw with the corrected rail, two slots, Home and
+Sessions, matching `ActivityRail.tsx` since ADR-0029. #234, the staleness they
+uncovered, is closed everywhere except `Settings.dc.html`: its rail gear
+opening a tab is not a stale rail drawing, it is a screen whose whole premise
+ADR-0029 removed, and needs its own redraw rather than a swapped icon (issue
+to follow). `NewSession.dc.html` carries the same three-slot rail for the
+same reason, folded into #233 rather than tracked twice.
 
 ## What is drawn here and not built
 
