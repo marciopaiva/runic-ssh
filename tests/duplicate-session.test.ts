@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { duplicateOf } from '../src/features/sessions/duplicate';
+import { accessUnchanged, duplicateOf } from '../src/features/sessions/duplicate';
 import type { Session } from '../src/ipc';
 
 function session(id: string, overrides: Partial<Session> = {}): Session {
@@ -72,5 +72,45 @@ describe('the saved session already reaching a target', () => {
     const saved = [session('a', { host: 'a.example.com' }), session('b', { host: 'b.example.com' })];
 
     expect(duplicateOf(saved, null, 'c.example.com', 22, 'deploy')).toBeNull();
+  });
+});
+
+describe('whether a draft still reaches what a saved session already has', () => {
+  /* ADR-0036: the same identity question as duplicateOf, asked against the
+     one session being edited rather than every other one. */
+  it('matches when host, port and user are all exactly what is saved', () => {
+    const saved = session('web-01', { host: 'web-01.example.com', port: 22, user: 'deploy' });
+
+    expect(accessUnchanged(saved, 'web-01.example.com', 22, 'deploy')).toBe(true);
+  });
+
+  it('ignores case and surrounding space on the host, like duplicateOf does', () => {
+    const saved = session('web-01', { host: 'Web-01.Example.com' });
+
+    expect(accessUnchanged(saved, '  web-01.example.com  ', 22, 'deploy')).toBe(true);
+  });
+
+  it('notices a changed host', () => {
+    const saved = session('web-01', { host: 'web-01.example.com' });
+
+    expect(accessUnchanged(saved, 'web-02.example.com', 22, 'deploy')).toBe(false);
+  });
+
+  it('notices a changed port', () => {
+    const saved = session('web-01', { port: 22 });
+
+    expect(accessUnchanged(saved, saved.host, 2222, 'deploy')).toBe(false);
+  });
+
+  it('notices a changed user', () => {
+    const saved = session('web-01', { user: 'deploy' });
+
+    expect(accessUnchanged(saved, saved.host, saved.port, 'admin')).toBe(false);
+  });
+
+  it('is false while the port has not parsed to a number yet', () => {
+    const saved = session('web-01');
+
+    expect(accessUnchanged(saved, saved.host, null, saved.user)).toBe(false);
   });
 });

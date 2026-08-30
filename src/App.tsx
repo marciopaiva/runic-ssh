@@ -42,6 +42,7 @@ import {
 } from './features/chrome';
 import type { Focus } from './features/chrome';
 import {
+  accessUnchanged,
   carrierName,
   duplicateOf,
   editorDirty,
@@ -1666,6 +1667,25 @@ export function App(): JSX.Element {
                     const session = targetSession(target, saved);
                     return session !== null && hasStoredCredential(session);
                   })();
+                /* ADR-0036: nothing that could invalidate the stored
+                   credential changed, so Access has nothing left to prove.
+                   `open` rather than `target` for the values themselves:
+                   `target` only names which session, `open` is the draft
+                   actually on screen. */
+                const skipTest =
+                  target === null || open === null ? false : (() => {
+                    const session = targetSession(target, saved);
+                    return (
+                      session !== null &&
+                      hasStoredCredential(session) &&
+                      accessUnchanged(
+                        session,
+                        open.values.host,
+                        parsePort(open.values.port),
+                        open.values.user,
+                      )
+                    );
+                  })();
                 /* ADR-0030: the same host key and credential screens Sessions
                    shows over a group's terminal, found here when the attempt
                    in flight is this host's own. The surface that makes
@@ -1748,6 +1768,8 @@ export function App(): JSX.Element {
                           carried={jump.carried}
                           duplicate={duplicate}
                           storedCredential={storedCredential}
+                          skipTest={skipTest}
+                          onSkipTest={() => submitIn(target)}
                           onForget={editingId === null ? null : () => forgetPassword(target)}
                           onDelete={target.kind === 'new' ? null : () => removeIn(target)}
                           onBack={() => wizardBack(target)}

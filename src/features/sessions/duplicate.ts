@@ -41,3 +41,29 @@ export function duplicateOf(
     ) ?? null
   );
 }
+
+/**
+ * Whether a draft still reaches the same host, port and user a saved session
+ * already has. ADR-0036: the wizard's own Access step uses this to decide
+ * whether reopening a host needs a live retest at all, none of the three can
+ * move without touching the connection a stored credential proves, so an
+ * exact match on all three is what says nothing here needs proving again.
+ *
+ * Same normalization as `duplicateOf`, deliberately: this is the same
+ * identity question asked in the opposite direction, against the one session
+ * being edited rather than every other one.
+ */
+export function accessUnchanged(
+  session: Session,
+  host: string,
+  port: number | null,
+  user: string,
+): boolean {
+  if (port === null) return false;
+
+  return (
+    session.host.trim().toLowerCase() === host.trim().toLowerCase() &&
+    session.port === port &&
+    session.user.trim() === user.trim()
+  );
+}

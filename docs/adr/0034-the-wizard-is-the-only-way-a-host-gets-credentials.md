@@ -111,6 +111,13 @@ count as safe. The cost is a real connection attempt on every reopen, even
 one that only touches a label; the benefit is one rule instead of a
 conditional a reader has to trust was reasoned correctly.
 
+**Narrowed by ADR-0036** (2026-08-29, the same day): this specific rule, that
+every reopen retests with no condition, no longer holds. The cost named above
+showed up immediately, and the wizard now skips the live attempt when host,
+port and user match the saved record exactly. Everything else in this
+document, the wizard as the only path, the removed three-way keep choice,
+`CredentialWindow` as Sessions' fallback, still stands.
+
 **The credential window is not deleted. It stops being reachable from here.**
 `authenticateInteractively` is not only `savePasswordIn`'s call. It is what
 an *ordinary* connect from Sessions falls back to (`use-connect.ts:254`) when

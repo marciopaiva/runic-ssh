@@ -27,6 +27,16 @@ interface SessionWizardProps {
   /** Whether the keychain already holds a credential for this host. ADR-0034:
    * the only surface left that can say so, now that `SessionForm` is gone. */
   readonly storedCredential: boolean;
+  /**
+   * Whether Access has nothing left to prove. ADR-0036: true only for an
+   * existing host, already carrying a stored credential, whose host, port
+   * and user still match what is saved. A new host, a changed one, or one
+   * with nothing stored yet always keeps testing.
+   */
+  readonly skipTest: boolean;
+  /** Saves whatever changed (name, group, kind) without connecting. Only
+   * ever called when `skipTest` is true. */
+  readonly onSkipTest: () => void;
   /** Drops the stored credential, or `null` on a host that does not exist
    * yet: there is nothing to drop. */
   readonly onForget: (() => void) | null;
@@ -94,6 +104,8 @@ export function SessionWizard({
   carried,
   duplicate,
   storedCredential,
+  skipTest,
+  onSkipTest,
   onForget,
   onDelete,
   onBack,
@@ -316,7 +328,19 @@ export function SessionWizard({
               </button>
               <button
                 type="button"
-                onClick={() => setProving(true)}
+                onClick={() => {
+                  /* ADR-0036: nothing here could invalidate the stored
+                     credential, so this saves what changed and lands
+                     straight on the same row a settled attempt renders
+                     below, without ever starting one. */
+                  if (skipTest) {
+                    onSkipTest();
+                    setProving(true);
+                    setAttempted(true);
+                    return;
+                  }
+                  setProving(true);
+                }}
                 className="bg-accent text-surface-base rounded px-3 py-1.5 text-[12px] font-semibold"
               >
                 {i18n.t('wizard.next')}
