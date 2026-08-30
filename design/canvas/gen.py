@@ -93,6 +93,9 @@ ICON = dict(
     shape_rows='<rect x="3.5" y="5.5" width="17" height="13" rx="2"></rect><path d="M3.5 12h17"></path>',
     shape_grid='<rect x="3.5" y="5.5" width="17" height="13" rx="2"></rect><path d="M12 5.5v13M3.5 12h17"></path>',
     shield='<path d="M12 3.5l7 3v5.5c0 4.2-2.9 7.3-7 8.5-4.1-1.2-7-4.3-7-8.5V6.5z"></path>',
+    # ADR-0029's own rail icon, path copied verbatim from ActivityRail.tsx
+    # rather than invented for the mockup.
+    home='<path d="M4 11.5 12 4l8 7.5M6 10v9.5h5V14h2v5.5h5V10"></path>',
 )
 
 def ic(name, size=14, color=None, cls="ic", extra=""):
@@ -133,13 +136,17 @@ def shapes(active="single"):
     return ('<div style="flex: none; display: flex; align-items: center; gap: 2px; padding-right: 8px;">'
             + "".join(out) + '</div>')
 
-def top_strip(active_shape="single"):
+def top_strip(active_shape="single", show_shapes=True):
+    """ADR-0029: the shape control only means anything over a pool of
+    terminals, so it is absent whenever Home is the workspace showing,
+    `Titlebar.tsx`'s own `showShapeControl` rather than something this file
+    decided on its own."""
     return f"""  <div style="height: 36px; flex: none; display: flex; align-items: stretch; background: {T['chrome']}; border-bottom: 1px solid {T['line']};">
     <div style="width: 48px; flex: none; display: flex; align-items: center; justify-content: center; border-right: 1px solid {T['line']};">{MARK}</div>
     <div style="flex: 1; min-width: 0; display: flex; align-items: center; padding-left: 14px;">
       <span style="font-size: 11.5px; font-weight: 700; letter-spacing: 0.13em; color: {T['faint']};">RUNIC SSH</span>
     </div>
-    {shapes(active_shape)}
+    {shapes(active_shape) if show_shapes else ''}
     <div style="flex: none; display: flex; align-items: stretch; border-left: 1px solid {T['line']};">
       <div class="win"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M1.5 5h7"></path></svg></div>
       <div class="win"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.1"><rect x="1.5" y="1.5" width="7" height="7"></rect></svg></div>
@@ -324,7 +331,7 @@ def stat_text(s, color=None, mono=True):
 def sep():
     return f'    <span style="width: 1px; height: 14px; background: {T["line"]};"></span>'
 
-def page(body, sidebar_html=None, rail_html=None, status_html=None, shape="single"):
+def page(body, sidebar_html=None, rail_html=None, status_html=None, shape="single", show_shapes=True):
     mid = (rail_html or rail()) + ("\n" + sidebar_html if sidebar_html else "") + f"""
     <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: {T['base']};">
 {body}
@@ -332,7 +339,7 @@ def page(body, sidebar_html=None, rail_html=None, status_html=None, shape="singl
     return (HEAD +
             f"""
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
-{top_strip(shape)}
+{top_strip(shape, show_shapes)}
   <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
 {mid}
   </div>
@@ -731,6 +738,218 @@ def build_settings():
     write("Settings.dc.html", page(f'      <div style="flex: 1; min-height: 0; display: flex;">{g}</div>',
                                    sidebar_shell(sessions_header(), rows), rail(gear_pressed=True, badge="1"), st))
 
+# ---------- 10. Home: the rail, the nav, and the wizard's own breadcrumb
+# Exploratory. Drawn 2026-08-30 against the maintainer's own complaint that
+# the wizard "não mostra onde você está" once Access hands off to its
+# automatic phase (#233, #234). Two things here are proposed rather than
+# shipped: the third breadcrumb item `wizard_breadcrumb` can draw, and the
+# copy on it. Everything else, the rail, HomeNav, HostFields, the stored/kept
+# block, the missing-credential notice, is the real, current shape.
+
+def home_rail(workspace="home"):
+    """ADR-0029's rail: two peer workspaces, not three slots inside one.
+    No gear (moved to a Home card), no SFTP (#127, no code yet, and never a
+    slot *inside* this rail even once built). See #234: every other
+    artboard's rail still draws the pre-ADR-0029 three-slot shape; this is
+    the first one that does not."""
+    def slot(icon, on):
+        bar = (f'<div style="position: absolute; left: 0; top: 8px; bottom: 8px; width: 2px;'
+               f' background: {T["accent"]}; border-radius: 0 2px 2px 0;"></div>') if on else ''
+        color = T['ink'] if on else T['faint']
+        return (f'<div style="width: 100%; height: 44px; display: flex; align-items: center; justify-content: center;'
+                f' position: relative; color: {color};">{bar}{ic(icon, 21, cls="rail-ic")}</div>')
+    return f"""    <div style="width: 48px; flex: none; background: {T['chrome']}; border-right: 1px solid {T['line']}; display: flex; flex-direction: column; align-items: center; padding: 6px 0;">
+      {slot('home', workspace == 'home')}
+      {slot('ssh', workspace == 'sessions')}
+    </div>"""
+
+def home_nav(section="hosts"):
+    """`HomeNav.tsx`: a breadcrumb, not a tab strip, because neither
+    Dashboard nor Hosts is a document somebody is mid-edit on the way
+    between."""
+    def btn(label, on):
+        style = f'background: {T["raised"]}; color: {T["ink"]};' if on else f'color: {T["muted"]};'
+        return (f'<span style="{style} border-radius: 6px; padding: 5px 10px; font-size: 12px;'
+                f' font-weight: 500;">{label}</span>')
+    return f"""    <div style="height: 32px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 8px;
+      background: {T['chrome']}; border-bottom: 1px solid {T['line']};">
+      {btn('Home', section == 'dashboard')}
+      {btn('Hosts', section == 'hosts')}
+    </div>"""
+
+def kind_picker(active="other"):
+    """`HostKindPicker.tsx`'s four pills, ADR-0031. 'other' draws no icon,
+    same as the sidebar row: KIND_ICON has no entry for it on purpose."""
+    kinds = [("jumpServer", "Jump server"), ("database", "Database"), ("web", "Web"), ("other", "Other")]
+    out = []
+    for key, label in kinds:
+        on = key == active
+        border = T['accent'] if on else T['line']
+        bg = f'background: {T["accentsoft"]};' if on else ''
+        color = T['ink'] if on else T['ink2']
+        icon = kind_ic(key, T['accent'] if on else T['ink2']) if key != 'other' else ''
+        out.append(f'<span style="display: inline-flex; align-items: center; gap: 6px; border: 1px solid {border};'
+                    f' {bg} border-radius: 5px; padding: 5px 9px; font-size: 11.5px; color: {color};">{icon}{label}</span>')
+    return f'<div style="display: flex; flex-wrap: wrap; gap: 6px;">{"".join(out)}</div>'
+
+def wizard_breadcrumb(step=2, phase=None):
+    """Host / Access, `SessionWizard.tsx`'s own two real, navigable steps
+    (lines ~197-220) — plus a third item, proposed here, that only ever
+    labels the automatic phase Access hands off to once there is nothing
+    left to choose (ADR-0034: "not a third step... it runs itself"). Not
+    clickable, not part of `step`, not yet in any locale catalogue: the
+    point of drawing it is to ask whether it should exist, not to claim it
+    already does."""
+    items = [("Host", step == 1)]
+    items.append(("Access", step == 2 and phase is None))
+    if phase:
+        items.append((phase, True))
+    lis = []
+    for i, (label, current) in enumerate(items):
+        arrow = f'<span style="color: {T["faint"]};">&#8594;</span>' if i > 0 else ''
+        color = T['ink'] if current else T['ink2']
+        weight = 'font-weight: 600;' if current else ''
+        lis.append(f'<li style="display: flex; align-items: center; gap: 8px;">{arrow}'
+                    f'<span style="font-size: 11px; color: {color}; {weight}">{label}</span></li>')
+    return f'<ol style="display: flex; align-items: center; gap: 8px; list-style: none; margin: 0; padding: 0;">{"".join(lis)}</ol>'
+
+def hosts_header(creating_new=False):
+    plus = (f'<span style="width: 20px; height: 20px; border-radius: 4px; background: {T["raised"]};'
+            f' display: flex; align-items: center; justify-content: center; color: {T["accent"]};">{ic("plus")}</span>'
+            ) if creating_new else ic('plus', 14, T['muted'])
+    return f"""      <div style="display: flex; align-items: center; gap: 8px; padding: 14px 14px 10px;">
+        <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: {T['faint']};">HOSTS</span>
+        <div style="flex: 1;"></div>
+        {plus}
+      </div>"""
+
+def hosts_shell(rows_html, panel_html, creating_new=False):
+    """`HostsSection.tsx`: a 280px list beside one form, not a tab per open
+    host, because a CRUD screen is exactly that shape."""
+    left = f"""    <div style="width: 280px; flex: none; background: {T['panel']}; border-right: 1px solid {T['line']}; display: flex; flex-direction: column;">
+{hosts_header(creating_new)}
+      <div style="flex: 1; padding: 0 8px 8px; display: flex; flex-direction: column; gap: 2px; overflow: hidden;">
+{rows_html}
+      </div>
+    </div>"""
+    return f"""    <div style="flex: 1; min-height: 0; display: flex;">
+{left}
+      <div style="flex: 1; min-width: 0; overflow: hidden;">{panel_html}</div>
+    </div>"""
+
+def wizard_panel(title, step=2, phase=None, notice=False, content=""):
+    notice_html = ""
+    if notice:
+        notice_html = f"""
+          <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; max-width: 440px;
+            background: {T['accentsoft']}; border-left: 2px solid {T['accent']}; border-radius: 0 6px 6px 0; padding: 8px 12px;">
+            <span style="font-size: 12.5px; color: {T['ink']}; line-height: 1.5;">This opened because Sessions needs to authenticate with this host before it can connect.</span>
+            <span style="font-size: 12px; color: {T['muted']}; flex: none;">Dismiss</span>
+          </div>"""
+    return f"""      <div style="height: 100%; padding: 28px; display: flex; flex-direction: column; gap: 18px; overflow: hidden;">
+        <span style="font-size: 15px; font-weight: 600;">{title}</span>
+        {wizard_breadcrumb(step, phase)}{notice_html}
+{content}
+      </div>"""
+
+def wizard_field(v, mono=True, chev=False, placeholder=False):
+    c = ' class="mono"' if mono else ''
+    color = T['faint'] if placeholder else T['ink']
+    tail = ic("chev", 14, T['faint']) if chev else ''
+    just = 'justify-content: space-between;' if chev else ''
+    return (f'<div style="height: 32px; background: {T["input"]}; border: 1px solid {T["line"]}; border-radius: 6px;'
+            f' display: flex; align-items: center; {just} padding: 0 10px;">'
+            f'<span{c} style="font-size: 12px; color: {color};">{v}</span>{tail}</div>')
+
+def wizard_label(s):
+    return f'<span style="font-size: 11px; font-weight: 600; color: {T["ink2"]}; display: block; margin-bottom: 5px;">{s}</span>'
+
+def wizard_hint(s):
+    return f'<span style="font-size: 10.5px; color: {T["faint"]}; margin-top: 5px; display: block;">{s}</span>'
+
+def wizard_actions(*items):
+    """items: (label, primary) pairs, first left-aligned, rest packed right."""
+    out = []
+    for i, (label, primary) in enumerate(items):
+        if i == 1:
+            out.append('<div style="flex: 1;"></div>')
+        if primary:
+            out.append(f'<span style="font-size: 12px; font-weight: 600; color: {T["base"]}; background: {T["accent"]};'
+                        f' border-radius: 6px; padding: 7px 16px;">{label}</span>')
+        else:
+            out.append(f'<span style="font-size: 12px; color: {T["muted"]};">{label}</span>')
+    return f'<div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">{"".join(out)}</div>'
+
+def build_hosts_host():
+    """Host step, redrawn against the real `HostFields.tsx`: kind picker
+    (ADR-0031), jump host selector, group with suggestions (#221) — none of
+    which the old `NewSession.dc.html` (pre-ADR-0029, pre-wizard) drew.
+    See #233."""
+    fields = f"""<div style="max-width: 440px; display: flex; flex-direction: column; gap: 14px;">
+      <div>{wizard_label('Host')}{wizard_field('target.internal')}</div>
+      <div style="display: flex; gap: 12px;">
+        <div style="flex: 1;">{wizard_label('User')}{wizard_field('deploy')}</div>
+        <div style="width: 90px;">{wizard_label('Port')}{wizard_field('2222')}</div>
+      </div>
+      <div>{wizard_label('Name')}{wizard_field('Leave empty to use the host', mono=False, placeholder=True)}</div>
+      <div>{wizard_label('Group')}{wizard_field('PRODUCTION', mono=False, chev=True)}{wizard_hint('Optional. Sessions are listed under it.')}</div>
+      <div>{wizard_label('Kind')}{kind_picker('other')}</div>
+      <div>{wizard_label('Reached through')}{wizard_field('bastion', mono=False, chev=True)}
+        {wizard_hint("Another saved host to reach this one through. Its key is verified and its saved credential is used, and neither is ever sent to this host.")}</div>
+      {wizard_actions(('Cancel', False), ('Next', True))}
+    </div>"""
+    rows = "\n".join([host_row("bastion", "jump@127.0.0.1", "saved", kind="jumpServer"),
+                      host_row("target.internal", "deploy@target.internal", "saved", active=True, via="bastion", depth=1)])
+    panel = wizard_panel("target.internal", step=1, content=fields)
+    body = home_nav("hosts") + hosts_shell(rows, panel)
+    st = status(stat_text("target.internal", T['muted'], mono=False), stat_text("2 hosts", T['faint']))
+    write("HostsHost.dc.html", page(body, None, home_rail(), st, show_shapes=False))
+
+def build_hosts_access():
+    """Access step, not yet proving. The missing-credential notice (ADR-0039)
+    shown here is the state that reaches this screen without a click on it:
+    Sessions sent the user here, so there is a note saying why."""
+    fields = f"""<div style="max-width: 440px; display: flex; flex-direction: column; gap: 14px;">
+      <div role="radiogroup" style="display: flex; gap: 3px; background: {T['input']}; border: 1px solid {T['line']}; border-radius: 8px; padding: 3px; max-width: 260px;">
+        <span style="flex: 1; text-align: center; font-size: 11.5px; font-weight: 600; color: {T['ink']}; background: {T['raised']}; border-radius: 6px; padding: 6px 0;">Password</span>
+        <span style="flex: 1; text-align: center; font-size: 11.5px; color: {T['muted']}; padding: 6px 0;">Private key</span>
+      </div>
+      {wizard_actions(('Cancel', False), ('Back', False), ('Next', True))}
+    </div>"""
+    rows = "\n".join([host_row("bastion", "jump@127.0.0.1", "saved", kind="jumpServer"),
+                      host_row("target.internal", "deploy@target.internal", "saved", active=True, via="bastion", depth=1)])
+    panel = wizard_panel("target.internal", step=2, notice=True, content=fields)
+    body = home_nav("hosts") + hosts_shell(rows, panel)
+    st = status(stat_text("target.internal", T['muted'], mono=False), stat_text("2 hosts", T['faint']))
+    write("HostsAccess.dc.html", page(body, None, home_rail(), st, show_shapes=False))
+
+def build_hosts_phase():
+    """Access, proving, the bastion's own inline credential (ADR-0033) —
+    picked as the example because it is the sub-phase the maintainer's
+    complaint names most directly: today nothing on screen says *whose*
+    password this is beyond the banner text. The proposed third breadcrumb
+    item is what this artboard exists to show."""
+    fields = f"""<div style="max-width: 440px; display: flex; flex-direction: column; gap: 14px;">
+      <div style="display: flex; align-items: flex-start; gap: 10px; background: {T['warnsoft']}; border-left: 2px solid {T['warn']}; border-radius: 0 6px 6px 0; padding: 9px 12px;">
+        <span style="font-size: 12px; color: {T['ink2']}; line-height: 1.5;">This password is for the jump host, not for the host you asked for. Runic SSH reaches target.internal through this one, so this credential is used first.</span>
+      </div>
+      <div>{wizard_label('Password')}{wizard_field('', mono=False)}</div>
+      <div>
+        <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; color: {T['faint']}; display: block; margin-bottom: 6px;">KEEP THIS CREDENTIAL</span>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <span style="font-size: 11.5px; color: {T['ink2']};">&#9679; Until Runic SSH closes, in memory only</span>
+          <span style="font-size: 11.5px; color: {T['muted']};">&#9675; In the system keychain, until I remove it</span>
+        </div>
+      </div>
+      {wizard_actions(('Cancel', False), ('Authenticate', True))}
+    </div>"""
+    rows = "\n".join([host_row("bastion", "jump@127.0.0.1", "saved", active=True, kind="jumpServer"),
+                      host_row("target.internal", "deploy@target.internal", "saved", via="bastion", depth=1)])
+    panel = wizard_panel("bastion", step=2, phase="Bastion", notice=True, content=fields)
+    body = home_nav("hosts") + hosts_shell(rows, panel)
+    st = status(stat_text("bastion", T['muted'], mono=False), stat_text("2 hosts", T['faint']))
+    write("HostsPhase.dc.html", page(body, None, home_rail(), st, show_shapes=False))
+
 # ============================================================ SYSTEM SHEETS
 
 def sheet(title, sub, body, h=900):
@@ -1059,6 +1278,7 @@ if LIGHT_MODE:
 else:
     for fn in (build_empty, build_main, build_groups, build_collapsed, build_broadcast,
                build_hostkey, build_sftp, build_newsession, build_settings,
+               build_hosts_host, build_hosts_access, build_hosts_phase,
                build_anatomy, build_tokens,
                build_hostkeychanged, build_failure, build_paste, build_palette):
         fn()

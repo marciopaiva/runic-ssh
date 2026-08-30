@@ -76,6 +76,27 @@ inside the group that owns them. The host key artboards used to be standalone
 cards at 940x640, which is why the components built from them arrived with the
 card right and the surface around it wrong. They are drawn in place here.
 
+## Exploratory
+
+`HostsHost.dc.html`, `HostsAccess.dc.html` and `HostsPhase.dc.html` are not
+part of the set above. They answer the maintainer's own complaint, 2026-08-30,
+that the wizard's Access step "não mostra onde você está" once it hands off to
+its automatic phase: the breadcrumb freezes on "Access" through a host key
+check, a bastion's own credential, the target's, and the result, with nothing
+telling those apart. The first two redraw the real current shape (`HostFields`,
+the missing-credential notice, ADR-0039) against the pre-Home-split mockup
+`NewSession.dc.html` still carries. The third proposes a fix: a third
+breadcrumb item, `wizard_breadcrumb` in `gen.py`, naming the phase. Its copy
+is not in any locale catalogue, on purpose: nothing has decided to build it
+yet. `gen.py`'s own comment above these functions says so. Once a direction is
+picked, `NewSession.dc.html` retires (closing #233) and whichever of these
+becomes real loses the label.
+
+They also draw with a corrected rail, two slots, Home and Sessions, matching
+`ActivityRail.tsx` since ADR-0029. Every other artboard's rail still draws the
+three-slot shape from before that split (#234), so these three are the only
+ones in the whole set that currently agree with the tree on what the rail is.
+
 ## What is drawn here and not built
 
 The canvas is the record of the anatomy, not a checklist of the tree. One
