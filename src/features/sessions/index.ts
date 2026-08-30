@@ -1,5 +1,13 @@
 export { useSessions } from './use-sessions';
-export { ALL_STATES, describeState, groupSessions } from './state';
+export {
+  ALL_STATES,
+  UNGROUPED_KEY,
+  describeState,
+  filterGroups,
+  groupKey,
+  groupSessions,
+  soloGroup,
+} from './state';
 export type {
   ConnectionKind,
   ConnectionState,

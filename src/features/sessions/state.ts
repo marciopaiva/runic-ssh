@@ -147,3 +147,55 @@ export function groupSessions(sessions: readonly LiveSession[]): readonly Sessio
 
   return groups;
 }
+
+/**
+ * The key one group is known by, on screen and in `solo` below.
+ *
+ * The one string a heading-less run of sessions has to answer to, so a
+ * React `key` and a click target agree on what "this group" means without
+ * each inventing its own placeholder for the same `null`.
+ */
+export const UNGROUPED_KEY = 'ungrouped';
+
+export function groupKey(group: SessionGroup): string {
+  return group.name ?? UNGROUPED_KEY;
+}
+
+/**
+ * Which sessions still answer a name search.
+ *
+ * By name alone, on the maintainer's own ask: a hundred saved hosts is the
+ * scale this stops being optional at, and a host is found here by what it is
+ * called, not by the address behind it, which somebody typing a search
+ * mostly does not have memorised. A group left with nothing to show drops
+ * out entirely rather than staying as a heading over an empty list.
+ */
+export function filterGroups(groups: readonly SessionGroup[], query: string): readonly SessionGroup[] {
+  const needle = query.trim().toLowerCase();
+  if (needle === '') return groups;
+
+  return groups
+    .map((group) => ({
+      ...group,
+      sessions: group.sessions.filter((live) => live.session.name.toLowerCase().includes(needle)),
+    }))
+    .filter((group) => group.sessions.length > 0);
+}
+
+/**
+ * Everything but the one group asked to be alone.
+ *
+ * `null` means nobody asked, which is most of the time and is why this
+ * returns the same array reference then: a hundred hosts is exactly the
+ * scale where re-filtering an unchanged list on every render is wasted work,
+ * not a hundred rows' worth of wasted work either, but no reason to pay it
+ * for a feature that is off.
+ */
+export function soloGroup(
+  groups: readonly SessionGroup[],
+  solo: string | null,
+): readonly SessionGroup[] {
+  if (solo === null) return groups;
+
+  return groups.filter((group) => groupKey(group) === solo);
+}

@@ -1,7 +1,8 @@
+import { useState } from 'react';
 import type { JSX } from 'react';
 
 import { bastionName, jumpRole, orderChain } from '../features/sessions';
-import { groupSessions } from '../features/sessions/state';
+import { filterGroups, groupKey, groupSessions, soloGroup } from '../features/sessions/state';
 import type { LiveSession } from '../features/sessions/state';
 import { useTranslator } from '../features/settings';
 
@@ -41,11 +42,22 @@ export function SessionsSidebar({
   onMenu,
 }: SessionsSidebarProps): JSX.Element {
   const i18n = useTranslator();
+  const [query, setQuery] = useState('');
+  /** The one group asked to be shown alone, by `groupKey`, or `null`. */
+  const [solo, setSolo] = useState<string | null>(null);
   /* Both marks are relations between two saved hosts, so the whole list is
      what decides them: a host is a jump host because something else names it,
      which is not a fact its own row carries. */
   const saved = sessions.map((live) => live.session);
-  const groups = groupSessions(sessions);
+  /* Unfiltered, so soloing a group and then searching something that group
+     does not currently have still leaves its name on the chip below: the way
+     back to every group stays visible even while the search shows nothing. */
+  const allGroups = groupSessions(sessions);
+  const groups = filterGroups(soloGroup(allGroups, solo), query);
+  const soloName =
+    solo === null
+      ? null
+      : (allGroups.find((group) => groupKey(group) === solo)?.name ?? i18n.t('sessions.ungrouped'));
 
   return (
     <nav
@@ -59,6 +71,26 @@ export function SessionsSidebar({
 
         <span className="min-w-0 flex-1" />
 
+        {/* The way back from soloing a group, next to the search: clicking
+            the same heading again does the same thing, but a hundred saved
+            hosts is exactly the scale where "click the thing you already
+            scrolled past" stops being a reasonable way to ask someone to
+            undo something. */}
+        {soloName !== null && (
+          <button
+            type="button"
+            onClick={() => setSolo(null)}
+            aria-label={i18n.t('sessions.solo.clear')}
+            title={i18n.t('sessions.solo.clear')}
+            className="text-accent bg-accent/10 hover:bg-accent/20 flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[9.5px] font-bold tracking-[0.05em]"
+          >
+            <span className="max-w-[80px] truncate">{soloName}</span>
+            <svg viewBox="0 0 10 10" className="h-2 w-2 shrink-0" fill="none" aria-hidden="true">
+              <path d="M0.5 0.5l9 9M9.5 0.5l-9 9" stroke="currentColor" strokeWidth="1.4" />
+            </svg>
+          </button>
+        )}
+
         {/* How many hosts are on the receiving end, at the top of the list of
             hosts. The status bar carries the same count; this one is beside
             the rows that say which. */}
@@ -69,6 +101,21 @@ export function SessionsSidebar({
         )}
       </header>
 
+      {sessions.length > 0 && (
+        <div className="px-3.5 pb-2">
+          <input
+            type="text"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={i18n.t('sessions.filter')}
+            aria-label={i18n.t('sessions.filter')}
+            autoComplete="off"
+            spellCheck={false}
+            className="bg-surface-input border-line-subtle text-ink placeholder:text-ink-faint focus:border-line-strong w-full rounded border px-2 py-1 text-[12px] outline-none"
+          />
+        </div>
+      )}
+
       {sessions.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-1.5 px-6 text-center">
           <p className="text-ink-secondary text-[12.5px] font-semibold">
@@ -76,6 +123,15 @@ export function SessionsSidebar({
           </p>
           <p className="text-ink-faint text-[11.5px] leading-snug text-pretty">
             {i18n.t('sessions.empty.body')}
+          </p>
+        </div>
+      ) : groups.length === 0 ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-1.5 px-6 text-center">
+          <p className="text-ink-secondary text-[12.5px] font-semibold">
+            {i18n.t('sessions.filter.empty.title')}
+          </p>
+          <p className="text-ink-faint text-[11.5px] leading-snug text-pretty">
+            {i18n.t('sessions.filter.empty.body')}
           </p>
         </div>
       ) : (
@@ -89,10 +145,26 @@ export function SessionsSidebar({
                fires for exactly that case, below. */
             const chain = orderChain(group.sessions.map((live) => live.session));
 
+            const key = groupKey(group);
+            const displayName = group.name ?? i18n.t('sessions.ungrouped');
+
             return (
-              <section key={group.name ?? 'ungrouped'} className="flex flex-col gap-0.5">
+              <section key={key} className="flex flex-col gap-0.5">
                 <h2 className="text-ink-muted flex items-center gap-1.5 px-1.5 pt-2 pb-1 text-[10.5px] font-bold tracking-[0.08em]">
-                  <span className="truncate">{group.name ?? i18n.t('sessions.ungrouped')}</span>
+                  {/* Click to see this group alone, click again (or the chip
+                      in the header) to bring the rest back. Only worth
+                      reaching for once there is enough to want it hidden, but
+                      nothing here needs to know how many groups exist to
+                      offer it: it does nothing extra with just one. */}
+                  <button
+                    type="button"
+                    onClick={() => setSolo((current) => (current === key ? null : key))}
+                    aria-pressed={solo === key}
+                    title={i18n.t('sessions.solo', { name: displayName })}
+                    className="hover:text-ink flex min-w-0 flex-1 items-center text-left"
+                  >
+                    <span className="truncate">{displayName}</span>
+                  </button>
                   <span className="text-ink-disabled ml-auto font-mono text-[10px]">
                     {group.sessions.length}
                   </span>
