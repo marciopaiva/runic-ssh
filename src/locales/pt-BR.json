@@ -297,6 +297,8 @@
   "wizard.back": "Voltar",
   "wizard.finish": "Concluir",
   "wizard.next": "Avançar",
+  "wizard.result.failed": "Salvo, mas a conexão falhou.",
+  "wizard.result.saved": "Salvo.",
   "wizard.step.auth": "Acesso",
   "wizard.step.host": "Host",
   "wizard.test.now": "Testar agora"

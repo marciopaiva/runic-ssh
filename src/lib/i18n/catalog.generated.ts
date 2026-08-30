@@ -303,6 +303,8 @@ export const SOURCE_CATALOG = {
   "wizard.back": "Back",
   "wizard.finish": "Finish",
   "wizard.next": "Next",
+  "wizard.result.failed": "Saved, but the connection failed.",
+  "wizard.result.saved": "Saved.",
   "wizard.step.auth": "Access",
   "wizard.step.host": "Host",
   "wizard.test.now": "Test now",

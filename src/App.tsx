@@ -338,6 +338,13 @@ export function App(): JSX.Element {
      Sessions. Cleared the same way a failure notice is, on the next action
      in that editor. */
   const [editorOpenedFor, setEditorOpenedFor] = useState<ReadonlySet<string>>(new Set());
+  /* What the wizard's own settled row says happened, keyed by session id.
+     `CredentialSaved`/`ConnectionFailure` already state the outcome once,
+     the moment it happens; dismissing either clears `attempt` and lands on
+     the generic Back/Test again/Finish row, which otherwise repeats nothing.
+     Cleared on an abandon rather than left stale, so cancelling a retry
+     never shows the *previous* attempt's result on this one. */
+  const [testOutcome, setTestOutcome] = useState<ReadonlyMap<string, 'saved' | 'failed'>>(new Map());
 
   const { attempt, connect, trust, abandon, submitInlineCredential } = useConnect({
     onConnecting: (sessionId) => setState(sessionId, 'connecting'),
@@ -360,10 +367,21 @@ export function App(): JSX.Element {
     },
     /* A changed key, a host that did not answer, and a credential window the
        user closed are three different things, and the marker says which. */
-    onFailed: (sessionId, code) => setState(sessionId, stateAfterFailure(code)),
+    onFailed: (sessionId, code) => {
+      setState(sessionId, stateAfterFailure(code));
+      setTestOutcome((current) => new Map(current).set(sessionId, 'failed'));
+    },
     /* Back to a plain stored host. Nothing was learned about it — the attempt
        was let go, not answered — so anything else would be a claim. */
-    onAbandoned: (sessionId) => setState(sessionId, 'saved'),
+    onAbandoned: (sessionId) => {
+      setState(sessionId, 'saved');
+      setTestOutcome((current) => {
+        if (!current.has(sessionId)) return current;
+        const next = new Map(current);
+        next.delete(sessionId);
+        return next;
+      });
+    },
     onCredentialRefused: (sessionId, via) => {
       void internalVaultStatus()
         .then((status) => status !== 'notConfigured')
@@ -379,6 +397,7 @@ export function App(): JSX.Element {
     onCredentialSettled: (sessionId) => {
       setState(sessionId, 'saved');
       reload();
+      setTestOutcome((current) => new Map(current).set(sessionId, 'saved'));
     },
     /* ADR-0039: nothing usable was saved for `sessionId` itself, or, at a
        bastion hop, for the saved session its `proxyJump` names. Either way
@@ -1838,7 +1857,17 @@ export function App(): JSX.Element {
                           storedCredential={storedCredential}
                           keptCredential={editingId !== null && (keptCredentials.get(editingId) ?? false)}
                           skipTest={skipTest}
-                          onSkipTest={() => submitIn(target)}
+                          onSkipTest={() => {
+                            submitIn(target);
+                            /* ADR-0036's own path never opens `testSurface`, so
+                               nothing else marks this settled: the same map
+                               `onCredentialSettled` writes, written here for
+                               the same reason, since a save with nothing
+                               invalidated is exactly what "saved" means. */
+                            if (editingId !== null) {
+                              setTestOutcome((current) => new Map(current).set(editingId, 'saved'));
+                            }
+                          }}
                           onForget={editingId === null ? null : () => forgetPassword(target)}
                           onDelete={target.kind === 'new' ? null : () => removeIn(target)}
                           onBack={() => wizardBack(target)}
@@ -1846,6 +1875,7 @@ export function App(): JSX.Element {
                           onTest={(method) => testInWizard(target, method)}
                           onFinish={() => finishWizard(target)}
                           testSurface={testSurface}
+                          lastOutcome={editingId !== null ? (testOutcome.get(editingId) ?? null) : null}
                           inlineCredential={inlineCredential}
                           bastionCredential={bastionCredential}
                           onConfirmDiscard={() => discardIn(target, true)}

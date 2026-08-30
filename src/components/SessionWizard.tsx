@@ -65,6 +65,16 @@ interface SessionWizardProps {
   /** Closes the wizard once an attempt has run at least once. */
   readonly onFinish: () => void;
   /**
+   * What the settled row should say happened, or `null` before anything has.
+   *
+   * `CredentialSaved`/`ConnectionFailure` already state this once, inside
+   * `testSurface`; this is what is left once either is dismissed and the
+   * generic Back/Test again/Finish row is all that remains on screen. `App.tsx`
+   * owns it because it is the one place both endings, and the ADR-0036 path
+   * that skips testing altogether, are already visible.
+   */
+  readonly lastOutcome: 'saved' | 'failed' | null;
+  /**
    * The host key and credential screens, exactly as Sessions renders them,
    * or `null` when nothing is attempting a connection for this host right
    * now. Owned by `App.tsx`, which already reads the shared `ConnectStage`
@@ -130,6 +140,7 @@ export function SessionWizard({
   onNext,
   onTest,
   onFinish,
+  lastOutcome,
   testSurface,
   inlineCredential,
   bastionCredential,
@@ -417,31 +428,47 @@ export function SessionWizard({
             onCancel={inlineCredential.onCancel}
           />
         ) : attempted ? (
-          /* The attempt has already settled once. Successfully, refused, or
-             cancelled, it does not matter which, the host is on disk either
-             way. Just the row: retry, or leave. */
-          <div className="flex max-w-[440px] items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setProving(false)}
-              className="text-ink-secondary hover:bg-surface-raised mr-auto rounded px-2.5 py-1.5 text-[12px]"
-            >
-              {i18n.t('wizard.back')}
-            </button>
-            <button
-              type="button"
-              onClick={() => onTest(method)}
-              className="text-ink-secondary border-line-subtle hover:text-ink rounded border px-2.5 py-1.5 text-[12px]"
-            >
-              {i18n.t('wizard.test.now')}
-            </button>
-            <button
-              type="button"
-              onClick={onFinish}
-              className="bg-accent text-surface-base rounded px-3 py-1.5 text-[12px] font-semibold"
-            >
-              {i18n.t('wizard.finish')}
-            </button>
+          /* The attempt has already settled once, refused or cancelled
+             attempts included: the host is on disk either way, only
+             `lastOutcome` says which ending this one actually reached.
+             `CredentialSaved`/`ConnectionFailure` already said so, once,
+             inside `testSurface`; dismissing either is what leaves this row
+             on screen with nothing else saying it. */
+          <div className="flex max-w-[440px] flex-col gap-2">
+            {lastOutcome !== null && (
+              <div
+                className={`rounded border-l-2 px-3 py-2 text-[12.5px] ${
+                  lastOutcome === 'saved'
+                    ? 'border-ok/40 bg-ok-soft text-ok'
+                    : 'border-danger bg-danger-soft text-danger-text'
+                }`}
+              >
+                {i18n.t(lastOutcome === 'saved' ? 'wizard.result.saved' : 'wizard.result.failed')}
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setProving(false)}
+                className="text-ink-secondary hover:bg-surface-raised mr-auto rounded px-2.5 py-1.5 text-[12px]"
+              >
+                {i18n.t('wizard.back')}
+              </button>
+              <button
+                type="button"
+                onClick={() => onTest(method)}
+                className="text-ink-secondary border-line-subtle hover:text-ink rounded border px-2.5 py-1.5 text-[12px]"
+              >
+                {i18n.t('wizard.test.now')}
+              </button>
+              <button
+                type="button"
+                onClick={onFinish}
+                className="bg-accent text-surface-base rounded px-3 py-1.5 text-[12px] font-semibold"
+              >
+                {i18n.t('wizard.finish')}
+              </button>
+            </div>
           </div>
         ) : (
           /* Nothing to show yet: the effect above has already started the
