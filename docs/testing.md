@@ -325,76 +325,37 @@ save the core refused would take the draft with it and leave the host unsaved.
 Revert the patch. A forced failure left in the tree passes every test in this
 repository, because nothing here connects to a keychain.
 
-### Where the credential prompt opens, and how it is closed
+### The credential fields, inline in the wizard's Access step
 
-The prompt is its own window, and everything about that window is decided in
-Rust against a component in a webview. Nothing measures one against the other,
-so all of it is driven rather than tested.
+This used to be its own window (ADR-0008), positioned over the main one,
+closable four ways because ADR-0028 spent the title bar on the fourth, and
+offering a three-way choice of where to keep what it collected. ADR-0034
+retired that choice (the wizard states what will happen rather than asking),
+and ADR-0039 retired the window itself: the fields are `InlineCredentialForm`,
+a panel in the wizard's own Access step, in the main window, with nothing left
+to position, alt-tab to, or close a fourth way. The positioning, title-bar and
+keep-option checks that used to live here no longer have a subject; #242
+tracks re-driving what still applies (jump-host layout, Portuguese overflow,
+the four-groups-flooding note) against the inline shape.
 
-Move the main window into a corner of the screen before connecting. Centring
-over the application and centring on the screen are the same thing when the
-window is where it starts.
-
-| Do this | Expect |
-| --- | --- |
-| Connect to a host with no saved credential | the prompt opens in the middle of the **main window**, not the middle of the screen |
-| Look at its top edge | no title bar. It is our chrome, like every other window this application opens |
-| Move the main window, then connect | it follows: the prompt is always over the window that asked |
-| Push the main window against the top or bottom of the screen, then connect | the prompt is pulled back inside the work area, clear of any bar the desktop keeps there |
-| Alt-tab, or look at the task switcher | the prompt is grouped with Runic SSH rather than standing alone |
-| Compare it with an unknown host key screen | the same shape: icon, title, sentence, and an action row under a rule |
-| Count the keep options | **three**, or two on a machine with no keychain. Never one |
-| Choose *Private key* | the key field, its passphrase, every keep option and both buttons, all at once, with nothing to scroll |
-| Look at the window size in each of the three | **the same**. One height, set by the tallest of them |
-| Connect through a jump host | the same window, with the whole hop paragraph and every keep option visible without scrolling |
-
-**Paste into all three fields.** `capabilities/credential.json` grants this
-window nothing, deliberately, and pasting needs no grant because the browser
-raises the event from the keystroke. That is the theory; #116 is the check.
+**Paste into all three fields.** The form sits in the main window now, which
+carries the application's ordinary capabilities rather than the retired
+window's empty one, so there is even less reason for this not to work than
+when it was first written. Pasting still needs no grant either way: the
+browser raises the event from the keystroke.
 
 | Paste into | With |
 | --- | --- |
-| the password field | Ctrl-V |
-| the private key box | Ctrl-V, and the line breaks survive |
-| the passphrase field | Ctrl-V |
+| the password field | Ctrl-Shift-V under WebKitGTK, Ctrl-V elsewhere |
+| the private key box | the same, and the line breaks survive |
+| the passphrase field | the same, or a middle-click paste of the primary selection |
 
-Confirmed on Linux under WebKitGTK on 2026-08-26, all three, on a window with
-an empty capability. Windows and macOS are unconfirmed, and #116 stays open for
-them: WebView2 and WKWebView are different engines and this is exactly the sort
-of thing they differ on.
-
-**Then close it four ways, because ADR-0028 spent the title bar on the fourth.**
-
-| Close it by | Expect |
-| --- | --- |
-| Escape | the window goes, the attempt fails as cancelled |
-| its own Cancel | the same |
-| **Cancel in the main window**, while the prompt is up | the prompt goes with it, the panel returns to normal, and no window is left asking for a connection that no longer exists |
-| quitting the application | the prompt goes too |
-
-The third row is the one that matters. It is the way out of a prompt whose own
-script never ran, which is what the desktop's close button used to provide, and
-it is ours now: a control in a different document with a different script.
-Nothing a machine runs asserts it, because what it asserts is that a window went
-away. Until #193 it did not work, and the prompt stayed on top of everything
-asking for an attempt already abandoned.
-
-**Count the options**, every time. This window has run out of room four times,
-and the last one showed a keep control with one of its three answers on screen,
-looking complete. Three of those were a number in Rust guessed against content
-in a webview; the number is now measured, and there is one of it rather than
-two, but it is still chosen somewhere the content cannot be seen.
-
-Drive it in Brazilian Portuguese. It is the longest of the three catalogues and
-the height is measured against it, so it is the one that runs out of room first
-and the only one where fitting proves anything. If a machine's fonts make it
-overflow anyway, the action row stays put and the rest scrolls, which is the
-failure this is designed to have.
-
-**Four groups flooding is unmeasured.** ADR-0011 measured the renderer against
-one terminal. Run `yes` in two of four groups and watch whether the window stays
-responsive; if it does not, the limit belongs at two groups and the measurement
-belongs in ADR-0019.
+Confirmed on Linux under WebKitGTK on 2026-08-30, all three, against the
+current inline form: a pasted password authenticated against a real fixture
+(`docs/testing.md`'s own `runic-test-sshd`) rather than only looking right in
+the field, and a pasted multi-line key kept its line breaks. Windows and macOS
+are still unconfirmed, and #116 stays open for them: WebView2 and WKWebView are
+different engines and this is exactly the sort of thing they differ on.
 
 ### A bastion and a host behind it
 
