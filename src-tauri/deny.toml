@@ -1,0 +1,53 @@
+# Checks the dependency tree for licences, duplicate crates and sources.
+# Advisories are `audit.yml`'s job (`cargo audit`, reviewed exceptions in
+# `.cargo/audit.toml`); this file deliberately says nothing about them, so a
+# crate this file doesn't mention is not one anybody reviewed.
+#
+# Regenerate the allow list below with `cargo deny check licenses` whenever a
+# dependency changes: a rejection names the crate and its licence, and an SPDX
+# `OR` expression only needs one of its terms in the list to pass.
+
+[graph]
+all-features = false
+no-default-features = false
+
+[licenses]
+# Every licence actually resolved in the tree today, plus MPL-2.0 (weak,
+# file-level copyleft; the covered crates are already public on crates.io) and
+# LGPL-2.1-or-later is not listed: `r-efi` offers it only as a fallback behind
+# MIT and Apache-2.0, which this list already covers.
+allow = [
+    "0BSD",
+    "Apache-2.0",
+    "BSD-1-Clause",
+    "BSD-3-Clause",
+    "CC0-1.0",
+    "ISC",
+    "MIT",
+    "MIT-0",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+]
+confidence-threshold = 0.8
+
+# target-lexicon ships under Apache-2.0 with the LLVM exception and nothing
+# else, so it needs its own line rather than a place in the allow list above.
+[[licenses.exceptions]]
+allow = ["Apache-2.0 WITH LLVM-exception"]
+crate = "target-lexicon"
+
+[bans]
+# Warn rather than deny: Tauri's own tree already carries ~20 crates at two
+# major versions (aes, digest, indexmap, and the like), none of them ours to
+# fix, and denying today would fail on every one of them at once. This still
+# shows up in CI output; a specific crate creeping back in after we chose
+# against it belongs in `deny` below when it happens.
+multiple-versions = "warn"
+wildcards = "allow"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
