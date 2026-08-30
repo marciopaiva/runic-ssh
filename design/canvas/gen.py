@@ -103,14 +103,16 @@ def ic(name, size=14, color=None, cls="ic", extra=""):
     if color: st += f" color: {color};"
     return f'<svg class="{cls}" viewBox="0 0 24 24" style="{st}{extra}">{ICON[name]}</svg>'
 
-# ADR-0031's four glyphs, paths copied verbatim from HostKindIcon.tsx (16x16
+# ADR-0031's glyphs, paths copied verbatim from HostKindIcon.tsx (16x16
 # viewBox, not 24x24 like ICON above) so the canvas draws the same shape the
-# tree does rather than a second one invented for the mockup. 'other' has no
-# entry: it draws nothing in the sidebar (ADR-0031's Resolved note, 2026-08-30).
+# tree does rather than a second one invented for the mockup. jumpServer and
+# target are the two ends of jump.ts's own jumpRole, a fork and a turn;
+# direct, neither end of one and also the default, is the plain line drawn
+# for every host that is neither of the other two.
 KIND_ICON = dict(
-    jumpServer='<rect x="3" y="3" width="10" height="4" rx="1"></rect><rect x="3" y="9" width="10" height="4" rx="1"></rect><circle cx="5.2" cy="5" r="0.6" fill="currentColor" stroke="none"></circle><circle cx="5.2" cy="11" r="0.6" fill="currentColor" stroke="none"></circle>',
-    database='<ellipse cx="8" cy="4" rx="5" ry="2"></ellipse><path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4"></path><path d="M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"></path>',
-    web='<circle cx="8" cy="8" r="5.6"></circle><path d="M2.4 8h11.2M8 2.4c1.6 1.6 2.4 3.6 2.4 5.6s-.8 4-2.4 5.6c-1.6-1.6-2.4-3.6-2.4-5.6S6.4 4 8 2.4z"></path>',
+    jumpServer='<path d="M1.5 8h5M6.5 8l5-4.5M6.5 8l5 4.5"></path><circle cx="13" cy="3.5" r="1.4"></circle><circle cx="13" cy="12.5" r="1.4"></circle>',
+    target='<path d="M3.5 2.5v7a2.5 2.5 0 0 0 2.5 2.5h6.5M10 9l3 3-3 3"></path>',
+    direct='<path d="M2.5 8h11"></path>',
 )
 
 def kind_ic(kind, color=None):
@@ -265,13 +267,13 @@ def group_row(label, count):
             f' background: {T["raised"]}; border-radius: 4px; padding: 1px 6px;">{count}</span></div>')
 
 def host_row(name, who, state="saved", active=False, mark=None, edge=None, kind=None, via=None, depth=0):
-    """One line: dot, kind icon (rare, 'other' draws none), indent for a
-    rider nested under its bastion (jump.ts's orderChain), name, then
-    whichever one thing the trailing slot has room for: the reached tick,
-    SPARED, a bastion's name when riding one costs no address, or user@host.
-    Single line since 2026-08-30 (see design/canvas/README.md): the sidebar
-    row shipped at this density for a hundred saved hosts before the canvas
-    caught up to it.
+    """Two lines: dot, kind icon (rare, 'other' draws none) and name on the
+    first, with room left for the reached tick or SPARED; the address, or
+    the bastion a rider rides, on its own line below, always drawn now
+    rather than only when the first line had nothing else in the trailing
+    slot. Matches `SessionsSidebar.tsx` since 2026-08-30: a name and an
+    address used to shrink each other to an ellipsis on one line, worse once
+    a kind icon or a state-tinted `JumpMark` also asked for room on it.
     """
     dots = {"ok": f'background: {T["ok"]};', "saved": f'border: 1.5px solid {T["off"]}; box-sizing: border-box;',
             "warn": f'border: 1.5px solid {T["warn"]}; box-sizing: border-box;'}
@@ -285,24 +287,26 @@ def host_row(name, who, state="saved", active=False, mark=None, edge=None, kind=
         tail = f'<svg viewBox="0 0 24 24" fill="none" stroke="{T["warn"]}" stroke-width="2.4" style="width: 13px; height: 13px; flex: none; margin-left: auto;">{ICON["check"]}</svg>'
     elif mark == "spared":
         tail = f'<span style="font-size: 9px; font-weight: 700; letter-spacing: 0.08em; color: {T["faint"]}; flex: none; margin-left: auto;">SPARED</span>'
-    else:
-        shown = f'via {via}' if via else who
-        tail = (f'<span class="mono" style="font-size: 10.5px; color: {T["off"]}; flex: none; margin-left: auto;'
-                f' max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{shown}</span>')
+    subtitle = f'via {via}' if via else who
     name_color = T['ink'] if active else T['ink2']
     weight = 'font-weight: 600;' if active else ''
     indent = ''.join(
-        f'<span style="width: 12px; height: 100%; flex: none; display: flex; justify-content: center;">'
+        f'<span style="width: 12px; align-self: stretch; flex: none; display: flex; justify-content: center;">'
         f'<span style="width: 1px; background: {T["off"]}; opacity: 0.35;"></span></span>'
         for _ in range(depth)
     )
-    return (f'<div class="row" style="{bg}">'
+    return (f'<div class="row" style="{bg} height: auto; align-items: center; padding: 6px 8px;">'
             f'{indent}'
-            f'<span class="dot" style="{dots[state]}"></span>'
+            f'<span class="dot" style="{dots[state]} align-self: center; flex: none;"></span>'
+            f'<div style="display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1;">'
+            f'<div style="display: flex; align-items: center; gap: 8px;">'
             f'{kind_ic(kind, T["faint"])}'
             f'<span style="font-size: 12.5px; color: {name_color}; {weight} min-width: 0; overflow: hidden;'
             f' text-overflow: ellipsis; white-space: nowrap;">{name}</span>'
-            f'{tail}</div>')
+            f'{tail}</div>'
+            f'<span class="mono" style="font-size: 10.5px; color: {T["off"]}; overflow: hidden;'
+            f' text-overflow: ellipsis; white-space: nowrap;">{subtitle}</span>'
+            f'</div></div>')
 
 def status(left, right):
     return f"""  <div style="height: 32px; flex: none; display: flex; align-items: center; gap: 15px; padding: 0 12px; background: {T['chrome']}; border-top: 1px solid {T['line']};">
@@ -355,7 +359,7 @@ def write(name, content):
 
 PROD = [("web-01", "deploy@10.4.1.20"), ("web-02", "deploy@10.4.1.21"), ("db-prod", "postgres@10.4.1.31")]
 
-PROD_KIND = {"db-prod": "database"}
+PROD_KIND = {"db-prod": "target"}
 
 def sessions_sidebar(active=None, states=None, marks=None, edges=None, header=None, staging=True):
     states = states or {}
@@ -368,7 +372,7 @@ def sessions_sidebar(active=None, states=None, marks=None, edges=None, header=No
         rows.append('<div style="height: 8px;"></div>')
         rows.append(group_row("STAGING", 2))
         rows.append(host_row("stg-app", "deploy@10.9.0.5", states.get("stg-app", "saved"), active == "stg-app"))
-        rows.append(host_row("stg-db", "postgres@10.9.0.6", states.get("stg-db", "saved"), active == "stg-db", kind="database"))
+        rows.append(host_row("stg-db", "postgres@10.9.0.6", states.get("stg-db", "saved"), active == "stg-db", kind="target"))
     return sidebar_shell(header or sessions_header(), "\n".join(rows))
 
 # ---------- 1. nothing open
@@ -512,7 +516,7 @@ def build_broadcast():
     rows = "\n".join([group_row("PRODUCTION", 4),
                       host_row("web-01", "deploy@10.4.1.20", "ok", True, "check", T['warn']),
                       host_row("web-03", "deploy@10.4.1.22", "ok", False, "check", T['warn']),
-                      host_row("db-prod", "postgres@10.4.1.31", "ok", False, "spared", kind="database"),
+                      host_row("db-prod", "postgres@10.4.1.31", "ok", False, "spared", kind="target"),
                       host_row("cache-01", "redis@10.4.1.44", "saved")])
     sb = sidebar_shell(hdr, rows)
     st = status_warn(stat_session("deploy@10.4.1.20") + "\n" + sep() + "\n" + stat_text("74 x 42") + "\n" + stat_text("14 ms"),
@@ -692,7 +696,7 @@ def build_newsession():
     rows = "\n".join([group_row("PRODUCTION", 3),
                       host_row("web-01", "deploy@10.4.1.20", "ok"),
                       host_row("web-02", "deploy@10.4.1.21", "saved"),
-                      host_row("db-prod", "postgres@10.4.1.31", "saved", kind="database"),
+                      host_row("db-prod", "postgres@10.4.1.31", "saved", kind="target"),
                       f'<div class="row" style="border: 1px dashed {T["line2"]}; border-radius: 6px; margin-top: 2px; align-items: center;">'
                       f'<span class="dot" style="border: 1.5px dashed {T["off"]}; box-sizing: border-box;"></span>'
                       f'<span style="font-size: 12px; color: {T["faint"]}; font-style: italic;">unsaved, in the tab</span></div>'])
@@ -700,49 +704,6 @@ def build_newsession():
                 stat_text("SYNC OFF", T['faint'], mono=False))
     write("NewSession.dc.html", page(f'      <div style="flex: 1; min-height: 0; display: flex;">{g}</div>',
                                      sidebar_shell(sessions_header(plus_lit=True), rows), rail(badge="1"), st))
-
-# ---------- 9. settings
-def build_settings():
-    def opt(s, on=False):
-        if on:
-            return f'<span style="padding: 7px 16px; border-radius: 6px; border: 1px solid {T["accent"]}; background: {T["accentsoft"]}; color: {T["ink"]}; font-size: 12.5px; font-weight: 600;">{s}</span>'
-        return f'<span style="padding: 7px 16px; border-radius: 6px; border: 1px solid {T["line"]}; color: {T["muted"]}; font-size: 12.5px;">{s}</span>'
-    panel = f"""        <div style="flex: 1; min-height: 0; display: flex;">
-          <div style="width: 186px; flex: none; padding: 20px 12px; border-right: 1px solid {T['line']}; display: flex; flex-direction: column; gap: 3px;">
-            <div style="padding: 8px 12px; border-radius: 6px; color: {T['muted']}; font-size: 12.5px;">Sessions</div>
-            <div style="padding: 8px 12px; border-radius: 6px; background: {T['raised']}; color: {T['ink']}; font-size: 12.5px; font-weight: 600;">Appearance</div>
-          </div>
-          <div style="flex: 1; min-width: 0; padding: 26px 34px; overflow: hidden;">
-            <div style="font-size: 19px; font-weight: 700;">Appearance</div>
-            <div style="font-size: 12.5px; color: {T['muted']}; margin-top: 6px;">How the window looks, and which language it speaks.</div>
-            <div style="margin-top: 26px; max-width: 560px; display: flex; flex-direction: column; gap: 22px;">
-              <div>
-                <div style="font-size: 12.5px; font-weight: 600; color: {T['ink2']};">Theme</div>
-                <div style="font-size: 11.5px; color: {T['faint']}; margin-top: 4px;">The palette is composed in dark. Light is the same tokens with the values swapped.</div>
-                <div style="display: flex; gap: 8px; margin-top: 11px;">{opt('Follow system')}{opt('Light')}{opt('Dark', True)}</div>
-              </div>
-              <div>
-                <div style="font-size: 12.5px; font-weight: 600; color: {T['ink2']};">Language</div>
-                <div style="margin-top: 11px; height: 34px; max-width: 250px; background: {T['input']}; border: 1px solid {T['line']}; border-radius: 6px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px;">
-                  <span style="font-size: 12.5px; color: {T['ink']};">English</span>{ic('chev', 14, T['faint'], extra=' transform: rotate(90deg);')}</div>
-                <div style="font-size: 11.5px; color: {T['faint']}; margin-top: 8px;">Spanish is translated and held back until a native speaker reviews its security copy.</div>
-              </div>
-              <div style="display: flex; align-items: flex-start; gap: 12px;">
-                <div style="width: 34px; height: 19px; border-radius: 10px; background: {T['raised']}; border: 1px solid {T['line2']}; flex: none; display: flex; align-items: center; padding: 0 2px; margin-top: 2px;">
-                  <span style="width: 13px; height: 13px; border-radius: 50%; background: {T['faint']};"></span></div>
-                <div><div style="font-size: 12.5px; font-weight: 600; color: {T['ink2']};">Let the system draw the window frame</div>
-                <div style="font-size: 11.5px; color: {T['faint']}; margin-top: 4px;">Off by default. Runic draws its own chrome, so the mark, the rail and the window controls share one row.</div></div>
-              </div>
-            </div>
-          </div>
-        </div>"""
-    g = group(strip([tab("web-01", dot="ok"), tab("Settings", state="on", icon="gear", dot=None)]),
-              f'<div style="flex: 1; min-height: 0; display: flex; background: {T["base"]};">{panel}</div>')
-    rows = "\n".join([group_row("PRODUCTION", 3), host_row("web-01", "deploy@10.4.1.20", "ok"),
-                      host_row("web-02", "deploy@10.4.1.21", "saved"), host_row("db-prod", "postgres@10.4.1.31", "saved", kind="database")])
-    st = status(stat_text("Settings", T['muted'], mono=False), stat_text("SYNC OFF", T['faint'], mono=False))
-    write("Settings.dc.html", page(f'      <div style="flex: 1; min-height: 0; display: flex;">{g}</div>',
-                                   sidebar_shell(sessions_header(), rows), rail(gear_pressed=True, badge="1"), st))
 
 # ---------- 10. Home: the rail, the nav, and the wizard's own breadcrumb
 # Exploratory. Drawn 2026-08-30 against the maintainer's own complaint that
@@ -766,11 +727,12 @@ def home_rail(workspace="home", badge=None, armed=False):
     for the rail mid-broadcast meant to do. `badge` draws the open-session
     count on the Sessions slot, the same as `openCount` there.
 
-    #234: `Settings.dc.html` and `NewSession.dc.html` still draw the
-    pre-ADR-0029 three-slot shape, on purpose, not by oversight. Settings'
-    whole premise, a rail gear opening a tab, is gone, not only its rail;
-    NewSession predates the wizard entirely (#233). Neither is a rail-only
-    fix, so neither was given one."""
+    #234: `Settings.dc.html` and `NewSession.dc.html` used to still draw the
+    pre-ADR-0029 three-slot shape, on purpose, not by oversight. Neither was
+    a rail-only fix: Settings' whole premise, a rail gear opening a tab, was
+    gone, not only its rail, so #236 retired the artboard rather than redraw
+    it against `HomeDashboard.dc.html`'s own card. NewSession predates the
+    wizard entirely and is still open as #233."""
     accent = T['warn'] if armed else T['accent']
     def slot(icon, on, locked=False, bad=None):
         color = T['ink'] if on else (T['off'] if locked else T['faint'])
@@ -806,17 +768,17 @@ def home_nav(section="hosts"):
       {btn('Hosts', section == 'hosts')}
     </div>"""
 
-def kind_picker(active="other"):
-    """`HostKindPicker.tsx`'s four pills, ADR-0031. 'other' draws no icon,
-    same as the sidebar row: KIND_ICON has no entry for it on purpose."""
-    kinds = [("jumpServer", "Jump server"), ("database", "Database"), ("web", "Web"), ("other", "Other")]
+def kind_picker(active="direct"):
+    """`HostKindPicker.tsx`'s three pills, ADR-0031. 'direct' is the default:
+    neither end of a chain, and what most hosts are."""
+    kinds = [("jumpServer", "Jump server"), ("target", "Target"), ("direct", "Direct")]
     out = []
     for key, label in kinds:
         on = key == active
         border = T['accent'] if on else T['line']
         bg = f'background: {T["accentsoft"]};' if on else ''
         color = T['ink'] if on else T['ink2']
-        icon = kind_ic(key, T['accent'] if on else T['ink2']) if key != 'other' else ''
+        icon = kind_ic(key, T['accent'] if on else T['ink2'])
         out.append(f'<span style="display: inline-flex; align-items: center; gap: 6px; border: 1px solid {border};'
                     f' {bg} border-radius: 5px; padding: 5px 9px; font-size: 11.5px; color: {color};">{icon}{label}</span>')
     return f'<div style="display: flex; flex-wrap: wrap; gap: 6px;">{"".join(out)}</div>'
@@ -922,7 +884,7 @@ def build_hosts_host():
       </div>
       <div>{wizard_label('Name')}{wizard_field('Leave empty to use the host', mono=False, placeholder=True)}</div>
       <div>{wizard_label('Group')}{wizard_field('PRODUCTION', mono=False, chev=True)}{wizard_hint('Optional. Sessions are listed under it.')}</div>
-      <div>{wizard_label('Kind')}{kind_picker('other')}</div>
+      <div>{wizard_label('Kind')}{kind_picker('direct')}</div>
       <div>{wizard_label('Reached through')}{wizard_field('bastion', mono=False, chev=True)}
         {wizard_hint("Another saved host to reach this one through. Its key is verified and its saved credential is used, and neither is ever sent to this host.")}</div>
       {wizard_actions(('Cancel', False), ('Next', True))}
@@ -1395,7 +1357,7 @@ if LIGHT_MODE:
     build_main()
 else:
     for fn in (build_empty, build_main, build_groups, build_collapsed, build_broadcast,
-               build_hostkey, build_sftp, build_newsession, build_settings,
+               build_hostkey, build_sftp, build_newsession,
                build_hosts_host, build_hosts_access, build_home_dashboard, build_home_hosts,
                build_anatomy, build_tokens,
                build_hostkeychanged, build_failure, build_paste, build_palette):

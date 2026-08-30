@@ -2,12 +2,11 @@ import { useState } from 'react';
 import type { JSX } from 'react';
 
 import { bastionName, jumpRole, orderChain } from '../features/sessions';
-import { filterGroups, groupKey, groupSessions, soloGroup } from '../features/sessions/state';
+import { describeState, filterGroups, groupKey, groupSessions, soloGroup } from '../features/sessions/state';
 import type { LiveSession } from '../features/sessions/state';
 import { useTranslator } from '../features/settings';
 
 import { HostKindIcon } from './HostKindIcon';
-import { JumpMark } from './JumpMark';
 import { SessionMarker } from './SessionMarker';
 
 interface SessionsSidebarProps {
@@ -193,10 +192,8 @@ export function SessionsSidebar({
                        always namable (`carries` is not: a bastion can carry
                        more than one, and there is no one name for that). Named
                        when it can be, replacing the address in the trailing
-                       slot; `JumpMark`'s icon is the fallback for a
-                       `proxyJump` that no longer resolves to a saved host. */
+                       slot. */
                     const bastion = role.rides && row.depth === 0 ? bastionName(session, saved) : null;
-                    const ridesShown = role.rides && row.depth === 0 && bastion === null;
                     /* Suppressed exactly where the tree already says it: a
                        rider nested under its bastion, or a bastion whose
                        riders are the rows right beneath it. `sr-only` text
@@ -254,7 +251,7 @@ export function SessionsSidebar({
                           type="button"
                           onClick={() => onSelect(session.id)}
                           aria-current={selected ? 'true' : undefined}
-                          className={`flex h-7 min-w-0 flex-1 items-center gap-2.5 px-2 text-left ${
+                          className={`flex min-w-0 flex-1 items-center gap-2.5 px-2 py-1.5 text-left ${
                             selected ? 'text-ink' : 'text-ink-secondary'
                           }`}
                         >
@@ -266,83 +263,99 @@ export function SessionsSidebar({
                             <span
                               key={level}
                               aria-hidden="true"
-                              className="flex h-7 w-3 shrink-0 items-center justify-center self-stretch"
+                              className="flex w-3 shrink-0 items-center justify-center self-stretch"
                             >
                               <span className="bg-ink-faint/25 h-full w-px" />
                             </span>
                           ))}
 
                           <SessionMarker kind={kind} />
-                          {/* What the host is, ADR-0031, beside the state dot
-                              rather than instead of it: the two answer
-                              different questions and neither can stand in for
-                              the other. `other` stays unmarked: it means
-                              "nobody has said yet" for most of the list, and
-                              an icon for that answers nothing (ADR-0031's own
-                              follow-up). */}
-                          {session.kind !== 'other' && (
-                            <HostKindIcon kind={session.kind} className="text-ink-faint h-3 w-3 shrink-0" />
-                          )}
-                          <JumpMark role={{ carries: carriesShown, rides: ridesShown }} />
-                          {/* The nested case only: position already drew it,
-                              so a screen reader (which reads row order, not
-                              indentation) still needs the fact in words. The
-                              named case below is already readable text and
-                              needs no `sr-only` twin. */}
-                          {role.rides && row.depth > 0 && (
-                            <span className="sr-only">{i18n.t('sessions.jump.rides')}</span>
-                          )}
-                          {role.carries && !carriesShown && (
-                            <span className="sr-only">{i18n.t('sessions.jump.carries')}</span>
-                          )}
-                          <span className="truncate text-[12.5px]">{session.name}</span>
 
-                          {reached && (
-                            <svg
-                              viewBox="0 0 24 24"
-                              className="text-warn ml-auto h-3.5 w-3.5 shrink-0"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2.4"
-                              role="img"
-                              aria-label={i18n.t('terminal.group.sync.on')}
-                            >
-                              <path d="M20 6L9 17l-5-5" />
-                            </svg>
-                          )}
+                          {/* Name and address on their own lines: a long name
+                              (a target riding a bastion, say) and a long
+                              address used to shrink each other to an
+                              ellipsis on the same row, worse still once a
+                              kind icon also asked for room on it. Stacking
+                              gives each the row's full width. */}
+                          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                            <div className="flex items-center gap-1.5">
+                              {/* What the host is, ADR-0031, beside the state
+                                  dot rather than instead of it: the two
+                                  answer different questions and neither can
+                                  stand in for the other, which is why this
+                                  carries its own tone from `kind` rather than
+                                  the dot's. Drawn for every host now: `kind`
+                                  has no "nobody has said yet" value left to
+                                  stay unmarked for. */}
+                              <HostKindIcon
+                                kind={session.kind}
+                                className={`${describeState(kind).tone} h-3 w-3 shrink-0`}
+                              />
+                              {/* The nested case only: position already drew
+                                  it, so a screen reader (which reads row
+                                  order, not indentation) still needs the fact
+                                  in words. The named case below is already
+                                  readable text and needs no `sr-only` twin. */}
+                              {role.rides && row.depth > 0 && (
+                                <span className="sr-only">{i18n.t('sessions.jump.rides')}</span>
+                              )}
+                              {role.carries && !carriesShown && (
+                                <span className="sr-only">{i18n.t('sessions.jump.carries')}</span>
+                              )}
+                              <span className="truncate text-[12.5px]">{session.name}</span>
 
-                          {/* A word rather than a crossed-out tick. This is
-                              the list's answer to "which connected host am I
-                              not about to hit", and a negative marker read at
-                              a glance is one somebody will read as the
-                              positive. */}
-                          {held && (
-                            <span className="text-ink-faint ml-auto shrink-0 text-[9px] font-bold tracking-[0.08em]">
-                              {i18n.t('sessions.spared')}
-                            </span>
-                          )}
+                              {reached && (
+                                <svg
+                                  viewBox="0 0 24 24"
+                                  className="text-warn ml-auto h-3.5 w-3.5 shrink-0"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2.4"
+                                  role="img"
+                                  aria-label={i18n.t('terminal.group.sync.on')}
+                                >
+                                  <path d="M20 6L9 17l-5-5" />
+                                </svg>
+                              )}
 
-                          {/* Which bastion outranks the address: a host
-                              behind one is reached through it, not at it, so
-                              the address alone would name a hop nobody
-                              dials. Still one tooltip away, via `title`. */}
-                          {!reached && !held && bastion !== null && (
-                            <span
-                              className="text-ink-faint ml-auto max-w-[130px] shrink-0 truncate text-[10.5px]"
-                              title={i18n.t('sessions.viaBastion', { name: bastion })}
-                            >
-                              {i18n.t('sessions.viaBastion', { name: bastion })}
-                            </span>
-                          )}
+                              {/* A word rather than a crossed-out tick. This
+                                  is the list's answer to "which connected
+                                  host am I not about to hit", and a negative
+                                  marker read at a glance is one somebody will
+                                  read as the positive. */}
+                              {held && (
+                                <span className="text-ink-faint ml-auto shrink-0 text-[9px] font-bold tracking-[0.08em]">
+                                  {i18n.t('sessions.spared')}
+                                </span>
+                              )}
+                            </div>
 
-                          {!reached && !held && bastion === null && (
-                            <span
-                              className="text-ink-faint ml-auto max-w-[130px] shrink-0 truncate font-mono text-[10.5px]"
-                              title={`${session.user}@${session.host}`}
-                            >
-                              {session.user}@{session.host}
-                            </span>
-                          )}
+                            {/* Its own line now, so it no longer has to
+                                choose between showing and giving way to
+                                `reached`/`held` above: those answer what the
+                                row is doing right now, this answers where it
+                                is, and a row can say both at once. Which
+                                bastion outranks the address still holds: a
+                                host behind one is reached through it, not at
+                                it, so the address alone would name a hop
+                                nobody dials. Still one tooltip away, via
+                                `title`. */}
+                            {bastion !== null ? (
+                              <span
+                                className="text-ink-faint truncate text-[10.5px]"
+                                title={i18n.t('sessions.viaBastion', { name: bastion })}
+                              >
+                                {i18n.t('sessions.viaBastion', { name: bastion })}
+                              </span>
+                            ) : (
+                              <span
+                                className="text-ink-faint truncate font-mono text-[10.5px]"
+                                title={`${session.user}@${session.host}`}
+                              >
+                                {session.user}@{session.host}
+                              </span>
+                            )}
+                          </div>
                         </button>
 
                         <button

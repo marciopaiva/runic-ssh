@@ -7,9 +7,17 @@ import type { HostKind } from '../ipc';
 /**
  * The glyph for a host kind. ADR-0031.
  *
- * Four hand-drawn shapes, the same style every other icon in the tree is
- * drawn in. No icon library, so the whole set is these four paths and
+ * Three hand-drawn shapes, the same style every other icon in the tree is
+ * drawn in. No icon library, so the whole set is these three paths and
  * nothing an upgrade can change out from under them.
+ *
+ * `jumpServer` and `target` are the two ends of the relationship `jump.ts`'s
+ * `jumpRole` already computes: a fork for a host others are carried through,
+ * a turn for one arrived at from somewhere else. `direct`, neither end of
+ * one and also the default, draws the quietest mark the palette has, a
+ * plain line: most hosts are direct, and this is the row's one identity
+ * icon, drawn for every host rather than left blank for an "unset" case
+ * this field no longer has.
  */
 export function HostKindIcon({
   kind,
@@ -41,42 +49,28 @@ export function HostKindIcon({
 
 const LABEL: Readonly<Record<HostKind, ParameterlessKey>> = {
   jumpServer: 'hostKind.jumpServer',
-  database: 'hostKind.database',
-  web: 'hostKind.web',
-  other: 'hostKind.other',
+  target: 'hostKind.target',
+  direct: 'hostKind.direct',
 };
 
 /* One glyph per kind, kept together so a reader comparing them does not have
    to scroll. */
 const PATH: Readonly<Record<HostKind, JSX.Element>> = {
+  /* One way in, two ways on: what a bastion does. Same path `JumpMark` drew
+     before this icon absorbed its job. */
   jumpServer: (
     <>
-      <rect x="3" y="3" width="10" height="4" rx="1" />
-      <rect x="3" y="9" width="10" height="4" rx="1" />
-      <circle cx="5.2" cy="5" r="0.6" fill="currentColor" stroke="none" />
-      <circle cx="5.2" cy="11" r="0.6" fill="currentColor" stroke="none" />
+      <path d="M1.5 8h5M6.5 8l5-4.5M6.5 8l5 4.5" />
+      <circle cx="13" cy="3.5" r="1.4" />
+      <circle cx="13" cy="12.5" r="1.4" />
     </>
   ),
-  database: (
-    <>
-      <ellipse cx="8" cy="4" rx="5" ry="2" />
-      <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4" />
-      <path d="M3 8c0 1.1 2.2 2 5 2s5-.9 5-2" />
-    </>
-  ),
-  web: (
-    <>
-      <circle cx="8" cy="8" r="5.6" />
-      <path d="M2.4 8h11.2M8 2.4c1.6 1.6 2.4 3.6 2.4 5.6s-.8 4-2.4 5.6c-1.6-1.6-2.4-3.6-2.4-5.6S6.4 4 8 2.4z" />
-    </>
-  ),
-  other: (
-    <>
-      <path d="M8.5 2.5H4A1.5 1.5 0 0 0 2.5 4v4.5c0 .4.16.78.44 1.06l5.5 5.5a1.5 1.5 0 0 0 2.12 0l4-4a1.5 1.5 0 0 0 0-2.12l-5.5-5.5A1.5 1.5 0 0 0 8.5 2.5z" />
-      <circle cx="5.5" cy="5.5" r="0.75" fill="currentColor" stroke="none" />
-    </>
-  ),
+  /* A turn: this host is arrived at from somewhere else. */
+  target: <path d="M3.5 2.5v7a2.5 2.5 0 0 0 2.5 2.5h6.5M10 9l3 3-3 3" />,
+  /* Neither end of a chain: the plain line a direct host earns for being
+     both the common case and the default. */
+  direct: <path d="M2.5 8h11" />,
 };
 
-export const HOST_KINDS: readonly HostKind[] = ['jumpServer', 'database', 'web', 'other'];
+export const HOST_KINDS: readonly HostKind[] = ['jumpServer', 'target', 'direct'];
 export { LABEL as HOST_KIND_LABEL };

@@ -16,6 +16,7 @@ import {
   isInProgress,
   isOverridable,
   needsConfirmation,
+  resumeTargetAfterEditor,
   shouldPromptAfterSaved,
   wasCancelled,
 } from '../src/features/sessions/connect';
@@ -127,7 +128,7 @@ describe('which wizard entry answers a missing credential', () => {
     group: null,
     credentialId: null,
     proxyJump: null,
-    kind: 'other',
+    kind: 'direct',
     ...overrides,
   });
 
@@ -151,10 +152,27 @@ describe('which wizard entry answers a missing credential', () => {
        is `undefined`, never `null`, the same shape `hasStoredCredential`
        already normalises. */
     const wire = JSON.parse(
-      '{"id":"web-01","name":"web-01","host":"web-01.example.com","port":22,"user":"deploy","group":null,"credentialId":null,"kind":"other"}',
+      '{"id":"web-01","name":"web-01","host":"web-01.example.com","port":22,"user":"deploy","group":null,"credentialId":null,"kind":"direct"}',
     ) as Session;
 
     expect(credentialRedirectTarget('web-01', 'bastion', [wire])).toBeNull();
+  });
+});
+
+describe('retrying after a redirected editor settles (ADR-0040)', () => {
+  it('retries the session Sessions was trying to reach', () => {
+    expect(resumeTargetAfterEditor('web-01', 'saved')).toBe('web-01');
+  });
+
+  it('does not retry a credential that was never actually saved', () => {
+    expect(resumeTargetAfterEditor('web-01', 'failed')).toBeNull();
+    expect(resumeTargetAfterEditor('web-01', undefined)).toBeNull();
+  });
+
+  it('does not retry an editor nobody redirected here', () => {
+    /* Opened by hand rather than by `onCredentialMissing`: there is no
+       original attempt to hand the answer back to. */
+    expect(resumeTargetAfterEditor(undefined, 'saved')).toBeNull();
   });
 });
 
@@ -253,7 +271,7 @@ describe('reading whether a host has a stored password', () => {
     group: null,
     credentialId: null,
     proxyJump: null,
-    kind: 'other',
+    kind: 'direct',
     ...overrides,
   });
 

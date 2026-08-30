@@ -24,7 +24,7 @@ function live(kind: LiveSession['kind'], handle: number | null = null): LiveSess
       group: null,
       credentialId: null,
       proxyJump: null,
-      kind: 'other',
+      kind: 'direct',
     },
     handle,
     kind,

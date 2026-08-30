@@ -58,7 +58,7 @@ export const EMPTY_DRAFT: DraftValues = {
   user: '',
   group: '',
   proxyJump: '',
-  kind: 'other',
+  kind: 'direct',
 };
 
 /**

@@ -20,12 +20,17 @@ pub const SESSIONS_FILE: &str = "sessions.json";
 
 /// What a host is, for recognising a row rather than for reaching it.
 ///
-/// ADR-0031. A closed set on purpose: the request was four named kinds with an
-/// icon each, not an open taxonomy, and a free-text label reintroduces the
+/// ADR-0031. A closed set on purpose: a free-text label reintroduces the
 /// exact defect #221 already named in the group field: two hosts a person
-/// thinks of as the same kind, spelled differently by a typo. Growing this
-/// enum later is an ordinary change; `Trust` and `ConnectionKind` have both
-/// grown variants without needing a decision this size again.
+/// thinks of as the same kind, spelled differently by a typo.
+///
+/// Named for the chain rather than for the service running on the host:
+/// `JumpServer` and `Target` are the two ends of the same relationship a
+/// bastion and the host behind it already have (`jump.ts`'s `jumpRole`), and
+/// `Direct` is neither end of one. A host's service, "this one is a
+/// database", is a fact the chain cannot answer and this field no longer
+/// tries to; recognising a row by what it runs rather than by where it sits
+/// in a chain would be a new field, not this one.
 ///
 /// No behaviour reads this. It is not a secret, it is not part of how a
 /// connection is made, and rule 7 has nothing to say about it.
@@ -33,12 +38,14 @@ pub const SESSIONS_FILE: &str = "sessions.json";
 #[serde(rename_all = "camelCase")]
 pub enum HostKind {
     JumpServer,
-    Database,
-    Web,
-    /// What a host has until somebody says otherwise, and `#[serde(default)]`
-    /// is what a `sessions.json` written before this field existed reads as.
+    Target,
+    /// Neither end of a chain, which is what most hosts are and what a
+    /// `sessions.json` written before this field existed reads as:
+    /// `#[serde(default)]` needs an answer that is simply true of most hosts,
+    /// not one that means "nobody has said", now that there is no third
+    /// variant left to mean that.
     #[default]
-    Other,
+    Direct,
 }
 
 /// A host the user has saved.
@@ -511,7 +518,7 @@ mod tests {
             group: Some("Production".to_owned()),
             credential_id: Some("keychain-4f21".to_owned()),
             proxy_jump: None,
-            kind: HostKind::Other,
+            kind: HostKind::Direct,
         }
     }
 
@@ -547,7 +554,7 @@ mod tests {
         let sessions = store.load().expect("an older file still loads");
         assert_eq!(sessions.items.len(), 1);
         assert_eq!(sessions.items[0].proxy_jump, None);
-        assert_eq!(sessions.items[0].kind, HostKind::Other);
+        assert_eq!(sessions.items[0].kind, HostKind::Direct);
     }
 
     #[test]
@@ -558,9 +565,8 @@ mod tests {
         tests/ipc-contract.test.ts. */
         for (kind, wire) in [
             (HostKind::JumpServer, r#""jumpServer""#),
-            (HostKind::Database, r#""database""#),
-            (HostKind::Web, r#""web""#),
-            (HostKind::Other, r#""other""#),
+            (HostKind::Target, r#""target""#),
+            (HostKind::Direct, r#""direct""#),
         ] {
             assert_eq!(serde_json::to_string(&kind).expect("serializes"), wire);
         }
@@ -1002,7 +1008,7 @@ mod tests {
             user: "deploy".to_owned(),
             group: Some("Production".to_owned()),
             proxy_jump: None,
-            kind: HostKind::Other,
+            kind: HostKind::Direct,
         }
     }
 

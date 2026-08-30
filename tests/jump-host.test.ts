@@ -194,9 +194,9 @@ describe('which kind may be a jump host (ADR-0031)', () => {
   it('offers only hosts tagged jumpServer', () => {
     const saved = [
       session('bastion'),
-      session('db', { kind: 'database' }),
-      session('web', { kind: 'web' }),
-      session('untagged', { kind: 'other' }),
+      session('db', { kind: 'target' }),
+      session('web', { kind: 'direct' }),
+      session('untagged', { kind: 'direct' }),
     ];
 
     expect(eligibleJumpHosts(saved, null).map((host) => host.id)).toEqual(['bastion']);
@@ -208,7 +208,7 @@ describe('which kind may be a jump host (ADR-0031)', () => {
        same reasoning `carried` below rests on: a form that stops offering a
        value it still holds needs a way to clear it, not a silent mismatch
        between the select and the string underneath it. */
-    const saved = [session('bastion', { kind: 'database' }), session('web-01')];
+    const saved = [session('bastion', { kind: 'target' }), session('web-01')];
 
     const choice = jumpHostChoice(saved, 'web-01', 'bastion');
     expect(choice.offered.map((host) => host.id)).toEqual(['bastion']);
@@ -270,9 +270,9 @@ describe('saying which hosts are in a chain', () => {
   });
 
   it('says both marks in every language', () => {
-    /* Two shapes of one family, so a screen reader gets two sentences rather
-       than one and a silence. A direct host draws neither: `JumpMark` returns
-       null for it, so there is no third string to check here any more. */
+    /* `SessionsSidebar`'s own sr-only spans, for the nested and hidden-child
+       cases position cannot announce on its own. A direct host needs
+       neither, so there is no third string to check here. */
     for (const locale of ['en', 'pt-BR', 'es']) {
       const i18n = createTranslator(locale);
 
@@ -300,9 +300,9 @@ describe('naming the bastion a host rides', () => {
   });
 
   it('says nothing for a reference that no longer resolves', () => {
-    /* The bastion it named was deleted, or the id is stale. Silence here is
-       what tells `SessionsSidebar` to fall back to `JumpMark`'s icon instead
-       of a label with nothing to say. */
+    /* The bastion it named was deleted, or the id is stale. `null` here is
+       what tells `SessionsSidebar` there is no bastion left to name, rather
+       than showing a label for one that is gone. */
     const saved = [session('dev-web', { proxyJump: 'gone' })];
 
     expect(bastionName(session('dev-web', { proxyJump: 'gone' }), saved)).toBeNull();
@@ -333,8 +333,9 @@ describe('ordering a chain by position instead of by mark', () => {
   it('keeps a rider unindented when its bastion is not in this list', () => {
     /* The bastion is filed under a different group heading, or was deleted
        out from under a stale reference. Either way there is nothing here to
-       nest under, so the sidebar falls back to `JumpMark`'s glyph for this
-       row rather than losing the fact silently. */
+       nest under; `bastionName` (below) is what the sidebar still has for
+       this row, resolved by id against the whole saved list rather than
+       this one group's. */
     const saved = [session('web-01', { proxyJump: 'bastion' })];
 
     expect(orderChain(saved)).toEqual([{ id: 'web-01', depth: 0, childrenShown: false }]);

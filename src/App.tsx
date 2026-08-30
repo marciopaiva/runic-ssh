@@ -59,6 +59,7 @@ import {
   hasStoredCredential,
   jumpHostChoice,
   parsePort,
+  resumeTargetAfterEditor,
   settled,
   stateAfterFailure,
   suggestName,
@@ -342,11 +343,14 @@ export function App(): JSX.Element {
   const [editorFailed, setEditorFailed] = useState<ReadonlyMap<string, EditorFailure>>(new Map());
   /* Which open editors exist because Sessions sent someone there rather than
      because they opened one themselves, keyed the same way `editorFailed`
-     is. ADR-0039: the credential window is gone, and this is the only thing
+     is, valued with the session Sessions was actually trying to reach.
+     ADR-0039: the credential window is gone, and this is the only thing
      left that explains why the screen changed out from under a click in
-     Sessions. Cleared the same way a failure notice is, on the next action
-     in that editor. */
-  const [editorOpenedFor, setEditorOpenedFor] = useState<ReadonlySet<string>>(new Set());
+     Sessions. ADR-0040: it is also what `finishWizard` retries once this
+     editor's own credential is saved, so dismissing the notice
+     (`dismissOpenedFor`) opts out of that retry too, on the same "cleared on
+     the next action in that editor" lifecycle this already had. */
+  const [editorOpenedFor, setEditorOpenedFor] = useState<ReadonlyMap<string, string>>(new Map());
   /* What the wizard's own settled row says happened, keyed by session id.
      `CredentialSaved`/`ConnectionFailure` already state the outcome once,
      the moment it happens; dismissing either clears `attempt` and lands on
@@ -425,7 +429,7 @@ export function App(): JSX.Element {
 
       openEditor({ kind: 'existing', sessionId: target });
       setEditorOpenedFor((current) =>
-        new Set(current).add(editorKey({ kind: 'existing', sessionId: target })),
+        new Map(current).set(editorKey({ kind: 'existing', sessionId: target }), sessionId),
       );
     },
   });
@@ -994,7 +998,7 @@ export function App(): JSX.Element {
     setEditorOpenedFor((current) => {
       const key = editorKey(target);
       if (!current.has(key)) return current;
-      const next = new Set(current);
+      const next = new Map(current);
       next.delete(key);
       return next;
     });
@@ -1174,15 +1178,31 @@ export function App(): JSX.Element {
   );
 
   /* The wizard's own ending once an attempt has settled. The host is already
-     on disk (the test's own `submitIn` call put it there), so this only
-     closes the tab. */
+     on disk (the test's own `submitIn` call put it there), so this closes
+     the tab and, if it opened because Sessions asked (ADR-0039) and what it
+     asked for is actually saved now (ADR-0040), retries the attempt that
+     sent someone here in the first place. */
   const finishWizard = useCallback(
     (target: EditorTarget): void => {
-      if (target.kind === 'existing') provisional.current.delete(target.sessionId);
+      if (target.kind === 'existing') {
+        provisional.current.delete(target.sessionId);
+
+        const key = editorKey(target);
+        const resumeId = resumeTargetAfterEditor(editorOpenedFor.get(key), testOutcome.get(target.sessionId));
+        if (editorOpenedFor.has(key)) {
+          setEditorOpenedFor((current) => {
+            const next = new Map(current);
+            next.delete(key);
+            return next;
+          });
+        }
+        if (resumeId !== null) void connect(resumeId);
+      }
+
       forgetHome({ kind: 'editor', target });
       setEditors((current) => withoutEditor(current, target));
     },
-    [forgetHome],
+    [forgetHome, connect, editorOpenedFor, testOutcome],
   );
 
   /* Host to Access is the one transition with something to check: the six

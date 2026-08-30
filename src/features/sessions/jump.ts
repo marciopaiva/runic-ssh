@@ -112,9 +112,9 @@ export interface ChainRow {
  * it into position instead of a fourth icon.
  *
  * Scoped to the list it is given, deliberately: a host whose bastion is
- * filed under a different heading has nothing to nest under here, and
- * `SessionsSidebar` falls back to `JumpMark`'s glyph for exactly that case
- * rather than silently dropping the only signal it had.
+ * filed under a different heading has nothing to nest under here. Position
+ * is not the only signal for it, either: `bastionName` below still resolves
+ * the relation by id, group-independent, for the row's own "via" text.
  *
  * Self-reference and a cycle are both guarded against, not because the core
  * is expected to write one, but because this reads a file a person can edit
