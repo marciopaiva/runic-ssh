@@ -70,6 +70,7 @@ pub fn run() -> tauri::Result<()> {
         /* Never persisted, and gone when the process is. ADR-0025. */
         .manage(vault::SessionSecrets::new())
         .invoke_handler(tauri::generate_handler![
+            commands::app::app_version,
             commands::chrome::window_chrome,
             commands::chrome::window_action,
             commands::chrome::set_native_decorations,

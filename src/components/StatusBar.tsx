@@ -52,6 +52,14 @@ interface StatusBarProps {
    */
   readonly via: string | null;
   readonly onDismissUnsaved: () => void;
+  /**
+   * The running build's version, shown in place of the encoding/terminal/size
+   * cells while Home is the active workspace. Those three describe a session,
+   * and Home has none open; a version is the one fact about "what is running"
+   * that is still true there. `null` on Sessions, where the session cells
+   * already answer that question.
+   */
+  readonly buildVersion: string | null;
 }
 
 /** A cell, so every item on the bar has the same padding and no more. */
@@ -112,6 +120,7 @@ export function StatusBar({
   credentialUnsaved,
   via,
   onDismissUnsaved,
+  buildVersion,
 }: StatusBarProps): JSX.Element {
   const i18n = useTranslator();
   const latency = gradeLatency(stats.latencyMs);
@@ -300,21 +309,29 @@ export function StatusBar({
 
       <span className="flex-1" />
 
-      <Cell title={i18n.t('status.encoding')}>
-        <span className="font-mono">{ENCODING}</span>
-      </Cell>
+      {buildVersion !== null ? (
+        <Cell title={i18n.t('status.version')}>
+          <span className="font-mono">{i18n.t('status.version.value', { version: buildVersion })}</span>
+        </Cell>
+      ) : (
+        <>
+          <Cell title={i18n.t('status.encoding')}>
+            <span className="font-mono">{ENCODING}</span>
+          </Cell>
 
-      <Cell title={i18n.t('status.term')}>
-        <span className="font-mono">{TERM}</span>
-      </Cell>
+          <Cell title={i18n.t('status.term')}>
+            <span className="font-mono">{TERM}</span>
+          </Cell>
 
-      <Cell title={i18n.t('status.size')}>
-        <span className="font-mono">
-          {size === null
-            ? '—'
-            : `${i18n.number(size.columns)} × ${i18n.number(size.rows)}`}
-        </span>
-      </Cell>
+          <Cell title={i18n.t('status.size')}>
+            <span className="font-mono">
+              {size === null
+                ? '—'
+                : `${i18n.number(size.columns)} × ${i18n.number(size.rows)}`}
+            </span>
+          </Cell>
+        </>
+      )}
 
       <div className="text-ink-secondary flex shrink-0 items-center gap-1.5 pr-4 pl-3">
         <span className="flex items-center gap-1">

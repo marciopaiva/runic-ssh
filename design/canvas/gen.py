@@ -952,6 +952,122 @@ def build_hosts_access():
     st = status(stat_text("target.internal", T['muted'], mono=False), stat_text("2 hosts", T['faint']))
     write("HostsAccess.dc.html", page(body, None, home_rail(), st, show_shapes=False))
 
+# ---------- #222, Option A: Card shared, Hosts harmonized to the same
+# vocabulary rather than borrowing Sessions' dense one. Proposed, not
+# accepted: nothing here is in the tree yet.
+
+def dashboard_card(title, content):
+    """`Card` from `HomeDashboard.tsx`, copied verbatim: `border-line-subtle
+    bg-surface-panel rounded border p-5 gap-5`, not approximated."""
+    return f"""<div style="background: {T['panel']}; border: 1px solid {T['line']}; border-radius: 4px;
+      padding: 20px; display: flex; flex-direction: column; gap: 20px; text-align: left;">
+      <h2 style="font-size: 13px; font-weight: 600; color: {T['ink']}; margin: 0;">{title}</h2>
+{content}
+    </div>"""
+
+def toggle_icon(checked, svg_paths, size=18):
+    border = T['accent'] if checked else T['line']
+    bg = f'background: {T["accentsoft"]};' if checked else ''
+    color = T['ink'] if checked else T['ink2']
+    return (f'<span style="width: 36px; height: 36px; border-radius: 6px; border: 1px solid {border}; {bg}'
+            f' display: flex; align-items: center; justify-content: center; color: {color};">'
+            f'<svg viewBox="0 0 24 24" style="width: {size}px; height: {size}px;" fill="none" stroke="currentColor" stroke-width="1.5">{svg_paths}</svg></span>')
+
+def build_home_dashboard():
+    """The Dashboard section, harmonized (#222, Option A): `dashboard_card`
+    shared across every tile instead of duplicated per screen, and the
+    ghost slot #222 named as unaddressed, how a third card (SFTP, #127)
+    joins the grid without the other two shifting shape to make room."""
+    hosts_card = dashboard_card("Hosts", f"""
+      <div style="display: flex; gap: 32px;">
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+          <span class="mono" style="font-size: 26px; font-weight: 700; color: {T['ink']};">11</span>
+          <span style="font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: {T['faint']};">Hosts</span>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+          <span class="mono" style="font-size: 26px; font-weight: 700; color: {T['ink']};">6</span>
+          <span style="font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: {T['faint']};">Groups</span>
+        </div>
+      </div>
+      <span style="align-self: flex-start; font-size: 12px; font-weight: 600; color: {T['base']}; background: {T['accent']}; border-radius: 4px; padding: 6px 12px;">New session</span>""")
+    system_ic = '<path d="M4 5h16v11H4z"></path><path d="M9 20h6M12 16v4" stroke-linecap="round"></path>'
+    light_ic = ('<circle cx="12" cy="12" r="4.2"></circle>'
+                '<path d="M12 2.5v2.4M12 19.1v2.4M21.5 12h-2.4M4.9 12H2.5M18.4 5.6l-1.7 1.7M7.3 16.7l-1.7 1.7M18.4 18.4l-1.7-1.7M7.3 7.3L5.6 5.6" stroke-linecap="round"></path>')
+    dark_ic = '<path d="M20 13.8A8.5 8.5 0 1110.2 4a6.8 6.8 0 009.8 9.8z" stroke-linejoin="round"></path>'
+    globe_ic = '<circle cx="12" cy="12" r="8.5"></circle><path d="M3.5 12h17M12 3.5c2.4 2.4 3.6 5.4 3.6 8.5s-1.2 6.1-3.6 8.5c-2.4-2.4-3.6-5.4-3.6-8.5S9.6 5.9 12 3.5z"></path>'
+    appearance_card = dashboard_card("Appearance", f"""
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <span style="font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: {T['faint']};">Theme</span>
+        <div style="display: flex; gap: 8px;">{toggle_icon(False, system_ic)}{toggle_icon(False, light_ic)}{toggle_icon(True, dark_ic)}</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <span style="font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: {T['faint']};">Language</span>
+        <div style="display: flex; gap: 8px;">
+          {toggle_icon(False, globe_ic)}
+          <span style="width: 36px; height: 36px; border-radius: 6px; border: 1px solid {T['line']}; display: flex; align-items: center; justify-content: center; font-size: 16px;">&#127482;&#127480;</span>
+          <span style="width: 36px; height: 36px; border-radius: 6px; border: 1px solid {T['accent']}; background: {T['accentsoft']}; display: flex; align-items: center; justify-content: center; font-size: 16px;">&#127463;&#127479;</span>
+          <span style="width: 36px; height: 36px; border-radius: 6px; border: 1px solid {T['line']}; display: flex; align-items: center; justify-content: center; font-size: 16px;">&#127466;&#127480;</span>
+        </div>
+      </div>""")
+    ghost_card = (f'<div style="border: 1px dashed {T["line2"]}; border-radius: 4px; padding: 20px; display: flex;'
+                  f' flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 128px;">'
+                  f'<span style="font-size: 12px; color: {T["faint"]}; text-align: center; line-height: 1.5;">SFTP arrives here<br>once #127 ships</span></div>')
+    grid = (f'<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; width: 100%; max-width: 700px;">'
+            f'{hosts_card}{appearance_card}{ghost_card}</div>')
+    body = f"""      <div style="flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: center; gap: 32px; padding: 56px 32px 32px;">
+        <h1 style="font-size: 15px; font-weight: 600; color: {T['ink']}; margin: 0;">Home</h1>
+{grid}
+      </div>"""
+    st = status(stat_text("11 hosts &#183; 6 groups", T['faint']), '')
+    write("HomeDashboard.dc.html", page(home_nav("dashboard") + body, None, home_rail(workspace="home"), st, show_shapes=False))
+
+def build_home_hosts():
+    """Hosts, harmonized: the list and the form keep the CRUD shape
+    `HostsSection.tsx`'s own doc comment already argues for (a list beside
+    one form, not a tab per host), but each becomes its own
+    `dashboard_card`-styled panel with room around it, rather than two flat
+    panes sharing a hairline the way Sessions' own sidebar does. #222 named
+    this gap directly: 'HostsSection does not carry the same visual
+    language as the dashboard cards.'
+
+    The nav-plus-form pair is centred as one 840px block rather than left
+    anchored: the maintainer caught, on a wide window against the shipped
+    code, that a form capped at its own width left the pair sitting flush
+    left with the other half of the window empty, the same thing
+    `HomeDashboard`'s own card grid already centres against. Redrawn here
+    to match the fix rather than the shape that prompted it."""
+    rows = "\n".join([
+        f'<div style="display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 10px; border-radius: 4px; background: {T["raised"]}; box-shadow: inset 2px 0 0 {T["accent"]};">'
+        f'<span style="font-size: 12.5px; color: {T["ink"]};">runic-target-a</span>'
+        f'<span class="mono" style="margin-left: auto; font-size: 10.5px; color: {T["faint"]};">target.internal</span></div>',
+        f'<div style="display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 10px; border-radius: 4px;">'
+        f'<span style="font-size: 12.5px; color: {T["ink2"]};">runic-bastion</span>'
+        f'<span class="mono" style="margin-left: auto; font-size: 10.5px; color: {T["faint"]};">127.0.0.1</span></div>',
+        f'<div style="display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 10px; border-radius: 4px;">'
+        f'<span style="font-size: 12.5px; color: {T["ink2"]};">dev-web</span>'
+        f'<span class="mono" style="margin-left: auto; font-size: 10.5px; color: {T["faint"]};">10.0.1.5</span></div>',
+    ])
+    list_card = dashboard_card("Hosts", f"""
+      <div style="display: flex; flex-direction: column; gap: 2px; margin: -4px 0;">
+        <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: {T['faint']}; padding: 6px 10px 4px;">REAL-CHAIN</span>
+{rows}
+      </div>""")
+    form_card = dashboard_card("runic-target-a", f"""
+      <div>{wizard_label('Host')}{wizard_field('target.internal')}</div>
+      <div style="display: flex; gap: 12px;">
+        <div style="flex: 1;">{wizard_label('User')}{wizard_field('deploy')}</div>
+        <div style="width: 90px;">{wizard_label('Port')}{wizard_field('2222')}</div>
+      </div>
+      {wizard_actions(('Delete', False), ('Cancel', False), ('Next', True))}""")
+    body = f"""      <div style="flex: 1; min-height: 0; overflow: hidden; display: flex; justify-content: center; padding: 24px;">
+        <div style="display: flex; gap: 16px; width: 100%; max-width: 840px;">
+          <div style="width: 280px; flex: none; overflow-y: auto;">{list_card}</div>
+          <div style="flex: 1; min-width: 0; max-width: 540px;">{form_card}</div>
+        </div>
+      </div>"""
+    st = status(stat_text("runic-target-a", T['muted'], mono=False), stat_text("11 hosts", T['faint']))
+    write("HomeHosts.dc.html", page(home_nav("hosts") + body, None, home_rail(workspace="home"), st, show_shapes=False))
+
 # ============================================================ SYSTEM SHEETS
 
 def sheet(title, sub, body, h=900):
@@ -1280,7 +1396,7 @@ if LIGHT_MODE:
 else:
     for fn in (build_empty, build_main, build_groups, build_collapsed, build_broadcast,
                build_hostkey, build_sftp, build_newsession, build_settings,
-               build_hosts_host, build_hosts_access,
+               build_hosts_host, build_hosts_access, build_home_dashboard, build_home_hosts,
                build_anatomy, build_tokens,
                build_hostkeychanged, build_failure, build_paste, build_palette):
         fn()

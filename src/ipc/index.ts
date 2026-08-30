@@ -1,4 +1,5 @@
 export { asIpcError } from './errors';
+export { appVersion } from './app';
 export {
   credentialPrompt,
   dismissCredential,

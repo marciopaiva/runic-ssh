@@ -6,6 +6,7 @@ import { credentialStoreStatus, internalVaultStatus } from '../ipc';
 import type { Theme } from '../ipc';
 import { offeredLocales } from '../lib/i18n/locales';
 
+import { Card } from './Card';
 import { VaultCard } from './VaultCard';
 
 const FLAG: Readonly<Record<string, string>> = {
@@ -214,42 +215,6 @@ export function HomeDashboard({
         )}
       </div>
     </div>
-  );
-}
-
-interface CardProps {
-  readonly title: string;
-  /** Makes the whole card a button to `onClick`, labelled `label`. Absent for
-   * a card that is not a way to somewhere else, like Appearance. */
-  readonly onClick?: () => void;
-  readonly label?: string;
-  readonly children: JSX.Element | readonly (JSX.Element | false)[];
-}
-
-/** One tile of the dashboard grid. Same border, background and padding for
- * every domain, so a card reads as a kind of thing rather than one screen's
- * own layout. */
-function Card({ title, onClick, label, children }: CardProps): JSX.Element {
-  const heading = <h2 className="text-ink text-[13px] font-semibold">{title}</h2>;
-
-  const content = (
-    <div className="border-line-subtle bg-surface-panel flex h-full flex-col gap-5 rounded border p-5 text-left">
-      {heading}
-      {children}
-    </div>
-  );
-
-  if (onClick === undefined) return content;
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      className="hover:border-line-strong rounded text-left outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-    >
-      {content}
-    </button>
   );
 }
 
