@@ -32,6 +32,7 @@ function session(id: string, group: string | null = null): Session {
     group,
     credentialId: null,
     proxyJump: null,
+    kind: 'other',
   };
 }
 

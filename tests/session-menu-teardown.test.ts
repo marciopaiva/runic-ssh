@@ -43,6 +43,7 @@ function live(): LiveSession {
       group: null,
       credentialId: null,
       proxyJump: null,
+      kind: 'other',
     },
     handle: null,
     kind: 'saved',

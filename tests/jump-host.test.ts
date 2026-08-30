@@ -16,6 +16,11 @@ import { describeFailure } from '../src/features/sessions/failure';
 import { createTranslator } from '../src/lib/i18n';
 import type { IpcError, Session } from '../src/ipc';
 
+/* Defaults to `jumpServer`: this file is about jump-host eligibility, and
+   `eligibleJumpHosts` now requires the kind (ADR-0031) on top of the rules
+   that predate it. The kind filter itself gets its own tests below, with an
+   override; every other test here is about a rule from before that filter
+   existed and should not have to fight it to construct a fixture. */
 function session(id: string, overrides: Partial<Session> = {}): Session {
   return {
     id,
@@ -26,6 +31,7 @@ function session(id: string, overrides: Partial<Session> = {}): Session {
     group: null,
     credentialId: null,
     proxyJump: null,
+    kind: 'jumpServer',
     ...overrides,
   };
 }
@@ -84,6 +90,17 @@ describe('reporting a failure that happened in a chain', () => {
       'failure.jumpCredential.title',
     );
     expect(describeFailure('keychainReadFailed', 'bastion').retryable).toBe(false);
+  });
+
+  it('says the same for the internal vault at a bastion hop', () => {
+    /* ADR-0035. `worth_asking` in `commands/sessions.rs` excludes all three of
+       the internal vault's own failures from the bastion prompt for the same
+       reason it excludes `keychainReadFailed`: a store that exists and is
+       refusing is not a store with nothing saved. */
+    for (const code of ['vaultLocked', 'vaultNotConfigured', 'vaultUnreadable'] as const) {
+      expect(describeFailure(code, 'bastion').title).toBe('failure.jumpCredential.title');
+      expect(describeFailure(code, 'bastion').retryable).toBe(false);
+    }
   });
 
   it('no longer claims a jump host has nowhere to type a credential', () => {
@@ -160,10 +177,35 @@ describe('which hosts may be a jump host', () => {
        above still green: they all wrote the field out as `null`, which is a
        shape the core does not produce. Found by opening the form. */
     const wire = JSON.parse(
-      '[{"id":"a","name":"a","host":"a.example","port":22,"user":"deploy","group":null,"credentialId":null}]',
+      '[{"id":"a","name":"a","host":"a.example","port":22,"user":"deploy","group":null,"credentialId":null,"kind":"jumpServer"}]',
     ) as Session[];
 
     expect(eligibleJumpHosts(wire, null).map((host) => host.id)).toEqual(['a']);
+  });
+});
+
+describe('which kind may be a jump host (ADR-0031)', () => {
+  it('offers only hosts tagged jumpServer', () => {
+    const saved = [
+      session('bastion'),
+      session('db', { kind: 'database' }),
+      session('web', { kind: 'web' }),
+      session('untagged', { kind: 'other' }),
+    ];
+
+    expect(eligibleJumpHosts(saved, null).map((host) => host.id)).toEqual(['bastion']);
+  });
+
+  it('keeps a chosen bastion offered even if its kind no longer qualifies', () => {
+    /* A host saved before ADR-0031 existed, or retagged since, must not have
+       its own field make the choice it is already holding disappear. The
+       same reasoning `carried` below rests on: a form that stops offering a
+       value it still holds needs a way to clear it, not a silent mismatch
+       between the select and the string underneath it. */
+    const saved = [session('bastion', { kind: 'database' }), session('web-01')];
+
+    const choice = jumpHostChoice(saved, 'web-01', 'bastion');
+    expect(choice.offered.map((host) => host.id)).toEqual(['bastion']);
   });
 });
 

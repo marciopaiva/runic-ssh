@@ -26,6 +26,7 @@ export type { CarriedOn } from './carried';
 export { eligibleJumpHosts, jumpHostChoice, jumpRole } from './jump';
 export type { JumpHostChoice } from './jump';
 export type { JumpRole } from './jump';
+export { accessUnchanged, duplicateOf } from './duplicate';
 export type { DraftField, DraftValues } from './draft';
 export { MAPPED_FAILURES, describeFailure, stateAfterFailure } from './failure';
 export type { Failure } from './failure';
@@ -36,7 +37,6 @@ export { describeEditorFailure } from './editor-failure';
 export type { EditorAction, EditorFailure, EditorProblem } from './editor-failure';
 export {
   anyDirty,
-  blankEditor,
   editorDirty,
   editorKey,
   findEditor,
@@ -45,6 +45,7 @@ export {
   updateEditor,
   withEditor,
   withoutEditor,
+  withStep,
 } from './editors';
 export type { OpenEditor } from './editors';
 export type { EditorTarget } from './editor';

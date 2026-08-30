@@ -3,9 +3,10 @@ export {
   authenticateInteractively,
   credentialPrompt,
   dismissCredential,
+  onInlineCredentialRequest,
   submitCredential,
 } from './credential';
-export type { CredentialPrompt, Keep, Keeping } from './credential';
+export type { CredentialPrompt, Keep, Keeping, SuggestedMethod } from './credential';
 export {
   closeWindow,
   isWindowMaximized,
@@ -28,6 +29,7 @@ export {
   deleteSession,
   disconnectSession,
   dismissHostKey,
+  keepCredentialForRun,
   listSessions,
   saveSession,
   trustHostKey,
@@ -36,6 +38,7 @@ export {
 export type {
   CredentialStoreStatus,
   HostKeyDecisionView,
+  HostKind,
   OpenSession,
   Secret,
   Session,
@@ -54,3 +57,11 @@ export {
 } from './terminal';
 export type { SessionStats } from './terminal';
 export type { SettingsView, Theme } from './settings';
+export {
+  disableInternalVault,
+  enableInternalVault,
+  internalVaultStatus,
+  resetInternalVault,
+  unlockInternalVault,
+} from './vault';
+export type { InternalVaultState, MasterPassword } from './vault';

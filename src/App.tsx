@@ -20,7 +20,7 @@ import { HostKeyPrompt } from './components/HostKeyPrompt';
 import { HostKeyRefused } from './components/HostKeyRefused';
 import { PasteConfirm } from './components/PasteConfirm';
 import { SessionMenu } from './components/SessionMenu';
-import { SessionEditorPanel } from './components/SessionEditorPanel';
+import { SessionWizard } from './components/SessionWizard';
 import { SessionsSidebar } from './components/SessionsSidebar';
 import { StatusBar } from './components/StatusBar';
 import { TerminalView } from './components/TerminalView';
@@ -42,7 +42,9 @@ import {
 } from './features/chrome';
 import type { Focus } from './features/chrome';
 import {
+  accessUnchanged,
   carrierName,
+  duplicateOf,
   editorDirty,
   editorKey,
   findEditor,
@@ -65,6 +67,7 @@ import {
   useSessions,
   withEditor,
   withoutEditor,
+  withStep,
 } from './features/sessions';
 import type {
   CarriedOn,
@@ -82,10 +85,12 @@ import {
   deleteSession,
   disconnectSession,
   forgetCredential,
+  internalVaultStatus,
   saveSession,
   sendInput,
+  submitCredential,
 } from './ipc';
-import type { Session, SessionDraft } from './ipc';
+import type { Keep, Secret, Session, SessionDraft, SuggestedMethod } from './ipc';
 import { useLocale, useTheme } from './features/settings';
 import { announceBroadcast, useSessionStats } from './features/status';
 import type { Announcement } from './features/status';
@@ -240,6 +245,14 @@ export function App(): JSX.Element {
      satisfy one call would be the worse trade. */
   const editorsRef = useRef<readonly OpenEditor[]>([]);
   const savedRef = useRef<readonly Session[]>([]);
+  /* Session ids the wizard's own test created and nothing has confirmed yet.
+     `testInWizard` adds one the moment its save turns a new host into a real
+     id, `finishWizard` clears it when the maintainer says to keep it, and the
+     effect below deletes it again if the tab holding it closes any other
+     way: cancelled, discarded, or backed out of. A ref rather than state:
+     nothing here is drawn, only consulted at the moment a tab actually
+     closes. */
+  const provisional = useRef<Set<string>>(new Set());
   /* Which section of Home is showing. Settings has no draft and nothing to
      discard, unlike a host form, so it needs no more state than this: it is
      not open or closed, only the section or not the section. */
@@ -297,8 +310,13 @@ export function App(): JSX.Element {
   /* Which sessions have a refusal to report, and whose it was: `null` for the
      session's own credential, a jump host's name when it happened one hop
      away. A map rather than a set because the two need different sentences,
-     and the second one has to name the host the user cannot see. */
-  const [unsaved, setUnsaved] = useState<ReadonlyMap<string, string | null>>(new Map());
+     and the second one has to name the host the user cannot see.
+     `usesVault` is read fresh at the moment of refusal (ADR-0035): which
+     store actually said no is a fact about that instant, not about the
+     session, and probing here is what lets `StatusBar` stay a plain prop. */
+  const [unsaved, setUnsaved] = useState<
+    ReadonlyMap<string, { readonly via: string | null; readonly usesVault: boolean }>
+  >(new Map());
   /* Which host each open session is riding, when it is riding one. Written
      once, when the session opens, and left alone afterwards: it is a fact
      about a connection that exists, not about what the session file says now.
@@ -311,7 +329,7 @@ export function App(): JSX.Element {
      actions ago. See #198. */
   const [editorFailed, setEditorFailed] = useState<ReadonlyMap<string, EditorFailure>>(new Map());
 
-  const { attempt, connect, trust, abandon } = useConnect({
+  const { attempt, connect, trust, abandon, submitInlineCredential } = useConnect({
     onConnecting: (sessionId) => setState(sessionId, 'connecting'),
     onOpened: (sessionId, handle, via) => {
       attach(sessionId, handle);
@@ -336,8 +354,14 @@ export function App(): JSX.Element {
     /* Back to a plain stored host. Nothing was learned about it — the attempt
        was let go, not answered — so anything else would be a claim. */
     onAbandoned: (sessionId) => setState(sessionId, 'saved'),
-    onCredentialRefused: (sessionId, via) =>
-      setUnsaved((current) => new Map(current).set(sessionId, via)),
+    onCredentialRefused: (sessionId, via) => {
+      void internalVaultStatus()
+        .then((status) => status !== 'notConfigured')
+        .catch(() => false)
+        .then((usesVault) =>
+          setUnsaved((current) => new Map(current).set(sessionId, { via, usesVault })),
+        );
+    },
     /* The connection is already closed by the time this runs. The host goes
        back to being a plain saved host, and the list is reloaded because what
        may have changed is on disk: the session now carries a credential id, or
@@ -836,6 +860,30 @@ export function App(): JSX.Element {
     [reload],
   );
 
+  /* The other half of `provisional`: a tab can close through several doors,
+     `cancelEditing`'s direct close, `discardIn`'s confirmed discard, or
+     anything else that ever calls `withoutEditor`, and this is the one
+     place all of them are already visible, as an entry leaving `editors`,
+     rather than four call sites each remembering to check the same set. A
+     host `finishWizard` already released is gone from `provisional` by the
+     time its tab closes, so this never touches one the maintainer meant to
+     keep. */
+  const editorsBeforeRef = useRef<readonly OpenEditor[]>([]);
+
+  useEffect(() => {
+    const stillOpen = new Set(editors.map((editor) => editorKey(editor.target)));
+
+    for (const editor of editorsBeforeRef.current) {
+      if (editor.target.kind !== 'existing') continue;
+      if (stillOpen.has(editorKey(editor.target))) continue;
+      if (!provisional.current.delete(editor.target.sessionId)) continue;
+
+      void remove(editor.target.sessionId);
+    }
+
+    editorsBeforeRef.current = editors;
+  }, [editors, remove]);
+
   /* Which form to tell, and what it was trying to do. An action taken from a
      form is answered on that form: the status bar was the other candidate and
      cannot carry this, because it is keyed to the focused session and an
@@ -912,10 +960,11 @@ export function App(): JSX.Element {
   }, []);
 
   const submitIn = useCallback(
-    /* `after` runs on what was stored, before the tab is decided about. It is
-       how "connect once and save" reaches a host that did not exist a moment
-       ago: the id it needs is the one the core has just assigned. */
-    (target: EditorTarget, after?: (stored: Session) => void): void => {
+    /* `after` runs on what was stored, once the form has been re-aimed at it.
+       `wasNew` is how a caller tells a host that did not exist a moment ago
+       from one that already did. The id itself is the same either way, the
+       one the core has just assigned. */
+    (target: EditorTarget, after?: (stored: Session, wasNew: boolean) => void): void => {
       const open = findEditor(editorsRef.current, target);
       if (open === null) return;
 
@@ -935,8 +984,18 @@ export function App(): JSX.Element {
         target.kind === 'existing'
           ? jumpHostChoice(saved, target.sessionId, filled.proxyJump).carried
           : [];
-      const wrong: readonly DraftField[] =
-        carried.length > 0 && filled.proxyJump !== '' ? [...problems, 'proxyJump'] : problems;
+      const editingId = target.kind === 'existing' ? target.sessionId : null;
+      const port = parsePort(filled.port);
+      /* Same reasoning as `carried`: knowable from the file, not from the
+         draft alone, so `invalidFields` cannot catch it and this stops the
+         save here rather than sending it to be refused in silence. */
+      const duplicate = duplicateOf(saved, editingId, filled.host, port, filled.user);
+
+      const wrong: readonly DraftField[] = [
+        ...problems,
+        ...(carried.length > 0 && filled.proxyJump !== '' ? (['proxyJump'] as const) : []),
+        ...(duplicate !== null ? (['host'] as const) : []),
+      ];
 
       if (wrong.length > 0) {
         setEditors((current) =>
@@ -945,7 +1004,6 @@ export function App(): JSX.Element {
         return;
       }
 
-      const port = parsePort(filled.port);
       if (port === null) return;
 
       const existing = targetSession(target, saved);
@@ -958,22 +1016,34 @@ export function App(): JSX.Element {
         user: filled.user.trim(),
         group: filled.group.trim() === '' ? null : filled.group.trim(),
         proxyJump: filled.proxyJump === '' ? null : filled.proxyJump,
+        kind: filled.kind,
       }).then((stored) => {
-        after?.(stored);
+        /* Re-aimed at what was stored before `after` runs, for a host that did
+           not exist a moment ago as much as for one that did: `settled` is
+           what gives a new host its id, and a caller that wants to act on the
+           connection this host now has (ADR-0030) needs that id to exist on
+           the form, not only in the value handed to it.
 
-        /* Saving a host that did not exist closes the tab it was created on.
-           The alternative is a tab that goes on saying "New session" while
-           holding one already on disk — the tab lying about its own contents —
-           and what somebody wants next is almost always to connect to it.
-           Editing a host that already existed leaves the tab open, because
-           there the name on it stays true. */
+           `editor.step` travels with it. A wizard's own test is what calls
+           this mid-attempt (`testInWizard` below), and losing the step here
+           would knock the form back to Host the instant the host it is
+           testing gets an id, which is the exact defect this whole component
+           exists to not have. */
+        setEditors((current) =>
+          updateEditor(current, target, (editor) => settled(stored, editor.step)),
+        );
+
+        /* `homeFocus` still names the old target, and `sameFocus` refuses to
+           match a `new` target against an `existing` one on purpose (#96's
+           rule, holding here too), so without this the strip resolves to
+           whatever else is open, or to nothing, the instant a new host is
+           saved. This keeps the form the test is running on the one on
+           screen, which is ADR-0030's whole point. */
         if (target.kind === 'new') {
-          forgetHome({ kind: 'editor', target });
-          setEditors((current) => withoutEditor(current, target));
-          return;
+          setHomeFocus({ kind: 'editor', target: { kind: 'existing', sessionId: stored.id } });
         }
 
-        setEditors((current) => updateEditor(current, target, () => settled(stored)));
+        after?.(stored, target.kind === 'new');
       }).catch((rejection: unknown) => {
         /* The tab stays, holding what was typed. A form that closed on a save
            the core refused would take the draft with it and leave the host
@@ -981,29 +1051,95 @@ export function App(): JSX.Element {
         failIn(target, 'save', rejection);
       });
     },
-    [saved, save, forgetHome, clearFailure, failIn],
+    [saved, save, clearFailure, failIn],
   );
 
-  /* Save, then collect a password on the connection that proves it works.
-     `connect` with this intent closes the connection as soon as the server has
-     accepted, so nothing is left open and no terminal is opened for a host
-     nobody asked to work on. */
-  const savePasswordIn = useCallback(
-    (target: EditorTarget): void => {
-      submitIn(target, (stored) => {
-        /* Taken to the attempt, not left on the form. Everything this does
-           happens in the session's own panel, starting with a host key
-           decision, and driving it showed the whole sequence running in a tab
-           nobody was looking at: the button appeared to do nothing, and the
-           one screen that must never be answered without being read was the
-           screen behind the one on top. */
-        setFocus({ kind: 'session', sessionId: stored.id });
-        setWorkspace('sessions');
-        void connect(stored.id, 'credential');
+  /* The wizard's own test, ADR-0032 and consolidated by ADR-0034: `'inline'`
+     collects the secret on the wizard's own step instead of the separate
+     window, the method chosen on Access is what this asks for and the only
+     thing it asks for, and it is now the only way any host, new or already
+     saved, gets a credential set. `connect` with this intent closes the
+     connection as soon as the server has accepted, so nothing is left open
+     and no terminal opens for a host nobody asked to work on. `submitIn` has
+     already re-aimed the form at the host's id by the time this runs, which
+     is what lets the attempt surface below find it there. */
+  const testInWizard = useCallback(
+    (target: EditorTarget, method: SuggestedMethod): void => {
+      submitIn(target, (stored, wasNew) => {
+        /* Provisional until `finishWizard` says otherwise: a host this save
+           just invented has nothing behind it yet but this one attempt, and
+           the effect below is what takes it back out if the tab closes
+           before that changes. A host that already existed keeps whatever
+           it already had regardless of how this test goes. */
+        if (wasNew) provisional.current.add(stored.id);
+        void connect(stored.id, 'inline', method);
       });
     },
     [submitIn, connect],
   );
+
+  /* The wizard's own ending once an attempt has settled. The host is already
+     on disk (the test's own `submitIn` call put it there), so this only
+     closes the tab. */
+  const finishWizard = useCallback(
+    (target: EditorTarget): void => {
+      if (target.kind === 'existing') provisional.current.delete(target.sessionId);
+      forgetHome({ kind: 'editor', target });
+      setEditors((current) => withoutEditor(current, target));
+    },
+    [forgetHome],
+  );
+
+  /* Host to Access is the one transition with something to check: the six
+     fields have to be fillable before there is anything to authenticate.
+     Access itself has nowhere further to advance to. ADR-0034: what
+     follows is a phase `SessionWizard` enters on its own, not a third step,
+     so this is a no-op once already there.
+
+     `suggestName` runs here too, before the check rather than only at save
+     time: an empty name is explicitly allowed ("leave empty to use the
+     host"), and checking `open.values` unfilled would refuse a blank name
+     `submitIn` itself would have accepted a moment later. */
+  const wizardNext = useCallback((target: EditorTarget): void => {
+    const open = findEditor(editorsRef.current, target);
+    if (open === null || open.step !== 1) return;
+
+    const filled = suggestName(open.values);
+    const problems = invalidFields(filled);
+    /* Same file-aware check `submitIn` runs before an ordinary save. A
+       duplicate target is knowable the moment host, port and user are all
+       filled in, and the wizard should say so before Access rather than
+       after a test that was always going to be refused underneath it. */
+    const editingId = target.kind === 'existing' ? target.sessionId : null;
+    const duplicate = duplicateOf(
+      savedRef.current,
+      editingId,
+      filled.host,
+      parsePort(filled.port),
+      filled.user,
+    );
+    const wrong: readonly DraftField[] = [
+      ...problems,
+      ...(duplicate !== null ? (['host'] as const) : []),
+    ];
+
+    if (wrong.length > 0) {
+      setEditors((current) =>
+        updateEditor(current, target, (editor) => ({ ...editor, values: filled, wrong })),
+      );
+      return;
+    }
+
+    setEditors((current) =>
+      updateEditor(current, target, (editor) => withStep({ ...editor, values: filled }, 2)),
+    );
+  }, []);
+
+  const wizardBack = useCallback((target: EditorTarget): void => {
+    setEditors((current) =>
+      updateEditor(current, target, (editor) => withStep(editor, (Math.max(1, editor.step - 1) as 1 | 2))),
+    );
+  }, []);
 
   const removeIn = useCallback(
     (target: EditorTarget): void => {
@@ -1516,6 +1652,99 @@ export function App(): JSX.Element {
                 const editingId = target?.kind === 'existing' ? target.sessionId : null;
                 const jump =
                   open === null ? null : jumpHostChoice(saved, editingId, open.values.proxyJump);
+                const duplicate =
+                  open === null
+                    ? null
+                    : duplicateOf(
+                        saved,
+                        editingId,
+                        open.values.host,
+                        parsePort(open.values.port),
+                        open.values.user,
+                      );
+                const storedCredential =
+                  target === null ? false : (() => {
+                    const session = targetSession(target, saved);
+                    return session !== null && hasStoredCredential(session);
+                  })();
+                /* ADR-0036: nothing that could invalidate the stored
+                   credential changed, so Access has nothing left to prove.
+                   `open` rather than `target` for the values themselves:
+                   `target` only names which session, `open` is the draft
+                   actually on screen. */
+                const skipTest =
+                  target === null || open === null ? false : (() => {
+                    const session = targetSession(target, saved);
+                    return (
+                      session !== null &&
+                      hasStoredCredential(session) &&
+                      accessUnchanged(
+                        session,
+                        open.values.host,
+                        parsePort(open.values.port),
+                        open.values.user,
+                      )
+                    );
+                  })();
+                /* ADR-0030: the same host key and credential screens Sessions
+                   shows over a group's terminal, found here when the attempt
+                   in flight is this host's own. The surface that makes
+                   staying in Home possible to watch, for the wizard's own
+                   proof phase. */
+                const testSurface =
+                  attempt !== null && editingId !== null && attempt.sessionId === editingId
+                    ? attemptSurface
+                    : null;
+                /* ADR-0032: the wizard's own inline field, once the host key
+                   is settled and `submitInlineCredential` is waiting to be
+                   called. `null` for every other caller. */
+                const inlineCredential =
+                  attempt !== null &&
+                  editingId !== null &&
+                  attempt.sessionId === editingId &&
+                  attempt.stage.stage === 'awaitingInline'
+                    ? {
+                        onSubmit: (secret: Secret, keep: Keep) =>
+                          void submitInlineCredential(secret, keep),
+                        onCancel: abandon,
+                      }
+                    : null;
+                /* ADR-0033: the bastion's own field, asked for before
+                   `inlineCredential` above is ever reached. A session behind
+                   a jump host authenticates it first. `submitCredential` is
+                   the same command the separate window already answers
+                   through; nothing about answering a request was ever
+                   window-specific, only opening one was. */
+                const bastionStage =
+                  attempt !== null &&
+                  editingId !== null &&
+                  attempt.sessionId === editingId &&
+                  attempt.stage.stage === 'awaitingBastionCredential'
+                    ? attempt.stage
+                    : null;
+                const bastionCredential =
+                  bastionStage === null
+                    ? null
+                    : {
+                        prompt: bastionStage.prompt,
+                        onSubmit: (secret: Secret, keep: Keep) => {
+                          const wire =
+                            'password' in secret
+                              ? { password: secret.password }
+                              : { privateKey: secret.privateKey, passphrase: secret.passphrase ?? null };
+                          void submitCredential(bastionStage.request, wire, keep);
+                        },
+                        onCancel: abandon,
+                      };
+                const panelTitle =
+                  target === null
+                    ? ''
+                    : (editorTabs.find((candidate) =>
+                        sameFocus({ kind: 'editor', target: candidate.target }, {
+                          kind: 'editor',
+                          target,
+                        }),
+                      )?.title ?? '');
 
                 return (
                   <HostsSection
@@ -1526,35 +1755,33 @@ export function App(): JSX.Element {
                     onNew={() => openEditor({ kind: 'new' })}
                     detail={
                       open === null || target === null || jump === null ? null : (
-                        <SessionEditorPanel
-                          title={
-                            editorTabs.find((candidate) =>
-                              sameFocus({ kind: 'editor', target: candidate.target }, {
-                                kind: 'editor',
-                                target,
-                              }),
-                            )?.title ?? ''
-                          }
-                          isNew={target.kind === 'new'}
+                        <SessionWizard
+                          title={panelTitle}
+                          step={open.step}
                           values={open.values}
                           wrong={open.wrong}
                           discarding={open.discarding}
                           failure={editorFailed.get(editorKey(target)) ?? null}
-                          jumpHosts={jump.offered}
-                          carried={jump.carried}
-                          storedCredential={(() => {
-                            const session = targetSession(target, saved);
-                            return session !== null && hasStoredCredential(session);
-                          })()}
-                          onForget={editingId === null ? null : () => forgetPassword(target)}
                           onDismissFailure={() => clearFailure(target)}
                           onChange={(field, value) => changeIn(target, field, value)}
-                          onSubmit={() => submitIn(target)}
-                          onSavePassword={() => savePasswordIn(target)}
-                          onDelete={() => removeIn(target)}
-                          onCancel={() => cancelEditing(target)}
+                          jumpHosts={jump.offered}
+                          carried={jump.carried}
+                          duplicate={duplicate}
+                          storedCredential={storedCredential}
+                          skipTest={skipTest}
+                          onSkipTest={() => submitIn(target)}
+                          onForget={editingId === null ? null : () => forgetPassword(target)}
+                          onDelete={target.kind === 'new' ? null : () => removeIn(target)}
+                          onBack={() => wizardBack(target)}
+                          onNext={() => wizardNext(target)}
+                          onTest={(method) => testInWizard(target, method)}
+                          onFinish={() => finishWizard(target)}
+                          testSurface={testSurface}
+                          inlineCredential={inlineCredential}
+                          bastionCredential={bastionCredential}
                           onConfirmDiscard={() => discardIn(target, true)}
                           onCancelDiscard={() => discardIn(target, false)}
+                          onCancel={() => cancelEditing(target)}
                         />
                       )
                     }
@@ -1586,11 +1813,7 @@ export function App(): JSX.Element {
         syncing={hostsReceiving}
         via={activeCarrier}
         announcement={announcement}
-        credentialUnsaved={
-          activeId !== null && unsaved.has(activeId)
-            ? { via: unsaved.get(activeId) ?? null }
-            : null
-        }
+        credentialUnsaved={activeId !== null ? (unsaved.get(activeId) ?? null) : null}
         onDismissUnsaved={() =>
           setUnsaved((current) => {
             if (activeId === null) return current;

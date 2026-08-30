@@ -18,6 +18,14 @@ which kept running, held a pty, and counted against the server's
 written down so the next call site does not have to relearn it; this skill is
 how the next one gets found the same way.
 
+## Language
+
+The Analysis this loop feeds into Phase 1 (see the bottom of this skill) is
+conversation, not repository content. Write it in whatever language the
+maintainer is using in this conversation. Whatever fix it leads to still
+writes English into the tree, per CLAUDE.md section 1, regardless of what
+language found it.
+
 ## 1. Reproduce
 
 Pin down exact steps, exact input, exact platform, before reading a line of

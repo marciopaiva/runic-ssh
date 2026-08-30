@@ -41,7 +41,7 @@ interface StatusBarProps {
    * way to the session they are looking at, which is how a failure in a chain
    * is already reported. See #191.
    */
-  readonly credentialUnsaved: { readonly via: string | null } | null;
+  readonly credentialUnsaved: { readonly via: string | null; readonly usesVault: boolean } | null;
   /**
    * The host this session's traffic travels through, or `null` when none.
    *
@@ -243,8 +243,17 @@ export function StatusBar({
           onClick={onDismissUnsaved}
           title={
             credentialUnsaved.via === null
-              ? i18n.t('status.credentialUnsaved.detail')
-              : i18n.t('status.credentialUnsaved.detail.via', { host: credentialUnsaved.via })
+              ? i18n.t(
+                  credentialUnsaved.usesVault
+                    ? 'status.credentialUnsaved.detail.vault'
+                    : 'status.credentialUnsaved.detail',
+                )
+              : i18n.t(
+                  credentialUnsaved.usesVault
+                    ? 'status.credentialUnsaved.detail.via.vault'
+                    : 'status.credentialUnsaved.detail.via',
+                  { host: credentialUnsaved.via },
+                )
           }
           className="text-ink-secondary border-line-subtle hover:text-ink my-1 flex shrink-0 items-center gap-1.5 rounded border px-2"
         >

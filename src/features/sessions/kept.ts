@@ -25,9 +25,20 @@ export interface KeptOutcome {
   readonly tone: 'neutral' | 'danger';
 }
 
-export function describeKeeping(keeping: Keeping, stored: boolean): KeptOutcome {
+/**
+ * `usesVault` says which store `stored`/a refusal actually means (ADR-0035):
+ * the internal vault when it is the installation's configured backend, the
+ * system keychain otherwise, the same choice `can_remember` on the Rust side
+ * already made. A plain boolean, not a probe: this stays pure, and the
+ * caller is the one with somewhere to ask.
+ */
+export function describeKeeping(keeping: Keeping, stored: boolean, usesVault: boolean): KeptOutcome {
   if (keeping === 'refused') {
-    return { title: 'kept.refused.title', body: 'kept.refused.body', tone: 'danger' };
+    return {
+      title: 'kept.refused.title',
+      body: usesVault ? 'kept.refused.body.vault' : 'kept.refused.body',
+      tone: 'danger',
+    };
   }
 
   /* The user picked "never". Not a failure and not a defect: they authenticated
@@ -42,7 +53,11 @@ export function describeKeeping(keeping: Keeping, stored: boolean): KeptOutcome 
      application closes. Reporting both as "saved" would be the screen making a
      promise the next start does not keep. */
   return stored
-    ? { title: 'kept.stored.title', body: 'kept.stored.body', tone: 'neutral' }
+    ? {
+        title: 'kept.stored.title',
+        body: usesVault ? 'kept.stored.body.vault' : 'kept.stored.body',
+        tone: 'neutral',
+      }
     : { title: 'kept.run.title', body: 'kept.run.body', tone: 'neutral' };
 }
 

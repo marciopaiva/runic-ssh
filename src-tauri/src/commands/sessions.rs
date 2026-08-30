@@ -9,7 +9,7 @@ use std::sync::Arc;
 use serde::Serialize;
 use tauri::{AppHandle, Manager, Runtime, State};
 
-use crate::commands::credential::ask;
+use crate::commands::credential::{ask, ask_inline};
 use crate::config::sessions::{
     check_proxy_jump, delete_session as remove_session, save_session as store_session, Session,
     SessionDraft, SessionStore,
@@ -25,7 +25,8 @@ use crate::ssh::pending::{Carried, CarriedCredentials, PendingHostKeys, PendingI
 use crate::ssh::registry::{Busy, Open, Registry, SessionHandle};
 use crate::ssh::trust::Trust;
 use crate::vault::{
-    resolve_credential, Availability, CredentialId, Secret, SessionSecrets, StoredCredential, Vault,
+    can_remember, resolve_credential, store_credential, Availability, CredentialId, InternalVault,
+    Secret, SessionSecrets, StoredCredential, Vault,
 };
 
 pub const KNOWN_HOSTS_FILE: &str = "known_hosts";
@@ -314,25 +315,123 @@ fn write_known_hosts(path: &std::path::Path, contents: &str) -> Result<(), Error
 /// service is told up front rather than after typing a password into a
 /// checkbox that could never have worked. ADR-0004 required a real answer here
 /// rather than an opaque failure.
+///
+/// ADR-0035 folded a second store into this answer rather than leaving it
+/// asking only about the OS keychain: `InlineCredentialForm` reads this to
+/// decide what it tells the wizard's own test will happen to the secret, and
+/// an installation that opted into the internal vault instead would
+/// otherwise be told nothing is available when something plainly is.
 #[tauri::command]
-pub async fn credential_store_status(vault: State<'_, Vault>) -> Result<Availability, IpcError> {
+pub async fn credential_store_status(
+    vault: State<'_, Vault>,
+    internal: State<'_, InternalVault>,
+) -> Result<Availability, IpcError> {
+    if can_remember(&vault, &internal) {
+        return Ok(Availability::Available);
+    }
+
     Ok(vault.availability())
 }
 
-/// Remembers a session's secret in the OS credential store.
+/// Whether the internal vault (ADR-0035) is set up, and if so, whether this
+/// session has unlocked it. `Availability` above is a different question and
+/// stays a different question: this answers "has the maintainer opted in and
+/// unlocked it," not "does the OS have a keychain."
+#[tauri::command]
+pub async fn internal_vault_status(
+    internal: State<'_, InternalVault>,
+) -> Result<crate::vault::InternalVaultState, IpcError> {
+    Ok(internal.status()?)
+}
+
+/// Turns the internal vault on: creates it under `password`, and migrates
+/// every credential currently in the OS keychain into it.
 ///
-/// The value passes through and is gone: it is written to the keychain and
+/// Nothing is removed from the OS keychain by this call. An entry nothing
+/// reads any more is inert, and leaving it is simpler and safer than adding a
+/// delete path whose own failure would need its own handling. See ADR-0035.
+#[tauri::command]
+pub async fn enable_internal_vault<R: Runtime>(
+    app: AppHandle<R>,
+    vault: State<'_, Vault>,
+    internal: State<'_, InternalVault>,
+    password: Secret,
+) -> Result<(), IpcError> {
+    let sessions = SessionStore::new(config_dir(&app)?).load()?;
+
+    let mut existing = Vec::new();
+    for session in &sessions.items {
+        if session.credential_id.is_none() {
+            continue;
+        }
+        let id = CredentialId::for_session(&session.id);
+        if let Ok(secret) = vault.resolve(&id) {
+            existing.push((id, secret));
+        }
+    }
+
+    internal.enable(&password, &existing)?;
+    Ok(())
+}
+
+/// Unlocks the internal vault for the rest of this session.
+#[tauri::command]
+pub async fn unlock_internal_vault(
+    internal: State<'_, InternalVault>,
+    password: Secret,
+) -> Result<(), IpcError> {
+    internal.unlock(&password)?;
+    Ok(())
+}
+
+/// Turns the internal vault back off: writes every credential it holds back
+/// into the OS keychain under the key this session already unlocked it
+/// with, then deletes the internal vault's file.
+///
+/// The mirror of `enable_internal_vault`. No password: unlocking already
+/// proved it once, and this is not asked for it again any more than
+/// resolving one saved credential is. Refuses with `vaultLocked` if called
+/// without having unlocked first, which the frontend no longer offers a way
+/// to do.
+#[tauri::command]
+pub async fn disable_internal_vault(
+    vault: State<'_, Vault>,
+    internal: State<'_, InternalVault>,
+) -> Result<(), IpcError> {
+    let migrated = internal.disable()?;
+
+    for (id, secret) in &migrated {
+        vault.store(id, secret)?;
+    }
+
+    Ok(())
+}
+
+/// The "I forgot the password" exit: wipes the internal vault outright, no
+/// password needed. Every credential that lived only there has to be typed
+/// again. Named on the toggle before it is ever turned on, not discovered
+/// after the fact.
+#[tauri::command]
+pub async fn reset_internal_vault(internal: State<'_, InternalVault>) -> Result<(), IpcError> {
+    internal.reset()?;
+    Ok(())
+}
+
+/// Remembers a session's secret in whichever store this installation uses.
+///
+/// The value passes through and is gone: it is written to the store and
 /// dropped, never echoed back and never written anywhere else.
 #[tauri::command]
 pub async fn remember_credential<R: Runtime>(
     app: AppHandle<R>,
     vault: State<'_, Vault>,
+    internal: State<'_, InternalVault>,
     session_id: String,
     password: Option<Secret>,
     private_key: Option<Secret>,
     passphrase: Option<Secret>,
 ) -> Result<(), IpcError> {
-    /* Checked before anything is written: a keychain entry for a session that
+    /* Checked before anything is written: a store entry for a session that
     does not exist is a secret nobody can reach and nobody knows to delete. */
     if SessionStore::new(config_dir(&app)?)
         .load()?
@@ -343,20 +442,57 @@ pub async fn remember_credential<R: Runtime>(
     }
 
     let secret = to_stored(password, private_key, passphrase)?.encode()?;
-    persist_credential(&app, &vault, &session_id, &secret)?;
+    persist_credential(&app, &vault, &internal, &session_id, &secret)?;
 
     Ok(())
 }
 
-/// Writes a secret to the keychain and points the saved session at it.
+/// Keeps a secret for the life of this run, without writing it anywhere.
 ///
-/// Both halves or neither: a keychain entry no session references is a secret
+/// ADR-0032. The wizard's own inline test authenticates through
+/// [`authenticate_session`] rather than the credential window, which is the
+/// one place `SessionSecrets::keep` was previously reached from. Without
+/// this, "until Runic SSH closes, in memory only", the middle tier
+/// ADR-0025 built because it is what most people actually want, would be
+/// unreachable from that path, leaving two of its three answers instead of
+/// three.
+#[tauri::command]
+pub async fn keep_credential_for_run<R: Runtime>(
+    app: AppHandle<R>,
+    secrets: State<'_, SessionSecrets>,
+    session_id: String,
+    password: Option<Secret>,
+    private_key: Option<Secret>,
+    passphrase: Option<Secret>,
+) -> Result<(), IpcError> {
+    /* The same check `remember_credential` makes, for the same reason: a run
+    holding a secret keyed to a session that does not exist is a secret with
+    nothing to be used for. */
+    if SessionStore::new(config_dir(&app)?)
+        .load()?
+        .find(&session_id)
+        .is_none()
+    {
+        return Err(Error::UnknownSession { id: session_id }.into());
+    }
+
+    let secret = to_stored(password, private_key, passphrase)?.encode()?;
+    secrets.keep(&CredentialId::for_session(&session_id), &secret);
+
+    Ok(())
+}
+
+/// Writes a secret to whichever store this installation uses and points the
+/// saved session at it.
+///
+/// Both halves or neither: a store entry no session references is a secret
 /// nobody can reach and nobody knows to delete, and a session pointing at an
 /// entry that was never written fails at connect time with a missing
 /// credential the user never chose to remove.
 pub fn persist_credential<R: Runtime>(
     app: &AppHandle<R>,
     vault: &Vault,
+    internal: &InternalVault,
     session_id: &str,
     secret: &Secret,
 ) -> Result<(), Error> {
@@ -364,7 +500,7 @@ pub fn persist_credential<R: Runtime>(
     let mut sessions = store.load()?;
 
     let id = CredentialId::for_session(session_id);
-    vault.store(&id, secret)?;
+    store_credential(vault, internal, &id, secret)?;
 
     if let Some(session) = sessions
         .items
@@ -383,14 +519,20 @@ pub fn persist_credential<R: Runtime>(
 pub async fn forget_credential<R: Runtime>(
     app: AppHandle<R>,
     vault: State<'_, Vault>,
+    internal: State<'_, InternalVault>,
     secrets: State<'_, SessionSecrets>,
     session_id: String,
 ) -> Result<(), IpcError> {
-    /* Both copies, and the run's first. Clearing only the keychain would leave
+    /* Both copies, and the run's first. Clearing only the store would leave
     `resolve_credential` answering exactly as before, so the next connection
     would still not ask and the button would have said something it did not
     do. See `vault::forget_credential`. */
-    crate::vault::forget_credential(&secrets, &vault, &CredentialId::for_session(&session_id))?;
+    crate::vault::forget_credential(
+        &secrets,
+        &vault,
+        &internal,
+        &CredentialId::for_session(&session_id),
+    )?;
 
     let store = SessionStore::new(config_dir(&app)?);
     let mut sessions = store.load()?;
@@ -415,6 +557,7 @@ pub async fn forget_credential<R: Runtime>(
 pub async fn authenticate_with_saved(
     registry: State<'_, Registry>,
     vault: State<'_, Vault>,
+    internal: State<'_, InternalVault>,
     secrets: State<'_, SessionSecrets>,
     handle: SessionHandle,
 ) -> Result<(), IpcError> {
@@ -423,7 +566,12 @@ pub async fn authenticate_with_saved(
         .await
         .ok_or(Error::UnknownHandle)?;
 
-    let stored = resolve_credential(&secrets, &vault, &CredentialId::for_session(&session_id))?;
+    let stored = resolve_credential(
+        &secrets,
+        &vault,
+        &internal,
+        &CredentialId::for_session(&session_id),
+    )?;
     let credential = from_stored(StoredCredential::decode(&stored)?);
 
     let outcome = registry
@@ -503,8 +651,8 @@ async fn refusal(
 
 /// What opening a chain needs from the application, in one value.
 ///
-/// Six references that always travel together, and which clippy is right to
-/// refuse as six parameters. Grouping them also says something true: these
+/// Seven references that always travel together, and which clippy is right to
+/// refuse as seven parameters. Grouping them also says something true: these
 /// belong to the application rather than to the chain, and the chain borrows
 /// all of them for exactly as long as one connect attempt lasts.
 struct Chain<'a, R: Runtime> {
@@ -514,9 +662,16 @@ struct Chain<'a, R: Runtime> {
     registry: &'a Registry,
     requests: &'a CredentialRequests,
     vault: &'a Vault,
+    internal: &'a InternalVault,
     secrets: &'a SessionSecrets,
     /// The decision this attempt is continuing, when it is a retry.
     continuing: Option<PendingId>,
+    /// Whether a bastion's credential, if one is needed, should be asked for
+    /// inline rather than through the separate window. ADR-0033: set only by
+    /// the wizard's own test, which has nowhere else for the answer to be
+    /// typed that would not reopen the problem ADR-0032 already closed for
+    /// the target's own credential.
+    inline: bool,
 }
 
 /// Opens the chain to a host that is behind a bastion.
@@ -670,7 +825,7 @@ async fn open_bastion<R: Runtime>(
     for the case where there is nothing to read, not an alternative to reading
     it. */
     let saved = || {
-        resolve_credential(chain.secrets, chain.vault, &id)
+        resolve_credential(chain.secrets, chain.vault, chain.internal, &id)
             .and_then(|stored| StoredCredential::decode(&stored))
     };
 
@@ -693,15 +848,25 @@ async fn open_bastion<R: Runtime>(
                     user: bastion.user.clone(),
                     host: bastion.host.clone(),
                     port: bastion.port,
-                    can_remember: matches!(chain.vault.availability(), Availability::Available),
+                    can_remember: can_remember(chain.vault, chain.internal),
                     /* What makes this window tellable from the one that follows
                     it. Without it they are two identical prompts in a row for
                     two different hosts, which is what ADR-0023 refused to
                     ship. */
                     carrying: Some(carrying.to_owned()),
+                    /* Nobody has an opinion about a bastion's credential kind
+                    ahead of time; only the editor's own test, on the host the
+                    user clicked, ever suggests one. ADR-0030. */
+                    suggested_method: None,
                 };
 
-                match ask(chain.app, chain.requests, prompt).await {
+                let answer = if chain.inline {
+                    ask_inline(chain.app, chain.requests, prompt).await
+                } else {
+                    ask(chain.app, chain.requests, prompt).await
+                };
+
+                match answer {
                     Ok((stored, keep)) => (stored, keep, keep == Keep::Never),
                     Err(error) => {
                         /* Including a dismissal. A bastion left open on a
@@ -755,7 +920,9 @@ async fn open_bastion<R: Runtime>(
             back, in the one case where the user has least reason to expect it.
             This is #167's shape at a hop that cannot report it yet. */
             Keep::Stored => {
-                if persist_credential(chain.app, chain.vault, &bastion.id, &secret).is_err() {
+                if persist_credential(chain.app, chain.vault, chain.internal, &bastion.id, &secret)
+                    .is_err()
+                {
                     keep_refused = true;
                     typed = Some(secret);
                 }
@@ -783,10 +950,10 @@ async fn open_bastion<R: Runtime>(
 /// has to be authenticated before it will open a channel, so its credential is
 /// resolved here. It comes from the keychain and never from a window.
 #[tauri::command]
-/* Nine, of which six are state Tauri injects and one is the handle it builds.
-There is one call site and it is generated. Grouping them would mean wrapping
-the framework's own injection to satisfy a lint about human call sites that
-this function does not have. */
+/* Ten, of which seven are state Tauri injects and one is the handle it
+builds. There is one call site and it is generated. Grouping them would mean
+wrapping the framework's own injection to satisfy a lint about human call
+sites that this function does not have. */
 #[allow(clippy::too_many_arguments)]
 pub async fn connect_session<R: Runtime>(
     app: AppHandle<R>,
@@ -795,6 +962,7 @@ pub async fn connect_session<R: Runtime>(
     carried: State<'_, CarriedCredentials>,
     requests: State<'_, CredentialRequests>,
     vault: State<'_, Vault>,
+    internal: State<'_, InternalVault>,
     secrets: State<'_, SessionSecrets>,
     session_id: String,
     /* The decision this attempt continues, when the interface is retrying after
@@ -802,6 +970,10 @@ pub async fn connect_session<R: Runtime>(
     crosses as: it names a thing the webview cannot forge and carries nothing
     about the session. */
     continuing: Option<PendingId>,
+    /* Whether a bastion's own credential, if this session needs one and
+    nothing is saved, should be asked for inline rather than through the
+    separate window. ADR-0033. */
+    inline: bool,
 ) -> Result<OpenSession, IpcError> {
     let sessions = SessionStore::new(config_dir(&app)?).load()?;
     let session = sessions
@@ -841,8 +1013,10 @@ pub async fn connect_session<R: Runtime>(
                 registry: &registry,
                 requests: &requests,
                 vault: &vault,
+                internal: &internal,
                 secrets: &secrets,
                 continuing,
+                inline,
             };
 
             let (connection, keep_refused) =

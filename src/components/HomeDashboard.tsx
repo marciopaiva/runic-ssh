@@ -1,8 +1,12 @@
+import { useEffect, useState } from 'react';
 import type { JSX } from 'react';
 
-import { useTranslator } from '../features/settings';
+import { offerInternalVault, useTranslator } from '../features/settings';
+import { credentialStoreStatus, internalVaultStatus } from '../ipc';
 import type { Theme } from '../ipc';
 import { offeredLocales } from '../lib/i18n/locales';
+
+import { VaultCard } from './VaultCard';
 
 const FLAG: Readonly<Record<string, string>> = {
   en: '🇺🇸',
@@ -25,10 +29,11 @@ interface HomeDashboardProps {
 
 /**
  * Home's landing section: a card per domain, the shape the maintainer asked
- * for once Appearance had proven it out. Hosts and Appearance today; nothing
- * else yet, because nothing else exists to make a card honest. SFTP gets one
- * the day #127 does and not before, the same rule ADR-0020 already held for
- * the rail.
+ * for once Appearance had proven it out. Hosts and Appearance always;
+ * the internal vault (ADR-0035) only when it has something to offer, see
+ * `offerInternalVault`. Nothing else yet, because nothing else exists to
+ * make a card honest. SFTP gets one the day #127 does and not before, the
+ * same rule ADR-0020 already held for the rail.
  */
 export function HomeDashboard({
   hostCount,
@@ -41,6 +46,24 @@ export function HomeDashboard({
   onChooseLocale,
 }: HomeDashboardProps): JSX.Element {
   const i18n = useTranslator();
+  /* `undefined` while either probe is in flight, which reads as "not yet
+     decided" rather than "hide": a wrong first paint that shows the card
+     for one frame is nothing, one that hides it and never reconsiders would
+     be a real loss. Probed once, on mount, the same as `VaultCard`'s own
+     status; re-evaluates on the next visit to Home rather than reacting to
+     an action taken inside the card itself, which is the one gap worth
+     naming here. Disabling the vault back to the keychain, on a machine
+     where the keychain works, leaves the card visible for the rest of this
+     visit instead of disappearing mid-session: `VaultCard` still reflects
+     the true state correctly, this only decides whether it is on screen at
+     all. */
+  const [showVault, setShowVault] = useState<boolean | undefined>(undefined);
+
+  useEffect(() => {
+    void Promise.all([internalVaultStatus(), credentialStoreStatus()]).then(
+      ([vaultStatus, keychainStatus]) => setShowVault(offerInternalVault(vaultStatus, keychainStatus)),
+    );
+  }, []);
 
   return (
     <div className="flex h-full flex-col items-center gap-8 overflow-y-auto p-8 pt-14">
@@ -183,6 +206,12 @@ export function HomeDashboard({
             </span>
           </div>
         </Card>
+
+        {showVault === true && (
+          <Card title={i18n.t('vault.title')}>
+            <VaultCard />
+          </Card>
+        )}
       </div>
     </div>
   );

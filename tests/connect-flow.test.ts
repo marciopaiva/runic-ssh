@@ -89,10 +89,10 @@ describe('a saved credential', () => {
 
   it('is not tried when the point of the attempt is to collect one', () => {
     /* Somebody who asked to save a password is asking to type it. A host that
-       already has a working one would authenticate silently, the window would
-       never open, and the button would have done nothing anybody could see on
-       a host where something was in fact stored. */
-    expect(shouldTrySaved('credential')).toBe(false);
+       already has a working one would authenticate silently, the field would
+       never appear, and the wizard would have proven nothing anybody could
+       see on a host where something was in fact stored. */
+    expect(shouldTrySaved('inline')).toBe(false);
   });
 
   it('falls back to asking when the host refuses it', () => {
@@ -105,6 +105,21 @@ describe('a saved credential', () => {
   it('falls back to asking when the keychain cannot be read', () => {
     expect(shouldPromptAfterSaved('keychainUnavailable')).toBe(true);
     expect(shouldPromptAfterSaved('keychainReadFailed')).toBe(true);
+  });
+
+  it('falls back to asking when the internal vault cannot supply it', () => {
+    /* ADR-0035. Typing the credential fresh works regardless of which store
+       was supposed to hand it back. */
+    expect(shouldPromptAfterSaved('vaultLocked')).toBe(true);
+    expect(shouldPromptAfterSaved('vaultNotConfigured')).toBe(true);
+    expect(shouldPromptAfterSaved('vaultUnreadable')).toBe(true);
+  });
+
+  it('does not ask again for the vault failures a resolve can never produce', () => {
+    /* `vaultWrongPassword` and `vaultUnwritable` only answer a master-password
+       prompt in Settings, never a saved-credential resolve. */
+    expect(shouldPromptAfterSaved('vaultWrongPassword')).toBe(false);
+    expect(shouldPromptAfterSaved('vaultUnwritable')).toBe(false);
   });
 
   it('does not ask again when the network is what failed', () => {
@@ -169,20 +184,20 @@ describe('a password collected by connecting once', () => {
      core answers `kept` for both ways of keeping one (ADR-0025), so where it
      went is read from the session rather than from the answer. */
   it('says it is saved only when the session carries a credential', () => {
-    expect(describeKeeping('kept', true).title).toBe('kept.stored.title');
+    expect(describeKeeping('kept', true, false).title).toBe('kept.stored.title');
   });
 
   it('says a run-long credential is a run-long credential', () => {
     /* Reporting this as saved would be a promise the next start does not
        keep: nothing was written, deliberately. */
-    const outcome = describeKeeping('kept', false);
+    const outcome = describeKeeping('kept', false, false);
 
     expect(outcome.title).toBe('kept.run.title');
     expect(outcome.tone).toBe('neutral');
   });
 
   it('raises the one nobody chose', () => {
-    const outcome = describeKeeping('refused', false);
+    const outcome = describeKeeping('refused', false, false);
 
     expect(outcome.title).toBe('kept.refused.title');
     expect(outcome.tone).toBe('danger');
@@ -191,10 +206,18 @@ describe('a password collected by connecting once', () => {
   it('does not treat "never" as a failure', () => {
     /* They authenticated and asked for nothing to be kept. A danger tone here
        would report a choice as a defect. */
-    const outcome = describeKeeping('notAsked', false);
+    const outcome = describeKeeping('notAsked', false, false);
 
     expect(outcome.title).toBe('kept.none.title');
     expect(outcome.tone).toBe('neutral');
+  });
+
+  it('names the internal vault instead, when that is the backend', () => {
+    /* ADR-0035: the same four endings, for the installation that opted into
+       the internal vault. `stored`/`refused` are the only two whose body
+       names a store at all. */
+    expect(describeKeeping('kept', true, true).body).toBe('kept.stored.body.vault');
+    expect(describeKeeping('refused', false, true).body).toBe('kept.refused.body.vault');
   });
 });
 
@@ -208,6 +231,7 @@ describe('reading whether a host has a stored password', () => {
     group: null,
     credentialId: null,
     proxyJump: null,
+    kind: 'other',
     ...overrides,
   });
 

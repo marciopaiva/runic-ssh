@@ -92,9 +92,13 @@ clicked is collected in a window of its own and submitted separately.
    that proceeds on an untrusted key.
 5. The core returns an opaque `SessionHandle`. No secret is in it, and nothing
    has authenticated yet.
-6. `authenticate_session` carries the secret from the credential window, or
-   `authenticate_with_saved` names the session and resolves it in the core.
-   Either way `ssh/` authenticates and the key material is zeroized.
+6. `authenticate_session` carries the secret. Where that secret was typed
+   depends on the caller: the wizard's own inline field for a host it is
+   registering or editing (ADR-0032, ADR-0034), the credential window for an
+   ordinary Sessions connect with nothing saved. `authenticate_with_saved`
+   names the session and resolves it in the core instead, when one is.
+   Whichever path it took, `ssh/` authenticates and the key material is
+   zeroized.
 7. Terminal output streams to the webview as Tauri events, keyed by handle.
 
 The credential exists in memory in the core for the duration of authentication

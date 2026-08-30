@@ -10,6 +10,7 @@ import { useTranslator } from '../features/settings';
 import { credentialPrompt, dismissCredential, submitCredential } from '../ipc/credential';
 import type { CredentialPrompt, Keep } from '../ipc/credential';
 import { asIpcError } from '../ipc/errors';
+import { internalVaultStatus } from '../ipc/vault';
 
 /* Presentational only, and checked as such: `tests/credential-window.test.ts`
    walks this file's imports and fails on anything that reaches a session or a
@@ -45,6 +46,10 @@ export function CredentialWindow({ request }: { readonly request: number | null 
   const [failure, setFailure] = useState<string | null>(null);
   const [method, setMethod] = useState<Method>('password');
   const [busy, setBusy] = useState(false);
+  /* ADR-0035: which store `prompt.canRemember` actually means, so `'stored'`
+   * below can say which. A vault probe that fails leaves this `false`, the
+   * same keychain fallback `can_remember` itself takes on the Rust side. */
+  const [usesVault, setUsesVault] = useState(false);
 
   const form = useRef<HTMLFormElement>(null);
   /* Whichever field the answer starts in, which is not always an input: with a
@@ -67,7 +72,14 @@ export function CredentialWindow({ request }: { readonly request: number | null 
     }
 
     void credentialPrompt(request)
-      .then(setPrompt)
+      .then((fetched) => {
+        setPrompt(fetched);
+        /* ADR-0030. Seeded once, from the answer this fetch itself carries,
+           never re-applied on a later render: the user's own tab switch must
+           win once they have made one, and nothing after this ever changes
+           `fetched.suggestedMethod` to disagree with a choice already made. */
+        if (fetched.suggestedMethod === 'privateKey') setMethod('key');
+      })
       .catch((rejection: unknown) => {
         /* The real rejection, not a guess at it. An earlier version fell back
            to 'unknownRequest' for anything it could not parse, which meant
@@ -77,6 +89,10 @@ export function CredentialWindow({ request }: { readonly request: number | null 
            opposite case. */
         setFailure(asIpcError(rejection)?.code ?? String(rejection).slice(0, 200));
       });
+
+    void internalVaultStatus()
+      .then((status) => setUsesVault(status !== 'notConfigured'))
+      .catch(() => setUsesVault(false));
   }, [request]);
 
   useEffect(() => {
@@ -311,7 +327,9 @@ export function CredentialWindow({ request }: { readonly request: number | null 
                   defaultChecked={option === 'never'}
                   className="accent-accent h-3.5 w-3.5"
                 />
-                {i18n.t(`credential.keep.${option}`)}
+                {i18n.t(
+                  option === 'stored' && usesVault ? 'credential.keep.stored.vault' : `credential.keep.${option}`,
+                )}
               </label>
             ))}
           </fieldset>

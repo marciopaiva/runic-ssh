@@ -8,7 +8,14 @@
  * password given to whoever answered.
  */
 
-import type { Hop, IpcError, IpcErrorCode, Keeping } from '../../ipc';
+import type {
+  CredentialPrompt,
+  Hop,
+  IpcError,
+  IpcErrorCode,
+  Keeping,
+  SessionHandle,
+} from '../../ipc';
 
 /**
  * What an attempt is being made for.
@@ -16,11 +23,20 @@ import type { Hop, IpcError, IpcErrorCode, Keeping } from '../../ipc';
  * The steps are the same either way, and that is the point of naming the
  * difference rather than building a second sequence: a credential is collected
  * by connecting, and connecting means a host key decided first. What changes is
- * only the ending. `open` attaches the session to a terminal; `credential`
- * closes the connection it just made, because a saved password is the whole of
- * what was wanted and an authenticated connection nobody can see is #168.
+ * only the ending. `open` attaches the session to a terminal; `inline` closes
+ * the connection it just made, because a saved password is the whole of what
+ * was wanted and an authenticated connection nobody can see is #168.
+ *
+ * `inline` used to be `'credential'`'s sibling, one opening the separate
+ * credential window and the other collecting the secret on the wizard's own
+ * step, ADR-0032. ADR-0034 retired `'credential'` along with the single-page
+ * form it belonged to: the wizard is the only path that ever collects a
+ * credential without opening a terminal, so there is only one name for it
+ * now. The window itself is not gone: `authenticateInteractively` is still
+ * what `'open'` falls back to when nothing usable is saved. What is gone is
+ * only the second intent that used to open it on purpose.
  */
-export type ConnectIntent = 'open' | 'credential';
+export type ConnectIntent = 'open' | 'inline';
 
 /** Where a connection attempt is. */
 export type ConnectStage =
@@ -30,6 +46,25 @@ export type ConnectStage =
   | { readonly stage: 'deciding'; readonly decision: HeldDecision }
   /** Waiting on the credential window. */
   | { readonly stage: 'authenticating' }
+  /**
+   * The host key is settled and the connection is open, unauthenticated,
+   * waiting on the wizard's own inline form rather than a window. Only ever
+   * reached by the `'inline'` intent, ADR-0032.
+   */
+  | { readonly stage: 'awaitingInline'; readonly handle: SessionHandle }
+  /**
+   * A bastion needs a credential nobody has saved, mid-chain, before the
+   * target is even reached. ADR-0033: also only the `'inline'` intent's own
+   * doing. `request` names the same opaque request `submitCredential`
+   * already answers for the separate window, and `prompt` is what came back
+   * for it, `carrying` included, so the wizard's form can say which host
+   * this credential actually belongs to.
+   */
+  | {
+      readonly stage: 'awaitingBastionCredential';
+      readonly request: number;
+      readonly prompt: CredentialPrompt;
+    }
   /**
    * A credential attempt that reached the end. The connection is closed.
    *
@@ -169,12 +204,22 @@ export function shouldTrySaved(intent: ConnectIntent): boolean {
  * A stored secret that the host refuses is a stale password, and the answer is
  * to ask for the current one. A transport failure is not, and asking again
  * would put a prompt in front of someone whose network is down.
+ *
+ * The internal vault's own failures (ADR-0035) belong here for the same
+ * reason the keychain's do: the credential this hop wants is unreachable
+ * right now, and typing it fresh works regardless of which store was supposed
+ * to hand it back. `vaultWrongPassword` and `vaultUnwritable` are missing on
+ * purpose, they answer a master-password prompt in Settings and can never
+ * come out of resolving a saved credential.
  */
 export function shouldPromptAfterSaved(code: IpcErrorCode): boolean {
   return (
     code === 'noSavedCredential' ||
     code === 'authenticationFailed' ||
     code === 'keychainReadFailed' ||
-    code === 'keychainUnavailable'
+    code === 'keychainUnavailable' ||
+    code === 'vaultLocked' ||
+    code === 'vaultNotConfigured' ||
+    code === 'vaultUnreadable'
   );
 }

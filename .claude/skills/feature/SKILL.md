@@ -12,6 +12,15 @@ the work living only in a conversation that will not survive.
 
 The request is in `$ARGUMENTS`. If it is empty, ask what to work on and stop.
 
+## Language
+
+The Analysis, Propose, Plan and Done write-ups below are conversation, not
+repository content. Write them in whatever language the maintainer is using in
+this conversation. Nothing here is committed, so there is no English rule to
+satisfy. What Phase 4 actually writes to the tree, code, comments, commit
+messages, still follows CLAUDE.md section 1: English, regardless of what
+language got it there.
+
 ---
 
 ## Phase 1: Analyze

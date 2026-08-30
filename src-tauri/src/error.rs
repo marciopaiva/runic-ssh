@@ -58,6 +58,11 @@ pub enum Error {
         problem: crate::config::sessions::ProxyJumpProblem,
     },
 
+    /// Another saved session already names this exact host, port and user.
+    /// `name` is that session's, so the refusal can say which one.
+    #[error("another saved session already reaches this host")]
+    DuplicateSession { name: String },
+
     /// A chain failed, and this says at which host. See [`Hop`].
     ///
     /// A wrapper rather than a field on every variant: "connection refused" is
@@ -119,6 +124,27 @@ pub enum Error {
 
     #[error("no credential is saved for this session")]
     NoSavedCredential,
+
+    /// ADR-0035. The internal vault exists but this session has not unlocked
+    /// it yet: nothing has asked for a credential it holds since launch.
+    #[error("the internal vault is locked")]
+    VaultLocked,
+
+    /// ADR-0035. Asked to unlock or migrate a vault that was never enabled.
+    #[error("the internal vault has not been set up")]
+    VaultNotConfigured,
+
+    /// ADR-0035. The master password did not open the verifier. Kept apart
+    /// from [`Error::VaultUnreadable`] because the remedy differs: type it
+    /// again, versus reset the vault.
+    #[error("that password did not unlock the internal vault")]
+    VaultWrongPassword,
+
+    #[error("the internal vault could not be read")]
+    VaultUnreadable { reason: String },
+
+    #[error("the internal vault could not be written")]
+    VaultUnwritable { reason: String },
 
     #[error("no credential request has that id")]
     UnknownRequest,
@@ -196,6 +222,11 @@ pub enum IpcError {
     InvalidProxyJump {
         problem: &'static str,
     },
+    /// Another saved session already reaches this exact host, port and user.
+    /// `name` is that session's own name.
+    DuplicateSession {
+        name: String,
+    },
     /// A failure that happened at one hop of a chain. `hop` names which host
     /// it happened at; `inner` is the failure itself.
     ///
@@ -241,6 +272,19 @@ pub enum IpcError {
         reason: String,
     },
     NoSavedCredential,
+    /// ADR-0035: the internal vault exists but this session has not unlocked
+    /// it yet.
+    VaultLocked,
+    /// ADR-0035: asked to unlock or migrate a vault that was never enabled.
+    VaultNotConfigured,
+    /// ADR-0035: the master password did not open the verifier.
+    VaultWrongPassword,
+    VaultUnreadable {
+        reason: String,
+    },
+    VaultUnwritable {
+        reason: String,
+    },
     /// The request id does not name a prompt that is still open.
     UnknownRequest,
     /// The user closed or cancelled the prompt. The connection attempt fails;
@@ -290,6 +334,7 @@ impl From<Error> for IpcError {
                     crate::config::sessions::ProxyJumpProblem::Serving => "serving",
                 },
             },
+            Error::DuplicateSession { name } => Self::DuplicateSession { name },
             Error::Chain { hop, inner } => Self::ChainFailed {
                 hop,
                 inner: Box::new(Self::from(*inner)),
@@ -310,6 +355,11 @@ impl From<Error> for IpcError {
             Error::KeychainReadFailed { reason } => Self::KeychainReadFailed { reason },
             Error::KeychainWriteFailed { reason } => Self::KeychainWriteFailed { reason },
             Error::NoSavedCredential => Self::NoSavedCredential,
+            Error::VaultLocked => Self::VaultLocked,
+            Error::VaultNotConfigured => Self::VaultNotConfigured,
+            Error::VaultWrongPassword => Self::VaultWrongPassword,
+            Error::VaultUnreadable { reason } => Self::VaultUnreadable { reason },
+            Error::VaultUnwritable { reason } => Self::VaultUnwritable { reason },
             Error::UnknownRequest => Self::UnknownRequest,
             Error::CredentialDismissed => Self::CredentialDismissed,
             Error::PromptUnavailable => Self::PromptUnavailable,

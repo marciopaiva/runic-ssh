@@ -12,6 +12,14 @@ after.
 
 The decision is described in `$ARGUMENTS`.
 
+## Language
+
+The file itself, everything under Template below, is English. It lands in
+`docs/adr/`, and CLAUDE.md section 1 puts every repository document in English
+regardless of what language this conversation is in. Presenting the draft,
+asking whether to proceed, anything said about it rather than written into it,
+follows the maintainer's own language instead.
+
 ## When an ADR is required
 
 * A new runtime dependency, crate or npm package

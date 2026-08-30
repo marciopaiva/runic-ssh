@@ -1,0 +1,17 @@
+# Every text file checks out with LF, on every platform, regardless of a
+# contributor's own `core.autocrlf`. Windows CI checking this out with CRLF
+# is what broke tests/no-terminal-in-home.test.ts: it reads App.tsx's own
+# source and searches for a literal "\n", which a CRLF checkout never
+# contains. `eol=lf` is the fix, not the test: any future test reading its
+# own source text would have hit the same wall.
+* text=auto eol=lf
+
+*.png binary
+*.ico binary
+*.icns binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.woff binary
+*.woff2 binary
+*.ttf binary

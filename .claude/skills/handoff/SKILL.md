@@ -19,6 +19,13 @@ session can clear its own. `/compact` is a command the maintainer types. This
 skill produces a document; offering `/compact` afterward is still the
 maintainer's call, exactly as Phase 5 of `/feature` already says.
 
+## Language
+
+The handoff document itself is English, always. An issue comment is issue
+text, and CLAUDE.md section 1 already puts that in English regardless of what
+language this conversation is in. Anything said here about the handoff,
+including where it should go, follows the maintainer's own language instead.
+
 ## If the work is actually finished
 
 Use Phase 5 of `/feature` directly. This skill is for the other case: work
