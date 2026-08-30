@@ -204,12 +204,22 @@ export function shouldTrySaved(intent: ConnectIntent): boolean {
  * A stored secret that the host refuses is a stale password, and the answer is
  * to ask for the current one. A transport failure is not, and asking again
  * would put a prompt in front of someone whose network is down.
+ *
+ * The internal vault's own failures (ADR-0035) belong here for the same
+ * reason the keychain's do: the credential this hop wants is unreachable
+ * right now, and typing it fresh works regardless of which store was supposed
+ * to hand it back. `vaultWrongPassword` and `vaultUnwritable` are missing on
+ * purpose, they answer a master-password prompt in Settings and can never
+ * come out of resolving a saved credential.
  */
 export function shouldPromptAfterSaved(code: IpcErrorCode): boolean {
   return (
     code === 'noSavedCredential' ||
     code === 'authenticationFailed' ||
     code === 'keychainReadFailed' ||
-    code === 'keychainUnavailable'
+    code === 'keychainUnavailable' ||
+    code === 'vaultLocked' ||
+    code === 'vaultNotConfigured' ||
+    code === 'vaultUnreadable'
   );
 }

@@ -1,7 +1,9 @@
+import { useEffect, useState } from 'react';
 import type { JSX } from 'react';
 
 import { describeKeeping } from '../features/sessions';
 import { useTranslator } from '../features/settings';
+import { internalVaultStatus } from '../ipc';
 import type { Keeping, Session } from '../ipc';
 
 import { SessionSurface, SurfaceAction } from './SessionSurface';
@@ -34,7 +36,17 @@ export function CredentialSaved({
   onDismiss,
 }: CredentialSavedProps): JSX.Element {
   const i18n = useTranslator();
-  const outcome = describeKeeping(keeping, stored);
+  /* ADR-0035: which store `stored` actually names. `describeKeeping` stays
+     pure, so the probe lives here rather than in it. */
+  const [usesVault, setUsesVault] = useState(false);
+
+  useEffect(() => {
+    void internalVaultStatus()
+      .then((status) => setUsesVault(status !== 'notConfigured'))
+      .catch(() => setUsesVault(false));
+  }, []);
+
+  const outcome = describeKeeping(keeping, stored, usesVault);
 
   return (
     <SessionSurface

@@ -42,6 +42,19 @@ pub fn run() -> tauri::Result<()> {
         start would turn it into a total one. */
         .setup(|app| {
             commands::chrome::restore_decorations(app.handle());
+
+            /* `InternalVault` (ADR-0035) holds an unlocked session's key in
+            memory for as long as the process runs, which is what a value
+            registered here, once, gives it. `SessionStore` and the rest
+            resolve the same directory fresh on every call because they hold
+            nothing between calls; this is the one store that does. */
+            use tauri::Manager;
+            let directory = app
+                .path()
+                .app_config_dir()
+                .map_err(|_| error::Error::ConfigDirUnavailable)?;
+            app.manage(vault::InternalVault::new(directory));
+
             Ok(())
         })
         .manage(ssh::registry::Registry::new())
@@ -68,6 +81,11 @@ pub fn run() -> tauri::Result<()> {
             commands::sessions::dismiss_host_key,
             commands::sessions::host_key_decision,
             commands::sessions::credential_store_status,
+            commands::sessions::internal_vault_status,
+            commands::sessions::enable_internal_vault,
+            commands::sessions::unlock_internal_vault,
+            commands::sessions::disable_internal_vault,
+            commands::sessions::reset_internal_vault,
             commands::sessions::remember_credential,
             commands::sessions::keep_credential_for_run,
             commands::sessions::forget_credential,

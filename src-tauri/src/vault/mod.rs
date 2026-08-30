@@ -15,8 +15,10 @@ use keyring::Entry;
 
 use crate::error::Error;
 
+pub mod internal;
 mod secret;
 
+pub use internal::{InternalVault, InternalVaultState};
 pub use secret::Secret;
 
 /// The service name every entry is filed under.
@@ -42,6 +44,16 @@ impl CredentialId {
 
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+
+    /// Rebuilds an id from what [`Self::as_str`] returned earlier, without
+    /// deriving it again.
+    ///
+    /// [`internal::InternalVault`] stores entries keyed by that string, and
+    /// reading one back for migration is not "the id for a session," which
+    /// `for_session` would prepend `session:` to a second time.
+    pub(crate) fn from_stored(raw: String) -> Self {
+        Self(raw)
     }
 }
 
@@ -273,6 +285,89 @@ impl SessionSecrets {
     }
 }
 
+/// Whether this installation can remember a credential at all, through
+/// either store.
+///
+/// Asked before offering to save one, the same reason [`Vault::availability`]
+/// exists on its own: a checkbox offered on a machine that cannot honour it
+/// is worse than one not offered. `Locked` still counts: the internal vault
+/// exists and will accept a secret once unlocked, which is a question for the
+/// moment it is stored, not for whether to offer the choice at all.
+pub fn can_remember(vault: &Vault, internal: &InternalVault) -> bool {
+    match internal.status() {
+        Ok(InternalVaultState::NotConfigured) | Err(_) => {
+            matches!(vault.availability(), Availability::Available)
+        }
+        Ok(InternalVaultState::Locked | InternalVaultState::Unlocked) => true,
+    }
+}
+
+/// Which store a `store`/`resolve`/`forget` past `SessionSecrets` reaches.
+///
+/// ADR-0035: an installation uses one or the other, never both, and the
+/// internal vault's own file existing is what says which. Computed once per
+/// call rather than cached, because the file can change out from under a
+/// running session (`enable_internal_vault`/`disable_internal_vault`/
+/// `reset_internal_vault` all run mid-session, not only at launch).
+fn backend<'a>(vault: &'a Vault, internal: &'a InternalVault) -> Result<&'a dyn Backend, Error> {
+    Ok(match internal.status()? {
+        InternalVaultState::NotConfigured => vault,
+        InternalVaultState::Locked | InternalVaultState::Unlocked => internal,
+    })
+}
+
+/// What [`resolve_credential`], [`forget_credential`] and [`store_credential`]
+/// need from either backend, so the dispatch above is the one place that
+/// branches.
+trait Backend {
+    fn store(&self, id: &CredentialId, secret: &Secret) -> Result<(), Error>;
+    fn resolve(&self, id: &CredentialId) -> Result<Secret, Error>;
+    fn forget(&self, id: &CredentialId) -> Result<(), Error>;
+}
+
+impl Backend for Vault {
+    fn store(&self, id: &CredentialId, secret: &Secret) -> Result<(), Error> {
+        Vault::store(self, id, secret)
+    }
+
+    fn resolve(&self, id: &CredentialId) -> Result<Secret, Error> {
+        Vault::resolve(self, id)
+    }
+
+    fn forget(&self, id: &CredentialId) -> Result<(), Error> {
+        Vault::forget(self, id)
+    }
+}
+
+impl Backend for InternalVault {
+    fn store(&self, id: &CredentialId, secret: &Secret) -> Result<(), Error> {
+        InternalVault::store(self, id, secret)
+    }
+
+    fn resolve(&self, id: &CredentialId) -> Result<Secret, Error> {
+        InternalVault::resolve(self, id)
+    }
+
+    fn forget(&self, id: &CredentialId) -> Result<(), Error> {
+        InternalVault::forget(self, id)
+    }
+}
+
+/// Saves a secret to whichever store is this installation's own.
+///
+/// The counterpart `resolve_credential` and `forget_credential` already had:
+/// `persist_credential` in `commands/sessions.rs` called `vault.store`
+/// directly because there was only one place to store to. ADR-0035 gave it a
+/// second, so this is the dispatch that call site now goes through instead.
+pub fn store_credential(
+    vault: &Vault,
+    internal: &InternalVault,
+    id: &CredentialId,
+    secret: &Secret,
+) -> Result<(), Error> {
+    backend(vault, internal)?.store(id, secret)
+}
+
 /// A secret for this session, from wherever it is.
 ///
 /// The run comes first. Somebody who chose to keep a credential for this run
@@ -282,32 +377,34 @@ impl SessionSecrets {
 pub fn resolve_credential(
     secrets: &SessionSecrets,
     vault: &Vault,
+    internal: &InternalVault,
     id: &CredentialId,
 ) -> Result<Secret, Error> {
     match secrets.resolve(id) {
         Some(secret) => Ok(secret),
-        None => vault.resolve(id),
+        None => backend(vault, internal)?.resolve(id),
     }
 }
 
-/// Forgets a secret wherever it is: the copy this run is holding, and the
-/// keychain's.
+/// Forgets a secret wherever it is: the copy this run is holding, and
+/// whichever of the two stores is this installation's own.
 ///
 /// The pair to [`resolve_credential`], and it has to be a pair. That function
-/// answers from the run first, so clearing only the keychain leaves the answer
+/// answers from the run first, so clearing only the store leaves the answer
 /// unchanged: the user is told the password is gone, the next connection does
 /// not ask, and the control has said one thing and done another.
 ///
-/// The run's copy goes first and whatever happens next. A keychain that refuses
+/// The run's copy goes first and whatever happens next. A store that refuses
 /// is reported, but it must not leave a secret behind that would still be
 /// handed out by `resolve_credential`.
 pub fn forget_credential(
     secrets: &SessionSecrets,
     vault: &Vault,
+    internal: &InternalVault,
     id: &CredentialId,
 ) -> Result<(), Error> {
     secrets.forget(id);
-    vault.forget(id)
+    backend(vault, internal)?.forget(id)
 }
 
 /// Turns a keyring failure into something safe to show.
@@ -343,6 +440,14 @@ mod tests {
         Vault::new(format!("com.runicssh.test.{}", std::process::id()))
     }
 
+    /// A never-configured internal vault, so `resolve_credential` and
+    /// `forget_credential`'s own tests exercise the OS keychain path exactly
+    /// as they did before ADR-0035 gave that dispatch a second backend.
+    fn scratch_internal() -> (InternalVault, tempfile::TempDir) {
+        let dir = tempfile::tempdir().expect("tempdir");
+        (InternalVault::new(dir.path()), dir)
+    }
+
     #[test]
     fn the_wire_shape_is_pinned() {
         /* The frontend declares this shape by hand, and nothing else checks
@@ -372,11 +477,12 @@ mod tests {
         working around. ADR-0025. */
         let secrets = SessionSecrets::new();
         let vault = scratch();
+        let (internal, _dir) = scratch_internal();
         let id = CredentialId::for_session("web-01");
 
         secrets.keep(&id, &Secret::new("from-this-run"));
 
-        let resolved = resolve_credential(&secrets, &vault, &id).expect("it resolves");
+        let resolved = resolve_credential(&secrets, &vault, &internal, &id).expect("it resolves");
         assert_eq!(resolved.expose(), "from-this-run");
     }
 
@@ -388,6 +494,7 @@ mod tests {
         and the host would still not be asked for one. */
         let secrets = SessionSecrets::new();
         let vault = scratch();
+        let (internal, _dir) = scratch_internal();
         let id = CredentialId::for_session("web-01");
 
         secrets.keep(&id, &Secret::new("from-this-run"));
@@ -396,10 +503,10 @@ mod tests {
         /* The keychain half is allowed to fail here. A machine with no secret
         service is exactly where the run copy is the only copy, and it is the
         one this test is about. */
-        let _ = forget_credential(&secrets, &vault, &id);
+        let _ = forget_credential(&secrets, &vault, &internal, &id);
 
         assert!(secrets.resolve(&id).is_none(), "the run copy is gone");
-        assert!(resolve_credential(&secrets, &vault, &id).is_err());
+        assert!(resolve_credential(&secrets, &vault, &internal, &id).is_err());
     }
 
     #[test]
@@ -409,9 +516,10 @@ mod tests {
         being found the moment this store existed. */
         let secrets = SessionSecrets::new();
         let vault = scratch();
+        let (internal, _dir) = scratch_internal();
         let id = CredentialId::for_session("never-kept");
 
-        let resolved = resolve_credential(&secrets, &vault, &id);
+        let resolved = resolve_credential(&secrets, &vault, &internal, &id);
         assert!(resolved.is_err(), "nothing is kept and nothing is stored");
     }
 

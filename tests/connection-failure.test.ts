@@ -68,7 +68,10 @@ describe('describing a failure', () => {
        same way, which is how a message stops being read. */
     const bodies = MAPPED_FAILURES.map((failure) => failure.body);
     const shared = bodies.filter(
-      (body, index) => bodies.indexOf(body) !== index && body !== 'failure.keychain.body',
+      (body, index) =>
+        bodies.indexOf(body) !== index &&
+        body !== 'failure.keychain.body' &&
+        body !== 'failure.vault.body',
     );
 
     expect(shared).toEqual([]);

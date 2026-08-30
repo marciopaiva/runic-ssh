@@ -29,6 +29,16 @@ tauri-build = { version = "2", features = [] }
 # (ADR-0003), so declaring them here does not enlarge the final graph.
 # See adr/0009-parse-known-hosts-ourselves.md.
 base64ct = { version = "1.8.3", features = ["alloc"] }
+# The opt-in internal vault's key derivation (Argon2id) and its per-entry
+# cipher (ChaCha20-Poly1305). Both RustCrypto, the same family `zeroize`
+# already belongs to. See adr/0035-an-opt-in-internal-vault-behind-a-master-password.md.
+argon2 = "0.6.0"
+chacha20poly1305 = "0.11.0"
+# The salt and the per-entry nonces the internal vault generates: a plain
+# `fill(&mut [u8])`, nothing tied to either crypto crate's own choice of
+# RNG traits, which is what let `argon2` and `chacha20poly1305` each pull a
+# different `rand_core` in without this needing to agree with either.
+getrandom = "0.3"
 hmac = "0.13.0"
 keyring = "4.1.6"
 # RSA stays enabled so we can verify an RSA host key, which is a public-key

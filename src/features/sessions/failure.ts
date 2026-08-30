@@ -90,6 +90,28 @@ const FAILURES: Partial<Record<IpcErrorCode, Failure>> = {
     body: 'failure.keychain.body',
     retryable: true,
   },
+  /* ADR-0035. `vaultLocked` gets its own copy, reused from the Settings
+     screen that unlocks it, because that is exactly what is wrong: the
+     credential is there and the master password has not been given yet this
+     run. `vaultNotConfigured` and `vaultUnreadable` are the rarer cases,
+     a race with the vault being disabled mid-session or a corrupted file,
+     and share one generic message the same way the keychain's two codes
+     do above. */
+  vaultLocked: {
+    title: 'vault.unlock.title',
+    body: 'vault.unlock.body',
+    retryable: true,
+  },
+  vaultNotConfigured: {
+    title: 'failure.vault.title',
+    body: 'failure.vault.body',
+    retryable: true,
+  },
+  vaultUnreadable: {
+    title: 'failure.vault.title',
+    body: 'failure.vault.body',
+    retryable: true,
+  },
   unknownSession: {
     title: 'failure.unknownSession.title',
     body: 'failure.unknownSession.body',
@@ -124,7 +146,7 @@ const UNEXPECTED: Failure = {
 };
 
 /**
- * A keychain that is there and refusing, at the hop that cannot ask.
+ * A store that is there and refusing, at the hop that cannot ask.
  *
  * This set used to hold three codes. ADR-0027 took two of them away: a jump
  * host with nothing saved, and a machine with no store at all, now open a
@@ -133,11 +155,21 @@ const UNEXPECTED: Failure = {
  * this one hop is not offering to let the credential be typed. A locked keyring
  * is a different problem from an empty one, and typing past it would leave the
  * real cause in place.
+ *
+ * ADR-0035 gave the keyring a second kind of store, and `worth_asking` in
+ * `commands/sessions.rs` already excludes all three of its failures from the
+ * bastion prompt for that same reason. This is the frontend half of that
+ * exclusion: the copy for it, not a new decision.
  */
-const KEYCHAIN_REFUSED: ReadonlySet<IpcErrorCode> = new Set<IpcErrorCode>(['keychainReadFailed']);
+const STORE_REFUSED: ReadonlySet<IpcErrorCode> = new Set<IpcErrorCode>([
+  'keychainReadFailed',
+  'vaultLocked',
+  'vaultNotConfigured',
+  'vaultUnreadable',
+]);
 
 export function describeFailure(code: IpcErrorCode, hop: Hop | null = null): Failure {
-  if (hop === 'bastion' && KEYCHAIN_REFUSED.has(code)) {
+  if (hop === 'bastion' && STORE_REFUSED.has(code)) {
     return {
       title: 'failure.jumpCredential.title',
       body: 'failure.jumpCredential.body',

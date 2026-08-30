@@ -23,7 +23,9 @@ use crate::ssh::credentials::{
     Answer, CredentialPrompt, CredentialRequests, Keep, RequestId, SuggestedMethod,
 };
 use crate::ssh::registry::{Busy, Registry, SessionHandle};
-use crate::vault::{Availability, CredentialId, Secret, SessionSecrets, StoredCredential, Vault};
+use crate::vault::{
+    can_remember, CredentialId, InternalVault, Secret, SessionSecrets, StoredCredential, Vault,
+};
 
 /// What became of a credential the user asked to keep.
 ///
@@ -64,11 +66,16 @@ const CREDENTIAL_DOCUMENT: &str = "credential.html";
 /// an error and never a silent retry: a client that re-prompts on its own is
 /// how someone ends up typing a password into a window they did not summon.
 #[tauri::command]
+/* Eight, seven of which are state Tauri injects. One call site, generated;
+see `connect_session` for the same shape and the same reason not to wrap the
+framework's own injection just to satisfy a lint about human call sites. */
+#[allow(clippy::too_many_arguments)]
 pub async fn authenticate_interactively<R: Runtime>(
     app: AppHandle<R>,
     registry: State<'_, Registry>,
     requests: State<'_, CredentialRequests>,
     vault: State<'_, Vault>,
+    internal: State<'_, InternalVault>,
     secrets: State<'_, SessionSecrets>,
     handle: SessionHandle,
     /* Chosen on the editor's own form before this connection was ever opened,
@@ -88,7 +95,7 @@ pub async fn authenticate_interactively<R: Runtime>(
         user: session.user.clone(),
         host: session.host.clone(),
         port: session.port,
-        can_remember: matches!(vault.availability(), Availability::Available),
+        can_remember: can_remember(&vault, &internal),
         /* The host the user clicked. Nothing is being crossed on the way to
         anywhere, which is what `None` says. */
         carrying: None,
@@ -132,7 +139,7 @@ pub async fn authenticate_interactively<R: Runtime>(
         return Ok(Keeping::Kept);
     }
 
-    match persist_credential(&app, &vault, &session_id, &secret) {
+    match persist_credential(&app, &vault, &internal, &session_id, &secret) {
         Ok(()) => Ok(Keeping::Kept),
         Err(_) => Ok(Keeping::Refused),
     }

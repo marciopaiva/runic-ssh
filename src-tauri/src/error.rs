@@ -125,6 +125,27 @@ pub enum Error {
     #[error("no credential is saved for this session")]
     NoSavedCredential,
 
+    /// ADR-0035. The internal vault exists but this session has not unlocked
+    /// it yet: nothing has asked for a credential it holds since launch.
+    #[error("the internal vault is locked")]
+    VaultLocked,
+
+    /// ADR-0035. Asked to unlock or migrate a vault that was never enabled.
+    #[error("the internal vault has not been set up")]
+    VaultNotConfigured,
+
+    /// ADR-0035. The master password did not open the verifier. Kept apart
+    /// from [`Error::VaultUnreadable`] because the remedy differs: type it
+    /// again, versus reset the vault.
+    #[error("that password did not unlock the internal vault")]
+    VaultWrongPassword,
+
+    #[error("the internal vault could not be read")]
+    VaultUnreadable { reason: String },
+
+    #[error("the internal vault could not be written")]
+    VaultUnwritable { reason: String },
+
     #[error("no credential request has that id")]
     UnknownRequest,
 
@@ -251,6 +272,19 @@ pub enum IpcError {
         reason: String,
     },
     NoSavedCredential,
+    /// ADR-0035: the internal vault exists but this session has not unlocked
+    /// it yet.
+    VaultLocked,
+    /// ADR-0035: asked to unlock or migrate a vault that was never enabled.
+    VaultNotConfigured,
+    /// ADR-0035: the master password did not open the verifier.
+    VaultWrongPassword,
+    VaultUnreadable {
+        reason: String,
+    },
+    VaultUnwritable {
+        reason: String,
+    },
     /// The request id does not name a prompt that is still open.
     UnknownRequest,
     /// The user closed or cancelled the prompt. The connection attempt fails;
@@ -321,6 +355,11 @@ impl From<Error> for IpcError {
             Error::KeychainReadFailed { reason } => Self::KeychainReadFailed { reason },
             Error::KeychainWriteFailed { reason } => Self::KeychainWriteFailed { reason },
             Error::NoSavedCredential => Self::NoSavedCredential,
+            Error::VaultLocked => Self::VaultLocked,
+            Error::VaultNotConfigured => Self::VaultNotConfigured,
+            Error::VaultWrongPassword => Self::VaultWrongPassword,
+            Error::VaultUnreadable { reason } => Self::VaultUnreadable { reason },
+            Error::VaultUnwritable { reason } => Self::VaultUnwritable { reason },
             Error::UnknownRequest => Self::UnknownRequest,
             Error::CredentialDismissed => Self::CredentialDismissed,
             Error::PromptUnavailable => Self::PromptUnavailable,

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent, JSX } from 'react';
 
 import { useTranslator } from '../features/settings';
-import { credentialStoreStatus } from '../ipc';
+import { credentialStoreStatus, internalVaultStatus } from '../ipc';
 import type { Keep, Secret, SuggestedMethod } from '../ipc';
 
 import { MethodPicker } from './MethodPicker';
@@ -63,11 +63,20 @@ export function InlineCredentialForm({
    * the same caution `credential.method` in the separate window carries for
    * the same probe. */
   const [canRemember, setCanRemember] = useState<boolean | undefined>(undefined);
+  /* ADR-0035: which store `canRemember` actually means, since `can_remember`
+   * on the Rust side answers `true` for either. Read independently, so a
+   * vault probe that fails leaves this `false` (the keychain wording, the
+   * same fallback `can_remember` itself takes) rather than blocking the form
+   * on a second round trip. */
+  const [usesVault, setUsesVault] = useState(false);
 
   useEffect(() => {
     void credentialStoreStatus()
       .then((status) => setCanRemember(status.kind === 'available'))
       .catch(() => setCanRemember(false));
+    void internalVaultStatus()
+      .then((status) => setUsesVault(status !== 'notConfigured'))
+      .catch(() => setUsesVault(false));
   }, []);
 
   useEffect(() => {
@@ -159,7 +168,13 @@ export function InlineCredentialForm({
           Reuses the separate window's own reviewed strings for the two that
           survive here rather than writing new copy for the same claim. */}
       <p className="text-ink-faint text-[11px] leading-snug">
-        {i18n.t(canRemember === true ? 'credential.keep.stored' : 'credential.keep.forThisRun')}
+        {i18n.t(
+          canRemember === true
+            ? usesVault
+              ? 'credential.keep.stored.vault'
+              : 'credential.keep.stored'
+            : 'credential.keep.forThisRun',
+        )}
       </p>
 
       <div className="mt-1 flex items-center gap-2">

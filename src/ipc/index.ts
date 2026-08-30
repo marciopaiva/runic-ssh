@@ -57,3 +57,11 @@ export {
 } from './terminal';
 export type { SessionStats } from './terminal';
 export type { SettingsView, Theme } from './settings';
+export {
+  disableInternalVault,
+  enableInternalVault,
+  internalVaultStatus,
+  resetInternalVault,
+  unlockInternalVault,
+} from './vault';
+export type { InternalVaultState, MasterPassword } from './vault';

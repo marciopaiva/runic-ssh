@@ -84,6 +84,7 @@ import {
   deleteSession,
   disconnectSession,
   forgetCredential,
+  internalVaultStatus,
   saveSession,
   sendInput,
   submitCredential,
@@ -308,8 +309,13 @@ export function App(): JSX.Element {
   /* Which sessions have a refusal to report, and whose it was: `null` for the
      session's own credential, a jump host's name when it happened one hop
      away. A map rather than a set because the two need different sentences,
-     and the second one has to name the host the user cannot see. */
-  const [unsaved, setUnsaved] = useState<ReadonlyMap<string, string | null>>(new Map());
+     and the second one has to name the host the user cannot see.
+     `usesVault` is read fresh at the moment of refusal (ADR-0035): which
+     store actually said no is a fact about that instant, not about the
+     session, and probing here is what lets `StatusBar` stay a plain prop. */
+  const [unsaved, setUnsaved] = useState<
+    ReadonlyMap<string, { readonly via: string | null; readonly usesVault: boolean }>
+  >(new Map());
   /* Which host each open session is riding, when it is riding one. Written
      once, when the session opens, and left alone afterwards: it is a fact
      about a connection that exists, not about what the session file says now.
@@ -347,8 +353,14 @@ export function App(): JSX.Element {
     /* Back to a plain stored host. Nothing was learned about it — the attempt
        was let go, not answered — so anything else would be a claim. */
     onAbandoned: (sessionId) => setState(sessionId, 'saved'),
-    onCredentialRefused: (sessionId, via) =>
-      setUnsaved((current) => new Map(current).set(sessionId, via)),
+    onCredentialRefused: (sessionId, via) => {
+      void internalVaultStatus()
+        .then((status) => status !== 'notConfigured')
+        .catch(() => false)
+        .then((usesVault) =>
+          setUnsaved((current) => new Map(current).set(sessionId, { via, usesVault })),
+        );
+    },
     /* The connection is already closed by the time this runs. The host goes
        back to being a plain saved host, and the list is reloaded because what
        may have changed is on disk: the session now carries a credential id, or
@@ -1779,11 +1791,7 @@ export function App(): JSX.Element {
         syncing={hostsReceiving}
         via={activeCarrier}
         announcement={announcement}
-        credentialUnsaved={
-          activeId !== null && unsaved.has(activeId)
-            ? { via: unsaved.get(activeId) ?? null }
-            : null
-        }
+        credentialUnsaved={activeId !== null ? (unsaved.get(activeId) ?? null) : null}
         onDismissUnsaved={() =>
           setUnsaved((current) => {
             if (activeId === null) return current;

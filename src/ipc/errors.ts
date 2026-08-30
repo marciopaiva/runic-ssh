@@ -121,6 +121,17 @@ export type IpcError =
   | { readonly code: 'keychainWriteFailed'; readonly reason: string }
   /** Distinct from an unavailable store: ask the user rather than explain. */
   | { readonly code: 'noSavedCredential' }
+  /**
+   * The internal vault (ADR-0035) exists but this session has not unlocked
+   * it yet: nothing has asked for a credential it holds since launch.
+   */
+  | { readonly code: 'vaultLocked' }
+  /** Asked to unlock or migrate a vault that was never enabled. */
+  | { readonly code: 'vaultNotConfigured' }
+  /** The master password did not open the internal vault's verifier. */
+  | { readonly code: 'vaultWrongPassword' }
+  | { readonly code: 'vaultUnreadable'; readonly reason: string }
+  | { readonly code: 'vaultUnwritable'; readonly reason: string }
   /** The request id does not name a prompt that is still open. */
   | { readonly code: 'unknownRequest' }
   /**
@@ -182,6 +193,11 @@ export const CODES: ReadonlySet<IpcErrorCode> = new Set<IpcErrorCode>([
   'keychainReadFailed',
   'keychainWriteFailed',
   'noSavedCredential',
+  'vaultLocked',
+  'vaultNotConfigured',
+  'vaultWrongPassword',
+  'vaultUnreadable',
+  'vaultUnwritable',
   'unknownRequest',
   'credentialDismissed',
   'promptUnavailable',

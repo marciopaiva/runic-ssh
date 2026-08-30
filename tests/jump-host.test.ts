@@ -92,6 +92,17 @@ describe('reporting a failure that happened in a chain', () => {
     expect(describeFailure('keychainReadFailed', 'bastion').retryable).toBe(false);
   });
 
+  it('says the same for the internal vault at a bastion hop', () => {
+    /* ADR-0035. `worth_asking` in `commands/sessions.rs` excludes all three of
+       the internal vault's own failures from the bastion prompt for the same
+       reason it excludes `keychainReadFailed`: a store that exists and is
+       refusing is not a store with nothing saved. */
+    for (const code of ['vaultLocked', 'vaultNotConfigured', 'vaultUnreadable'] as const) {
+      expect(describeFailure(code, 'bastion').title).toBe('failure.jumpCredential.title');
+      expect(describeFailure(code, 'bastion').retryable).toBe(false);
+    }
+  });
+
   it('no longer claims a jump host has nowhere to type a credential', () => {
     /* These two took that path until ADR-0027. They now open a prompt in the
        core instead of failing, which is what closed #165, so reaching this
