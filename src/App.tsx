@@ -48,6 +48,7 @@ import {
   editorDirty,
   editorKey,
   findEditor,
+  groupNames,
   groupSessions,
   invalidFields,
   isInProgress,
@@ -1744,6 +1745,7 @@ export function App(): JSX.Element {
                           target,
                         }),
                       )?.title ?? '');
+                const availableGroups = groupNames(sessions);
 
                 return (
                   <HostsSection
@@ -1766,6 +1768,7 @@ export function App(): JSX.Element {
                           jumpHosts={jump.offered}
                           carried={jump.carried}
                           duplicate={duplicate}
+                          groupNames={availableGroups}
                           storedCredential={storedCredential}
                           skipTest={skipTest}
                           onSkipTest={() => submitIn(target)}

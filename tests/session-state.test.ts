@@ -20,6 +20,7 @@ import {
   describeState,
   filterGroups,
   groupKey,
+  groupNames,
   groupSessions,
   soloGroup,
 } from '../src/features/sessions/state';
@@ -155,6 +156,23 @@ describe('showing one group alone', () => {
     expect(soloGroup(groups, UNGROUPED_KEY).map((group) => group.name)).toEqual([null]);
     expect(groupKey({ name: null, sessions: [] })).toBe(UNGROUPED_KEY);
     expect(groupKey({ name: 'DEV', sessions: [] })).toBe('DEV');
+  });
+});
+
+describe('naming every group already in use (#221)', () => {
+  it('lists each name once, sorted rather than in file order', () => {
+    /* Unlike groupSessions: this is a picker helping someone find a name
+       among many before choosing one, not a display of hosts already
+       placed under it. */
+    expect(groupNames([live('a', 'HOM'), live('b', 'DEV'), live('c', 'DEV')])).toEqual(['DEV', 'HOM']);
+  });
+
+  it('leaves out hosts with no group', () => {
+    expect(groupNames([live('a', 'DEV'), live('loose'), live('b', '   ')])).toEqual(['DEV']);
+  });
+
+  it('has nothing to say about nothing', () => {
+    expect(groupNames([])).toEqual([]);
   });
 });
 
