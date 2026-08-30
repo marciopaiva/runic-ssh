@@ -116,7 +116,7 @@ export function HostsSection({
         )}
       </nav>
 
-      <div className="bg-surface-panel border-line-subtle min-w-0 flex-1 overflow-y-auto rounded border">
+      <div className="bg-surface-panel border-line-subtle min-w-0 max-w-[540px] flex-1 overflow-y-auto rounded border">
         {selectedId === null && !creatingNew ? (
           <div className="flex h-full flex-col items-center justify-center gap-1.5 px-6 text-center">
             <p className="text-ink-secondary text-[12.5px] font-semibold">
