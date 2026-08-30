@@ -794,12 +794,12 @@ def kind_picker(active="other"):
 
 def wizard_breadcrumb(step=2, phase=None):
     """Host / Access, `SessionWizard.tsx`'s own two real, navigable steps
-    (lines ~197-220), plus a third item proposed here that only ever
-    labels the automatic phase Access hands off to once there is nothing
-    left to choose (ADR-0034: "not a third step... it runs itself"). Not
-    clickable, not part of `step`, not yet in any locale catalogue: the
-    point of drawing it is to ask whether it should exist, not to claim it
-    already does."""
+    (lines ~197-220), plus the third item the wizard itself now draws while
+    Access hands off to its automatic phase (ADR-0034: "not a third step...
+    it runs itself"), naming which of that phase's forms is up. Shipped
+    2026-08-30; `HostsPhase.dc.html`, the mockup that proposed it, retired
+    the same day rather than keep drawing a screen the app now draws
+    itself."""
     items = [("Host", step == 1)]
     items.append(("Access", step == 2 and phase is None))
     if phase:
@@ -922,33 +922,6 @@ def build_hosts_access():
     body = home_nav("hosts") + hosts_shell(rows, panel)
     st = status(stat_text("target.internal", T['muted'], mono=False), stat_text("2 hosts", T['faint']))
     write("HostsAccess.dc.html", page(body, None, home_rail(), st, show_shapes=False))
-
-def build_hosts_phase():
-    """Access, proving, the bastion's own inline credential (ADR-0033),
-    picked as the example because it is the sub-phase the maintainer's
-    complaint names most directly: today nothing on screen says *whose*
-    password this is beyond the banner text. The proposed third breadcrumb
-    item is what this artboard exists to show."""
-    fields = f"""<div style="max-width: 440px; display: flex; flex-direction: column; gap: 14px;">
-      <div style="display: flex; align-items: flex-start; gap: 10px; background: {T['warnsoft']}; border-left: 2px solid {T['warn']}; border-radius: 0 6px 6px 0; padding: 9px 12px;">
-        <span style="font-size: 12px; color: {T['ink2']}; line-height: 1.5;">This password is for the jump host, not for the host you asked for. Runic SSH reaches target.internal through this one, so this credential is used first.</span>
-      </div>
-      <div>{wizard_label('Password')}{wizard_field('', mono=False)}</div>
-      <div>
-        <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; color: {T['faint']}; display: block; margin-bottom: 6px;">KEEP THIS CREDENTIAL</span>
-        <div style="display: flex; flex-direction: column; gap: 6px;">
-          <span style="font-size: 11.5px; color: {T['ink2']};">&#9679; Until Runic SSH closes, in memory only</span>
-          <span style="font-size: 11.5px; color: {T['muted']};">&#9675; In the system keychain, until I remove it</span>
-        </div>
-      </div>
-      {wizard_actions(('Cancel', False), ('Authenticate', True))}
-    </div>"""
-    rows = "\n".join([host_row("bastion", "jump@127.0.0.1", "saved", active=True, kind="jumpServer"),
-                      host_row("target.internal", "deploy@target.internal", "saved", via="bastion", depth=1)])
-    panel = wizard_panel("bastion", step=2, phase="Bastion", notice=True, content=fields)
-    body = home_nav("hosts") + hosts_shell(rows, panel)
-    st = status(stat_text("bastion", T['muted'], mono=False), stat_text("2 hosts", T['faint']))
-    write("HostsPhase.dc.html", page(body, None, home_rail(), st, show_shapes=False))
 
 # ============================================================ SYSTEM SHEETS
 
@@ -1278,7 +1251,7 @@ if LIGHT_MODE:
 else:
     for fn in (build_empty, build_main, build_groups, build_collapsed, build_broadcast,
                build_hostkey, build_sftp, build_newsession, build_settings,
-               build_hosts_host, build_hosts_access, build_hosts_phase,
+               build_hosts_host, build_hosts_access,
                build_anatomy, build_tokens,
                build_hostkeychanged, build_failure, build_paste, build_palette):
         fn()
