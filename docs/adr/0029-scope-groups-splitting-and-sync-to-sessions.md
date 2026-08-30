@@ -201,3 +201,23 @@ workspace to prove it against.
 **Revisit this** if Home or SFTP turn out to want splitting or synchronized
 typing of their own. Nothing here forbids a workspace from having its own
 version of either; it only forbids sharing the Sessions one.
+
+**Resolved on 2026-08-30, half of it.** `ShapeControl`'s `canSplit` is gone
+(#226): it hid the whole control on an empty Sessions workspace, a case
+ADR-0021 had already accepted as legitimate on its own, so nothing about the
+leak this ADR closed depended on removing it.
+
+`groupSyncState`'s `null` case is not dead code, and this document's own
+prediction here was wrong in a way worth naming rather than quietly not
+acting on. `Focus` and `HeldGroup` were never actually narrowed: `App.tsx`
+stopped routing an editor or settings tab into a Sessions group, but the
+types still permit one, so nothing proves the case this guard was written
+for can no longer happen, only that it currently does not. And a second,
+unrelated case sits behind the same `null` regardless: a rectangle a split
+just created, before anything is dragged into it, which has nothing to do
+with the leak this ADR closed and would need the guard even if `Focus` were
+narrowed tomorrow. See `groupSyncState`'s own doc comment (`groups.ts`) and
+the test pinning both reasons separately (`terminal-groups.test.ts`).
+
+The `Focus`/`HeldGroup` narrowing itself, and the `App.tsx` split it was
+bundled with above, remain exactly as open as this document already said.

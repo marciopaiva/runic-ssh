@@ -116,3 +116,10 @@ only the three named kinds get an icon and an untagged host stays exactly as
 it draws today. Revisit growing the enum if a genuinely common host type
 (load balancer, CI runner) turns out to be asked for often enough that
 `Other` is doing real work hiding it.
+
+**Resolved on 2026-08-30.** `Other` stops drawing an icon (#226): it is the
+default nobody has actually chosen, and a glyph for "nobody has said yet" was
+answering nothing on most of a saved list, which is exactly the row-density
+question the Bad section above already flagged. The fifth signal that
+followed it, a jump-role mark on every row, prompted the same review; see
+`jump.ts`'s `orderChain` and `bastionName`.

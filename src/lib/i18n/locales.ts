@@ -3,9 +3,10 @@
  *
  * Availability is carried separately from existence on purpose. A catalogue can
  * be complete, translated and covered by the parity tests, and still not be
- * offered: Spanish is held back until a native speaker has reviewed its
- * security copy, because a mistranslated host key warning is a vulnerability
- * rather than a typo. See ADR-0007 and issue #4.
+ * offered: that was Spanish's own state until v0.2.1, held back until a
+ * native speaker had reviewed its security copy, because a mistranslated
+ * host key warning is a vulnerability rather than a typo. See ADR-0007 and
+ * the note below on what changed and what still has not (#227).
  *
  * Portuguese is offered *and* reviewed. The maintainer is a native speaker,
  * wrote it, and confirmed its security copy on 2026-08-25, on **2026-08-26** for

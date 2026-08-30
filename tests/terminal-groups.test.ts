@@ -331,16 +331,26 @@ describe('where a keystroke goes', () => {
 });
 
 describe("a strip's own switch", () => {
-  /* The bug this guards: the switch used to stay visible and clickable on a
-     group showing settings or a host form, because the strip disabled it only
-     for the whole window's shape and pane count. Pressing it there still
-     armed a broadcast that reached sessions in other groups, a control with
-     no session behind it deciding where a keystroke typed somewhere else
-     goes. `null` rather than `'unavailable'`: the strip draws no switch at
-     all here, rather than one it disables. */
+  /* The bug this originally guarded: the switch used to stay visible and
+     clickable on a group showing settings or a host form, because the strip
+     disabled it only for the whole window's shape and pane count. Pressing it
+     there still armed a broadcast that reached sessions in other groups, a
+     control with no session behind it deciding where a keystroke typed
+     somewhere else goes. ADR-0029 moved that case out of the Sessions
+     workspace's reach without narrowing `Focus`/`HeldGroup` to match
+     (still-open follow-up), so this stays pinned rather than assumed
+     unreachable. `null` rather than `'unavailable'`: the strip draws no
+     switch at all here, rather than one it disables. */
   it('is absent on a group not showing a session, even with two elsewhere', () => {
     expect(groupSyncState('2x1', 2, null, false, NONE)).toBeNull();
     expect(groupSyncState('2x1', 2, null, true, NONE)).toBeNull();
+  });
+
+  it('is absent on a rectangle a split just created, nothing dragged in yet', () => {
+    /* A second, independent reason `shown` is `null`: this one has nothing
+       to do with settings or a host form, and would still be true even once
+       the follow-up above lands. */
+    expect(groupSyncState('2x1', 1, null, false, NONE)).toBeNull();
   });
 
   it('is unavailable on an undivided window', () => {

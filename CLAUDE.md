@@ -21,10 +21,12 @@ deliberate.
 
 The one exception is user-facing strings. Runic SSH is translated into Brazilian
 Portuguese, English and neutral Spanish, and those translations live only in
-`src/locales/`, one flat catalog per locale. Spanish is complete in the tree but
-not offered in the language selector until its security copy has been reviewed
-by a native speaker; see `adr/0007-…` and issue #4. `src/locales/en.json` is the source
-of truth: a string is written there first, and the other catalogs translate it.
+`src/locales/`, one flat catalog per locale. All three are offered in the
+language selector: Spanish shipped from v0.2.1, its security copy verified by
+a native speaker who asked not to be named; see `adr/0007-…`. Finding a named
+reviewer for the same strings is tracked in issue #227, unblocking nothing.
+`src/locales/en.json` is the source of truth: a string is written there
+first, and the other catalogs translate it.
 No user-facing text is written anywhere else in the tree, and nothing else in
 the tree is written in another language. See
 `adr/0007-localize-in-the-frontend-from-typed-error-codes.md`.

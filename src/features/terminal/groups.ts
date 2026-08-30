@@ -369,20 +369,30 @@ export function inputTargets(
  * `null` when the strip should not show one at all.
  *
  * `shown` is this group's own active session, `null` when it is showing
- * something else, a host form or settings. The switch used to stay visible
- * and clickable in that case, because the strip disabled it only for `layout`
- * and `filled`, which describe the window and not this rectangle. Pressing it
- * from a group showing settings still armed a broadcast, which reached
- * sessions in other groups entirely: a control with no session behind it,
- * deciding where a keystroke typed somewhere else goes.
+ * something else. Originally that meant a host form or settings: the switch
+ * used to stay visible and clickable there, because the strip disabled it
+ * only for `layout` and `filled`, which describe the window and not this
+ * rectangle, and pressing it from a group showing settings still armed a
+ * broadcast that reached sessions in other groups entirely.
+ *
+ * ADR-0029 moved editor and settings tabs to Home's own strip, which took
+ * that specific case out of the Sessions workspace's reach at the point
+ * `App.tsx` actually wires this up. It did not narrow `Focus` or `HeldGroup`
+ * themselves to match, an ADR-0029 Follow-up still open, so nothing here
+ * proves the case is unreachable rather than merely untaken. And a second,
+ * unrelated case took its place regardless: `shown` is `null` for a
+ * rectangle a split just created, before anything has been dragged into it.
+ * That one has nothing to do with the leak ADR-0029 closed, and needs the
+ * same absence for the same reason `SyncToggle`'s own docstring gives, two
+ * paragraphs down.
  *
  * `null` rather than a disabled `'unavailable'` for that case specifically:
  * "which rectangles receive" (`SyncToggle`'s own docstring) is not a real
- * question about a rectangle showing settings, the way it is a real, merely
- * not-yet-actionable one for a lone session waiting on a second group to
- * split into. The same distinction ADR-0020 draws for the rail's SFTP slot,
- * held out entirely rather than drawn disabled until #127 gives it something
- * to switch to.
+ * question about a rectangle showing neither a session nor anything waiting
+ * to become one, the way it is a real, merely not-yet-actionable one for a
+ * lone session waiting on a second group to split into. The same distinction
+ * ADR-0020 draws for the rail's SFTP slot, held out entirely rather than
+ * drawn disabled until #127 gives it something to switch to.
  */
 export function groupSyncState(
   layout: Grid,
