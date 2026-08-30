@@ -39,10 +39,10 @@ export function HostsSection({
   const groups = groupSessions(sessions);
 
   return (
-    <div className="flex h-full min-h-0">
+    <div className="flex h-full min-h-0 gap-4 overflow-hidden p-6">
       <nav
         aria-label={i18n.t('home.hosts')}
-        className="bg-surface-panel border-line-subtle flex h-full w-[280px] shrink-0 flex-col border-r"
+        className="bg-surface-panel border-line-subtle flex h-full w-[280px] shrink-0 flex-col overflow-hidden rounded border"
       >
         <header className="flex items-center gap-2 px-3.5 pt-3.5 pb-2.5">
           <span className="text-ink-faint shrink-0 text-[10.5px] font-bold tracking-[0.1em]">
@@ -116,7 +116,7 @@ export function HostsSection({
         )}
       </nav>
 
-      <div className="min-w-0 flex-1 overflow-y-auto">
+      <div className="bg-surface-panel border-line-subtle min-w-0 flex-1 overflow-y-auto rounded border">
         {selectedId === null && !creatingNew ? (
           <div className="flex h-full flex-col items-center justify-center gap-1.5 px-6 text-center">
             <p className="text-ink-secondary text-[12.5px] font-semibold">
