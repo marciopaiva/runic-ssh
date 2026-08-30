@@ -194,9 +194,8 @@ than as the strong one.
 own scope rather than by a named reviewer showing up, so it stopped being
 that tracker the same day this paragraph was written; #227 is the one that
 still is. Not release-blocking for v0.1.0 either way. The locale registry
-needs to carry availability separately from
-existence, so a catalogue can be complete and still not offered. Use CSS logical
-properties from the first
+needs to carry availability separately from existence, so a catalogue can be
+complete and still not offered. Use CSS logical properties from the first
 component, since that is the entire cost of supporting a right-to-left language
 later and it is free today. Revisit this decision if the catalog outgrows a few
 hundred keys, or as soon as translation moves outside the contributor group.
