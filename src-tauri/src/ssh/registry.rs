@@ -16,7 +16,7 @@ use std::sync::Arc;
 
 use tokio::sync::Mutex;
 
-use crate::ssh::connection::{close_shared, Connection, Shared};
+use crate::ssh::connection::{close_shared, Connection, Shared, WeakShared};
 use crate::ssh::stats::Counters;
 
 /// An opaque reference to a live connection. Carries no secret and no address.
@@ -249,6 +249,48 @@ impl Registry {
 
     pub async fn count(&self) -> usize {
         self.open.lock().await.len()
+    }
+}
+
+/// Bastions a chain opened, for the next chain to the same one to find.
+///
+/// Deliberately not part of [`Registry`]: that map is addressed by
+/// [`SessionHandle`] and holds every connection the frontend can name, and a
+/// bastion a chain opens gets neither, ADR-0024's own choice. This is a
+/// second, narrower map, keyed by the saved session id a bastion corresponds
+/// to rather than by a handle, and it holds [`WeakShared`] rather than
+/// [`Shared`]. ADR-0037: a strong reference here would be the leaked share
+/// ADR-0024 named as its own condition to revisit, since `Arc::try_unwrap`
+/// inside [`close_shared`] would never see the count fall to one. A weak one
+/// costs nothing to hold past the point its bastion closes; it just stops
+/// upgrading.
+#[derive(Default)]
+pub struct ChainedBastions {
+    weak: Mutex<HashMap<String, WeakShared>>,
+}
+
+impl ChainedBastions {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// The bastion a chain already opened for this saved session id, still
+    /// open, or `None` on a miss or a stale entry. Either means the caller
+    /// opens its own, the way it always has.
+    pub async fn find(&self, session_id: &str) -> Option<Shared> {
+        self.weak.lock().await.get(session_id)?.upgrade()
+    }
+
+    /// Remembers a bastion this chain just opened, for the next one to find.
+    ///
+    /// Also where a stale entry is pruned. There is no other moment that has
+    /// to run for correctness, since a dead `Weak` is harmless left in place,
+    /// but every insert already holds the lock a sweep would need, so tidying
+    /// up costs nothing extra here and never needs a moment of its own.
+    pub async fn remember(&self, session_id: String, bastion: &Shared) {
+        let mut guard = self.weak.lock().await;
+        guard.retain(|_, weak| weak.strong_count() > 0);
+        guard.insert(session_id, Arc::downgrade(bastion));
     }
 }
 

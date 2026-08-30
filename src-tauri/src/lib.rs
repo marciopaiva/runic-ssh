@@ -58,6 +58,9 @@ pub fn run() -> tauri::Result<()> {
             Ok(())
         })
         .manage(ssh::registry::Registry::new())
+        /* A bastion a chain opened, found again by the next chain to the same
+        one rather than opened twice. ADR-0037. */
+        .manage(ssh::registry::ChainedBastions::new())
         .manage(ssh::pending::PendingHostKeys::new())
         /* A jump host's answer, held against the decision that interrupts it.
         Never persisted, and gone when the process is. ADR-0027. */

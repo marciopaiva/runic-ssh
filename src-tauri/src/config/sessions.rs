@@ -206,14 +206,21 @@ pub fn check_not_serving(
     Ok(())
 }
 
-/// The saved session already reaching this exact host, port and user, if
-/// there is one.
+/// The saved session already reaching this exact host, port, user and jump
+/// host, if there is one.
 ///
 /// Case-insensitive on the host, the way a hostname is looked up; exact on
 /// the port and the user, because two accounts on the same machine are two
 /// different ways in and neither refuses the other. `deploy@web-01:22` and
 /// `admin@web-01:22` are both legitimate saved sessions; `deploy@web-01:22`
 /// twice, under two names, is the mistake this catches.
+///
+/// The jump host matters for the same reason: `deploy@web-01:22` direct and
+/// `deploy@web-01:22` through a bastion are not the same way in either, and
+/// neither are the same host reached through two different bastions, which a
+/// redundant pair of jump hosts makes a real saved pattern rather than an
+/// edge case. Comparing only the first three flagged that pair as a mistake
+/// it never was.
 ///
 /// `editing` excludes the session being saved from matching itself. Without
 /// it, editing any field but the connection target on an existing session
@@ -224,15 +231,18 @@ pub fn duplicate_of<'a>(
     host: &str,
     port: u16,
     user: &str,
+    proxy_jump: Option<&str>,
 ) -> Option<&'a Session> {
     let host = host.trim().to_lowercase();
     let user = user.trim();
+    let proxy_jump = proxy_jump.map(str::trim).filter(|jump| !jump.is_empty());
 
     sessions.items.iter().find(|session| {
         Some(session.id.as_str()) != editing
             && session.host.trim().to_lowercase() == host
             && session.port == port
             && session.user.trim() == user
+            && session.proxy_jump.as_deref() == proxy_jump
     })
 }
 
@@ -420,6 +430,7 @@ pub fn save_session(store: &SessionStore, draft: SessionDraft) -> Result<Session
         &draft.host,
         draft.port,
         &draft.user,
+        proxy_jump.as_deref(),
     ) {
         return Err(Error::DuplicateSession {
             name: existing.name.clone(),
@@ -802,6 +813,92 @@ mod tests {
             save_session(&store, second),
             Err(Error::DuplicateSession { .. })
         ));
+    }
+
+    #[test]
+    fn the_same_target_through_two_different_bastions_is_not_a_duplicate() {
+        /* A redundant pair of jump hosts to the one target is a real saved
+        pattern, not the mistake this check exists to catch. */
+        let (store, _dir) = store();
+        let east = a_saved_bastion(&store);
+        let mut west_draft = draft("west-bastion");
+        west_draft.host = "west-bastion.example.com".to_owned();
+        let west = save_session(&store, west_draft)
+            .expect("the second bastion saves")
+            .id;
+
+        save_session(
+            &store,
+            SessionDraft {
+                host: "prod-db.example.com".to_owned(),
+                proxy_jump: Some(east),
+                ..draft("prod-db via east")
+            },
+        )
+        .expect("the first path saves");
+
+        assert!(save_session(
+            &store,
+            SessionDraft {
+                host: "prod-db.example.com".to_owned(),
+                proxy_jump: Some(west),
+                ..draft("prod-db via west")
+            },
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn the_same_target_direct_and_through_a_bastion_is_not_a_duplicate() {
+        let (store, _dir) = store();
+        let bastion = a_saved_bastion(&store);
+
+        save_session(
+            &store,
+            SessionDraft {
+                host: "web-01.example.com".to_owned(),
+                ..draft("web-01 direct")
+            },
+        )
+        .expect("the direct one saves");
+
+        assert!(save_session(
+            &store,
+            SessionDraft {
+                host: "web-01.example.com".to_owned(),
+                proxy_jump: Some(bastion),
+                ..draft("web-01 via bastion")
+            },
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn the_same_target_through_the_same_bastion_twice_is_still_a_duplicate() {
+        let (store, _dir) = store();
+        let bastion = a_saved_bastion(&store);
+
+        let first = save_session(
+            &store,
+            SessionDraft {
+                host: "prod-db.example.com".to_owned(),
+                proxy_jump: Some(bastion.clone()),
+                ..draft("prod-db")
+            },
+        )
+        .expect("the first saves");
+
+        match save_session(
+            &store,
+            SessionDraft {
+                host: "prod-db.example.com".to_owned(),
+                proxy_jump: Some(bastion),
+                ..draft("prod-db again")
+            },
+        ) {
+            Err(Error::DuplicateSession { name }) => assert_eq!(name, first.name),
+            other => panic!("expected a duplicate refusal, got {other:?}"),
+        }
     }
 
     #[test]

@@ -19,6 +19,7 @@ use runic_ssh::ssh::connection::{
     Endpoint, Hop, Shared,
 };
 use runic_ssh::ssh::known_hosts::KnownHosts;
+use runic_ssh::ssh::registry::ChainedBastions;
 use runic_ssh::ssh::trust::Trust;
 use runic_ssh::vault::Secret;
 
@@ -874,6 +875,65 @@ async fn two_hosts_behind_one_bastion_cost_it_one_login() {
     first.disconnect().await.expect("the first closes");
     second.disconnect().await.expect("the second closes");
     close_shared(bastion).await.expect("the share is let go");
+}
+
+/* ---------------------------------------------------------------- *
+ * A bastion a chain opened, found by the next chain. ADR-0037.
+ * ---------------------------------------------------------------- */
+
+#[tokio::test]
+async fn a_second_chain_rides_the_bastion_the_first_one_opened() {
+    let chain = a_chain(true).await;
+    let bastions = ChainedBastions::new();
+    let bastion = open_bastion(&chain).await;
+
+    /* What #200 named: nothing did this before. A second chain to the same
+    bastion had no way to find the first one's, so it opened its own. */
+    bastions.remember("bastion".to_owned(), &bastion).await;
+
+    let found = bastions
+        .find("bastion")
+        .await
+        .expect("the bastion the first chain opened is still open");
+
+    let second = connect_via(
+        found,
+        endpoint(chain.target_port),
+        trusting(chain.target_port, &chain.target_key),
+    )
+    .await
+    .map_err(|failure| failure.error)
+    .expect("the second chain reaches the target through the bastion it found");
+
+    let offered = chain.bastion_saw.lock().expect("the log is readable").len();
+    assert_eq!(
+        offered, 1,
+        "the bastion the second chain found was not authenticated again"
+    );
+
+    second.disconnect().await.expect("closes");
+    close_shared(bastion).await.expect("the share is let go");
+}
+
+#[tokio::test]
+async fn a_bastion_closed_by_its_last_rider_stops_being_found() {
+    /* The property ADR-0037 rests its whole argument on: a weak entry must
+    never be why `close_shared`'s `Arc::try_unwrap` fails to see the count
+    fall to one, and once it has closed for real, the entry must not resolve
+    to a connection that no longer exists. */
+    let chain = a_chain(true).await;
+    let bastions = ChainedBastions::new();
+    let bastion = open_bastion(&chain).await;
+
+    bastions.remember("bastion".to_owned(), &bastion).await;
+    close_shared(bastion)
+        .await
+        .expect("the only rider closes it");
+
+    assert!(
+        bastions.find("bastion").await.is_none(),
+        "a dead weak reference does not resurrect a bastion nothing rides any more"
+    );
 }
 
 #[tokio::test]

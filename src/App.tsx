@@ -990,7 +990,7 @@ export function App(): JSX.Element {
       /* Same reasoning as `carried`: knowable from the file, not from the
          draft alone, so `invalidFields` cannot catch it and this stops the
          save here rather than sending it to be refused in silence. */
-      const duplicate = duplicateOf(saved, editingId, filled.host, port, filled.user);
+      const duplicate = duplicateOf(saved, editingId, filled.host, port, filled.user, filled.proxyJump);
 
       const wrong: readonly DraftField[] = [
         ...problems,
@@ -1118,6 +1118,7 @@ export function App(): JSX.Element {
       filled.host,
       parsePort(filled.port),
       filled.user,
+      filled.proxyJump,
     );
     const wrong: readonly DraftField[] = [
       ...problems,
@@ -1661,6 +1662,7 @@ export function App(): JSX.Element {
                         open.values.host,
                         parsePort(open.values.port),
                         open.values.user,
+                        open.values.proxyJump,
                       );
                 const storedCredential =
                   target === null ? false : (() => {
