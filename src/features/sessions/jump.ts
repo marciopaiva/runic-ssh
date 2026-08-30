@@ -75,6 +75,102 @@ export function jumpRole(session: Session, sessions: readonly Session[]): JumpRo
 }
 
 /**
+ * The name of the bastion a host rides, or `null` when it rides none or the
+ * saved list no longer has one by that id.
+ *
+ * `rides` alone answers one question, "is this host behind something";
+ * `carries` is the other side of the same fact and is never one name, since a
+ * bastion can carry more than one host. Riding is always exactly one, so it
+ * is always namable, and the name is what a jump-topology group separate
+ * from an environment group (bastions of their own, DEV/HOM/PRD apart from
+ * them) actually needs: which of the bastions, not only that there is one.
+ */
+export function bastionName(session: Session, sessions: readonly Session[]): string | null {
+  const parentId = session.proxyJump ?? null;
+  if (parentId === null) return null;
+
+  return sessions.find((other) => other.id === parentId)?.name ?? null;
+}
+
+/** One row of an ordered chain: which host, and how far under its bastion. */
+export interface ChainRow {
+  readonly id: string;
+  /** 0 for a host with no bastion in this same list. */
+  readonly depth: number;
+  /** Whether this host's own riders are the rows immediately beneath it. */
+  readonly childrenShown: boolean;
+}
+
+/**
+ * Places a host directly beneath the bastion it rides, in the same list,
+ * rather than marking the relation with a glyph.
+ *
+ * The row used to carry three signals at once (state, kind, chain), and the
+ * chain one was the one the maintainer asked to cut: most hosts are neither
+ * end of one, so a mark for it was on almost every row saying nothing. A
+ * relation between two rows is layout before it is vocabulary, so this turns
+ * it into position instead of a fourth icon.
+ *
+ * Scoped to the list it is given, deliberately: a host whose bastion is
+ * filed under a different heading has nothing to nest under here, and
+ * `SessionsSidebar` falls back to `JumpMark`'s glyph for exactly that case
+ * rather than silently dropping the only signal it had.
+ *
+ * Self-reference and a cycle are both guarded against, not because the core
+ * is expected to write one, but because this reads a file a person can edit
+ * by hand. A plain two-way cycle (A rides B, B rides A) has no node the first
+ * pass below would call a root at all, since each looks like a valid child of
+ * the other; left uncorrected that drops both hosts from the list rather than
+ * merely their indentation, which is a worse failure than the one this
+ * function exists to fix. The second pass catches whatever the first one
+ * never reached and emits it flat, so a malformed file loses a chain's shape
+ * and never a host.
+ */
+export function orderChain(sessions: readonly Session[]): readonly ChainRow[] {
+  const ids = new Set(sessions.map((session) => session.id));
+  const childrenOf = new Map<string, Session[]>();
+  const roots: Session[] = [];
+
+  for (const session of sessions) {
+    const parent = session.proxyJump ?? null;
+    if (parent !== null && parent !== session.id && ids.has(parent)) {
+      const siblings = childrenOf.get(parent) ?? [];
+      siblings.push(session);
+      childrenOf.set(parent, siblings);
+    } else {
+      roots.push(session);
+    }
+  }
+
+  const rows: ChainRow[] = [];
+  const emitted = new Set<string>();
+
+  const visit = (session: Session, depth: number, seen: ReadonlySet<string>): void => {
+    if (emitted.has(session.id)) return;
+    emitted.add(session.id);
+
+    const children = childrenOf.get(session.id) ?? [];
+    rows.push({
+      id: session.id,
+      depth,
+      childrenShown: children.some((child) => !seen.has(child.id)),
+    });
+
+    for (const child of children) {
+      if (seen.has(child.id)) continue;
+      visit(child, depth + 1, new Set([...seen, child.id]));
+    }
+  };
+
+  for (const session of roots) visit(session, 0, new Set([session.id]));
+  for (const session of sessions) {
+    if (!emitted.has(session.id)) visit(session, 0, new Set([session.id]));
+  }
+
+  return rows;
+}
+
+/**
  * What the editor may offer for "reached through", and why.
  *
  * `eligibleJumpHosts` answers the question from one side: which saved hosts

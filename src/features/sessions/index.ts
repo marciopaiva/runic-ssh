@@ -1,5 +1,13 @@
 export { useSessions } from './use-sessions';
-export { ALL_STATES, describeState, groupSessions } from './state';
+export {
+  ALL_STATES,
+  UNGROUPED_KEY,
+  describeState,
+  filterGroups,
+  groupKey,
+  groupSessions,
+  soloGroup,
+} from './state';
 export type {
   ConnectionKind,
   ConnectionState,
@@ -23,9 +31,9 @@ export { describeKeeping, hasStoredCredential } from './kept';
 export type { KeptOutcome } from './kept';
 export { carrierName, markCarried } from './carried';
 export type { CarriedOn } from './carried';
-export { eligibleJumpHosts, jumpHostChoice, jumpRole } from './jump';
+export { bastionName, eligibleJumpHosts, jumpHostChoice, jumpRole, orderChain } from './jump';
 export type { JumpHostChoice } from './jump';
-export type { JumpRole } from './jump';
+export type { ChainRow, JumpRole } from './jump';
 export { accessUnchanged, duplicateOf } from './duplicate';
 export type { DraftField, DraftValues } from './draft';
 export { MAPPED_FAILURES, describeFailure, stateAfterFailure } from './failure';

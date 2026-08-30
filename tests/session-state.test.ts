@@ -16,8 +16,12 @@ import { carrierName, markCarried } from '../src/features/sessions/carried';
 import type { CarriedOn } from '../src/features/sessions/carried';
 import {
   ALL_STATES,
+  UNGROUPED_KEY,
   describeState,
+  filterGroups,
+  groupKey,
   groupSessions,
+  soloGroup,
 } from '../src/features/sessions/state';
 import type { ConnectionKind, LiveSession } from '../src/features/sessions/state';
 import type { Session } from '../src/ipc';
@@ -100,6 +104,57 @@ describe('grouping', () => {
 
   it('has nothing to say about nothing', () => {
     expect(groupSessions([])).toEqual([]);
+  });
+});
+
+describe('finding a host by name', () => {
+  it('keeps only the sessions a group whose name matches', () => {
+    const groups = groupSessions([live('web-01', 'DEV'), live('db-01', 'DEV')]);
+
+    expect(filterGroups(groups, 'web').map((group) => group.sessions.map((s) => s.session.id))).toEqual(
+      [['web-01']],
+    );
+  });
+
+  it('drops a group left with nothing to show', () => {
+    const groups = groupSessions([live('web-01', 'DEV'), live('web-02', 'HOM')]);
+
+    expect(filterGroups(groups, 'dev-only-match').map((group) => group.name)).toEqual([]);
+  });
+
+  it('is case-insensitive and ignores surrounding space', () => {
+    const groups = groupSessions([live('Bastion-01', 'Bastions')]);
+
+    expect(filterGroups(groups, '  BASTION  ')).toHaveLength(1);
+  });
+
+  it('returns every group for an empty query', () => {
+    const groups = groupSessions([live('a', 'DEV'), live('b', 'HOM')]);
+
+    expect(filterGroups(groups, '')).toEqual(groups);
+    expect(filterGroups(groups, '   ')).toEqual(groups);
+  });
+});
+
+describe('showing one group alone', () => {
+  it('keeps every group when nobody asked', () => {
+    const groups = groupSessions([live('a', 'DEV'), live('b', 'HOM')]);
+
+    expect(soloGroup(groups, null)).toBe(groups);
+  });
+
+  it('keeps only the named group', () => {
+    const groups = groupSessions([live('a', 'DEV'), live('b', 'HOM')]);
+
+    expect(soloGroup(groups, 'HOM').map((group) => group.name)).toEqual(['HOM']);
+  });
+
+  it('reaches the heading-less run by its own key', () => {
+    const groups = groupSessions([live('a', 'DEV'), live('loose')]);
+
+    expect(soloGroup(groups, UNGROUPED_KEY).map((group) => group.name)).toEqual([null]);
+    expect(groupKey({ name: null, sessions: [] })).toBe(UNGROUPED_KEY);
+    expect(groupKey({ name: 'DEV', sessions: [] })).toBe('DEV');
   });
 });
 

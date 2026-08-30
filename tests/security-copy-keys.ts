@@ -195,7 +195,6 @@ export const SECURITY_COPY_KEYS: readonly MessageKey[] = [
   'session.state.carrying',
   'session.state.keyMismatch',
   'sessions.jump.carries',
-  'sessions.jump.direct',
   'sessions.jump.rides',
 
   // Which sessions receive what you type, added in the v0.2.1 sweep.
@@ -263,8 +262,12 @@ export const REVIEWS: Readonly<
        they existed. New keys go in SECURITY_COPY_KEYS when they read as
        security copy; they join this list only once someone has actually
        reviewed them, the same as `es`'s narrower scope already works. */
+    /* Hash moved 2026-08-29 with no wording change: `sessions.jump.direct`
+       left both SECURITY_COPY_KEYS and this list the same day, since the row
+       it described no longer draws a mark at all (JumpMark.tsx). One fewer
+       reviewed string, not an unreviewed one. */
     date: '2026-08-26',
-    hash: 'e324864f806a6b9a3344efa1d1729b7ba29ca6582a7f9d6b06b0863682d140c6',
+    hash: '1d657ee53aa3e69be1922c518c40d286f1889277124e48e2c22fb05b5f841bbe',
     keys: [
       'credential.cancel',
       'credential.failed',
@@ -350,7 +353,6 @@ export const REVIEWS: Readonly<
       'session.state.carrying',
       'session.state.keyMismatch',
       'sessions.jump.carries',
-      'sessions.jump.direct',
       'sessions.jump.rides',
       'command.split.sync.detail',
       'command.split.sync.off',

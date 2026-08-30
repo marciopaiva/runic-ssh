@@ -42,7 +42,7 @@ async function mountProbe() {
   const root = createRoot(rootEl);
 
   await act(async () => {
-    root.render(createElement(ShapeControl, { layout: '1x1', onChoose: () => {}, canSplit: true }));
+    root.render(createElement(ShapeControl, { layout: '1x1', onChoose: () => {} }));
   });
 
   const toggle = rootEl.querySelector('button[aria-haspopup="true"]');

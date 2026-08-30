@@ -4,18 +4,15 @@
 // `shape-control-teardown.test.ts` for why jsdom is opted in per file.
 
 /**
- * The refusal `shapes.ts` documents and the palette (`sources.ts`) already
- * carries: with no session open anywhere, a shape wider than `1x1` would draw
- * a rectangle with nothing to put in it. Before this test existed, this
- * control never carried that refusal at all: dividing a window holding only
- * settings drew an empty rectangle captioned "drag a host here" beside a
- * settings form, which is exactly the interface ADR-0020 rule 6 refuses.
- *
- * Two shapes for the refusal, matching the two states the palette already
- * tells apart: undivided with nothing open has no split command at all, so
- * this control renders nothing either; already divided with nothing open
- * still needs a way back to one rectangle, so the control stays and only the
- * wider shapes are disabled.
+ * The control used to refuse a shape wider than `1x1` with no session open
+ * anywhere, mirroring the palette (`sources.ts`). That guard existed to stop
+ * a group showing settings from being split into a rectangle that lied about
+ * what it held (ADR-0029). Sessions groups cannot hold anything but a session
+ * any more, so the guard had nothing left to guard: ADR-0029's own Bad
+ * section already named removing it as follow-up, and ADR-0021 had already
+ * accepted dividing with nothing open as "a legitimate way to set up." This
+ * now asserts the control is always visible and always fully enabled while
+ * Sessions is the active workspace, whatever is or is not open.
  */
 
 import { act, createElement } from 'react';
@@ -36,13 +33,13 @@ vi.mock('../src/features/settings', () => ({ useTranslator: () => translator }))
 
 const { ShapeControl } = await import('../src/components/ShapeControl');
 
-async function mount(layout: Grid, canSplit: boolean, onChoose: (kind: Grid) => void = () => {}) {
+async function mount(layout: Grid, onChoose: (kind: Grid) => void = () => {}) {
   const rootEl = document.createElement('div');
   document.body.appendChild(rootEl);
   const root = createRoot(rootEl);
 
   await act(async () => {
-    root.render(createElement(ShapeControl, { layout, onChoose, canSplit }));
+    root.render(createElement(ShapeControl, { layout, onChoose }));
   });
 
   return {
@@ -67,67 +64,45 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('undivided with nothing open', () => {
-  it('renders nothing at all', async () => {
-    const probe = await mount('1x1', false);
-
-    expect(probe.rootEl.querySelector('button[aria-haspopup="true"]')).toBeNull();
-
-    await probe.unmount();
-  });
-});
-
-describe('already divided with nothing open', () => {
-  it('stays visible', async () => {
-    const probe = await mount('2x1', false);
+describe('nothing open anywhere', () => {
+  it('is visible undivided', async () => {
+    const probe = await mount('1x1');
 
     expect(probe.rootEl.querySelector('button[aria-haspopup="true"]')).not.toBeNull();
 
     await probe.unmount();
   });
 
-  it('disables every shape except the one in use and the way back to one rectangle', async () => {
+  it('offers every shape, none of them disabled', async () => {
     const layout: Grid = '2x1';
-    const probe = await mount(layout, false);
+    const probe = await mount(layout);
     await probe.open();
 
     const buttons = Array.from(probe.rootEl.querySelectorAll('button[role="menuitemradio"]'));
     expect(buttons.length).toBe(GRIDS.length);
 
-    GRIDS.forEach((kind, at) => {
-      const button = buttons[at];
-      if (button === undefined) throw new Error(`no button rendered for ${kind}`);
-
-      const exempt = kind === '1x1' || kind === layout;
-      expect(button.hasAttribute('disabled')).toBe(!exempt);
-    });
+    for (const button of buttons) {
+      expect(button.hasAttribute('disabled')).toBe(false);
+    }
 
     await probe.unmount();
   });
 
-  it('never disables the shape already in use, even though it is not 1x1', async () => {
-    const probe = await mount('2x1', false);
-    await probe.open();
-
-    const current = probe.rootEl.querySelector('button[role="menuitemradio"][aria-checked="true"]');
-    expect(current?.hasAttribute('disabled')).toBe(false);
-
-    await probe.unmount();
-  });
-
-  it('does not run onChoose for a disabled shape', async () => {
+  it('runs onChoose for a shape wider than the one in use', async () => {
     const onChoose = vi.fn();
-    const probe = await mount('2x1', false, onChoose);
+    const probe = await mount('1x1', onChoose);
     await probe.open();
 
-    const locked = probe.rootEl.querySelector('button[role="menuitemradio"][disabled]');
-    expect(locked).not.toBeNull();
+    const wider = probe.rootEl.querySelector(
+      'button[role="menuitemradio"][aria-checked="false"]',
+    );
+    if (wider === null) throw new Error('expected a shape other than the one in use');
 
     await act(async () => {
-      locked?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      wider.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    expect(onChoose).not.toHaveBeenCalled();
+    expect(onChoose).toHaveBeenCalled();
 
     await probe.unmount();
   });
@@ -135,7 +110,7 @@ describe('already divided with nothing open', () => {
 
 describe('a session open somewhere', () => {
   it('enables every shape', async () => {
-    const probe = await mount('1x1', true);
+    const probe = await mount('1x1');
     await probe.open();
 
     const buttons = probe.rootEl.querySelectorAll('button[role="menuitemradio"]');
