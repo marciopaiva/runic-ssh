@@ -17,12 +17,12 @@ export type {
   SessionGroup,
 } from './state';
 export {
+  credentialRedirectTarget,
   heldDecision,
   isInProgress,
   isOverridable,
   needsConfirmation,
   shouldPromptAfterSaved,
-  shouldTrySaved,
   wasCancelled,
 } from './connect';
 export type { ConnectStage, HeldDecision, HostKeyVerdict } from './connect';

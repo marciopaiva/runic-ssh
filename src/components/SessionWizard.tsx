@@ -27,6 +27,14 @@ interface SessionWizardProps {
   /** Every group name already saved, for `HostFields`' own suggestion list
    * (#221). */
   readonly groupNames: readonly string[];
+  /**
+   * Whether this editor opened because Sessions sent someone here, rather
+   * than because they opened it themselves. ADR-0039: the only thing left
+   * that explains a screen changing out from under a click elsewhere, now
+   * that a missing credential no longer opens a window of its own.
+   */
+  readonly missingCredential: boolean;
+  readonly onDismissMissingCredential: () => void;
   /** Whether the keychain already holds a credential for this host. ADR-0034:
    * the only surface left that can say so, now that `SessionForm` is gone. */
   readonly storedCredential: boolean;
@@ -56,6 +64,16 @@ interface SessionWizardProps {
   readonly onTest: (method: SuggestedMethod) => void;
   /** Closes the wizard once an attempt has run at least once. */
   readonly onFinish: () => void;
+  /**
+   * What the settled row should say happened, or `null` before anything has.
+   *
+   * `CredentialSaved`/`ConnectionFailure` already state this once, inside
+   * `testSurface`; this is what is left once either is dismissed and the
+   * generic Back/Test again/Finish row is all that remains on screen. `App.tsx`
+   * owns it because it is the one place both endings, and the ADR-0036 path
+   * that skips testing altogether, are already visible.
+   */
+  readonly lastOutcome: 'saved' | 'failed' | null;
   /**
    * The host key and credential screens, exactly as Sessions renders them,
    * or `null` when nothing is attempting a connection for this host right
@@ -110,6 +128,8 @@ export function SessionWizard({
   carried,
   duplicate,
   groupNames,
+  missingCredential,
+  onDismissMissingCredential,
   storedCredential,
   keptCredential,
   skipTest,
@@ -120,6 +140,7 @@ export function SessionWizard({
   onNext,
   onTest,
   onFinish,
+  lastOutcome,
   testSurface,
   inlineCredential,
   bastionCredential,
@@ -180,17 +201,42 @@ export function SessionWizard({
     onDismissFailure();
   };
 
+  /* Access still runs itself (ADR-0034: not a third step), but which of its
+     own sub-states is showing was previously invisible: the breadcrumb froze
+     on "Access" through the host key decision, the bastion's own field, the
+     target's own field, and the settled row alike. This names whichever of
+     that phase's forms is up, purely for the label, in the same priority the
+     render below picks between them. Not gated on `attempted`, which turns
+     true the instant the attempt starts and stays true through all of them:
+     it is `testSurface`/`bastionCredential`/`inlineCredential` all going back
+     to `null` after a dismissal, not `attempted` resetting, that hands the
+     settled row (rendered separately, below) its plain "Access" back. */
+  const phase: 'wizard.phase.bastion' | 'wizard.phase.signIn' | 'wizard.phase.proving' | null =
+    step !== 2
+      ? null
+      : testSurface !== null
+        ? 'wizard.phase.proving'
+        : bastionCredential !== null
+          ? 'wizard.phase.bastion'
+          : inlineCredential !== null
+            ? 'wizard.phase.signIn'
+            : null;
+
   return (
     <div className="flex h-full flex-col gap-5 p-7">
       <h2 className="text-ink text-[15px] font-semibold tracking-tight">{title}</h2>
 
       <ol className="flex items-center gap-2 text-[11px]">
-        {(
-          [
-            { key: 'host', label: 'wizard.step.host', current: step === 1, reached: step >= 1 },
-            { key: 'auth', label: 'wizard.step.auth', current: step === 2, reached: step >= 2 },
-          ] as const
-        ).map((entry, index) => (
+        {[
+          { key: 'host', label: 'wizard.step.host' as const, current: step === 1, reached: step >= 1 },
+          {
+            key: 'auth',
+            label: 'wizard.step.auth' as const,
+            current: step === 2 && phase === null,
+            reached: step >= 2,
+          },
+          ...(phase !== null ? [{ key: 'phase', label: phase, current: true, reached: true }] : []),
+        ].map((entry, index) => (
           <li key={entry.key} className="flex items-center gap-2">
             {index > 0 && <span className="text-ink-faint">→</span>}
             <span
@@ -248,6 +294,21 @@ export function SessionWizard({
             type="button"
             onClick={dismissFailure}
             className="border-line-strong text-ink-secondary hover:text-ink self-end rounded border bg-transparent px-2.5 py-1 text-[12px]"
+          >
+            {i18n.t('editor.failed.dismiss')}
+          </button>
+        </div>
+      )}
+
+      {missingCredential && (
+        <div className="border-accent bg-accent-soft flex max-w-[440px] items-start justify-between gap-3 rounded border-l-2 px-3 py-2">
+          <p className="text-ink text-[12.5px] leading-relaxed">
+            {i18n.t('session.editor.missingCredential')}
+          </p>
+          <button
+            type="button"
+            onClick={onDismissMissingCredential}
+            className="text-ink-secondary hover:text-ink shrink-0 text-[12px]"
           >
             {i18n.t('editor.failed.dismiss')}
           </button>
@@ -392,31 +453,47 @@ export function SessionWizard({
             onCancel={inlineCredential.onCancel}
           />
         ) : attempted ? (
-          /* The attempt has already settled once. Successfully, refused, or
-             cancelled, it does not matter which, the host is on disk either
-             way. Just the row: retry, or leave. */
-          <div className="flex max-w-[440px] items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setProving(false)}
-              className="text-ink-secondary hover:bg-surface-raised mr-auto rounded px-2.5 py-1.5 text-[12px]"
-            >
-              {i18n.t('wizard.back')}
-            </button>
-            <button
-              type="button"
-              onClick={() => onTest(method)}
-              className="text-ink-secondary border-line-subtle hover:text-ink rounded border px-2.5 py-1.5 text-[12px]"
-            >
-              {i18n.t('wizard.test.now')}
-            </button>
-            <button
-              type="button"
-              onClick={onFinish}
-              className="bg-accent text-surface-base rounded px-3 py-1.5 text-[12px] font-semibold"
-            >
-              {i18n.t('wizard.finish')}
-            </button>
+          /* The attempt has already settled once, refused or cancelled
+             attempts included: the host is on disk either way, only
+             `lastOutcome` says which ending this one actually reached.
+             `CredentialSaved`/`ConnectionFailure` already said so, once,
+             inside `testSurface`; dismissing either is what leaves this row
+             on screen with nothing else saying it. */
+          <div className="flex max-w-[440px] flex-col gap-2">
+            {lastOutcome !== null && (
+              <div
+                className={`rounded border-l-2 px-3 py-2 text-[12.5px] ${
+                  lastOutcome === 'saved'
+                    ? 'border-ok/40 bg-ok-soft text-ok'
+                    : 'border-danger bg-danger-soft text-danger-text'
+                }`}
+              >
+                {i18n.t(lastOutcome === 'saved' ? 'wizard.result.saved' : 'wizard.result.failed')}
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setProving(false)}
+                className="text-ink-secondary hover:bg-surface-raised mr-auto rounded px-2.5 py-1.5 text-[12px]"
+              >
+                {i18n.t('wizard.back')}
+              </button>
+              <button
+                type="button"
+                onClick={() => onTest(method)}
+                className="text-ink-secondary border-line-subtle hover:text-ink rounded border px-2.5 py-1.5 text-[12px]"
+              >
+                {i18n.t('wizard.test.now')}
+              </button>
+              <button
+                type="button"
+                onClick={onFinish}
+                className="bg-accent text-surface-base rounded px-3 py-1.5 text-[12px] font-semibold"
+              >
+                {i18n.t('wizard.finish')}
+              </button>
+            </div>
           </div>
         ) : (
           /* Nothing to show yet: the effect above has already started the

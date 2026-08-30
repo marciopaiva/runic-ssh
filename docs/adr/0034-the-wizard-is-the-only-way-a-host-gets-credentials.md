@@ -140,6 +140,13 @@ connection closes once the secret is proven or refused. `'inline'` stops
 being a wizard-only concept in the type's own documentation, because it no
 longer is one.
 
+**Amended by ADR-0039 (2026-08-30).** The fallback named as untouched above,
+Sessions falling back to `authenticateInteractively` and the window when
+nothing usable is saved, is retired. The cases that justified keeping it,
+an imported session, a keychain entry removed externally, an expired
+run-only credential, are answered by sending the user to that host's own
+wizard entry instead of a second mechanism for the same question.
+
 ## Consequences
 
 **Good**: one mechanism proves and stores a credential, used by both

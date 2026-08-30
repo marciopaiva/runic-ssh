@@ -149,18 +149,12 @@ pub enum Error {
     #[error("no credential request has that id")]
     UnknownRequest,
 
-    /// The prompt window was closed or cancelled. Deliberately an error rather
-    /// than a silent retry: ADR-0008 says a dismissed prompt fails the
+    /// The wizard's own bastion prompt (ADR-0033) was cancelled. Deliberately
+    /// an error rather than a silent retry: a dismissed prompt fails the
     /// connection attempt, because retrying on its own is how a client ends up
     /// asking for a password nobody asked to be asked for.
     #[error("the credential prompt was dismissed")]
     CredentialDismissed,
-
-    /// The prompt window could not be opened, so nobody could have answered.
-    /// Reported rather than waited on: a connection blocked on a reply that
-    /// cannot arrive looks like the application has hung.
-    #[error("the credential prompt could not be opened")]
-    PromptUnavailable,
 
     /// A window control we drew could not do what it was asked. Reported
     /// rather than dropped: a control that fails silently is indistinguishable
@@ -290,8 +284,6 @@ pub enum IpcError {
     /// The user closed or cancelled the prompt. The connection attempt fails;
     /// it is never retried on its own.
     CredentialDismissed,
-    /// The prompt window could not be opened at all.
-    PromptUnavailable,
     /// A window control we drew could not do what it was asked.
     WindowActionRefused,
     /// A saved session was rejected; `field` names which part.
@@ -362,7 +354,6 @@ impl From<Error> for IpcError {
             Error::VaultUnwritable { reason } => Self::VaultUnwritable { reason },
             Error::UnknownRequest => Self::UnknownRequest,
             Error::CredentialDismissed => Self::CredentialDismissed,
-            Error::PromptUnavailable => Self::PromptUnavailable,
             Error::WindowActionRefused => Self::WindowActionRefused,
         }
     }

@@ -135,14 +135,12 @@ export type IpcError =
   /** The request id does not name a prompt that is still open. */
   | { readonly code: 'unknownRequest' }
   /**
-   * The user closed or cancelled the credential prompt.
+   * The user cancelled the wizard's own bastion prompt (ADR-0033).
    *
-   * The connection attempt fails and is never retried on its own — ADR-0008.
-   * The interface reports it as a cancellation, not as a failure.
+   * The connection attempt fails and is never retried on its own. The
+   * interface reports it as a cancellation, not as a failure.
    */
   | { readonly code: 'credentialDismissed' }
-  /** The prompt window could not be opened, so nobody could have answered. */
-  | { readonly code: 'promptUnavailable' }
   /**
    * A window control we drew could not do what it was asked.
    *
@@ -200,7 +198,6 @@ export const CODES: ReadonlySet<IpcErrorCode> = new Set<IpcErrorCode>([
   'vaultUnwritable',
   'unknownRequest',
   'credentialDismissed',
-  'promptUnavailable',
   'windowActionRefused',
 ]);
 

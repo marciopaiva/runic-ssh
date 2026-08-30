@@ -44,6 +44,7 @@ import type { Focus } from './features/chrome';
 import {
   accessUnchanged,
   carrierName,
+  credentialRedirectTarget,
   duplicateOf,
   editorDirty,
   editorKey,
@@ -330,6 +331,20 @@ export function App(): JSX.Element {
      the line is always about the most recent attempt and never about one two
      actions ago. See #198. */
   const [editorFailed, setEditorFailed] = useState<ReadonlyMap<string, EditorFailure>>(new Map());
+  /* Which open editors exist because Sessions sent someone there rather than
+     because they opened one themselves, keyed the same way `editorFailed`
+     is. ADR-0039: the credential window is gone, and this is the only thing
+     left that explains why the screen changed out from under a click in
+     Sessions. Cleared the same way a failure notice is, on the next action
+     in that editor. */
+  const [editorOpenedFor, setEditorOpenedFor] = useState<ReadonlySet<string>>(new Set());
+  /* What the wizard's own settled row says happened, keyed by session id.
+     `CredentialSaved`/`ConnectionFailure` already state the outcome once,
+     the moment it happens; dismissing either clears `attempt` and lands on
+     the generic Back/Test again/Finish row, which otherwise repeats nothing.
+     Cleared on an abandon rather than left stale, so cancelling a retry
+     never shows the *previous* attempt's result on this one. */
+  const [testOutcome, setTestOutcome] = useState<ReadonlyMap<string, 'saved' | 'failed'>>(new Map());
 
   const { attempt, connect, trust, abandon, submitInlineCredential } = useConnect({
     onConnecting: (sessionId) => setState(sessionId, 'connecting'),
@@ -352,10 +367,25 @@ export function App(): JSX.Element {
     },
     /* A changed key, a host that did not answer, and a credential window the
        user closed are three different things, and the marker says which. */
-    onFailed: (sessionId, code) => setState(sessionId, stateAfterFailure(code)),
-    /* Back to a plain stored host. Nothing was learned about it — the attempt
-       was let go, not answered — so anything else would be a claim. */
-    onAbandoned: (sessionId) => setState(sessionId, 'saved'),
+    onFailed: (sessionId, code) => {
+      setState(sessionId, stateAfterFailure(code));
+      setTestOutcome((current) => new Map(current).set(sessionId, 'failed'));
+    },
+    /* Back to a plain stored host either way. `settled` is what tells apart
+       dismissing `CredentialSaved`/`ConnectionFailure` (which already wrote
+       `testOutcome` above, correctly, and must keep it) from walking away
+       with no answer at all, where anything left in the map would be the
+       *previous* attempt's result showing on this one. */
+    onAbandoned: (sessionId, settled) => {
+      setState(sessionId, 'saved');
+      if (settled) return;
+      setTestOutcome((current) => {
+        if (!current.has(sessionId)) return current;
+        const next = new Map(current);
+        next.delete(sessionId);
+        return next;
+      });
+    },
     onCredentialRefused: (sessionId, via) => {
       void internalVaultStatus()
         .then((status) => status !== 'notConfigured')
@@ -371,6 +401,23 @@ export function App(): JSX.Element {
     onCredentialSettled: (sessionId) => {
       setState(sessionId, 'saved');
       reload();
+      setTestOutcome((current) => new Map(current).set(sessionId, 'saved'));
+    },
+    /* ADR-0039: nothing usable was saved for `sessionId` itself, or, at a
+       bastion hop, for the saved session its `proxyJump` names. Either way
+       the attempt never opened, so the row goes back to plain `saved` the
+       same way an abandoned one does, and the host that actually needs
+       authenticating opens in Hosts with a note saying why. */
+    onCredentialMissing: (sessionId, hop) => {
+      setState(sessionId, 'saved');
+
+      const target = credentialRedirectTarget(sessionId, hop, savedRef.current);
+      if (target === null) return;
+
+      openEditor({ kind: 'existing', sessionId: target });
+      setEditorOpenedFor((current) =>
+        new Set(current).add(editorKey({ kind: 'existing', sessionId: target })),
+      );
     },
   });
 
@@ -840,13 +887,7 @@ export function App(): JSX.Element {
       const live = sessions.find((entry) => entry.session.id === attempt.sessionId);
       if (live === undefined) return null;
 
-      return (
-        <ConnectingSurface
-          session={live.session}
-          stage={attempt.stage.stage === 'authenticating' ? 'authenticating' : 'connecting'}
-          onCancel={abandon}
-        />
-      );
+      return <ConnectingSurface session={live.session} onCancel={abandon} />;
     }
 
     if (attempt.stage.stage === 'settled') {
@@ -935,6 +976,16 @@ export function App(): JSX.Element {
       const key = editorKey(target);
       if (!current.has(key)) return current;
       const next = new Map(current);
+      next.delete(key);
+      return next;
+    });
+  }, []);
+
+  const dismissOpenedFor = useCallback((target: EditorTarget): void => {
+    setEditorOpenedFor((current) => {
+      const key = editorKey(target);
+      if (!current.has(key)) return current;
+      const next = new Set(current);
       next.delete(key);
       return next;
     });
@@ -1800,6 +1851,8 @@ export function App(): JSX.Element {
                           discarding={open.discarding}
                           failure={editorFailed.get(editorKey(target)) ?? null}
                           onDismissFailure={() => clearFailure(target)}
+                          missingCredential={editorOpenedFor.has(editorKey(target))}
+                          onDismissMissingCredential={() => dismissOpenedFor(target)}
                           onChange={(field, value) => changeIn(target, field, value)}
                           jumpHosts={jump.offered}
                           carried={jump.carried}
@@ -1808,7 +1861,17 @@ export function App(): JSX.Element {
                           storedCredential={storedCredential}
                           keptCredential={editingId !== null && (keptCredentials.get(editingId) ?? false)}
                           skipTest={skipTest}
-                          onSkipTest={() => submitIn(target)}
+                          onSkipTest={() => {
+                            submitIn(target);
+                            /* ADR-0036's own path never opens `testSurface`, so
+                               nothing else marks this settled: the same map
+                               `onCredentialSettled` writes, written here for
+                               the same reason, since a save with nothing
+                               invalidated is exactly what "saved" means. */
+                            if (editingId !== null) {
+                              setTestOutcome((current) => new Map(current).set(editingId, 'saved'));
+                            }
+                          }}
                           onForget={editingId === null ? null : () => forgetPassword(target)}
                           onDelete={target.kind === 'new' ? null : () => removeIn(target)}
                           onBack={() => wizardBack(target)}
@@ -1816,6 +1879,7 @@ export function App(): JSX.Element {
                           onTest={(method) => testInWizard(target, method)}
                           onFinish={() => finishWizard(target)}
                           testSurface={testSurface}
+                          lastOutcome={editingId !== null ? (testOutcome.get(editingId) ?? null) : null}
                           inlineCredential={inlineCredential}
                           bastionCredential={bastionCredential}
                           onConfirmDiscard={() => discardIn(target, true)}

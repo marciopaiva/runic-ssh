@@ -11,12 +11,12 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  credentialRedirectTarget,
   heldDecision,
   isInProgress,
   isOverridable,
   needsConfirmation,
   shouldPromptAfterSaved,
-  shouldTrySaved,
   wasCancelled,
 } from '../src/features/sessions/connect';
 import { describeKeeping, hasStoredCredential } from '../src/features/sessions/kept';
@@ -76,25 +76,6 @@ describe('what a verdict allows', () => {
 });
 
 describe('a saved credential', () => {
-  it('is always tried, because only the core knows whether there is one', () => {
-    /* It used to be decided from `credentialId` in the session file, which
-       answers a different question: whether something was once written to the
-       keychain. That says nothing about a credential kept for this run
-       (ADR-0025), and it can be stale when an entry was removed outside the
-       application. Asking and falling through is the honest shape, and
-       prompting for a password the machine already holds is why people stop
-       keeping them. */
-    expect(shouldTrySaved('open')).toBe(true);
-  });
-
-  it('is not tried when the point of the attempt is to collect one', () => {
-    /* Somebody who asked to save a password is asking to type it. A host that
-       already has a working one would authenticate silently, the field would
-       never appear, and the wizard would have proven nothing anybody could
-       see on a host where something was in fact stored. */
-    expect(shouldTrySaved('inline')).toBe(false);
-  });
-
   it('falls back to asking when the host refuses it', () => {
     /* A stored secret the host rejects is a stale password, and the answer is
        to ask for the current one. */
@@ -134,6 +115,49 @@ describe('a saved credential', () => {
   });
 });
 
+describe('which wizard entry answers a missing credential', () => {
+  /* ADR-0039: there is nowhere left in Sessions to collect one, so the
+     redirect has to name a saved session's own editor. */
+  const session = (overrides: Partial<Session> = {}): Session => ({
+    id: 'web-01',
+    name: 'web-01',
+    host: 'web-01.example.com',
+    port: 22,
+    user: 'deploy',
+    group: null,
+    credentialId: null,
+    proxyJump: null,
+    kind: 'other',
+    ...overrides,
+  });
+
+  it('names the session itself when the target is missing one', () => {
+    const saved = [session()];
+    expect(credentialRedirectTarget('web-01', 'target', saved)).toBe('web-01');
+  });
+
+  it('names the bastion a target session is carried on', () => {
+    const saved = [session({ id: 'web-01', proxyJump: 'jump' }), session({ id: 'jump' })];
+    expect(credentialRedirectTarget('web-01', 'bastion', saved)).toBe('jump');
+  });
+
+  it('finds no bastion for a session with none', () => {
+    const saved = [session()];
+    expect(credentialRedirectTarget('web-01', 'bastion', saved)).toBeNull();
+  });
+
+  it('treats an absent proxyJump field the same as an empty one', () => {
+    /* The core skips the field entirely for a direct host, so what arrives
+       is `undefined`, never `null`, the same shape `hasStoredCredential`
+       already normalises. */
+    const wire = JSON.parse(
+      '{"id":"web-01","name":"web-01","host":"web-01.example.com","port":22,"user":"deploy","group":null,"credentialId":null,"kind":"other"}',
+    ) as Session;
+
+    expect(credentialRedirectTarget('web-01', 'bastion', [wire])).toBeNull();
+  });
+});
+
 describe('a dismissed prompt', () => {
   it('is a cancellation, not a failure', () => {
     /* Putting a red message in front of someone who pressed Cancel is how
@@ -153,12 +177,10 @@ describe('what counts as still working', () => {
      — and forever if the transport connects and the handshake stalls, because
      `client::Config::default()` sets no timeout of any kind. */
 
-  it('is working while it reaches the host', () => {
+  it('is working while it reaches the host and while a saved credential is tried', () => {
+    /* ADR-0039 folded what used to be a separate `'authenticating'` stage
+       into this one: there is no window left to distinguish the two. */
     expect(isInProgress({ stage: 'connecting' })).toBe(true);
-  });
-
-  it('is working while the credential window is open', () => {
-    expect(isInProgress({ stage: 'authenticating' })).toBe(true);
   });
 
   it('is not working while a host key is held', () => {

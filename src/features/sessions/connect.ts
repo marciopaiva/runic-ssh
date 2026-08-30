@@ -14,6 +14,7 @@ import type {
   IpcError,
   IpcErrorCode,
   Keeping,
+  Session,
   SessionHandle,
 } from '../../ipc';
 
@@ -32,20 +33,26 @@ import type {
  * step, ADR-0032. ADR-0034 retired `'credential'` along with the single-page
  * form it belonged to: the wizard is the only path that ever collects a
  * credential without opening a terminal, so there is only one name for it
- * now. The window itself is not gone: `authenticateInteractively` is still
- * what `'open'` falls back to when nothing usable is saved. What is gone is
- * only the second intent that used to open it on purpose.
+ * now. ADR-0039 later retired the window itself: `'open'` no longer falls
+ * back to one when nothing usable is saved, it sends the user to that
+ * host's own wizard entry instead.
  */
 export type ConnectIntent = 'open' | 'inline';
 
 /** Where a connection attempt is. */
 export type ConnectStage =
   | { readonly stage: 'idle' }
+  /**
+   * Reaching the host, and, once that answers, trying whatever credential
+   * is already saved or kept before anything asks for a fresh one. ADR-0039
+   * folded what used to be a separate `'authenticating'` stage into this
+   * one: there is no window to distinguish it from any more, and the whole
+   * span from opening the socket to a saved credential either working or
+   * not is one continuous wait as far as the screen is concerned.
+   */
   | { readonly stage: 'connecting' }
   /** Waiting on the user to decide about a host key. */
   | { readonly stage: 'deciding'; readonly decision: HeldDecision }
-  /** Waiting on the credential window. */
-  | { readonly stage: 'authenticating' }
   /**
    * The host key is settled and the connection is open, unauthenticated,
    * waiting on the wizard's own inline form rather than a window. Only ever
@@ -55,10 +62,9 @@ export type ConnectStage =
   /**
    * A bastion needs a credential nobody has saved, mid-chain, before the
    * target is even reached. ADR-0033: also only the `'inline'` intent's own
-   * doing. `request` names the same opaque request `submitCredential`
-   * already answers for the separate window, and `prompt` is what came back
-   * for it, `carrying` included, so the wizard's form can say which host
-   * this credential actually belongs to.
+   * doing. `request` is the opaque request `submitCredential` answers, and
+   * `prompt` is what came back for it, `carrying` included, so the wizard's
+   * form can say which host this credential actually belongs to.
    */
   | {
       readonly stage: 'awaitingBastionCredential';
@@ -116,7 +122,7 @@ export function reportedFailure(error: IpcError | null): ReportedFailure {
  * reason in reverse — it is an answer, not a wait.
  */
 export function isInProgress(stage: ConnectStage): boolean {
-  return stage.stage === 'connecting' || stage.stage === 'authenticating';
+  return stage.stage === 'connecting';
 }
 
 /** Which host key screen a refusal calls for. */
@@ -177,28 +183,6 @@ export function wasCancelled(code: IpcErrorCode): boolean {
 }
 
 /**
- * Whether a saved credential is worth trying before prompting.
- *
- * Always, when the point is to open a session. The interface used to decide
- * from `credentialId` in the session file, which answers a different question:
- * whether something was once written to the keychain. It says nothing about a
- * credential kept for this run (ADR-0025), and it can be stale when an entry
- * was removed outside the application.
- *
- * So the core is asked, and `noSavedCredential` falls through to the prompt,
- * which `shouldPromptAfterSaved` already handles. The cost is one call into
- * Rust on a connection with nothing kept.
- *
- * Never, when the point is to collect one. Somebody who asked to save a
- * password is asking to type it, and a host that already has a working one
- * would authenticate silently and never open the window: the button would do
- * nothing anybody could see, on a host where something was in fact stored.
- */
-export function shouldTrySaved(intent: ConnectIntent): boolean {
-  return intent === 'open';
-}
-
-/**
  * Whether a saved credential failing should fall back to asking.
  *
  * A stored secret that the host refuses is a stale password, and the answer is
@@ -222,4 +206,26 @@ export function shouldPromptAfterSaved(code: IpcErrorCode): boolean {
     code === 'vaultNotConfigured' ||
     code === 'vaultUnreadable'
   );
+}
+
+/**
+ * Which saved host's own wizard entry answers a missing credential.
+ *
+ * ADR-0039: the target's own case names itself, `sessionId`, the one that
+ * was clicked. A bastion crossed mid-chain is a different saved session,
+ * found the only way the frontend has to name one: the target's own
+ * `proxyJump`. `null` for a target with no jump host at all, which cannot
+ * happen for a `'bastion'` hop in practice, `check_proxy_jump` refuses a
+ * connection through a jump host that does not resolve to a saved session
+ * before this is ever reached, but the type has no way to say that, so the
+ * caller is left to decide what a `null` it should never see actually means.
+ */
+export function credentialRedirectTarget(
+  sessionId: string,
+  hop: Hop,
+  saved: readonly Session[],
+): string | null {
+  if (hop === 'target') return sessionId;
+
+  return saved.find((session) => session.id === sessionId)?.proxyJump ?? null;
 }

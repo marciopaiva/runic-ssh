@@ -107,8 +107,7 @@ export interface OpenSession {
    * Whether the jump host's credential was asked to be kept and refused.
    *
    * Only about the hop with no tab. The credential of the host the user
-   * clicked is answered by `authenticateInteractively`, which returns
-   * `Keeping`.
+   * clicked is answered separately, by whichever call actually resolves it.
    *
    * Always sent, `false` rather than absent, which is why this is not
    * optional. See the note on the Rust field: a bool that is skipped when
@@ -249,10 +248,8 @@ export async function rememberCredential(
  * Keeps a secret for the life of this run, without writing it anywhere.
  *
  * ADR-0032. The wizard's own inline test authenticates through
- * `authenticateSession` rather than the credential window, so this is how it
- * reaches the middle of ADR-0025's three tiers. The window reaches it
- * through the core's own internal call; this is the same store reached
- * directly.
+ * `authenticateSession`, so this is how it reaches the middle of ADR-0025's
+ * three tiers.
  */
 export async function keepCredentialForRun(
   sessionId: string,

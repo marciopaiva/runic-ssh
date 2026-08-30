@@ -72,14 +72,11 @@ export function hashOf(catalog: Readonly<Record<string, string>>, keys: readonly
  * there.
  */
 export const SECURITY_COPY_KEYS: readonly MessageKey[] = [
-  // The credential prompt window itself (ADR-0008). Every string is either
-  // asking for a secret or saying where it is about to go.
+  // The bastion's own inline credential form (ADR-0033). Every string is
+  // either asking for a secret or saying where it is about to go.
   'credential.cancel',
-  'credential.failed',
   'credential.hop.bastion',
-  'credential.keep',
   'credential.keep.forThisRun',
-  'credential.keep.never',
   'credential.keep.stored',
   /* ADR-0035's sibling to the line above: the same claim, for whichever
      store `can_remember` actually dispatched to. Not marker-matched itself
@@ -87,24 +84,17 @@ export const SECURITY_COPY_KEYS: readonly MessageKey[] = [
      `failure.rsaRefused.body` is. Added 2026-08-29, not yet in any locale's
      reviewed scope below. */
   'credential.keep.stored.vault',
-  'credential.loading',
   'credential.method',
   'credential.method.key',
   'credential.method.password',
   'credential.passphrase',
   'credential.password',
   'credential.privateKey',
-  'credential.subject',
   'credential.submit',
-  'credential.title',
-  'credential.title.jump',
 
-  // The connection screen's explicit security claims: a secret never enters
-  // the document that renders terminal output, and the host key is checked
+  // The connection screen's explicit security claim: the host key is checked
   // before anything is sent. `connecting.cancel`, `.host` and `.title` are
-  // plain chrome around those two sentences and stay out.
-  'connecting.auth.body',
-  'connecting.auth.title',
+  // plain chrome around it and stay out.
   'connecting.body',
 
   // Both host key screens, their fingerprint and their override copy.
@@ -149,8 +139,6 @@ export const SECURITY_COPY_KEYS: readonly MessageKey[] = [
   'failure.certificate.body',
   'failure.keyUnreadable.body',
   'failure.keyUnreadable.title',
-  'failure.prompt.body',
-  'failure.prompt.title',
   'failure.proxyJump.body',
   'failure.proxyJump.title',
   'failure.revoked.body',
@@ -160,6 +148,10 @@ export const SECURITY_COPY_KEYS: readonly MessageKey[] = [
   // The editor's password block, added in the v0.2.1 sweep.
   'session.editor.credential.forget',
   'session.editor.credential.stored',
+  /* ADR-0039, added 2026-08-30, not yet in any locale's reviewed scope
+     below: says a credential is why this editor opened, not what happens
+     to one. */
+  'session.editor.missingCredential',
   'session.editor.jumpHostHint',
   'settings.sessions.lead',
 
@@ -266,29 +258,27 @@ export const REVIEWS: Readonly<
        left both SECURITY_COPY_KEYS and this list the same day, since the row
        it described no longer draws a mark at all (JumpMark.tsx). One fewer
        reviewed string, not an unreviewed one. */
+    /* Hash moved again 2026-08-30, again with no wording change: ADR-0039
+       retired the credential window along with the seven keys that only
+       ever described it (credential.failed, .keep, .keep.never, .loading,
+       .subject, .title, .title.jump), the two, connecting.auth.body and
+       .title, that described waiting on it, and failure.prompt.body/.title,
+       which described the one failure only opening it could produce. Nine
+       fewer reviewed strings, not nine unreviewed ones. */
     date: '2026-08-26',
-    hash: '1d657ee53aa3e69be1922c518c40d286f1889277124e48e2c22fb05b5f841bbe',
+    hash: '03ee17a4bd92cbda11418529a8fed6ec13220bf9e8d2761bcfd97428dc4b9af4',
     keys: [
       'credential.cancel',
-      'credential.failed',
       'credential.hop.bastion',
-      'credential.keep',
       'credential.keep.forThisRun',
-      'credential.keep.never',
       'credential.keep.stored',
-      'credential.loading',
       'credential.method',
       'credential.method.key',
       'credential.method.password',
       'credential.passphrase',
       'credential.password',
       'credential.privateKey',
-      'credential.subject',
       'credential.submit',
-      'credential.title',
-      'credential.title.jump',
-      'connecting.auth.body',
-      'connecting.auth.title',
       'connecting.body',
       'hostKey.action.cancel',
       'hostKey.action.trust',
@@ -326,8 +316,6 @@ export const REVIEWS: Readonly<
       'failure.certificate.body',
       'failure.keyUnreadable.body',
       'failure.keyUnreadable.title',
-      'failure.prompt.body',
-      'failure.prompt.title',
       'failure.proxyJump.body',
       'failure.proxyJump.title',
       'failure.revoked.body',

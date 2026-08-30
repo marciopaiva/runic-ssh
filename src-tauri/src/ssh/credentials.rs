@@ -1,9 +1,10 @@
-//! Credential requests awaiting an answer from the prompt window.
+//! Credential requests awaiting an answer.
 //!
-//! ADR-0008 decided the prompt lives in its own window, and left the protocol
-//! as a follow-up: *the core issues an opaque request id, the window replies
-//! with that id and the secret, and an unmatched or repeated id is refused.*
-//! This is that protocol.
+//! ADR-0008 decided the prompt lived in its own window and left the protocol
+//! as a follow-up: *the core issues an opaque request id, the answer arrives
+//! tagged with that id, and an unmatched or repeated id is refused.* ADR-0039
+//! retired the window; the protocol is unchanged and now answers the wizard's
+//! own bastion prompt (ADR-0033) instead.
 //!
 //! The shape is [`crate::ssh::pending`]'s, for the same reason — the webview
 //! names a thing it cannot forge — with one difference that matters. What is
@@ -12,12 +13,10 @@
 //! this map, so its life on the Rust side is one hop rather than however long
 //! the map happens to hold it.
 //!
-//! Every request ends. Submitting ends it, dismissing ends it, and closing the
-//! window ends it — the last one is why the window's own close event answers
-//! [`Answer::Dismissed`]. A request that could be left open would leave a
-//! connection waiting on a reply that never comes, which ADR-0008 names as the
-//! worst failure this design can have, because it looks like the application
-//! has hung rather than like an error.
+//! Every request ends: submitting ends it, dismissing ends it. A request that
+//! could be left open would leave a connection waiting on a reply that never
+//! comes, the worst failure this design can have, because it looks like the
+//! application has hung rather than like an error.
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -45,7 +44,8 @@ impl std::fmt::Display for RequestId {
 }
 
 impl RequestId {
-    /// The bare number, for the URL the prompt window is opened on.
+    /// The bare number, for the event the wizard's inline bastion form
+    /// listens on (ADR-0033).
     #[must_use]
     pub fn raw(self) -> u64 {
         self.0
@@ -59,11 +59,10 @@ impl RequestId {
     }
 }
 
-/// What the prompt window is allowed to render.
+/// What the bastion's inline form is allowed to render.
 ///
 /// Facts about the session and nothing else. No secret, obviously — but also
-/// nothing that came from the remote host, because the whole argument for a
-/// separate window is that it never renders a byte a host chose.
+/// nothing that came from the remote host.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CredentialPrompt {
@@ -74,29 +73,31 @@ pub struct CredentialPrompt {
     /// Whether this machine has somewhere to keep it *beyond this run*.
     ///
     /// Keeping it for the run needs nothing and is always offered, so the
-    /// window has one control that is always there and one that appears only
+    /// form has one control that is always there and one that appears only
     /// when the machine can honour it. ADR-0025.
     pub can_remember: bool,
     /// The session this hop is being crossed for, when this is a jump host.
     ///
     /// `None` is an ordinary prompt for the host the user clicked. `Some` says
-    /// the window is asking about a machine the user did not name, on the way
-    /// to one they did, and it carries the name so the window can say which.
+    /// the form is asking about a machine the user did not name, on the way
+    /// to one they did, and it carries the name so the form can say which.
     ///
     /// This is not decoration. ADR-0023 refused to let a bastion prompt at all
-    /// until the window could say which hop was asking, because two identical
-    /// windows in sequence for two different hosts is worse than one refusal
-    /// with an explanation. ADR-0027 is that permission, and this field is the
+    /// until it could say which hop was asking, because two identical prompts
+    /// in sequence for two different hosts is worse than one refusal with an
+    /// explanation. ADR-0027 is that permission, and this field is the
     /// condition it was granted on.
     pub carrying: Option<String>,
     /// A credential kind chosen before this prompt was asked for, if any.
     ///
     /// ADR-0030. Not a secret: which kind a host takes is a fact about the
-    /// host, not about what somebody types. So it is chosen on the wizard's
-    /// own Access step rather than in the window ADR-0008 keeps for the value
-    /// itself, and carried here so the window can open on that tab instead of
-    /// always guessing password. `None` for every ordinary connect: nothing
-    /// upstream has an opinion, and the window falls back to its own default.
+    /// host, not about what somebody types. Always `None` since ADR-0039:
+    /// the only remaining caller, the bastion's own prompt, has never had an
+    /// opinion about the bastion's credential kind ahead of time, only the
+    /// target's own Access step ever did, and that path stopped reaching
+    /// this struct once its window went. Kept rather than removed on its
+    /// own in this change; a caller that reads it and a caller that could
+    /// still fill it are both gone, and that is worth its own look.
     pub suggested_method: Option<SuggestedMethod>,
 }
 
@@ -148,7 +149,7 @@ pub enum Answer {
         credential: StoredCredential,
         keep: Keep,
     },
-    /// The user cancelled, or closed the window.
+    /// The user cancelled.
     Dismissed,
 }
 
@@ -186,7 +187,7 @@ impl CredentialRequests {
         (id, receive)
     }
 
-    /// What the window should render, if this request is still open.
+    /// What the form should render, if this request is still open.
     pub async fn describe(&self, id: RequestId) -> Option<CredentialPrompt> {
         Some(self.waiting.lock().await.get(&id)?.prompt.clone())
     }

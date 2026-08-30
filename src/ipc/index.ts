@@ -1,6 +1,5 @@
 export { asIpcError } from './errors';
 export {
-  authenticateInteractively,
   credentialPrompt,
   dismissCredential,
   onInlineCredentialRequest,

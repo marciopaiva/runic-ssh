@@ -74,7 +74,7 @@ impl From<Zeroizing<String>> for Secret {
 /// from the person who typed it, which is how one legitimately arrives;
 /// serializing is a secret leaving. Refusing the first would only mean the
 /// plaintext lives as a bare `String` for a line and a half longer, on its way
-/// from the prompt window to here.
+/// from the webview to here.
 ///
 /// `String::deserialize` builds an ordinary `String` before this wraps it. That
 /// intermediate is not wiped, and avoiding it means writing a deserializer
@@ -130,7 +130,7 @@ mod tests {
 
     #[test]
     fn it_arrives_from_the_wire_as_a_bare_string() {
-        /* The prompt window sends a JSON string and nothing else. If this ever
+        /* Every caller sends a JSON string and nothing else. If this ever
         needs a wrapper object, every caller in `src/commands/` changes with
         it. */
         let secret: Secret = serde_json::from_str(r#""hunter2""#).expect("deserializes");

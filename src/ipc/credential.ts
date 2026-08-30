@@ -1,27 +1,21 @@
 /**
- * Typed wrappers over the credential prompt protocol.
+ * Typed wrappers over the bastion's inline credential protocol.
  *
- * ADR-0008: the core issues an opaque request id, the prompt window replies
- * with that id and the secret, and an unmatched or repeated id is refused.
- *
- * Most of this is called from the credential window and nowhere else. Two are
- * not: `authenticateInteractively`, which is how the main window asks for a
- * prompt to exist, and `dismissCredential`, which is how it takes one away
- * again when the user cancels the attempt underneath it. It lives in
- * `src/ipc/` with the rest so the whole privileged surface stays readable in
- * one directory, per section 6.
+ * ADR-0008 issued an opaque request id, answered from a dedicated window;
+ * ADR-0039 retired the window once the wizard became the only place a
+ * credential is set or recovered. What remains is ADR-0033's inline form:
+ * the same opaque id, the same prompt readable by it, the same answer sent
+ * down a channel, now with only one caller, the wizard's own bastion test.
  */
 
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 
-import type { SessionHandle } from './sessions';
-
 /** Which kind of credential a host is expected to take. Not a secret. */
 export type SuggestedMethod = 'password' | 'privateKey';
 
-/** What the prompt window renders. No secret, and nothing a host chose. */
+/** What the bastion's inline form renders. No secret, and nothing a host chose. */
 export interface CredentialPrompt {
   readonly sessionName: string;
   readonly user: string;
@@ -60,6 +54,11 @@ export interface CredentialPrompt {
  * went away while the application was open. None of those make `canRemember`
  * false, so the tick box is offered and the "no credential store" copy does not
  * apply either.
+ *
+ * Computed client-side now, in `submitInlineCredential`: nothing on the Rust
+ * side constructs this any more since `authenticateInteractively` (ADR-0008)
+ * was retired by ADR-0039, but the wizard's own inline test still has to say
+ * which of the three endings a credential it just collected reached.
  */
 export type Keeping = 'notAsked' | 'kept' | 'refused';
 
@@ -76,24 +75,6 @@ export type Keeping = 'notAsked' | 'kept' | 'refused';
  */
 export type Keep = 'never' | 'forThisRun' | 'stored';
 
-/**
- * Opens the prompt, waits for it, and authenticates with the answer.
- *
- * Rejects with `credentialDismissed` when the user cancels or closes the
- * window. That is a cancellation, not a failure, and the interface says so.
- *
- * Resolving says what happened to the credential, never what it was.
- */
-export async function authenticateInteractively(
-  handle: SessionHandle,
-  suggestedMethod?: SuggestedMethod,
-): Promise<Keeping> {
-  return invoke<Keeping>('authenticate_interactively', {
-    handle,
-    suggestedMethod: suggestedMethod ?? null,
-  });
-}
-
 export async function credentialPrompt(request: number): Promise<CredentialPrompt> {
   return invoke<CredentialPrompt>('credential_prompt', { request });
 }
@@ -102,8 +83,7 @@ export async function credentialPrompt(request: number): Promise<CredentialPromp
  * Sends what the user typed.
  *
  * The secret goes straight to the core and is never held anywhere on this
- * side. It is read from the form at the moment of submitting, and this window
- * is destroyed immediately afterwards.
+ * side. It is read from the form at the moment of submitting.
  */
 export async function submitCredential(
   request: number,
@@ -119,25 +99,12 @@ export async function submitCredential(
   });
 }
 
-/**
- * Cancels, and closes the window.
- *
- * The request is optional because the window's error state is reached exactly
- * when it could not find its request — and a Cancel that needs one is inert in
- * the only state where it is the last thing left.
- *
- * It is also how the **main** window takes a prompt away. Passing `null` from
- * there closes whichever prompt is open, and closing it is what answers the
- * request the core is holding: the core wires the window's own destruction to a
- * dismissal, so there is no id to know and nothing left waiting. That is the
- * way out of a prompt that does not depend on the prompt's own script, which is
- * what ADR-0028 spends to take the native title bar off it.
- */
-export async function dismissCredential(request: number | null): Promise<void> {
+/** Cancels the wizard's own bastion prompt. ADR-0033. */
+export async function dismissCredential(request: number): Promise<void> {
   return invoke<void>('dismiss_credential', { request });
 }
 
-/** The event `ask_inline` emits in place of opening a window. ADR-0033. */
+/** The event `ask_inline` emits. ADR-0033. */
 const INLINE_CREDENTIAL_EVENT = 'credential://inline-request';
 
 /**
@@ -146,9 +113,7 @@ const INLINE_CREDENTIAL_EVENT = 'credential://inline-request';
  * Only ever fires while the wizard's own test is in flight. ADR-0033 names
  * this the reason a bare request id is enough: one attempt at a time, one
  * caller that ever asks this way. `credentialPrompt(request)` reads what to
- * show for it, the same call the window itself would have made; answering is
- * `submitCredential`, unchanged, because answering was never window-specific
- * either.
+ * show for it; answering is `submitCredential`.
  */
 export async function onInlineCredentialRequest(
   onRequest: (request: number) => void,
