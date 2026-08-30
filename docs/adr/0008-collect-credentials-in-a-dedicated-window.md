@@ -1,6 +1,6 @@
 # ADR-0008: Collect credentials in a dedicated window, destroyed after use
 
-* **Status**: Accepted
+* **Status**: Superseded by ADR-0039
 * **Date**: 2026-08-22
 
 Amended by ADR-0027, dated 2026-08-26, from one credential per connection to one

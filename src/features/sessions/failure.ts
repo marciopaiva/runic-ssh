@@ -75,11 +75,6 @@ const FAILURES: Partial<Record<IpcErrorCode, Failure>> = {
     body: 'failure.certificate.body',
     retryable: false,
   },
-  promptUnavailable: {
-    title: 'failure.prompt.title',
-    body: 'failure.prompt.body',
-    retryable: true,
-  },
   keychainUnavailable: {
     title: 'failure.keychain.title',
     body: 'failure.keychain.body',
@@ -190,10 +185,10 @@ export const MAPPED_FAILURES: readonly Failure[] = Object.values(FAILURES).filte
  *
  * Only a failure that says something about *reaching the host* is allowed to
  * mark it unreachable. Everything else leaves the host as a plain stored one,
- * because nothing was learned about it: a closed credential window, a refused
- * RSA key, a keychain that did not answer — none of those are the host's
- * doing, and a crossed-out marker beside a host that is up and fine is a lie
- * the user has to disprove by trying again.
+ * because nothing was learned about it. A cancelled credential prompt, a
+ * refused RSA key, a keychain that did not answer: none of those are the
+ * host's doing, and a crossed-out marker beside a host that is up and fine is
+ * a lie the user has to disprove by trying again.
  *
  * Found by cancelling the credential prompt and reading the status bar: it
  * said "Cancelled" in the panel and "Unreachable" on the floor, about the same

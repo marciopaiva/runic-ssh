@@ -107,30 +107,15 @@ fn permission_set_matches_the_reviewed_list() {
 }
 
 #[test]
-fn every_capability_is_one_of_the_two_reviewed() {
-    /* A third capability file grants something to a window nobody looked at.
+fn every_capability_is_the_one_reviewed() {
+    /* A second capability file grants something to a window nobody looked at.
     Adding one is fine; adding one without this test failing is not. */
     let names: Vec<_> = every_capability()
         .into_iter()
         .map(|(name, _)| name)
         .collect();
 
-    assert_eq!(names, vec!["credential.json", "default.json"]);
-}
-
-#[test]
-fn the_credential_window_is_granted_nothing() {
-    /* ADR-0008: this is the window a secret is typed into. It invokes the
-    application's own commands, which the ACL does not gate, and it needs
-    nothing at all from the core plugins. The shortest list is the point, and
-    an addition here deserves the same scrutiny as one to `default`. */
-    let credential = named("credential.json");
-
-    assert!(
-        permissions(&credential).is_empty(),
-        "the credential window was granted a permission: {:?}",
-        permissions(&credential)
-    );
+    assert_eq!(names, vec!["default.json"]);
 }
 
 #[test]

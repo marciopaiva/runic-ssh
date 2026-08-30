@@ -33,8 +33,8 @@ interface InlineCredentialFormProps {
  * The wizard's own credential field, once Access has led into the proof
  * phase. ADR-0032, and ADR-0033 for the `carrying` case.
  *
- * Everything ADR-0008 asks of the credential window applies here too, minus
- * the window itself. Nothing typed is ever held in React state: the field
+ * Everything ADR-0008 asked of the credential window it replaced (ADR-0039)
+ * still applies. Nothing typed is ever held in React state: the field
  * is uncontrolled and read from the DOM only at the moment of submitting,
  * and the form is reset the instant that happens, whichever way it went.
  * What the separate window adds on top, and what this deliberately does

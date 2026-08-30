@@ -44,6 +44,7 @@ import type { Focus } from './features/chrome';
 import {
   accessUnchanged,
   carrierName,
+  credentialRedirectTarget,
   duplicateOf,
   editorDirty,
   editorKey,
@@ -330,6 +331,13 @@ export function App(): JSX.Element {
      the line is always about the most recent attempt and never about one two
      actions ago. See #198. */
   const [editorFailed, setEditorFailed] = useState<ReadonlyMap<string, EditorFailure>>(new Map());
+  /* Which open editors exist because Sessions sent someone there rather than
+     because they opened one themselves, keyed the same way `editorFailed`
+     is. ADR-0039: the credential window is gone, and this is the only thing
+     left that explains why the screen changed out from under a click in
+     Sessions. Cleared the same way a failure notice is, on the next action
+     in that editor. */
+  const [editorOpenedFor, setEditorOpenedFor] = useState<ReadonlySet<string>>(new Set());
 
   const { attempt, connect, trust, abandon, submitInlineCredential } = useConnect({
     onConnecting: (sessionId) => setState(sessionId, 'connecting'),
@@ -371,6 +379,22 @@ export function App(): JSX.Element {
     onCredentialSettled: (sessionId) => {
       setState(sessionId, 'saved');
       reload();
+    },
+    /* ADR-0039: nothing usable was saved for `sessionId` itself, or, at a
+       bastion hop, for the saved session its `proxyJump` names. Either way
+       the attempt never opened, so the row goes back to plain `saved` the
+       same way an abandoned one does, and the host that actually needs
+       authenticating opens in Hosts with a note saying why. */
+    onCredentialMissing: (sessionId, hop) => {
+      setState(sessionId, 'saved');
+
+      const target = credentialRedirectTarget(sessionId, hop, savedRef.current);
+      if (target === null) return;
+
+      openEditor({ kind: 'existing', sessionId: target });
+      setEditorOpenedFor((current) =>
+        new Set(current).add(editorKey({ kind: 'existing', sessionId: target })),
+      );
     },
   });
 
@@ -840,13 +864,7 @@ export function App(): JSX.Element {
       const live = sessions.find((entry) => entry.session.id === attempt.sessionId);
       if (live === undefined) return null;
 
-      return (
-        <ConnectingSurface
-          session={live.session}
-          stage={attempt.stage.stage === 'authenticating' ? 'authenticating' : 'connecting'}
-          onCancel={abandon}
-        />
-      );
+      return <ConnectingSurface session={live.session} onCancel={abandon} />;
     }
 
     if (attempt.stage.stage === 'settled') {
@@ -935,6 +953,16 @@ export function App(): JSX.Element {
       const key = editorKey(target);
       if (!current.has(key)) return current;
       const next = new Map(current);
+      next.delete(key);
+      return next;
+    });
+  }, []);
+
+  const dismissOpenedFor = useCallback((target: EditorTarget): void => {
+    setEditorOpenedFor((current) => {
+      const key = editorKey(target);
+      if (!current.has(key)) return current;
+      const next = new Set(current);
       next.delete(key);
       return next;
     });
@@ -1800,6 +1828,8 @@ export function App(): JSX.Element {
                           discarding={open.discarding}
                           failure={editorFailed.get(editorKey(target)) ?? null}
                           onDismissFailure={() => clearFailure(target)}
+                          missingCredential={editorOpenedFor.has(editorKey(target))}
+                          onDismissMissingCredential={() => dismissOpenedFor(target)}
                           onChange={(field, value) => changeIn(target, field, value)}
                           jumpHosts={jump.offered}
                           carried={jump.carried}

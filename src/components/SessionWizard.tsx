@@ -27,6 +27,14 @@ interface SessionWizardProps {
   /** Every group name already saved, for `HostFields`' own suggestion list
    * (#221). */
   readonly groupNames: readonly string[];
+  /**
+   * Whether this editor opened because Sessions sent someone here, rather
+   * than because they opened it themselves. ADR-0039: the only thing left
+   * that explains a screen changing out from under a click elsewhere, now
+   * that a missing credential no longer opens a window of its own.
+   */
+  readonly missingCredential: boolean;
+  readonly onDismissMissingCredential: () => void;
   /** Whether the keychain already holds a credential for this host. ADR-0034:
    * the only surface left that can say so, now that `SessionForm` is gone. */
   readonly storedCredential: boolean;
@@ -110,6 +118,8 @@ export function SessionWizard({
   carried,
   duplicate,
   groupNames,
+  missingCredential,
+  onDismissMissingCredential,
   storedCredential,
   keptCredential,
   skipTest,
@@ -248,6 +258,21 @@ export function SessionWizard({
             type="button"
             onClick={dismissFailure}
             className="border-line-strong text-ink-secondary hover:text-ink self-end rounded border bg-transparent px-2.5 py-1 text-[12px]"
+          >
+            {i18n.t('editor.failed.dismiss')}
+          </button>
+        </div>
+      )}
+
+      {missingCredential && (
+        <div className="border-accent bg-accent-soft flex max-w-[440px] items-start justify-between gap-3 rounded border-l-2 px-3 py-2">
+          <p className="text-ink text-[12.5px] leading-relaxed">
+            {i18n.t('session.editor.missingCredential')}
+          </p>
+          <button
+            type="button"
+            onClick={onDismissMissingCredential}
+            className="text-ink-secondary hover:text-ink shrink-0 text-[12px]"
           >
             {i18n.t('editor.failed.dismiss')}
           </button>

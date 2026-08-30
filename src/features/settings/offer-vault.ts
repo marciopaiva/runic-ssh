@@ -11,11 +11,6 @@
  * needs it.
  */
 
-/* From the modules themselves, never from `src/ipc/index.ts`: this file is
-   reachable from `features/settings`'s own barrel, which `CredentialWindow`
-   already imports for `useTranslator`, and that barrel re-exports the
-   terminal wrappers ADR-0008 keeps out of that document's reach.
-   `tests/credential-window.test.ts` caught exactly this the first time. */
 import type { CredentialStoreStatus } from '../../ipc/sessions';
 import type { InternalVaultState } from '../../ipc/vault';
 

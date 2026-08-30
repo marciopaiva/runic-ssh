@@ -96,7 +96,6 @@ pub fn run() -> tauri::Result<()> {
             commands::sessions::authenticate_with_saved,
             commands::sessions::authenticate_session,
             commands::sessions::disconnect_session,
-            commands::credential::authenticate_interactively,
             commands::credential::credential_prompt,
             commands::credential::submit_credential,
             commands::credential::dismiss_credential,

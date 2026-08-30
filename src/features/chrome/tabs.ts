@@ -21,8 +21,9 @@ export interface Tab {
  * The sessions that have earned a tab, in the order the sidebar lists them.
  *
  * `attentionId` is the session an unresolved connection attempt names — one
- * waiting on a host key decision, on the credential window, or sitting on a
- * failure nobody has dismissed. It keeps its tab even with no handle, because
+ * waiting on a host key decision, on a saved credential being tried, or
+ * sitting on a failure nobody has dismissed. It keeps its tab even with no
+ * handle, because
  * ADR-0015 renders those surfaces inside the session's own panel and a session
  * with no tab has no panel to render them in. Before it, failing dropped the
  * tab and took away the only place the failure could have been shown.

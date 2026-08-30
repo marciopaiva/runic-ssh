@@ -9,7 +9,7 @@ use std::sync::Arc;
 use serde::Serialize;
 use tauri::{AppHandle, Manager, Runtime, State};
 
-use crate::commands::credential::{ask, ask_inline};
+use crate::commands::credential::ask_inline;
 use crate::config::sessions::{
     check_proxy_jump, delete_session as remove_session, save_session as store_session, Session,
     SessionDraft, SessionStore,
@@ -53,8 +53,8 @@ pub struct OpenSession {
     /// Whether the jump host's credential was asked to be kept and refused.
     ///
     /// Only about the hop the user has no tab for. The credential of the host
-    /// they clicked is answered by `authenticate_interactively`, which returns
-    /// `Keeping` and is where #167 is already reported.
+    /// they clicked is answered separately, by whichever call actually
+    /// resolves it, and #167 is reported there.
     ///
     /// Always serialized, never skipped when false. A field that is absent
     /// rather than `false` arrives as `undefined`, and a frontend comparing it
@@ -450,12 +450,11 @@ pub async fn remember_credential<R: Runtime>(
 /// Keeps a secret for the life of this run, without writing it anywhere.
 ///
 /// ADR-0032. The wizard's own inline test authenticates through
-/// [`authenticate_session`] rather than the credential window, which is the
-/// one place `SessionSecrets::keep` was previously reached from. Without
-/// this, "until Runic SSH closes, in memory only", the middle tier
-/// ADR-0025 built because it is what most people actually want, would be
-/// unreachable from that path, leaving two of its three answers instead of
-/// three.
+/// [`authenticate_session`], which is not itself where `SessionSecrets::keep`
+/// was reached from before this command existed. Without it, "until Runic SSH
+/// closes, in memory only", the middle tier ADR-0025 built because it is what
+/// most people actually want, would be unreachable from that path, leaving
+/// two of its three answers instead of three.
 #[tauri::command]
 pub async fn keep_credential_for_run<R: Runtime>(
     app: AppHandle<R>,
@@ -799,6 +798,16 @@ fn worth_asking(error: &Error) -> bool {
     )
 }
 
+/// Whether a missing bastion credential should be collected right here.
+///
+/// ADR-0039: only the wizard's own test collects one inline any more. A chain
+/// opened from Sessions leaves `worth_asking`'s answer alone rather than
+/// acting on it, so the failure propagates and the frontend sends the user to
+/// the bastion's own wizard entry instead.
+fn worth_asking_now(inline: bool, error: &Error) -> bool {
+    inline && worth_asking(error)
+}
+
 /// Opens and authenticates a bastion nobody had open.
 ///
 /// Registered by the caller so the next chain to the same host finds it, rather
@@ -878,7 +887,7 @@ async fn open_bastion<R: Runtime>(
         },
         None => match saved() {
             Ok(stored) => (stored, Keep::Never, false),
-            Err(error) if worth_asking(&error) => {
+            Err(error) if worth_asking_now(chain.inline, &error) => {
                 let prompt = CredentialPrompt {
                     session_name: bastion.name.clone(),
                     user: bastion.user.clone(),
@@ -896,13 +905,7 @@ async fn open_bastion<R: Runtime>(
                     suggested_method: None,
                 };
 
-                let answer = if chain.inline {
-                    ask_inline(chain.app, chain.requests, prompt).await
-                } else {
-                    ask(chain.app, chain.requests, prompt).await
-                };
-
-                match answer {
+                match ask_inline(chain.app, chain.requests, prompt).await {
                     Ok((stored, keep)) => (stored, keep, keep == Keep::Never),
                     Err(error) => {
                         /* Including a dismissal. A bastion left open on a
@@ -1469,14 +1472,30 @@ mod tests {
     }
 
     /// ADR-0027 lets a bastion prompt, and the whole of the restraint in that
-    /// decision is which failures reach the window. A store that exists and
-    /// said no is not a store that was never there.
+    /// decision is which failures are worth asking about at all. A store that
+    /// exists and said no is not a store that was never there.
     #[test]
     fn nothing_saved_and_nowhere_to_save_are_the_two_that_ask() {
         assert!(worth_asking(&Error::NoSavedCredential));
         assert!(worth_asking(&Error::KeychainUnavailable {
             reason: "this machine has no credential store configured".to_owned(),
         }));
+    }
+
+    /// ADR-0039: the wizard's own test still collects a worth-asking failure
+    /// inline; a chain opened from Sessions leaves it alone, whatever the
+    /// failure, so it propagates and the frontend sends the user to the
+    /// bastion's own wizard entry instead.
+    #[test]
+    fn only_the_wizards_own_test_collects_it_here() {
+        assert!(worth_asking_now(true, &Error::NoSavedCredential));
+        assert!(!worth_asking_now(false, &Error::NoSavedCredential));
+        assert!(!worth_asking_now(
+            true,
+            &Error::KeychainReadFailed {
+                reason: "the credential store refused access".to_owned(),
+            }
+        ));
     }
 
     /// The defect this whole mechanism exists for, at the level a test reaches.

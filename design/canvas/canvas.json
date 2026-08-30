@@ -150,15 +150,6 @@
       "title": "The gear opens a tab"
     },
     {
-      "file": "Credential.dc.html",
-      "x": 1920,
-      "y": 4320,
-      "w": 1840,
-      "h": 680,
-      "page": "page-2",
-      "title": "Credential window, its own window"
-    },
-    {
       "file": "MainLight.dc.html",
       "x": 0,
       "y": 0,
@@ -209,7 +200,7 @@
       "y": -300,
       "w": 760,
       "page": "page-2",
-      "text": "Every screen a person can meet, in the anatomy ADR-0020 fixed\n\nEach rectangle in the main area is a group: a 28px strip of tabs plus the body of the active one. A surface belonging to a session renders in the group whose active tab it is, which is why the host key screens and the failure screen sit inside one rectangle while the terminals around them keep running.\n\nThe credential window is the exception and always was. It is a separate OS window under ADR-0008, so that a document rendering hostile terminal output is never the document holding a password. Nothing in ADR-0020 touches it, which is why it is the one artboard here that was not redrawn."
+      "text": "Every screen a person can meet, in the anatomy ADR-0020 fixed\n\nEach rectangle in the main area is a group: a 28px strip of tabs plus the body of the active one. A surface belonging to a session renders in the group whose active tab it is, which is why the host key screens and the failure screen sit inside one rectangle while the terminals around them keep running.\n\nA credential window used to be the exception, a separate OS window under ADR-0008 so a document rendering hostile terminal output was never the document holding a password. ADR-0039 retired it: every credential is now collected inline, in a group like everything else here, and no artboard on this page draws a window of its own any more."
     },
     {
       "id": "safety-note",

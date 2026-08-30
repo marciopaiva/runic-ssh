@@ -40,7 +40,7 @@ ADR-0020 exists to stop.
 | Page | What is on it |
 | --- | --- |
 | `System` | The anatomy and its seven rules, and the token, type, density and marker sheet |
-| `Surfaces` | Thirteen screens plus the credential window |
+| `Surfaces` | Thirteen screens |
 | `Variants` | Light, and the same window in pt-BR and neutral es |
 
 ## Files
@@ -62,13 +62,14 @@ ADR-0020 exists to stop.
 | `PasteConfirm.dc.html` | A paste going to three hosts at once |
 | `Palette.dc.html` | The command palette |
 | `Settings.dc.html` | What the gear opens |
-| `Credential.dc.html` | The credential window, which is a window of its own |
 | `Main{Light,PtBr,Es}.dc.html` | The same window, generated |
 
 Every screen a user can meet is drawn here. That is the point of the set rather
 than a boast. The surfaces that were never drawn, the failure and the revoked
 key and the credential window and the host form, are exactly the ones that
 drifted into five different shapes before ADR-0015 pulled them back together.
+The credential window itself is gone since ADR-0039, and its artboard went
+with it rather than staying as a drawing of a screen nobody can open.
 
 Screens that live inside the main window are drawn **inside it**, and now
 inside the group that owns them. The host key artboards used to be standalone

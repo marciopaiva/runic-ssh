@@ -7,8 +7,6 @@ import { SessionSurface, SurfaceAction } from './SessionSurface';
 
 interface ConnectingSurfaceProps {
   readonly session: Session;
-  /** Reaching the host, or waiting on the credential window. */
-  readonly stage: 'connecting' | 'authenticating';
   readonly onCancel: () => void;
 }
 
@@ -28,23 +26,19 @@ interface ConnectingSurfaceProps {
  * The body is not decoration either. "The host key is checked before anything
  * is sent" is the ordering `features/sessions/connect.ts` exists to guarantee,
  * and saying it here is where the user can see it being kept.
+ *
+ * One stage rather than two since ADR-0039: trying a saved or kept credential
+ * silently used to be told apart from reaching the host, back when the next
+ * step after it failing was a window opening. It no longer is one, so there
+ * is nothing left on screen for the two halves to disagree about.
  */
-export function ConnectingSurface({
-  session,
-  stage,
-  onCancel,
-}: ConnectingSurfaceProps): JSX.Element {
+export function ConnectingSurface({ session, onCancel }: ConnectingSurfaceProps): JSX.Element {
   const i18n = useTranslator();
-  const waiting = stage === 'authenticating';
 
   return (
     <SessionSurface
       titleId="connecting-title"
-      title={
-        waiting
-          ? i18n.t('connecting.auth.title')
-          : i18n.t('connecting.title', { host: session.host })
-      }
+      title={i18n.t('connecting.title', { host: session.host })}
       icon={
         <svg viewBox="0 0 16 16" className="h-[19px] w-[19px]" fill="none" aria-hidden="true">
           <circle cx="8" cy="8" r="5.8" stroke="currentColor" strokeWidth="1.5" opacity="0.25" />
@@ -56,7 +50,7 @@ export function ConnectingSurface({
           />
         </svg>
       }
-      body={waiting ? i18n.t('connecting.auth.body') : i18n.t('connecting.body')}
+      body={i18n.t('connecting.body')}
       note={
         <span className="font-mono">
           {i18n.t('connecting.host', {

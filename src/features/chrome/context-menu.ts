@@ -18,11 +18,10 @@
  * So the rule is not "no menu". It is the menu where it can only edit, and
  * nothing where it can navigate. Cut and Copy still come up greyed out over the
  * terminal, which is its own small lie; #115 replaces that half with a menu we
- * do write, and this stays as the answer for everywhere else.
- *
- * The credential window deliberately does not install this. Its document holds
- * no session to lose, and its native menu is the pointer route to paste a
- * password that #116 exists to confirm.
+ * do write, and this stays as the answer for everywhere else. The wizard's own
+ * credential fields are ordinary text entry controls in this same document, so
+ * they need nothing of their own: pasting into them was confirmed on
+ * Linux/WebKitGTK by #116.
  */
 
 /** Where the native menu can only edit, so it is safe to let through. */

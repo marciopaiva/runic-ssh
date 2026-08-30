@@ -156,9 +156,10 @@ than shelling out to an agent.
 Two prompts can arrive in a row for two different machines, and to anybody not
 told which is which they are the same screen shown twice: the second gets
 answered on the strength of having thought about the first. So every screen in a
-chain says which hop it is about, the host key prompt and the credential window
-alike. ADR-0023 attached that condition to allowing a bastion to prompt at all,
-and ADR-0027 kept it when the bastion was allowed to ask.
+chain says which hop it is about, the host key prompt and the bastion's own
+inline credential form alike. ADR-0023 attached that condition to allowing a
+bastion to prompt at all, and ADR-0027 kept it when the bastion was allowed to
+ask.
 
 A bastion is shared: a chain rides a connection that is already open rather than
 opening a second one, and it stays up until the last session on it leaves

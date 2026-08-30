@@ -32,15 +32,19 @@ cargo test --test against_openssh -- --ignored --nocapture
 
 ## Driving the application against it
 
-The same container is the only way to reach the credential prompt by hand. The
-prompt opens from `authenticate_interactively`, which runs after a connection is
-open and the server has asked for a credential, so no amount of clicking gets
-there without a server that asks.
+The same container is the only way to reach a live credential exchange by hand.
+ADR-0039 retired the separate prompt window: what opens now, when nothing
+usable is saved, is that host's own entry in Hosts, with a note saying why.
+Reaching it takes a saved session with nothing stored or kept, and a real
+server to authenticate against. No amount of clicking gets there without one
+that actually asks.
 
-Save a session against it, connect, accept the host key, and the prompt window
-opens. That path found a bug three passing tests did not: `prompt_url` was
-correct and tested, and `open_window` built the URL a second time and got it
-wrong, so every prompt opened onto "this prompt is no longer valid".
+Save a session against it, connect from Sessions with no credential saved, and
+the editor opens on the host in Hosts with `session.editor.missingCredential`
+showing. For a bastion crossed mid-chain with nothing saved for it, the same
+thing happens for the bastion's own entry, found by its `proxyJump`, once the
+whole chain has failed rather than mid-connection: there is no longer a window
+that pauses the attempt to ask.
 
 Two things about the container matter when driving it rather than testing it:
 
@@ -240,28 +244,29 @@ crossed the channel.
 
 ### How long a credential is kept
 
-ADR-0025 gives the credential window three answers, and two of them are only
-visible over time, so nothing in a single run distinguishes them. Drive them in
-this order, against a host with no saved credential:
+ADR-0025 gave the credential window three answers; ADR-0034 already took
+*ask me again next time* out of the wizard's own inline form, and ADR-0039
+took the window itself away, so that choice is no longer reachable from any
+screen. What is left picks itself, keychain when there is one, otherwise for
+the run, and only the second is visible over a single run. Drive it in this
+order, against a host with no saved credential:
 
 | Do this | Expect |
 | --- | --- |
-| Connect, choose *ask me again next time*, disconnect, connect again | the window opens again |
-| Connect, choose *until Runic SSH closes*, disconnect, connect again | it does not ask |
-| Close the application, reopen it, connect | it asks again, and `sessions.json` never held a `credentialId` |
-| Connect, choose *in the system keychain*, restart, connect | it does not ask, and `sessions.json` now names an opaque id |
+| Connect from Sessions, authenticate in the wizard's own form, disconnect, connect again | it does not ask |
+| Close the application, reopen it, connect | it asks again if the store was unavailable and the run held it; `sessions.json` never held a `credentialId` for that host |
+| With a keychain available, authenticate, restart, connect | it does not ask, and `sessions.json` now names an opaque id |
 | Look for the secret anywhere but the keychain | it is not in `sessions.json`, not in `settings.json`, and not in any log |
 
-On a machine with no secret service the third choice is absent and the window
-says why. That is the case worth having a machine for: the middle answer is the
-only one such a machine can honour, and it is the reason there are three
-answers rather than a tick box.
+On a machine with no secret service, authenticating always lands on the
+run-only answer: that is the case worth having a machine for, since it is the
+only one such a machine can give.
 
 ### The password block on a host's form
 
 A host's form says whether a password is stored for it, saves one, and forgets
 one, and none of that puts a password field on the form. The credential is
-collected by connecting once, in the window every other host uses, and the
+collected by connecting once, in the wizard's own Access step, and the
 connection closes as soon as the server accepts it (#189). What that leaves to
 check is mostly whether the form tells the truth afterwards.
 
@@ -269,7 +274,7 @@ check is mostly whether the form tells the truth afterwards.
 | --- | --- |
 | Open a host with no saved password | the block says none is stored, and offers *Connect once and save a password* |
 | Press it | the tab you are taken to is **the session's**, not the form's, and the host key screen appears there |
-| Answer the credential window, choose *in the system keychain* | a result surface saying the password is saved, and no terminal opens |
+| Authenticate in the wizard, in the system keychain | a result surface saying the password is saved, and no terminal opens |
 | Go back to the form | the block now says one is stored, and offers to replace or to forget it |
 | Press *Forget it* | the block goes back to saying none is stored |
 | Connect normally | it asks again |
@@ -490,23 +495,25 @@ and say so.
 #### The credential the jump host asks for
 
 ADR-0027 lets the bastion prompt when it has nothing saved, which is what makes
-a machine with no keychain able to use one at all. Two prompts now arrive in a
-row for two different machines, so the thing being checked is mostly whether a
-person can tell them apart.
+a machine with no keychain able to use one at all. ADR-0039 changed *where*
+that happens for an ordinary connect from Sessions: the bastion no longer
+prompts mid-chain, so a target and a bastion that both need a credential now
+takes separate visits to Hosts rather than one continuous window sequence.
+This whole section needs a live pass to confirm; it is written from the code,
+not driven.
 
-Start from a bastion with no saved credential and no session open on it.
+Start from a bastion with no saved credential, and a target behind it with
+none either, and no session open on either.
 
 | Do this | Expect |
 | --- | --- |
-| Connect to the target | the bastion's key is asked about first, then a credential window naming the bastion |
-| Keep going to the target's key, and accept it | **the bastion does not ask again.** Accepting that key rebuilds the chain, and the answer already given travels with the decision |
-| Cancel the target's key instead | the attempt ends, and nothing is holding what you typed for the bastion |
-| Read that window | the heading says the jump host is authenticated first, and the body names the host you actually clicked |
-| Answer it, choose *until Runic SSH closes* | the target's own window follows, with the ordinary heading |
-| Connect to a second host behind the same bastion | the bastion does not ask again |
-| Close the application, reopen, connect | it asks again, and nothing was written anywhere |
-| Answer it, choose *in the system keychain* | it does not ask on the next run, and this is the only answer that survives one |
-| Cancel the bastion's window | the attempt fails naming the jump host, and `podman exec runic-test-bastion ps` shows no session left behind |
+| Connect to the target from Sessions | the whole attempt fails at once, no window, nothing waiting, and the bastion's own entry opens in Hosts with `session.editor.missingCredential` showing |
+| Authenticate there, in the wizard's Access step, choose *in the system keychain* | the result surface says the password is saved; the target still has not been reached |
+| Go back to Sessions, connect to the target again | the bastion's key and credential are silently reused, and now it is the **target's own** entry that opens in Hosts, with the same notice |
+| Authenticate there too | the result surface says the password is saved |
+| Go back to Sessions, connect to the target a third time | both credentials are reused silently, the target's key is checked, and the terminal opens |
+| Connect to a second host behind the same bastion | the bastion is not asked about again |
+| Close the application, reopen, connect | asks again only for whichever answer was *until Runic SSH closes* rather than *in the system keychain*; `podman exec runic-test-bastion ps` shows no leftover session from any attempt above |
 
 The last row is the one worth doing slowly. A bastion left open by a refusal
 holds a slot against the server's `MaxSessions` until the application restarts,
@@ -669,10 +676,10 @@ Crop and enlarge what you captured rather than trusting a coordinate twice.
 being checked is how three of today's defects were found, and each of them
 passed every test in this repository.
 
-A host key prompt or a credential window will time out while you debug the
-coordinates. `sshd` closes the connection after its login grace period, and the
-error the window shows is "the SSH conversation did not finish", not "you took
-too long". Drive the whole sequence in one go.
+A host key prompt or the wizard's own inline credential form will time out
+while you debug the coordinates. `sshd` closes the connection after its login
+grace period, and the failure surface says "the SSH conversation did not
+finish", not "you took too long". Drive the whole sequence in one go.
 
 ## Measuring several terminals painting at once
 

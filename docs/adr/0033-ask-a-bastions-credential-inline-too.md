@@ -118,3 +118,10 @@ addressed to the right listener.
 **Follow-up**: none named beyond what ADR-0032 already left: this closes the
 gap that document's own follow-up section predicted rather than opening a new
 one.
+
+**Amended by ADR-0039 (2026-08-30).** `ask` loses its only caller: a chain
+opened from Sessions (`chain.inline: false`) no longer collects the bastion's
+credential itself, it lets the failure propagate and sends the user to the
+bastion's own wizard entry instead. `ask_inline` and everything else this
+document built is unchanged; only the `else` branch that used to call `ask`
+is gone.

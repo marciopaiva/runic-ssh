@@ -68,16 +68,4 @@ describe('the rule is installed', () => {
   it('by the main window, on its own document', () => {
     expect(source).toContain('refuseNavigationMenu(document)');
   });
-
-  it('and not by the credential window', () => {
-    /* ADR-0008 keeps that document small, and #116 has still not confirmed that
-       a password can be pasted into it at all. Taking its menu away would
-       remove the pointer route being asked about. */
-    const credential = readFileSync(
-      fileURLToPath(new URL('../src/credential/main.tsx', import.meta.url)),
-      'utf8',
-    );
-
-    expect(credential).not.toContain('refuseNavigationMenu');
-  });
 });
