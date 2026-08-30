@@ -40,6 +40,7 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   CARGO_AUDIT_VERSION: 0.22.2
+  CARGO_DENY_VERSION: 0.20.2
 
 jobs:
   audit:
@@ -74,3 +75,36 @@ jobs:
       - name: cargo audit
         working-directory: src-tauri
         run: cargo audit --deny warnings
+
+  deny:
+    name: deny / licences, bans, sources
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install the pinned Rust toolchain
+        run: |
+          rustup toolchain install --no-self-update
+          rustup show active-toolchain
+
+      # cargo-deny takes a couple of minutes to compile, and the binary only
+      # changes when the pinned version does.
+      - name: Cache cargo-deny
+        id: cache-deny
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-deny
+          key: cargo-deny-${{ runner.os }}-${{ env.CARGO_DENY_VERSION }}-${{ hashFiles('rust-toolchain.toml') }}
+
+      - name: Install cargo-deny
+        if: steps.cache-deny.outputs.cache-hit != 'true'
+        run: cargo install cargo-deny --locked --version ${{ env.CARGO_DENY_VERSION }}
+
+      # Advisories are `cargo audit`'s job, above; this checks the three things
+      # it doesn't. `deny.toml` explains the allow lists and the one crate that
+      # needs an exception.
+      - name: cargo deny
+        working-directory: src-tauri
+        run: cargo deny check bans licenses sources
