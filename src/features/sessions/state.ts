@@ -199,3 +199,18 @@ export function soloGroup(
 
   return groups.filter((group) => groupKey(group) === solo);
 }
+
+/**
+ * Every group name already in use, for the host form's own suggestion list
+ * (#221). Alphabetical, unlike `groupSessions`: that one preserves the file's
+ * arrangement because it is showing hosts already placed in it, and this one
+ * is helping somebody find a name among many before they have chosen one, the
+ * way a picker reads better sorted than in whatever order hosts happened to
+ * be saved.
+ */
+export function groupNames(sessions: readonly LiveSession[]): readonly string[] {
+  return groupSessions(sessions)
+    .map((group) => group.name)
+    .filter((name): name is string => name !== null)
+    .sort((a, b) => a.localeCompare(b));
+}

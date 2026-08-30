@@ -5,6 +5,7 @@ export {
   describeState,
   filterGroups,
   groupKey,
+  groupNames,
   groupSessions,
   soloGroup,
 } from './state';

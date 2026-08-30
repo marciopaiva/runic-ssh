@@ -24,6 +24,9 @@ interface SessionWizardProps {
   /** The saved session already reaching this exact host, port and user, if
    * there is one. */
   readonly duplicate: Session | null;
+  /** Every group name already saved, for `HostFields`' own suggestion list
+   * (#221). */
+  readonly groupNames: readonly string[];
   /** Whether the keychain already holds a credential for this host. ADR-0034:
    * the only surface left that can say so, now that `SessionForm` is gone. */
   readonly storedCredential: boolean;
@@ -103,6 +106,7 @@ export function SessionWizard({
   jumpHosts,
   carried,
   duplicate,
+  groupNames,
   storedCredential,
   skipTest,
   onSkipTest,
@@ -254,6 +258,7 @@ export function SessionWizard({
             onChange={onChange}
             jumpHosts={jumpHosts}
             carried={carried}
+            groupNames={groupNames}
             duplicate={duplicate}
             firstRef={first}
           />

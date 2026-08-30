@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import type { JSX } from 'react';
 
@@ -36,6 +37,13 @@ interface HostFieldsProps {
    * something, not only once a submit is attempted.
    */
   readonly duplicate: Session | null;
+  /**
+   * Every group name already saved, for the suggestion list below the group
+   * field (#221): "Production", "producao" and "Prod " forked silently into
+   * three groups before this, with no way to notice short of reading every
+   * saved host's group field by hand.
+   */
+  readonly groupNames: readonly string[];
   /** Focused on mount, when the caller wants it. The wizard's Host step
    * does, so this is the caller's call and not a fixed choice. */
   readonly firstRef?: RefObject<HTMLInputElement | null>;
@@ -57,9 +65,25 @@ export function HostFields({
   jumpHosts,
   carried,
   duplicate,
+  groupNames,
   firstRef,
 }: HostFieldsProps): JSX.Element {
   const i18n = useTranslator();
+  const [groupOpen, setGroupOpen] = useState(false);
+  const groupBox = useRef<HTMLLabelElement>(null);
+
+  useEffect(() => {
+    if (!groupOpen) return undefined;
+
+    const onPointerDown = (event: MouseEvent): void => {
+      if (!(event.target instanceof Node) || groupBox.current?.contains(event.target) !== true) {
+        setGroupOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, [groupOpen]);
 
   const field = (
     name: keyof DraftValues,
@@ -102,6 +126,67 @@ export function HostFields({
       </label>
     );
   };
+
+  /* Uppercased as it is typed rather than only displayed that way: the most
+     common fork this issue names is the same word cased two ways, and
+     forcing one case on the value itself, not just on screen, is what stops
+     "Production" and "production" ever becoming two groups in the first
+     place. The suggestion list below covers the fork a case rule cannot,
+     the same word spelled two different ways. */
+  const groupSuggestions = groupNames.filter(
+    (name) => name.includes(values.group.trim()) && name !== values.group.trim(),
+  );
+  const groupInvalid = wrong.includes('group');
+
+  const groupField = (): JSX.Element => (
+    <label ref={groupBox} className="relative flex flex-col gap-1">
+      <span className="text-ink-muted text-[11px]">{i18n.t('session.editor.group')}</span>
+      <input
+        value={values.group}
+        onChange={(event) => onChange('group', event.target.value.toUpperCase())}
+        onFocus={() => setGroupOpen(true)}
+        aria-invalid={groupInvalid}
+        aria-describedby={groupInvalid ? 'session-error-group' : undefined}
+        autoComplete="off"
+        spellCheck={false}
+        className={`bg-surface-input text-ink rounded border px-2.5 py-1.5 font-mono text-[12.5px] outline-none ${
+          groupInvalid ? 'border-danger' : 'border-line-subtle'
+        }`}
+      />
+      {groupInvalid && (
+        <span id="session-error-group" className="text-danger-text text-[11px]">
+          {i18n.t('session.editor.invalid')}
+        </span>
+      )}
+      {!groupInvalid && (
+        <span className="text-ink-faint text-[11px]">{i18n.t('session.editor.groupHint')}</span>
+      )}
+
+      {groupOpen && groupSuggestions.length > 0 && (
+        <div
+          role="listbox"
+          aria-label={i18n.t('session.editor.group')}
+          className="bg-surface-overlay border-line-strong absolute top-full left-0 z-10 mt-1 max-h-40 w-full overflow-y-auto rounded border shadow-2xl"
+        >
+          {groupSuggestions.map((name) => (
+            <button
+              key={name}
+              type="button"
+              role="option"
+              aria-selected={false}
+              onClick={() => {
+                onChange('group', name);
+                setGroupOpen(false);
+              }}
+              className="text-ink-secondary hover:bg-surface-raised/60 flex h-7 w-full items-center px-2.5 text-left font-mono text-[12.5px]"
+            >
+              {name}
+            </button>
+          ))}
+        </div>
+      )}
+    </label>
+  );
 
   /* Drawn rather than left to the platform, for the reason in #163: the closed
      select is painted in the platform's own colours, and on dark that was a
@@ -156,9 +241,7 @@ export function HostFields({
       {field('name', i18n.t('session.editor.name'), {
         hint: i18n.t('session.editor.nameHint'),
       })}
-      {field('group', i18n.t('session.editor.group'), {
-        hint: i18n.t('session.editor.groupHint'),
-      })}
+      {groupField()}
 
       <div className="flex flex-col gap-1">
         <span className="text-ink-muted text-[11px]">{i18n.t('hostKind.label')}</span>
