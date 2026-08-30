@@ -22,7 +22,7 @@ use crate::ssh::connection::{
 use crate::ssh::credentials::{CredentialPrompt, CredentialRequests, Keep};
 use crate::ssh::known_hosts::KnownHosts;
 use crate::ssh::pending::{Carried, CarriedCredentials, PendingHostKeys, PendingId};
-use crate::ssh::registry::{Busy, Open, Registry, SessionHandle};
+use crate::ssh::registry::{Busy, ChainedBastions, Open, Registry, SessionHandle};
 use crate::ssh::trust::Trust;
 use crate::vault::{
     can_remember, resolve_credential, store_credential, Availability, CredentialId, InternalVault,
@@ -660,6 +660,9 @@ struct Chain<'a, R: Runtime> {
     pending: &'a PendingHostKeys,
     carried: &'a CarriedCredentials,
     registry: &'a Registry,
+    /// Bastions a chain has already opened, checked before opening another.
+    /// ADR-0037.
+    chained_bastions: &'a ChainedBastions,
     requests: &'a CredentialRequests,
     vault: &'a Vault,
     internal: &'a InternalVault,
@@ -698,14 +701,34 @@ async fn open_through<R: Runtime>(
     the reason a machine with no keychain can still reach a host behind one: the
     credential was used when that connection was made and is not needed twice.
     Six hosts behind a bastion cost it one login, not six. Nothing was asked of
-    the keychain on this attempt either, which is why it reports no refusal. */
+    the keychain on this attempt either, which is why it reports no refusal.
+
+    Two places to look, in order: a bastion the user opened as a session of
+    their own, findable by its handle in the registry; then one a chain opened
+    on somebody else's behalf, findable only through the weak trace ADR-0037
+    leaves for exactly this. Opening a fresh one is the last resort, not the
+    default. */
     let crossed = match chain.registry.shared_of_session(&bastion.id).await {
         Some(carrier) => Crossed {
             carrier,
             typed: None,
             keep_refused: false,
         },
-        None => open_bastion(chain, bastion, &target.name, known.clone()).await?,
+        None => match chain.chained_bastions.find(&bastion.id).await {
+            Some(carrier) => Crossed {
+                carrier,
+                typed: None,
+                keep_refused: false,
+            },
+            None => {
+                let opened = open_bastion(chain, bastion, &target.name, known.clone()).await?;
+                chain
+                    .chained_bastions
+                    .remember(bastion.id.clone(), &opened.carrier)
+                    .await;
+                opened
+            }
+        },
     };
 
     let Crossed {
@@ -950,7 +973,7 @@ async fn open_bastion<R: Runtime>(
 /// has to be authenticated before it will open a channel, so its credential is
 /// resolved here. It comes from the keychain and never from a window.
 #[tauri::command]
-/* Ten, of which seven are state Tauri injects and one is the handle it
+/* Eleven, of which eight are state Tauri injects and one is the handle it
 builds. There is one call site and it is generated. Grouping them would mean
 wrapping the framework's own injection to satisfy a lint about human call
 sites that this function does not have. */
@@ -958,6 +981,7 @@ sites that this function does not have. */
 pub async fn connect_session<R: Runtime>(
     app: AppHandle<R>,
     registry: State<'_, Registry>,
+    chained_bastions: State<'_, ChainedBastions>,
     pending: State<'_, PendingHostKeys>,
     carried: State<'_, CarriedCredentials>,
     requests: State<'_, CredentialRequests>,
@@ -1011,6 +1035,7 @@ pub async fn connect_session<R: Runtime>(
                 pending: &pending,
                 carried: &carried,
                 registry: &registry,
+                chained_bastions: &chained_bastions,
                 requests: &requests,
                 vault: &vault,
                 internal: &internal,

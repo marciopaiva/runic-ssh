@@ -227,6 +227,15 @@ impl client::Handler for HostKeyCheck {
 /// `None` inside means the connection has been taken to be closed.
 pub type Shared = Arc<tokio::sync::Mutex<Option<Connection>>>;
 
+/// A reference to a [`Shared`] that does not keep it open.
+///
+/// ADR-0037: a bastion a chain opens is found again through one of these, not
+/// through a second [`Arc`]. `Arc::try_unwrap` inside [`close_shared`] is what
+/// decides a shared connection is done with, and a weak reference is
+/// invisible to it: it can be upgraded while somebody else's strong reference
+/// still exists, and it simply stops upgrading once the last one is gone.
+pub type WeakShared = std::sync::Weak<tokio::sync::Mutex<Option<Connection>>>;
+
 /// Wraps a connection so it can be shared.
 pub fn share(connection: Connection) -> Shared {
     Arc::new(tokio::sync::Mutex::new(Some(connection)))

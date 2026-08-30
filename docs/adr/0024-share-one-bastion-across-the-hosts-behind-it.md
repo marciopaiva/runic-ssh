@@ -141,6 +141,14 @@ It does not put a tab on the strip. Tabs come from the frontend being told a
 session opened, and nothing tells it about a bastion nobody asked for. What the
 interface should show is #168 and is deliberately still open.
 
+**Amended by ADR-0037 (2026-08-30).** This paragraph was never built (#200):
+`Registry::insert` registers the target a chain opens and never the bastion,
+so a second chain to a bastion nobody opened by hand still cannot find the
+first one's. ADR-0037 answers the lifetime question this section left open,
+"nothing would ever take that share back," with a weak lookup rather than a
+second strong owner. The rest of this document, the sharing decision and its
+ownership argument, stands.
+
 ## Consequences
 
 **Good**: Six hosts behind a bastion cost one connection, one authentication and
