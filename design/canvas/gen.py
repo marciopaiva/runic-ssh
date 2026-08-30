@@ -794,7 +794,7 @@ def kind_picker(active="other"):
 
 def wizard_breadcrumb(step=2, phase=None):
     """Host / Access, `SessionWizard.tsx`'s own two real, navigable steps
-    (lines ~197-220) — plus a third item, proposed here, that only ever
+    (lines ~197-220), plus a third item proposed here that only ever
     labels the automatic phase Access hands off to once there is nothing
     left to choose (ADR-0034: "not a third step... it runs itself"). Not
     clickable, not part of `step`, not yet in any locale catalogue: the
@@ -882,7 +882,7 @@ def wizard_actions(*items):
 
 def build_hosts_host():
     """Host step, redrawn against the real `HostFields.tsx`: kind picker
-    (ADR-0031), jump host selector, group with suggestions (#221) — none of
+    (ADR-0031), jump host selector, group with suggestions (#221), none of
     which the old `NewSession.dc.html` (pre-ADR-0029, pre-wizard) drew.
     See #233."""
     fields = f"""<div style="max-width: 440px; display: flex; flex-direction: column; gap: 14px;">
@@ -924,7 +924,7 @@ def build_hosts_access():
     write("HostsAccess.dc.html", page(body, None, home_rail(), st, show_shapes=False))
 
 def build_hosts_phase():
-    """Access, proving, the bastion's own inline credential (ADR-0033) —
+    """Access, proving, the bastion's own inline credential (ADR-0033),
     picked as the example because it is the sub-phase the maintainer's
     complaint names most directly: today nothing on screen says *whose*
     password this is beyond the banner text. The proposed third breadcrumb
