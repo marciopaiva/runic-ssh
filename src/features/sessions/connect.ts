@@ -229,3 +229,22 @@ export function credentialRedirectTarget(
 
   return saved.find((session) => session.id === sessionId)?.proxyJump ?? null;
 }
+
+/**
+ * Whose attempt to retry when a redirected editor finishes, if any.
+ *
+ * ADR-0040: `onCredentialMissing` remembers, per editor it opened, the
+ * session Sessions was actually trying to reach. Finishing that editor
+ * retries it, but only once the credential this editor exists for is
+ * actually saved, `outcome` is the same fact the editor's own settled row
+ * already shows. A test that ran and failed, or an editor that never ran one
+ * at all because it was opened by hand rather than by a redirect
+ * (`resumeId` is `undefined` either way), has nothing to retry.
+ */
+export function resumeTargetAfterEditor(
+  resumeId: string | undefined,
+  outcome: 'saved' | 'failed' | undefined,
+): string | null {
+  if (resumeId === undefined || outcome !== 'saved') return null;
+  return resumeId;
+}

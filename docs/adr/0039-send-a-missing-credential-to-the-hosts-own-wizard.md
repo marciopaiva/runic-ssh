@@ -142,3 +142,10 @@ be missing at the moment a redirect needs it (deleted out from under a
 target that still names it) is worth confirming in Phase 3 rather than
 assumed away here; `InvalidProxyJump`'s existing checks suggest it already
 cannot happen, but this document does not verify that.
+
+**Amended by ADR-0040 (2026-08-30).** The "two actions where there was one"
+cost above was scoped to a single missing hop. Driving a real two-hop chain
+with neither hop's credential saved showed it compounds, once per hop, into
+one manual click per redirect. ADR-0040 has the affected host's editor retry
+the original attempt itself once its own credential is actually saved,
+instead of waiting for that click to happen again.

@@ -22,6 +22,7 @@ export {
   isInProgress,
   isOverridable,
   needsConfirmation,
+  resumeTargetAfterEditor,
   shouldPromptAfterSaved,
   wasCancelled,
 } from './connect';

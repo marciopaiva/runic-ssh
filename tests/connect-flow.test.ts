@@ -16,6 +16,7 @@ import {
   isInProgress,
   isOverridable,
   needsConfirmation,
+  resumeTargetAfterEditor,
   shouldPromptAfterSaved,
   wasCancelled,
 } from '../src/features/sessions/connect';
@@ -155,6 +156,23 @@ describe('which wizard entry answers a missing credential', () => {
     ) as Session;
 
     expect(credentialRedirectTarget('web-01', 'bastion', [wire])).toBeNull();
+  });
+});
+
+describe('retrying after a redirected editor settles (ADR-0040)', () => {
+  it('retries the session Sessions was trying to reach', () => {
+    expect(resumeTargetAfterEditor('web-01', 'saved')).toBe('web-01');
+  });
+
+  it('does not retry a credential that was never actually saved', () => {
+    expect(resumeTargetAfterEditor('web-01', 'failed')).toBeNull();
+    expect(resumeTargetAfterEditor('web-01', undefined)).toBeNull();
+  });
+
+  it('does not retry an editor nobody redirected here', () => {
+    /* Opened by hand rather than by `onCredentialMissing`: there is no
+       original attempt to hand the answer back to. */
+    expect(resumeTargetAfterEditor(undefined, 'saved')).toBeNull();
   });
 });
 
