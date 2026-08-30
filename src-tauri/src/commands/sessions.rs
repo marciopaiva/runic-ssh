@@ -482,6 +482,19 @@ pub async fn keep_credential_for_run<R: Runtime>(
     Ok(())
 }
 
+/// Whether a credential is kept for this session for the life of the run.
+///
+/// ADR-0038: the counterpart to `credential_id` on a saved [`Session`], which
+/// only ever named the keychain half. The editor already has that field; this
+/// is the only way it has to ask about the other one.
+#[tauri::command]
+pub async fn session_credential_kept(
+    secrets: State<'_, SessionSecrets>,
+    session_id: String,
+) -> Result<bool, IpcError> {
+    Ok(secrets.is_held(&CredentialId::for_session(&session_id)))
+}
+
 /// Writes a secret to whichever store this installation uses and points the
 /// saved session at it.
 ///

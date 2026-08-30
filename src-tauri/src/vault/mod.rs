@@ -273,6 +273,17 @@ impl SessionSecrets {
         self.held.lock().ok()?.get(id).cloned()
     }
 
+    /// Whether a secret is held for this id, without touching it.
+    ///
+    /// ADR-0038: the editor needs to ask this store the same question
+    /// `credential_id` already answers about the keychain, and it must not
+    /// need the [`Secret`] to do it. A presence check against the same map
+    /// [`resolve`](Self::resolve) reads, so there is nothing here for a
+    /// future caller to log.
+    pub fn is_held(&self, id: &CredentialId) -> bool {
+        self.held.lock().is_ok_and(|held| held.contains_key(id))
+    }
+
     /// Drops a secret before the process ends, wiping it.
     pub fn forget(&self, id: &CredentialId) {
         if let Ok(mut held) = self.held.lock() {
@@ -484,6 +495,23 @@ mod tests {
 
         let resolved = resolve_credential(&secrets, &vault, &internal, &id).expect("it resolves");
         assert_eq!(resolved.expose(), "from-this-run");
+    }
+
+    #[test]
+    fn is_held_answers_without_resolving() {
+        /* ADR-0038: the editor asks this, not `resolve`, so a machine with
+        nothing kept never has to hand the caller a `Secret` just to find out
+        there is none. */
+        let secrets = SessionSecrets::new();
+        let id = CredentialId::for_session("web-01");
+
+        assert!(!secrets.is_held(&id), "nothing kept yet");
+
+        secrets.keep(&id, &Secret::new("from-this-run"));
+        assert!(secrets.is_held(&id), "kept for this run");
+
+        secrets.forget(&id);
+        assert!(!secrets.is_held(&id), "forgotten");
     }
 
     #[test]
