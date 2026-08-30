@@ -98,15 +98,21 @@ interface Wiring {
   readonly onConnecting: (sessionId: string) => void;
   readonly onFailed: (sessionId: string, code: IpcErrorCode) => void;
   /**
-   * Called when an attempt is let go without an answer.
+   * Called when an attempt is let go, answered or not.
    *
    * The session has to stop saying `connecting`, and only the caller knows
    * what it was before. Without this the marker keeps its amber halo and
    * `openTabs` keeps handing it a tab, so cancelling looked like nothing
    * happened — found by cancelling a connection to a host that swallows the
    * SYN, where the state is visible for the two minutes it takes to fail.
+   *
+   * `settled` says which kind of letting go this is: `CredentialSaved` and
+   * `ConnectionFailure` both dismiss through this same call, exactly like a
+   * cancelled host key prompt does, and only `settled` tells the two apart.
+   * True means the attempt already had an answer when it was let go; false
+   * means it was walked away from with none, the case the doc above names.
    */
-  readonly onAbandoned: (sessionId: string) => void;
+  readonly onAbandoned: (sessionId: string, settled: boolean) => void;
   /**
    * Called when the user asked to keep a credential and the store refused.
    *
@@ -436,7 +442,10 @@ export function useConnect(wiring: Wiring): ConnectState {
     }
 
     setAttempt(null);
-    if (attempt !== null) onAbandoned(attempt.sessionId);
+    if (attempt !== null) {
+      const settled = attempt.stage.stage === 'settled' || attempt.stage.stage === 'failed';
+      onAbandoned(attempt.sessionId, settled);
+    }
   }, [attempt, onAbandoned]);
 
   /**

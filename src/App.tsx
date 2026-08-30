@@ -371,10 +371,14 @@ export function App(): JSX.Element {
       setState(sessionId, stateAfterFailure(code));
       setTestOutcome((current) => new Map(current).set(sessionId, 'failed'));
     },
-    /* Back to a plain stored host. Nothing was learned about it — the attempt
-       was let go, not answered — so anything else would be a claim. */
-    onAbandoned: (sessionId) => {
+    /* Back to a plain stored host either way. `settled` is what tells apart
+       dismissing `CredentialSaved`/`ConnectionFailure` (which already wrote
+       `testOutcome` above, correctly, and must keep it) from walking away
+       with no answer at all, where anything left in the map would be the
+       *previous* attempt's result showing on this one. */
+    onAbandoned: (sessionId, settled) => {
       setState(sessionId, 'saved');
+      if (settled) return;
       setTestOutcome((current) => {
         if (!current.has(sessionId)) return current;
         const next = new Map(current);
