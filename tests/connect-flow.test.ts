@@ -128,7 +128,7 @@ describe('which wizard entry answers a missing credential', () => {
     group: null,
     credentialId: null,
     proxyJump: null,
-    kind: 'other',
+    kind: 'direct',
     ...overrides,
   });
 
@@ -152,7 +152,7 @@ describe('which wizard entry answers a missing credential', () => {
        is `undefined`, never `null`, the same shape `hasStoredCredential`
        already normalises. */
     const wire = JSON.parse(
-      '{"id":"web-01","name":"web-01","host":"web-01.example.com","port":22,"user":"deploy","group":null,"credentialId":null,"kind":"other"}',
+      '{"id":"web-01","name":"web-01","host":"web-01.example.com","port":22,"user":"deploy","group":null,"credentialId":null,"kind":"direct"}',
     ) as Session;
 
     expect(credentialRedirectTarget('web-01', 'bastion', [wire])).toBeNull();
@@ -271,7 +271,7 @@ describe('reading whether a host has a stored password', () => {
     group: null,
     credentialId: null,
     proxyJump: null,
-    kind: 'other',
+    kind: 'direct',
     ...overrides,
   });
 

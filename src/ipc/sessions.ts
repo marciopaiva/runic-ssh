@@ -20,11 +20,15 @@ export type SessionHandle = number;
 /**
  * What a host is, for recognising a row rather than for reaching it.
  *
- * ADR-0031. Purely categorisation: nothing in the connect path or the
- * credential flow reads this, and adding a kind never changes how a host is
- * verified or authenticated.
+ * ADR-0031. Named for the chain: `jumpServer` and `target` are the two ends
+ * of the relationship `jumpRole` already computes, `direct` is neither and
+ * is also the default: most hosts are direct, so unlike a "nobody has said
+ * yet" bucket, the default answer is simply true of most hosts rather than
+ * meaning nothing was chosen. Purely categorisation: nothing in the connect
+ * path or the credential flow reads this, and adding a kind never changes
+ * how a host is verified or authenticated.
  */
-export type HostKind = 'jumpServer' | 'database' | 'web' | 'other';
+export type HostKind = 'jumpServer' | 'target' | 'direct';
 
 /** A saved session. Names a host; never holds a secret. */
 export interface Session {

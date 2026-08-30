@@ -21,7 +21,7 @@ function session(id: string, overrides: Partial<Session> = {}): Session {
     group: null,
     credentialId: null,
     proxyJump: null,
-    kind: 'other',
+    kind: 'direct',
     ...overrides,
   };
 }
@@ -101,7 +101,7 @@ describe('the jump host as part of the connection target', () => {
        session carries is `undefined`, never `null`, the same shape
        `hasStoredCredential` and `jumpRole` already normalise. */
     const wire = JSON.parse(
-      '{"id":"web-01","name":"web-01","host":"web-01.example.com","port":22,"user":"deploy","group":null,"credentialId":null,"kind":"other"}',
+      '{"id":"web-01","name":"web-01","host":"web-01.example.com","port":22,"user":"deploy","group":null,"credentialId":null,"kind":"direct"}',
     ) as Session;
 
     expect(duplicateOf([wire], null, 'web-01.example.com', 22, 'deploy', '')).toBe(wire);

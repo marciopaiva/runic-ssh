@@ -425,9 +425,8 @@ describe('what a host is (ADR-0031)', () => {
 
     for (const wire of [
       String.raw`r#""jumpServer""#`,
-      String.raw`r#""database""#`,
-      String.raw`r#""web""#`,
-      String.raw`r#""other""#`,
+      String.raw`r#""target""#`,
+      String.raw`r#""direct""#`,
     ]) {
       expect(rust).toContain(wire);
     }
@@ -437,9 +436,7 @@ describe('what a host is (ADR-0031)', () => {
       'utf8',
     );
 
-    expect(wrapper).toContain(
-      "export type HostKind = 'jumpServer' | 'database' | 'web' | 'other';",
-    );
+    expect(wrapper).toContain("export type HostKind = 'jumpServer' | 'target' | 'direct';");
   });
 });
 

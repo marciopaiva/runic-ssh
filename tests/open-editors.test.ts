@@ -37,7 +37,7 @@ function session(id: string, name: string): Session {
     group: null,
     credentialId: null,
     proxyJump: null,
-    kind: 'other',
+    kind: 'direct',
   };
 }
 
