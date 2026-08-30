@@ -242,6 +242,14 @@ the limit, and it is a documented one rather than a defect: there is no signal
 to key on, because the decision to stop echoing was made by the host and never
 crossed the channel.
 
+**Four groups flooding is unmeasured.** ADR-0011 measured the renderer against
+one terminal. Run `yes` in two of four groups and watch whether the window
+stays responsive; if it does not, the limit belongs at two groups and the
+measurement belongs in ADR-0019. This lived in the credential-window section
+for a while, next to a note about window height it had nothing to do with;
+moved here (#242) because a group flooding is not a credential check and never
+was one.
+
 ### How long a credential is kept
 
 ADR-0025 gave the credential window three answers; ADR-0034 already took
@@ -335,8 +343,31 @@ and ADR-0039 retired the window itself: the fields are `InlineCredentialForm`,
 a panel in the wizard's own Access step, in the main window, with nothing left
 to position, alt-tab to, or close a fourth way. The positioning, title-bar and
 keep-option checks that used to live here no longer have a subject; #242
-tracks re-driving what still applies (jump-host layout, Portuguese overflow,
-the four-groups-flooding note) against the inline shape.
+tracked re-driving what still applies against the inline shape.
+
+**The jump-host layout.** `App.tsx`'s own comment on `bastionStage` says why
+this is still worth a row of its own: only the wizard's own test ever needs it,
+because that is the one call where a bastion mid-chain can turn up needing a
+credential nobody saved, with nowhere else to ask for one now that the separate
+window is not going to open. Everywhere else a missing credential redirects to
+that host's own entry in Hosts (ADR-0039); this is the one path that still
+shows a hop mid-flow, and `credential.hop.bastion` is the string that says so.
+
+| Do this | Expect |
+| --- | --- |
+| Save a jump host with nothing stored for it, then a target through it with nothing stored either, and test the target from its own Access step | the hop sentence, the method picker and the password field all render for the jump host first, nothing scrolls |
+| Authenticate the jump host | the breadcrumb's third segment changes from the jump host's name to *Entrar*, and the target's own field appears with no hop sentence above it |
+| Authenticate the target | the same *the password is saved* surface `docs/testing.md` already describes for a direct host |
+
+Confirmed on Linux on 2026-08-30, driving the real `runic-test-bastion` /
+`runic-test-target` chain from #133 through the actual `InlineCredentialForm`,
+in Brazilian Portuguese: the hop sentence is the longest of the three
+catalogues' versions of `credential.hop.bastion`, and it still fit inside the
+panel's `max-w-[440px]` with room to spare, no scrollbar appeared, and nothing
+was clipped. The old "every keep option visible" wording no longer applies
+because there is no keep option to show (ADR-0034); what replaced it, the hop
+sentence plus the method picker plus one field, fits with more room than the
+three-way choice it stands in for ever needed.
 
 **Paste into all three fields.** The form sits in the main window now, which
 carries the application's ordinary capabilities rather than the retired
