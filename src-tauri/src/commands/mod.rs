@@ -5,6 +5,7 @@
 //! Business logic does not live here — it lives where it can be tested without
 //! a webview or an app handle.
 
+pub mod app;
 pub mod chrome;
 pub mod credential;
 pub mod sessions;

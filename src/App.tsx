@@ -83,6 +83,7 @@ import type {
 } from './features/sessions';
 import { preparePaste } from './features/terminal/clipboard';
 import {
+  appVersion,
   asIpcError,
   deleteSession,
   disconnectSession,
@@ -230,6 +231,14 @@ export function App(): JSX.Element {
      both live, and a window that opens straight into a pool of hosts has
      nowhere to point a user who has none yet. */
   const [workspace, setWorkspace] = useState<Workspace>('home');
+  /* Fetched once: what is running cannot change under a live process, so there
+     is nothing to react to and nothing worth re-asking. `null` until the
+     first paint after mount, which `StatusBar` already treats as "say
+     something else instead" for the props beside it. */
+  const [version, setVersion] = useState<string | null>(null);
+  useEffect(() => {
+    void appVersion().then(setVersion);
+  }, []);
   /* Whether the session list is beside the rail. ADR-0020 rule 4: this closes
      and the rail does not, so the icon that closed it is the way back and the
      window has no state where the list is gone with nothing offering it. */
@@ -1917,6 +1926,7 @@ export function App(): JSX.Element {
         via={activeCarrier}
         announcement={announcement}
         credentialUnsaved={activeId !== null ? (unsaved.get(activeId) ?? null) : null}
+        buildVersion={workspace === 'home' ? version : null}
         onDismissUnsaved={() =>
           setUnsaved((current) => {
             if (activeId === null) return current;

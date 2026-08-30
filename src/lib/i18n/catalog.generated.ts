@@ -256,6 +256,8 @@ export const SOURCE_CATALOG = {
   "status.sync.on": "SYNC {count}",
   "status.term": "Terminal type",
   "status.transfer": "Received {down}, sent {up}",
+  "status.version": "Version",
+  "status.version.value": "v{version}",
   "status.via": "Reached through {host}",
   "tabs.close": "Close {name}",
   "tabs.editor.new": "New session",

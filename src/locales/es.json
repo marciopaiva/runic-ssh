@@ -250,6 +250,8 @@
   "status.sync.on": "SINC {count}",
   "status.term": "Tipo de terminal",
   "status.transfer": "Recibido {down}, enviado {up}",
+  "status.version": "Versión",
+  "status.version.value": "v{version}",
   "status.via": "Alcanzado a través de {host}",
   "tabs.close": "Cerrar {name}",
   "tabs.editor.new": "Nueva sesión",
