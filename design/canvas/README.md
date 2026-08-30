@@ -40,7 +40,7 @@ ADR-0020 exists to stop.
 | Page | What is on it |
 | --- | --- |
 | `System` | The anatomy and its seven rules, and the token, type, density and marker sheet |
-| `Surfaces` | Thirteen screens |
+| `Surfaces` | Fourteen screens |
 | `Variants` | Light, and the same window in pt-BR and neutral es |
 
 ## Files
@@ -61,7 +61,8 @@ ADR-0020 exists to stop.
 | `Sftp.dc.html` | SFTP as a tab beside the terminals |
 | `PasteConfirm.dc.html` | A paste going to three hosts at once |
 | `Palette.dc.html` | The command palette |
-| `Settings.dc.html` | What the gear opens |
+| `HomeDashboard.dc.html` | Home's own landing: a card per domain |
+| `HomeHosts.dc.html` | Hosts, chosen from Home's own nav |
 | `Main{Light,PtBr,Es}.dc.html` | The same window, generated |
 
 Every screen a user can meet is drawn here. That is the point of the set rather
@@ -70,6 +71,10 @@ key and the credential window and the host form, are exactly the ones that
 drifted into five different shapes before ADR-0015 pulled them back together.
 The credential window itself is gone since ADR-0039, and its artboard went
 with it rather than staying as a drawing of a screen nobody can open.
+`Settings.dc.html` went the same way (#236): ADR-0029 folded it into a card on
+Home's own dashboard, already drawn in `HomeDashboard.dc.html`, so the
+artboard was retired rather than redrawn against a premise, a rail gear
+opening a tab, that no longer exists.
 
 Screens that live inside the main window are drawn **inside it**, and now
 inside the group that owns them. The host key artboards used to be standalone
@@ -96,11 +101,12 @@ draws itself.
 
 The remaining two also draw with the corrected rail, two slots, Home and
 Sessions, matching `ActivityRail.tsx` since ADR-0029. #234, the staleness they
-uncovered, is closed everywhere except `Settings.dc.html`: its rail gear
-opening a tab is not a stale rail drawing, it is a screen whose whole premise
-ADR-0029 removed, and needs its own redraw rather than a swapped icon (issue
-to follow). `NewSession.dc.html` carries the same three-slot rail for the
-same reason, folded into #233 rather than tracked twice.
+uncovered, is now closed everywhere: `Settings.dc.html` was the one exception,
+its rail gear opening a tab a screen whose whole premise ADR-0029 removed
+rather than a stale rail drawing, and #236 retired it rather than redraw it,
+since `HomeDashboard.dc.html` already draws the card it folded into.
+`NewSession.dc.html` carries the same three-slot rail for the same reason,
+folded into #233 rather than tracked twice.
 
 ## What is drawn here and not built
 
