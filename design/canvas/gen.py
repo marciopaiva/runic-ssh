@@ -58,7 +58,7 @@ HEAD = """<!doctype html>
     .tab {{ display: flex; align-items: center; gap: 7px; padding: 0 11px; border-right: 1px solid {line}; min-width: 0; }}
     .term {{ flex: 1; padding: 10px 13px; font-size: 12px; line-height: 1.62; color: {ink2}; white-space: pre; overflow: hidden; }}
     .dot {{ width: 6px; height: 6px; border-radius: 50%; flex: none; }}
-    .row {{ display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; }}
+    .row {{ display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; }}
     .cap {{ font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10.5px; color: {ink2}; background: {raised}; border: 1px solid {line2}; border-bottom-width: 2px; border-radius: 4px; padding: 2px 7px; }}
     .grpname {{ font-size: 10px; font-weight: 700; letter-spacing: 0.1em; }}
     .cur {{ background: {ink2}; color: {terminal}; }}
@@ -99,6 +99,24 @@ def ic(name, size=14, color=None, cls="ic", extra=""):
     st = f"width: {size}px; height: {size}px;"
     if color: st += f" color: {color};"
     return f'<svg class="{cls}" viewBox="0 0 24 24" style="{st}{extra}">{ICON[name]}</svg>'
+
+# ADR-0031's four glyphs, paths copied verbatim from HostKindIcon.tsx (16x16
+# viewBox, not 24x24 like ICON above) so the canvas draws the same shape the
+# tree does rather than a second one invented for the mockup. 'other' has no
+# entry: it draws nothing in the sidebar (ADR-0031's Resolved note, 2026-08-30).
+KIND_ICON = dict(
+    jumpServer='<rect x="3" y="3" width="10" height="4" rx="1"></rect><rect x="3" y="9" width="10" height="4" rx="1"></rect><circle cx="5.2" cy="5" r="0.6" fill="currentColor" stroke="none"></circle><circle cx="5.2" cy="11" r="0.6" fill="currentColor" stroke="none"></circle>',
+    database='<ellipse cx="8" cy="4" rx="5" ry="2"></ellipse><path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4"></path><path d="M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"></path>',
+    web='<circle cx="8" cy="8" r="5.6"></circle><path d="M2.4 8h11.2M8 2.4c1.6 1.6 2.4 3.6 2.4 5.6s-.8 4-2.4 5.6c-1.6-1.6-2.4-3.6-2.4-5.6S6.4 4 8 2.4z"></path>',
+)
+
+def kind_ic(kind, color=None):
+    if kind is None:
+        return ''
+    st = "width: 12px; height: 12px; flex: none;"
+    if color: st += f" color: {color};"
+    return (f'<svg viewBox="0 0 16 16" style="{st}" fill="none" stroke="currentColor" '
+            f'stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">{KIND_ICON[kind]}</svg>')
 
 def shapes(active="single"):
     """ADR-0021: the shape control lives here, and not on a group's strip. It
@@ -239,7 +257,15 @@ def group_row(label, count):
             f'<span class="mono" style="margin-left: auto; font-size: 9.5px; color: {T["off"]};'
             f' background: {T["raised"]}; border-radius: 4px; padding: 1px 6px;">{count}</span></div>')
 
-def host_row(name, who, state="saved", active=False, mark=None, edge=None):
+def host_row(name, who, state="saved", active=False, mark=None, edge=None, kind=None, via=None, depth=0):
+    """One line: dot, kind icon (rare, 'other' draws none), indent for a
+    rider nested under its bastion (jump.ts's orderChain), name, then
+    whichever one thing the trailing slot has room for: the reached tick,
+    SPARED, a bastion's name when riding one costs no address, or user@host.
+    Single line since 2026-08-30 (see design/canvas/README.md): the sidebar
+    row shipped at this density for a hundred saved hosts before the canvas
+    caught up to it.
+    """
     dots = {"ok": f'background: {T["ok"]};', "saved": f'border: 1.5px solid {T["off"]}; box-sizing: border-box;',
             "warn": f'border: 1.5px solid {T["warn"]}; box-sizing: border-box;'}
     bg = f'background: {T["raised"]}; border-radius: 6px;' if active else ''
@@ -249,17 +275,27 @@ def host_row(name, who, state="saved", active=False, mark=None, edge=None):
             bg += f' background: #101c2b; border-radius: 6px;'
     tail = ''
     if mark == "check":
-        tail = f'<svg viewBox="0 0 24 24" fill="none" stroke="{T["warn"]}" stroke-width="2.4" style="width: 13px; height: 13px; margin-top: 3px;">{ICON["check"]}</svg>'
+        tail = f'<svg viewBox="0 0 24 24" fill="none" stroke="{T["warn"]}" stroke-width="2.4" style="width: 13px; height: 13px; flex: none; margin-left: auto;">{ICON["check"]}</svg>'
     elif mark == "spared":
-        tail = f'<span style="font-size: 9px; font-weight: 700; letter-spacing: 0.08em; color: {T["faint"]}; margin-top: 4px;">SPARED</span>'
+        tail = f'<span style="font-size: 9px; font-weight: 700; letter-spacing: 0.08em; color: {T["faint"]}; flex: none; margin-left: auto;">SPARED</span>'
+    else:
+        shown = f'via {via}' if via else who
+        tail = (f'<span class="mono" style="font-size: 10.5px; color: {T["off"]}; flex: none; margin-left: auto;'
+                f' max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{shown}</span>')
     name_color = T['ink'] if active else T['ink2']
     weight = 'font-weight: 600;' if active else ''
+    indent = ''.join(
+        f'<span style="width: 12px; height: 100%; flex: none; display: flex; justify-content: center;">'
+        f'<span style="width: 1px; background: {T["off"]}; opacity: 0.35;"></span></span>'
+        for _ in range(depth)
+    )
     return (f'<div class="row" style="{bg}">'
-            f'<span class="dot" style="{dots[state]} margin-top: 4px;"></span>'
-            f'<div style="min-width: 0; flex: 1;">'
-            f'<div style="font-size: 12.5px; color: {name_color}; {weight}">{name}</div>'
-            f'<div class="mono" style="font-size: 10.5px; color: {T["faint"] if active else T["off"]}; margin-top: 2px;">{who}</div>'
-            f'</div>{tail}</div>')
+            f'{indent}'
+            f'<span class="dot" style="{dots[state]}"></span>'
+            f'{kind_ic(kind, T["faint"])}'
+            f'<span style="font-size: 12.5px; color: {name_color}; {weight} min-width: 0; overflow: hidden;'
+            f' text-overflow: ellipsis; white-space: nowrap;">{name}</span>'
+            f'{tail}</div>')
 
 def status(left, right):
     return f"""  <div style="height: 32px; flex: none; display: flex; align-items: center; gap: 15px; padding: 0 12px; background: {T['chrome']}; border-top: 1px solid {T['line']};">
@@ -312,18 +348,20 @@ def write(name, content):
 
 PROD = [("web-01", "deploy@10.4.1.20"), ("web-02", "deploy@10.4.1.21"), ("db-prod", "postgres@10.4.1.31")]
 
+PROD_KIND = {"db-prod": "database"}
+
 def sessions_sidebar(active=None, states=None, marks=None, edges=None, header=None, staging=True):
     states = states or {}
     marks = marks or {}
     edges = edges or {}
     rows = [group_row("PRODUCTION", 3)]
     for n, w in PROD:
-        rows.append(host_row(n, w, states.get(n, "saved"), active == n, marks.get(n), edges.get(n)))
+        rows.append(host_row(n, w, states.get(n, "saved"), active == n, marks.get(n), edges.get(n), kind=PROD_KIND.get(n)))
     if staging:
         rows.append('<div style="height: 8px;"></div>')
         rows.append(group_row("STAGING", 2))
         rows.append(host_row("stg-app", "deploy@10.9.0.5", states.get("stg-app", "saved"), active == "stg-app"))
-        rows.append(host_row("stg-db", "postgres@10.9.0.6", states.get("stg-db", "saved"), active == "stg-db"))
+        rows.append(host_row("stg-db", "postgres@10.9.0.6", states.get("stg-db", "saved"), active == "stg-db", kind="database"))
     return sidebar_shell(header or sessions_header(), "\n".join(rows))
 
 # ---------- 1. nothing open
@@ -464,7 +502,7 @@ def build_broadcast():
     rows = "\n".join([group_row("PRODUCTION", 4),
                       host_row("web-01", "deploy@10.4.1.20", "ok", True, "check", T['warn']),
                       host_row("web-03", "deploy@10.4.1.22", "ok", False, "check", T['warn']),
-                      host_row("db-prod", "postgres@10.4.1.31", "ok", False, "spared"),
+                      host_row("db-prod", "postgres@10.4.1.31", "ok", False, "spared", kind="database"),
                       host_row("cache-01", "redis@10.4.1.44", "saved")])
     sb = sidebar_shell(hdr, rows)
     st = status_warn(stat_session("deploy@10.4.1.20") + "\n" + sep() + "\n" + stat_text("74 x 42") + "\n" + stat_text("14 ms"),
@@ -641,7 +679,7 @@ def build_newsession():
     rows = "\n".join([group_row("PRODUCTION", 3),
                       host_row("web-01", "deploy@10.4.1.20", "ok"),
                       host_row("web-02", "deploy@10.4.1.21", "saved"),
-                      host_row("db-prod", "postgres@10.4.1.31", "saved"),
+                      host_row("db-prod", "postgres@10.4.1.31", "saved", kind="database"),
                       f'<div class="row" style="border: 1px dashed {T["line2"]}; border-radius: 6px; margin-top: 2px; align-items: center;">'
                       f'<span class="dot" style="border: 1.5px dashed {T["off"]}; box-sizing: border-box;"></span>'
                       f'<span style="font-size: 12px; color: {T["faint"]}; font-style: italic;">unsaved, in the tab</span></div>'])
@@ -688,7 +726,7 @@ def build_settings():
     g = group(strip([tab("web-01", dot="ok"), tab("Settings", state="on", icon="gear", dot=None)]),
               f'<div style="flex: 1; min-height: 0; display: flex; background: {T["base"]};">{panel}</div>')
     rows = "\n".join([group_row("PRODUCTION", 3), host_row("web-01", "deploy@10.4.1.20", "ok"),
-                      host_row("web-02", "deploy@10.4.1.21", "saved"), host_row("db-prod", "postgres@10.4.1.31", "saved")])
+                      host_row("web-02", "deploy@10.4.1.21", "saved"), host_row("db-prod", "postgres@10.4.1.31", "saved", kind="database")])
     st = status(stat_text("Settings", T['muted'], mono=False), stat_text("SYNC OFF", T['faint'], mono=False))
     write("Settings.dc.html", page(f'      <div style="flex: 1; min-height: 0; display: flex;">{g}</div>',
                                    sidebar_shell(sessions_header(), rows), rail(gear_pressed=True, badge="1"), st))
@@ -905,9 +943,9 @@ def build_hostkeychanged():
     grid = (f'      <div style="flex: 1; min-height: 0; display: grid; grid-template-columns: 340px minmax(0, 1fr);'
             f' gap: 1px; background: {T["line"]};">{g1}{g2}</div>')
     rows = "\n".join([group_row("PRODUCTION", 3), host_row("web-01", "deploy@10.4.1.20", "ok"),
-                       f'<div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="{T["danger"]}" stroke-width="2" style="width: 13px; height: 13px; flex: none; margin-top: 3px;"><path d="M12 4l9 16H3z"></path><path d="M12 10v4M12 17v.01"></path></svg>'
-                       f'<div style="min-width: 0; flex: 1;"><div style="font-size: 12.5px; color: {T["dangertext"]}; font-weight: 600;">db-prod</div>'
-                       f'<div class="mono" style="font-size: 10.5px; color: {T["faint"]}; margin-top: 2px;">blocked, host key changed</div></div></div>',
+                       f'<div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="{T["danger"]}" stroke-width="2" style="width: 13px; height: 13px; flex: none;"><path d="M12 4l9 16H3z"></path><path d="M12 10v4M12 17v.01"></path></svg>'
+                       f'<span style="font-size: 12.5px; color: {T["dangertext"]}; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">db-prod</span>'
+                       f'<span class="mono" style="font-size: 10.5px; color: {T["faint"]}; flex: none; margin-left: auto;">blocked</span></div>',
                        host_row("cache-01", "redis@10.4.1.44", "saved")])
     st = status(f'    <div style="display: flex; align-items: center; gap: 7px;"><svg viewBox="0 0 24 24" fill="none" stroke="{T["danger"]}" stroke-width="2" style="width: 12px; height: 12px;"><path d="M12 4l9 16H3z"></path><path d="M12 10v4M12 17v.01"></path></svg>'
                 f'<span style="font-size: 11px; color: {T["dangertext"]};">db-prod blocked</span></div>',
