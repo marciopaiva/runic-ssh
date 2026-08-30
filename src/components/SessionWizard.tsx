@@ -201,17 +201,42 @@ export function SessionWizard({
     onDismissFailure();
   };
 
+  /* Access still runs itself (ADR-0034: not a third step), but which of its
+     own sub-states is showing was previously invisible: the breadcrumb froze
+     on "Access" through the host key decision, the bastion's own field, the
+     target's own field, and the settled row alike. This names whichever of
+     that phase's forms is up, purely for the label, in the same priority the
+     render below picks between them. Not gated on `attempted`, which turns
+     true the instant the attempt starts and stays true through all of them:
+     it is `testSurface`/`bastionCredential`/`inlineCredential` all going back
+     to `null` after a dismissal, not `attempted` resetting, that hands the
+     settled row (rendered separately, below) its plain "Access" back. */
+  const phase: 'wizard.phase.bastion' | 'wizard.phase.signIn' | 'wizard.phase.proving' | null =
+    step !== 2
+      ? null
+      : testSurface !== null
+        ? 'wizard.phase.proving'
+        : bastionCredential !== null
+          ? 'wizard.phase.bastion'
+          : inlineCredential !== null
+            ? 'wizard.phase.signIn'
+            : null;
+
   return (
     <div className="flex h-full flex-col gap-5 p-7">
       <h2 className="text-ink text-[15px] font-semibold tracking-tight">{title}</h2>
 
       <ol className="flex items-center gap-2 text-[11px]">
-        {(
-          [
-            { key: 'host', label: 'wizard.step.host', current: step === 1, reached: step >= 1 },
-            { key: 'auth', label: 'wizard.step.auth', current: step === 2, reached: step >= 2 },
-          ] as const
-        ).map((entry, index) => (
+        {[
+          { key: 'host', label: 'wizard.step.host' as const, current: step === 1, reached: step >= 1 },
+          {
+            key: 'auth',
+            label: 'wizard.step.auth' as const,
+            current: step === 2 && phase === null,
+            reached: step >= 2,
+          },
+          ...(phase !== null ? [{ key: 'phase', label: phase, current: true, reached: true }] : []),
+        ].map((entry, index) => (
           <li key={entry.key} className="flex items-center gap-2">
             {index > 0 && <span className="text-ink-faint">→</span>}
             <span
