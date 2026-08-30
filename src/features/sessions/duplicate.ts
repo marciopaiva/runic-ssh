@@ -9,14 +9,22 @@
 import type { Session } from '../../ipc';
 
 /**
- * The saved session already reaching this exact host, port and user, if
- * there is one.
+ * The saved session already reaching this exact host, port, user and jump
+ * host, if there is one.
  *
  * Case-insensitive on the host, the way a hostname is looked up; exact on
  * the port and the user, because two accounts on the same machine are two
  * different ways in and neither refuses the other. `null` port skips the
  * check rather than matching everything: a draft whose port has not been
  * typed as a number yet has nothing to compare.
+ *
+ * The jump host matters for the same reason the port and user do: the same
+ * target direct and through a bastion are not the same way in, and neither
+ * are the same target through two different bastions, which is a real
+ * redundant-path pattern rather than the copy-paste mistake this check
+ * exists to catch. `proxyJump` is the draft's own shape, `''` for none,
+ * normalised here the same way `session.proxyJump`'s `undefined`-or-`null`
+ * already is.
  */
 export function duplicateOf(
   sessions: readonly Session[],
@@ -25,11 +33,13 @@ export function duplicateOf(
   host: string,
   port: number | null,
   user: string,
+  proxyJump: string,
 ): Session | null {
   if (port === null) return null;
 
   const wantedHost = host.trim().toLowerCase();
   const wantedUser = user.trim();
+  const wantedJump = proxyJump.trim() === '' ? null : proxyJump.trim();
 
   return (
     sessions.find(
@@ -37,7 +47,8 @@ export function duplicateOf(
         session.id !== editing &&
         session.host.trim().toLowerCase() === wantedHost &&
         session.port === port &&
-        session.user.trim() === wantedUser,
+        session.user.trim() === wantedUser &&
+        (session.proxyJump ?? null) === wantedJump,
     ) ?? null
   );
 }
