@@ -1028,7 +1028,14 @@ def build_home_hosts():
     `dashboard_card`-styled panel with room around it, rather than two flat
     panes sharing a hairline the way Sessions' own sidebar does. #222 named
     this gap directly: 'HostsSection does not carry the same visual
-    language as the dashboard cards.'"""
+    language as the dashboard cards.'
+
+    The nav-plus-form pair is centred as one 840px block rather than left
+    anchored: the maintainer caught, on a wide window against the shipped
+    code, that a form capped at its own width left the pair sitting flush
+    left with the other half of the window empty, the same thing
+    `HomeDashboard`'s own card grid already centres against. Redrawn here
+    to match the fix rather than the shape that prompted it."""
     rows = "\n".join([
         f'<div style="display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 10px; border-radius: 4px; background: {T["raised"]}; box-shadow: inset 2px 0 0 {T["accent"]};">'
         f'<span style="font-size: 12.5px; color: {T["ink"]};">runic-target-a</span>'
@@ -1052,9 +1059,11 @@ def build_home_hosts():
         <div style="width: 90px;">{wizard_label('Port')}{wizard_field('2222')}</div>
       </div>
       {wizard_actions(('Delete', False), ('Cancel', False), ('Next', True))}""")
-    body = f"""      <div style="flex: 1; min-height: 0; overflow: hidden; display: flex; gap: 16px; padding: 24px;">
-        <div style="width: 280px; flex: none; overflow-y: auto;">{list_card}</div>
-        <div style="flex: 1; min-width: 0; max-width: 480px;">{form_card}</div>
+    body = f"""      <div style="flex: 1; min-height: 0; overflow: hidden; display: flex; justify-content: center; padding: 24px;">
+        <div style="display: flex; gap: 16px; width: 100%; max-width: 840px;">
+          <div style="width: 280px; flex: none; overflow-y: auto;">{list_card}</div>
+          <div style="flex: 1; min-width: 0; max-width: 540px;">{form_card}</div>
+        </div>
       </div>"""
     st = status(stat_text("runic-target-a", T['muted'], mono=False), stat_text("11 hosts", T['faint']))
     write("HomeHosts.dc.html", page(home_nav("hosts") + body, None, home_rail(workspace="home"), st, show_shapes=False))
