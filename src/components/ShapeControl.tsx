@@ -8,16 +8,6 @@ import { useTranslator } from '../features/settings';
 interface ShapeControlProps {
   readonly layout: Grid;
   readonly onChoose: (kind: Grid) => void;
-  /**
-   * Whether a session is open anywhere in the window.
-   *
-   * The palette already refuses every shape but the one in use when nothing
-   * is open, "since the entry would be a shape with two holes in it"
-   * (`sources.ts`). This control offers the same seven things and did not
-   * carry the same refusal, so dividing a window holding only settings drew a
-   * rectangle with nothing to put in it and nothing to say about it either.
-   */
-  readonly canSplit: boolean;
 }
 
 /**
@@ -73,8 +63,16 @@ function Glyph({ kind, size }: { readonly kind: Grid; readonly size: string }): 
  * count to seven, which is 196px of a bar whose remaining job is being
  * dragged, so this is that fold. The button still shows the shape in use,
  * because which one it is stays worth reading without opening anything.
+ *
+ * Visible and fully enabled the moment Sessions is the active workspace,
+ * whether or not a host is open yet: ADR-0021 already named that "legitimate
+ * way to set up," and the guard that once hid it (`canSplit`, ADR-0029) was
+ * only there to stop a group showing settings from being split into a
+ * rectangle that lied about what it held. Sessions groups cannot hold
+ * anything but a session any more, so that guard had nothing left to guard
+ * and ADR-0029's own Bad section already named removing it as follow-up.
  */
-export function ShapeControl({ layout, onChoose, canSplit }: ShapeControlProps): JSX.Element {
+export function ShapeControl({ layout, onChoose }: ShapeControlProps): JSX.Element {
   const i18n = useTranslator();
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -91,19 +89,6 @@ export function ShapeControl({ layout, onChoose, canSplit }: ShapeControlProps):
     document.addEventListener('mousedown', onPointerDown);
     return () => document.removeEventListener('mousedown', onPointerDown);
   }, [open]);
-
-  /* Nothing open and nothing to divide it into: there is nothing this control
-     could do, so there is nothing to show. Mirrors the palette, which offers
-     no split command in the same state. `sources.ts` needs `tabs.length > 0`
-     for "divide into N" and `layout !== '1x1'` for "back to one", and here
-     both are already false.
-
-     Kept, rather than hidden, whenever the window is already divided with
-     nothing open: collapsing back to one rectangle has to stay reachable from
-     here, or closing every session in a split window strands whoever is
-     driving it with the mouse in that split, since the button that got them
-     back would have vanished along with the sessions. */
-  if (layout === '1x1' && !canSplit) return <></>;
 
   return (
     <div ref={box} className="relative flex shrink-0 items-center self-center pr-2">
@@ -138,13 +123,7 @@ export function ShapeControl({ layout, onChoose, canSplit }: ShapeControlProps):
         >
           {GRIDS.map((kind) => {
             const current = kind === layout;
-            /* Collapsing back to one rectangle never leaves a hole, whatever
-               is or is not open, so '1x1' stays exempt from the refusal. The
-               shape already in use is exempt for a different reason: showing
-               it disabled would say the window cannot have the shape it
-               already has. */
-            const locked = kind !== '1x1' && !current && !canSplit;
-            const label = locked ? i18n.t('shape.needsSession') : i18n.t(SHAPE_LABEL[kind]);
+            const label = i18n.t(SHAPE_LABEL[kind]);
 
             return (
               <button
@@ -152,7 +131,6 @@ export function ShapeControl({ layout, onChoose, canSplit }: ShapeControlProps):
                 type="button"
                 role="menuitemradio"
                 aria-checked={current}
-                disabled={locked}
                 onClick={() => {
                   onChoose(kind);
                   setOpen(false);
@@ -160,11 +138,9 @@ export function ShapeControl({ layout, onChoose, canSplit }: ShapeControlProps):
                 aria-label={label}
                 title={label}
                 className={`flex h-8 w-9 items-center justify-center rounded ${
-                  locked
-                    ? 'text-ink-disabled cursor-not-allowed'
-                    : current
-                      ? 'bg-surface-raised text-accent'
-                      : 'text-ink-faint hover:bg-surface-raised/60 hover:text-ink-muted'
+                  current
+                    ? 'bg-surface-raised text-accent'
+                    : 'text-ink-faint hover:bg-surface-raised/60 hover:text-ink-muted'
                 }`}
               >
                 <Glyph kind={kind} size="h-4 w-[21px]" />

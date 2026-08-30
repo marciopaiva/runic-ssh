@@ -1361,7 +1361,6 @@ export function App(): JSX.Element {
         leadingInset={chrome?.leadingInset ?? 0}
         layout={layout}
         onLayout={chooseLayout}
-        canSplit={tabs.length > 0}
         showShapeControl={workspace === 'sessions'}
         onAct={act}
       />

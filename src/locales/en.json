@@ -232,7 +232,6 @@
   "settings.theme.system": "Follow the system",
   "shape.choose": "Choose how the area is divided",
   "shape.label": "How the area is divided",
-  "shape.needsSession": "Open a session first",
   "status.credentialUnsaved": "Not saved",
   "status.credentialUnsaved.detail": "You asked to keep this credential and the system keychain refused. The session is connected; you will be asked again next time. Click to dismiss.",
   "status.credentialUnsaved.detail.via": "You asked to keep the password for {host}, the jump host this session is reached through, and the system keychain refused. The session is connected; that host asks again next time. Click to dismiss.",
