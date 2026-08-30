@@ -102,7 +102,19 @@ export function SessionsSidebar({
       </header>
 
       {sessions.length > 0 && (
-        <div className="px-3.5 pb-2">
+        <div className="relative px-3.5 pb-2">
+          <svg
+            viewBox="0 0 24 24"
+            className="text-ink-faint pointer-events-none absolute top-1/2 left-6 h-3.5 w-3.5 -translate-y-1/2"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            aria-hidden="true"
+          >
+            <circle cx="10.5" cy="10.5" r="6" />
+            <path d="M15 15l4.5 4.5" />
+          </svg>
           <input
             type="text"
             value={query}
@@ -111,7 +123,7 @@ export function SessionsSidebar({
             aria-label={i18n.t('sessions.filter')}
             autoComplete="off"
             spellCheck={false}
-            className="bg-surface-input border-line-subtle text-ink placeholder:text-ink-faint focus:border-line-strong w-full rounded border px-2 py-1 text-[12px] outline-none"
+            className="bg-surface-input border-line-subtle text-ink placeholder:text-ink-faint focus:border-line-strong w-full rounded border py-1 pr-2 pl-7 text-[12px] outline-none"
           />
         </div>
       )}
@@ -324,8 +336,11 @@ export function SessionsSidebar({
                           )}
 
                           {!reached && !held && bastion === null && (
-                            <span className="text-ink-faint ml-auto shrink-0 font-mono text-[10.5px]">
-                              {session.host}
+                            <span
+                              className="text-ink-faint ml-auto max-w-[130px] shrink-0 truncate font-mono text-[10.5px]"
+                              title={`${session.user}@${session.host}`}
+                            >
+                              {session.user}@{session.host}
                             </span>
                           )}
                         </button>
