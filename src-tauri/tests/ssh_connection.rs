@@ -12,6 +12,7 @@ use std::sync::Arc;
 use russh::keys::{encode_pkcs8_pem, encode_pkcs8_pem_encrypted, PrivateKey, PublicKey};
 use russh::server::{Auth, ChannelOpenHandle, Handler as ServerHandler, Msg, Server as _, Session};
 use russh::Channel;
+use russh::ChannelId;
 use russh::MethodKind;
 
 use runic_ssh::ssh::connection::{
@@ -104,9 +105,16 @@ impl ServerHandler for TestServer {
     async fn channel_open_session(
         &mut self,
         _channel: Channel<Msg>,
-        _reply: ChannelOpenHandle,
+        reply: ChannelOpenHandle,
         _session: &mut Session,
     ) -> Result<(), Self::Error> {
+        /* `ChannelOpenHandle::drop` rejects with `AdministrativelyProhibited`
+        when neither `accept` nor `reject` was called, so a session channel
+        this server never explicitly accepted was never actually open: no
+        test before `opening_sftp_does_not_need_or_block_a_shell` asked this
+        fake server for one, only for a forwarded `direct-tcpip` channel,
+        which already calls `reply.accept()` below. */
+        reply.accept().await;
         Ok(())
     }
 
@@ -148,6 +156,23 @@ impl ServerHandler for TestServer {
             let _ = tokio::io::copy_bidirectional(&mut downstream, &mut upstream).await;
         });
 
+        Ok(())
+    }
+
+    /// Accepts the one subsystem this fake server needs to speak: enough to
+    /// prove `Connection::open_sftp` opens a channel and gets it acknowledged,
+    /// without this server ever speaking real SFTP over it. The default
+    /// `Handler` impl returns `Ok(())` without a reply, so `request_subsystem`
+    /// with `want_reply: true` would wait forever without this.
+    async fn subsystem_request(
+        &mut self,
+        channel: ChannelId,
+        name: &str,
+        session: &mut Session,
+    ) -> Result<(), Self::Error> {
+        if name == "sftp" {
+            session.channel_success(channel)?;
+        }
         Ok(())
     }
 }
@@ -458,6 +483,36 @@ async fn a_round_trip_is_measured_against_the_host() {
         .round_trip()
         .await
         .expect("the host answered again");
+}
+
+#[tokio::test]
+async fn opening_sftp_does_not_need_or_block_a_shell() {
+    /* #127's own constraint: SFTP is a second, independent channel on the
+    same handle, not something built on the shell guard `Registry::has_shell`
+    enforces. Opening it first, before any shell exists, and then opening a
+    shell afterwards on the same connection is what proves the two do not
+    interact. */
+    let key = PrivateKey::random(&mut rng(), russh::keys::Algorithm::Ed25519).expect("a key");
+    let (port, host_public) = start_server(key.public_key().clone()).await;
+
+    let mut connection = connect(endpoint(port), trusting(port, &host_public))
+        .await
+        .expect("connects");
+
+    connection
+        .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
+        .await
+        .expect("authenticates");
+
+    connection
+        .open_sftp()
+        .await
+        .expect("the sftp subsystem opens with no shell ever requested");
+
+    connection
+        .open_shell(80, 24)
+        .await
+        .expect("a shell still opens on the same connection afterwards");
 }
 
 #[tokio::test]

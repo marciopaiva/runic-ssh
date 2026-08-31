@@ -36,6 +36,12 @@ use std::collections::BTreeSet;
 /// They were granted once, and the grant bought a button that failed silently
 /// when anything went wrong. `window_action_cannot_name_a_window` below is what
 /// keeps that swap honest.
+///
+/// `dialog:allow-open` and `dialog:allow-save` are the first grant to a
+/// plugin rather than to `core`: the native pickers for an SFTP transfer's
+/// local half, named individually rather than through `dialog:default` (which
+/// would also carry `allow-message`, a dialog type nothing here shows).
+/// ADR-0041, ADR-0042.
 const ALLOWED: &[&str] = &[
     "core:event:allow-listen",
     "core:event:allow-unlisten",
@@ -43,6 +49,8 @@ const ALLOWED: &[&str] = &[
     "core:window:allow-internal-toggle-maximize",
     "core:window:allow-is-maximized",
     "core:window:allow-start-dragging",
+    "dialog:allow-open",
+    "dialog:allow-save",
 ];
 fn capability() -> serde_json::Value {
     named("default.json")

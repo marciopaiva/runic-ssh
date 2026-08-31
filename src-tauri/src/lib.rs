@@ -20,6 +20,7 @@
 pub mod commands;
 pub mod config;
 pub mod error;
+pub mod sftp;
 pub mod ssh;
 pub mod vault;
 
@@ -34,6 +35,9 @@ pub mod vault;
 /// invalid. Both are startup failures, not conditions a user can reach.
 pub fn run() -> tauri::Result<()> {
     tauri::Builder::default()
+        /* The native "choose a file" / "choose a destination" dialogs for the
+        local half of an SFTP transfer. ADR-0042. */
+        .plugin(tauri_plugin_dialog::init())
         /* The window is created from `tauri.conf.json`, which is read before
         any of our code runs, so ADR-0005's escape hatch cannot be a
         declarative setting: a stored preference can only be applied to a
