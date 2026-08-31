@@ -20,9 +20,8 @@ path = "src/main.rs"
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
-# Dependencies arrive with the issue that needs them, not in advance. `russh`,
-# `russh-sftp`, `keyring` and `zeroize` are recorded stack decisions with no
-# caller yet.
+# Dependencies arrive with the issue that needs them, not in advance. `keyring`
+# and `zeroize` are recorded stack decisions with no caller yet.
 [dependencies]
 # Primitives for known_hosts: SHA-256 for fingerprints, HMAC-SHA-1 for hashed
 # host names, base64 for the key blob. All four already arrive with `russh`
@@ -46,11 +45,21 @@ keyring = "4.1.6"
 # private key is refused in ssh::connection instead.
 # See adr/0010-refuse-rsa-private-keys.md.
 russh = "0.63.0"
+# The SFTP subsystem, spoken over a channel `russh` already opened. Does not
+# depend on `russh` at runtime itself, only on any `AsyncRead + AsyncWrite`,
+# so there is no second copy of it or its dependencies to keep in step with
+# ours. See adr/0041-use-russh-sftp-instead-of-writing-the-protocol.md.
+russh-sftp = "2.4.0"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1"
 sha1 = "0.11.0"
 sha2 = "0.11.0"
 tauri = { version = "2", features = [] }
+# The native "choose a file" / "choose a destination" dialogs, for the local
+# half of an SFTP transfer. The first Tauri plugin this application takes;
+# `capabilities/default.json` grants only its `open` and `save` commands.
+# See adr/0042-pick-local-files-through-tauri-plugin-dialog.md.
+tauri-plugin-dialog = "2.7.2"
 thiserror = "2.0.20"
 tokio = { version = "1.53.1", features = ["sync", "rt", "time"] }
 zeroize = "1.9.0"

@@ -529,6 +529,28 @@ impl Connection {
         Ok(channel)
     }
 
+    /// Opens the SFTP subsystem, as a channel beside whatever else is running.
+    ///
+    /// A second, independent channel on the same handle: opening one has
+    /// nothing to do with `Registry::has_shell` and does not touch it, the
+    /// same way a forwarded channel for a chain does not. See
+    /// adr/0041-use-russh-sftp-instead-of-writing-the-protocol.md for why the
+    /// protocol spoken over this channel is `russh_sftp`'s rather than ours.
+    pub async fn open_sftp(&self) -> Result<russh::Channel<russh::client::Msg>, ConnectionError> {
+        let channel = self
+            .handle
+            .channel_open_session()
+            .await
+            .map_err(|_| ConnectionError::Transport)?;
+
+        channel
+            .request_subsystem(true, "sftp")
+            .await
+            .map_err(|_| ConnectionError::Transport)?;
+
+        Ok(channel)
+    }
+
     /// Opens a forwarded connection to `endpoint`, from this host.
     ///
     /// The primitive a chain is built on, and the one local port forwarding
