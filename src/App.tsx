@@ -100,6 +100,7 @@ import {
 } from './ipc';
 import type { Keep, Secret, Session, SessionDraft, SuggestedMethod } from './ipc';
 import { useLocale, useTheme } from './features/settings';
+import { visibleDestinationRows } from './features/sftp/browser';
 import { endpointKey } from './features/sftp/endpoint';
 import type { DraggedEndpoint, Endpoint } from './features/sftp/endpoint';
 import { destinationPaneId, MAX_DESTINATIONS, SOURCE_PANE_ID, useFanout } from './features/sftp/use-fanout';
@@ -1937,14 +1938,7 @@ export function App(): JSX.Element {
               ? 'border-accent bg-accent-soft/40'
               : 'border-line-strong';
 
-          /* How many destination rows to render: at least `destinationSplit`
-             (the maintainer's own pre-allocation), and never fewer than
-             enough to keep every occupied slot visible plus one empty row
-             to drop the next host into, the same floor the grid always
-             kept before `destinationSplit` existed. Lowering the split
-             count below what's occupied does not hide anything. */
-          const minVisibleRows = occupied.length + (occupied.length < MAX_DESTINATIONS ? 1 : 0);
-          const visibleRows = Math.min(MAX_DESTINATIONS, Math.max(destinationSplit, minVisibleRows));
+          const visibleRows = visibleDestinationRows(destinationSplit, occupied.length, MAX_DESTINATIONS);
 
           return (
             <main className="bg-surface-base relative flex min-w-0 flex-1 gap-3 overflow-hidden p-3">

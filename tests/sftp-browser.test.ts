@@ -1,12 +1,12 @@
 /**
  * Guards the pure half of an SFTP tab: what a progress or finished event does
- * to the transfers list, and the path arithmetic for moving up a remote
- * directory.
+ * to the transfers list, the path arithmetic for moving up a remote
+ * directory, and how many destination rows the split control renders.
  */
 
 import { describe, expect, it } from 'vitest';
 
-import { hasActiveTransfer, reduceTransfers, remoteParent } from '../src/features/sftp/browser';
+import { hasActiveTransfer, reduceTransfers, remoteParent, visibleDestinationRows } from '../src/features/sftp/browser';
 import type { TransferAction } from '../src/features/sftp/browser';
 
 const STARTED: TransferAction = {
@@ -155,6 +155,27 @@ describe('moving up a remote directory', () => {
 
   it('ignores a trailing slash', () => {
     expect(remoteParent('/var/www/')).toBe('/var');
+  });
+});
+
+describe('how many destination rows the split control renders', () => {
+  it('shows exactly what was chosen when nothing is occupied', () => {
+    expect(visibleDestinationRows(1, 0, 4)).toBe(1);
+  });
+
+  it('does not grow past the chosen split when a row fills in', () => {
+    /* The bug this guards: filling the one row a maintainer asked for used
+       to grow a second, empty one alongside it, which defeated choosing 1
+       and getting 1. */
+    expect(visibleDestinationRows(1, 1, 4)).toBe(1);
+  });
+
+  it('never hides an occupied slot, even below the chosen split', () => {
+    expect(visibleDestinationRows(1, 3, 4)).toBe(3);
+  });
+
+  it('caps at the maximum regardless of how high the split is set', () => {
+    expect(visibleDestinationRows(4, 0, 4)).toBe(4);
   });
 });
 
