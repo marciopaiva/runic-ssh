@@ -6,8 +6,8 @@
  * the way #127's original `useSftpBrowser` did: ADR-0045 needs as many
  * independently-navigable listings as there are occupied slots, not two.
  * A pane's caller remounts it (via a `key` built from `endpointKey`) when
- * its endpoint changes, so this hook never has to detect that itself —
- * a fresh mount already starts from a clean, empty listing.
+ * its endpoint changes, so this hook never has to detect that itself: a
+ * fresh mount already starts from a clean, empty listing.
  *
  * No ancestor tree here, unlike #127's remote side: with several remote
  * panes possibly open at once, a tree sidebar would have to pick one of

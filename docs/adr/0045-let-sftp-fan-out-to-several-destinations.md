@@ -15,7 +15,7 @@ Working through that shape live surfaced a bigger want. Copying the same
 file to several servers at once, or between two remote hosts with nothing
 local involved, are ordinary things to want from an SFTP client, and
 ADR-0044's own Option A already named the mechanism this would need
-(`groups.ts`'s grid) — it was rejected there for a single-browser feature
+(`groups.ts`'s grid). It was rejected there for a single-browser feature
 with nothing to split, not because the mechanism was wrong for a future
 one. This document is that future one.
 
@@ -24,7 +24,7 @@ Three things ADR-0044 assumed no longer hold:
 * **Exactly one remote side.** `sftp_download`/`sftp_upload`
   (`src-tauri/src/commands/sftp.rs`) each hardcode one side of a transfer
   to the local filesystem, via a bare path string rather than a second
-  session handle. Directory *listing* already has no such limit —
+  session handle. Directory *listing* already has no such limit:
   `sftp_list` takes a `SessionHandle` and is fully generic per handle, the
   same way a jump-host chain already keeps two connections open at once.
   Only the transfer commands are narrow.
@@ -38,7 +38,7 @@ Three things ADR-0044 assumed no longer hold:
   dropping a new one onto it keeps the old one as a hidden tab in the same
   rectangle. Confirmed directly against this feature: a destination slot
   should not do that. Dropping a host onto an occupied slot replaces it
-  outright — there is no reason to keep a destination around that a person
+  outright. There is no reason to keep a destination around that a person
   just dragged something else on top of.
 
 ## Options considered
@@ -60,10 +60,10 @@ four") is two rounds of UI work for one feature.
 
 One source pane, always exactly one. A destination area that starts with
 one empty slot and grows to a grid as hosts are dragged in, capped at four
-to start. Each slot holds at most one occupant — a plain
-`readonly (Endpoint | null)[]`, not a `HeldGroup` — so `Box`/`Grid`/`cells`
-from `groups.ts` lay the rectangles out, but placing an entry is nothing
-more than replacing one array slot, not `moveEntry`'s
+to start. Each slot holds at most one occupant, a plain
+`readonly (Endpoint | null)[]` rather than a `HeldGroup`, so
+`Box`/`Grid`/`cells` from `groups.ts` lay the rectangles out, but placing
+an entry is nothing more than replacing one array slot, not `moveEntry`'s
 detach-and-append-to-a-list behaviour. `Endpoint` (`{kind:'local'}` or
 `{kind:'remote', sessionId, handle}`) replaces the hardcoded local/remote
 pair everywhere: the source is an `Endpoint`, every destination slot is an
@@ -86,7 +86,7 @@ Remote-to-remote alone would leave the picker still answering last week's
 question. The fuller shape (free source and destination, several
 destinations at once, filled by dragging the same way Sessions already
 does) is what was actually asked for, and `groups.ts` already has the
-geometry half of what it needs — this is not new machinery, it's the
+geometry half of what it needs: this is not new machinery, it is the
 placement-list half of `HeldGroup` traded for a plainer one that matches
 "replace, don't stack" instead of building a second stacking model
 alongside the first.
@@ -104,14 +104,14 @@ rather than a guess:
 
 * One read from the source, one write to every occupied destination,
   concurrently per chunk (`tokio::join!`/`join_all` across the writes, not
-  a chain of awaits) — a slow destination should not throttle a fast one.
+  a chain of awaits), so a slow destination does not throttle a fast one.
 * Each destination is its own `TransferHandle`, not a new group-cancel
   primitive in `Transfers`. A partial failure on one destination does not
   retroactively fail the others; cancelling "this copy" from the UI cancels
   each handle in the group, one call per handle.
 * The destination-remote name-safety question that remote-to-remote raises
   is already answered by the `check_name` call `upload` already makes on
-  the name half of a destination path before joining it — the same check,
+  the name half of a destination path before joining it. The same check,
   run on the source-supplied name, is sufficient; no new path-join
   primitive is needed for a remote path string the way `safe_destination`
   exists for a local one.
@@ -121,7 +121,7 @@ rather than a guess:
 **ADR-0044 is superseded by this document.** Its core answer to "does SFTP
 need a grid" was no; this document's answer, for destinations specifically,
 is yes. The source side keeps ADR-0044's shape exactly (one pane, no
-split) — this is not a full reversal, only the destination half. ADR-0044
+split); this is not a full reversal, only the destination half. ADR-0044
 is not rewritten or deleted: the reasoning that was correct for a
 single-browser feature with nothing to split stays on record as exactly
 that, and the "Resolved" note pattern this repository already uses for
@@ -140,20 +140,20 @@ primitives, still never sharing Sessions' `HeldGroup`/`Focus`.
 instead of two hardcoded named sides, which is what makes remote-to-remote
 representable at all rather than a special case bolted on. Fanning out to
 several destinations reuses the exact same per-destination transfer call
-as a single one — nothing about the backend changes shape between "one
+as a single one: nothing about the backend changes shape between "one
 destination" and "four." `SftpWorkspaceSidebar` regains parity with
 `SessionsSidebar`'s own drag-and-drop instead of being a plainer, click-only
 cousin of it.
 
 **Bad**: `use-browser.ts` and `SftpBrowser.tsx`, both written for #127 and
 extended for ADR-0044, are restructured again within days of the second
-version shipping — the pane model changes shape twice in one week. A drop
+version shipping; the pane model changes shape twice in one week. A drop
 on an occupied slot destroying what was there with no undo is a real loss
 of work if it happens by accident, in a way Sessions' own "the old one
 becomes a hidden tab" behaviour never risked; this trades safety for
 directness on the maintainer's own explicit choice. `Transfers`'
 per-handle-only cancellation means "cancel this copy" is N cancel calls
-made to look like one from the UI, not an atomic operation — a destination
+made to look like one from the UI, not an atomic operation. A destination
 whose cancel call is lost mid-flight (an unlikely but real race) keeps
 running while its siblings stop.
 

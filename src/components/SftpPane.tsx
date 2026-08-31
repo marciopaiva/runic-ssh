@@ -9,7 +9,7 @@ import type { Translator } from '../lib/i18n';
 
 interface SftpPaneProps {
   readonly endpoint: Endpoint;
-  /** `App.tsx`'s `SOURCE_PANE_ID`/`destinationPaneId(slot)` — how this
+  /** `App.tsx`'s `SOURCE_PANE_ID`/`destinationPaneId(slot)`: how this
    * pane's own report is told apart from every other one's. */
   readonly paneId: string;
   /** `sftp.source`/`sftp.destination`, the small caption above the identity. */
@@ -17,7 +17,7 @@ interface SftpPaneProps {
   /** `user@host` or `localhost`, drawn beside `label`. */
   readonly identity: string;
   /** Reports where this pane currently is, and how to make it look again,
-   * up to the fan-out orchestration — `useFanout`'s own `reportPane`.
+   * up to the fan-out orchestration: `useFanout`'s own `reportPane`.
    * Called with `null` on unmount. */
   readonly onReport: (paneId: string, report: { readonly path: string | null; readonly reload: () => void } | null) => void;
   /** Present only on the source pane: sends a file to every occupied
@@ -152,7 +152,7 @@ function Header({ i18n }: { readonly i18n: Translator }): JSX.Element {
  *
  * Replaces #127's `SftpBrowser`, which owned a hardcoded local pane and a
  * hardcoded remote pane side by side. One of these is mounted per occupied
- * slot instead, each against whatever `Endpoint` it was dropped there —
+ * slot instead, each against whatever `Endpoint` it was dropped there:
  * `usePane` inside it does not know or care whether that endpoint is local
  * or remote.
  */

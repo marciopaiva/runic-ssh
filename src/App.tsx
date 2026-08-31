@@ -1992,8 +1992,8 @@ export function App(): JSX.Element {
               {/* Host-key decisions, the "Reaching <host>…" surface and the
                   rest of `attemptSurface` assume a full pane's worth of
                   room, the size every other surface using it already gets
-                  (Sessions' own `bodyStyle`, ADR-0044's one rectangle) —
-                  the source pane's own, deliberately short strip clipped a
+                  (Sessions' own `bodyStyle`, ADR-0044's one rectangle).
+                  The source pane's own, deliberately short strip clipped a
                   host key prompt's Trust button below the fold when this
                   was nested inside it instead. Full-area, gated on
                   `attemptTarget` so it only covers the workspace while the

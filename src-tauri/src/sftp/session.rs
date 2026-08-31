@@ -234,7 +234,7 @@ pub async fn upload(
 /// `safe_destination` to protect, but `check_name` alone (no `/`, no `..`,
 /// no control characters) is what keeps the join from leaving `dest_dir`,
 /// which is the whole of what `safe_destination` adds to `check_name` for a
-/// [`std::path::Path`] — the same guarantee, for a path that is a string on
+/// [`std::path::Path`]: the same guarantee, for a path that is a string on
 /// the wire rather than a local path.
 pub async fn transfer(
     source: &SftpSession,

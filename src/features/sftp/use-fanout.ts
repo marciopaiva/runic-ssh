@@ -52,7 +52,7 @@ export interface FanoutActions {
   /** Fills the first empty slot, or does nothing once all
    * {@link MAX_DESTINATIONS} are occupied. */
   readonly addDestination: (endpoint: Endpoint) => void;
-  /** Replaces one slot's occupant outright — confirmed directly against
+  /** Replaces one slot's occupant outright: confirmed directly against
    * this feature, not Sessions' own "the old one becomes a hidden tab"
    * drop behaviour, which does not fit a destination. */
   readonly replaceDestination: (slot: number, endpoint: Endpoint) => void;
@@ -140,7 +140,7 @@ export function useFanout(sessions: readonly LiveSession[]): FanoutState & Fanou
      issued together rather than one after another: `Promise.all` over the
      per-destination IPC calls below, so a slow destination does not delay
      starting the others. Each destination is its own `TransferHandle`
-     (ADR-0045) — a fan-out of four is four ordinary transfers, not a new
+     (ADR-0045): a fan-out of four is four ordinary transfers, not a new
      kind of thing on the wire. */
   const sendToDestinations = useCallback(
     (entry: PaneEntry) => {
