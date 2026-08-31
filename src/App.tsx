@@ -23,6 +23,7 @@ import { SessionMenu } from './components/SessionMenu';
 import { SessionWizard } from './components/SessionWizard';
 import { SessionsSidebar } from './components/SessionsSidebar';
 import { SftpPane } from './components/SftpPane';
+import { SftpSplitControl } from './components/SftpSplitControl';
 import { SftpWorkspaceSidebar } from './components/SftpWorkspaceSidebar';
 import { StatusBar } from './components/StatusBar';
 import { TerminalView } from './components/TerminalView';
@@ -331,6 +332,11 @@ export function App(): JSX.Element {
      rather than reusing the Sessions grid's index. */
   const [sftpDragging, setSftpDragging] = useState<DraggedEndpoint | null>(null);
   const [sftpDropOver, setSftpDropOver] = useState<SftpTarget | null>(null);
+  /* How many destination rows the fan-out column pre-allocates, chosen
+     directly rather than only ever growing one empty slot at a time: a
+     maintainer setting up three destinations before dragging anything
+     wants three drop targets on screen, not one that grows as it fills. */
+  const [destinationSplit, setDestinationSplit] = useState(1);
   /* A paste held back for an answer, and the session that asked. Held here
      rather than inside the terminal so it renders in that session's panel the
      way every other question does, per ADR-0015. */
@@ -1875,17 +1881,16 @@ export function App(): JSX.Element {
         </main>
         )}
 
-        {/* ADR-0045: source on top, destinations fanning out below it in a
-            grid that grows as a host is dropped on empty space and replaces
-            outright when dropped on an occupied slot. Every occupied pane
-            stays mounted and visible at once, unlike ADR-0044's one tab at
-            a time: fanning a file out needs every destination's own listing
-            live simultaneously, not shown in turn. */}
+        {/* ADR-0045: source in its own column, destinations fanning out into
+            a second column stacked as rows. A drop replaces a slot's
+            occupant outright, and every occupied pane stays mounted and
+            visible at once, unlike ADR-0044's one tab at a time: fanning a
+            file out needs every destination's own listing live
+            simultaneously, not shown in turn. */}
         {workspace === 'sftp' && (() => {
           const occupied = fanout.destinations
             .map((endpoint, slot) => (endpoint === null ? null : { endpoint, slot }))
             .filter((entry): entry is { endpoint: Endpoint; slot: number } => entry !== null);
-          const nextEmptySlot = fanout.destinations.indexOf(null);
 
           /* Which pane, if any, `attempt` belongs to: an endpoint already
              assigned, or (mid-connect, before `onOpened` resolves it) the
@@ -1932,17 +1937,18 @@ export function App(): JSX.Element {
               ? 'border-accent bg-accent-soft/40'
               : 'border-line-strong';
 
-          /* One row, not a wrapping grid: up to MAX_DESTINATIONS panes side
-             by side, each an equal share of the width, the same "split"
-             Sessions' own columns layout means. `occupied.length` is never
-             more than `MAX_DESTINATIONS`, and the trailing empty slot (when
-             there is room for one) is the same width as the rest rather
-             than a narrower afterthought. */
-          const visibleDestinations = occupied.length + (nextEmptySlot >= 0 ? 1 : 0);
+          /* How many destination rows to render: at least `destinationSplit`
+             (the maintainer's own pre-allocation), and never fewer than
+             enough to keep every occupied slot visible plus one empty row
+             to drop the next host into, the same floor the grid always
+             kept before `destinationSplit` existed. Lowering the split
+             count below what's occupied does not hide anything. */
+          const minVisibleRows = occupied.length + (occupied.length < MAX_DESTINATIONS ? 1 : 0);
+          const visibleRows = Math.min(MAX_DESTINATIONS, Math.max(destinationSplit, minVisibleRows));
 
           return (
-            <main className="bg-surface-base relative flex min-w-0 flex-1 flex-col gap-3 overflow-hidden p-3">
-              <div className="relative h-[34%] min-h-[180px] shrink-0" {...dragOverHandlers({ kind: 'source' })}>
+            <main className="bg-surface-base relative flex min-w-0 flex-1 gap-3 overflow-hidden p-3">
+              <div className="relative w-[32%] min-w-[260px] shrink-0" {...dragOverHandlers({ kind: 'source' })}>
                 {fanout.source === null ? (
                   <div
                     className={`text-ink-faint flex h-full flex-col items-center justify-center gap-2 rounded border-2 border-dashed text-[12.5px] transition-colors ${dropTone({ kind: 'source' })}`}
@@ -1963,48 +1969,55 @@ export function App(): JSX.Element {
                 )}
               </div>
 
-              <div className="text-ink-faint flex shrink-0 items-center gap-2 text-[10px] font-bold tracking-[0.1em]">
-                <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" aria-hidden="true">
-                  <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                {i18n.t('sftp.fansOutTo')}
-              </div>
-
-              <div
-                className="grid min-h-0 flex-1 gap-3 overflow-x-auto"
-                style={{ gridTemplateColumns: `repeat(${String(Math.max(visibleDestinations, 1))}, minmax(220px, 1fr))` }}
-              >
-                {occupied.map(({ endpoint, slot }) => (
-                  <div key={`destination-${String(slot)}`} className="relative" {...dragOverHandlers({ kind: 'destination', slot })}>
-                    <SftpPane
-                      key={endpointKey(endpoint)}
-                      endpoint={endpoint}
-                      paneId={destinationPaneId(slot)}
-                      label={i18n.t('sftp.destination')}
-                      identity={sftpIdentity(endpoint)}
-                      onReport={fanout.reportPane}
-                      onSend={null}
-                      onClear={() => fanout.clearDestination(slot)}
-                    />
+              <div className="flex min-w-0 flex-1 flex-col gap-3">
+                <div className="flex shrink-0 items-center justify-between">
+                  <div className="text-ink-faint flex items-center gap-2 text-[10px] font-bold tracking-[0.1em]">
+                    <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" aria-hidden="true">
+                      <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    {i18n.t('sftp.fansOutTo')}
                   </div>
-                ))}
+                  <SftpSplitControl value={destinationSplit} onChange={setDestinationSplit} />
+                </div>
 
-                {nextEmptySlot >= 0 && (
-                  <div
-                    key={`destination-empty-${String(nextEmptySlot)}`}
-                    className={`text-ink-faint flex flex-col items-center justify-center gap-2 rounded border-2 border-dashed text-[12px] transition-colors ${dropTone({ kind: 'destination', slot: nextEmptySlot })}`}
-                    {...dragOverHandlers({ kind: 'destination', slot: nextEmptySlot })}
-                  >
-                    {i18n.t('sftp.destination.empty')}
-                  </div>
-                )}
+                <div
+                  className="grid min-h-0 flex-1 gap-3 overflow-y-auto"
+                  style={{ gridTemplateRows: `repeat(${String(visibleRows)}, minmax(120px, 1fr))` }}
+                >
+                  {Array.from({ length: visibleRows }, (_, slot) => slot).map((slot) => {
+                    const endpoint = fanout.destinations[slot] ?? null;
+
+                    return (
+                      <div key={`destination-${String(slot)}`} className="relative" {...dragOverHandlers({ kind: 'destination', slot })}>
+                        {endpoint === null ? (
+                          <div
+                            className={`text-ink-faint flex h-full flex-col items-center justify-center gap-2 rounded border-2 border-dashed text-[12px] transition-colors ${dropTone({ kind: 'destination', slot })}`}
+                          >
+                            {i18n.t('sftp.destination.empty')}
+                          </div>
+                        ) : (
+                          <SftpPane
+                            key={endpointKey(endpoint)}
+                            endpoint={endpoint}
+                            paneId={destinationPaneId(slot)}
+                            label={i18n.t('sftp.destination')}
+                            identity={sftpIdentity(endpoint)}
+                            onReport={fanout.reportPane}
+                            onSend={null}
+                            onClear={() => fanout.clearDestination(slot)}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Host-key decisions, the "Reaching <host>…" surface and the
                   rest of `attemptSurface` assume a full pane's worth of
                   room, the size every other surface using it already gets
                   (Sessions' own `bodyStyle`, ADR-0044's one rectangle).
-                  The source pane's own, deliberately short strip clipped a
+                  The source pane's own, deliberately narrow column clipped a
                   host key prompt's Trust button below the fold when this
                   was nested inside it instead. Full-area, gated on
                   `attemptTarget` so it only covers the workspace while the

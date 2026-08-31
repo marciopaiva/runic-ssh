@@ -215,6 +215,8 @@
   "sftp.sendToDestinations": "Enviar a todos los destinos",
   "sftp.source": "ORIGEN",
   "sftp.source.empty": "Arrastra un host aquí para explorarlo",
+  "sftp.split.choose": "Elige cuántas filas de destino mostrar",
+  "sftp.split.into": "Dividir en {count}",
   "sftp.transferSucceeded": "Listo",
   "sftp.transfers": "TRANSFERENCIAS",
   "sftp.upload": "Subir",
