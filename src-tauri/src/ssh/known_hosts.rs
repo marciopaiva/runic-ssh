@@ -557,4 +557,71 @@ mod tests {
 
         assert_eq!(entry.key, Base64::decode_vec(RSA_KEY).expect("decodes"));
     }
+
+    /* The three tests below pin known, confirmed disagreements with
+    `ssh-keygen -F` (#129, `tests/known_hosts_against_openssh.rs`). None of
+    them is a security regression on its own terms; each is written down so a
+    future change to this parser has to decide about it on purpose rather than
+    drift into agreement or further disagreement by accident. */
+
+    #[test]
+    fn a_key_type_ssh_keygen_would_not_recognise_still_parses() {
+        /* `ssh-keygen -F` only matches a line whose key type is one it
+        recognises as a real algorithm; a line with `ssh-made-up-2027` is
+        invisible to it, confirmed against the real binary. This module
+        treats `key_type` as an opaque label compared against whatever the
+        real server negotiates (see the module doc and
+        `the_key_is_compared_as_bytes_not_interpreted` above), and no real
+        server can ever negotiate a name nobody defined, so accepting the
+        line here cannot make a live connection trust a key it should not.
+        Rejecting it would need a hard-coded list of algorithm names to keep
+        in step with `russh`'s own, which is a cost for a case that cannot
+        be reached. */
+        let file = hosts(&format!("web-01 ssh-made-up-2027 {RSA_KEY}"));
+        assert!(file.matching("web-01", 22).next().is_some());
+    }
+
+    #[test]
+    fn a_line_whose_key_will_not_decode_is_never_matched() {
+        /* The opposite direction: `ssh-keygen -F` still reports a line as
+        found even when its key field is not valid base64, since a lookup
+        does not need to decode the key. This module cannot compare a key it
+        could not decode against a real one, so it drops the line from
+        matching rather than claim a host is known when nothing here could
+        ever confirm which key it actually has. The line survives a rewrite
+        regardless: see `a_malformed_line_does_not_lose_the_rest_of_the_file`.
+        This is the direction that trades a possible "unknown host" prompt for
+        never claiming a false "known" one, which is the safer of the two
+        ways to disagree with the reference tool. */
+        let file = hosts("web-01 ssh-ed25519 not-valid-base64!!!");
+        assert_eq!(file.entries().count(), 0);
+        assert!(file.matching("web-01", 22).next().is_none());
+    }
+
+    #[test]
+    fn a_hashed_entry_matches_regardless_of_the_querys_case() {
+        /* `ssh-keygen -H` lowercases a hostname before hashing it, but
+        `ssh-keygen -F` hashes a query exactly as given, so querying a hashed
+        entry with anything but the original lowercase form finds nothing
+        under the reference tool, confirmed against the real binary. This
+        module lowercases both sides through `canonical_host` before hashing
+        either one, so it is case-insensitive here the same way plain-pattern
+        matching already is elsewhere in this file. That can only make this
+        module recognise a host `ssh-keygen -F` would call unknown; it cannot
+        make it accept a key that does not match, so the disagreement is
+        strictly more forgiving, never less. */
+        let salt = b"0123456789abcdefghij";
+        let mut mac = Hmac::<Sha1>::new_from_slice(salt).expect("a valid key");
+        mac.update(b"web-01");
+        let digest = mac.finalize().into_bytes();
+
+        let line = format!(
+            "|1|{}|{} ssh-ed25519 {RSA_KEY}",
+            Base64::encode_string(salt),
+            Base64::encode_string(&digest),
+        );
+
+        let file = hosts(&line);
+        assert!(file.matching("WEB-01", 22).next().is_some());
+    }
 }
