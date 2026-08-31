@@ -6,25 +6,15 @@
 
 import { describe, expect, it } from 'vitest';
 
-import {
-  ancestorChain,
-  hasActiveTransfer,
-  reduceTransfers,
-  remoteParent,
-  treeRows,
-} from '../src/features/sftp/browser';
-import type { TransferAction, TreeLevel } from '../src/features/sftp/browser';
-import type { SftpEntry } from '../src/ipc';
-
-function dir(name: string, remotePath: string): SftpEntry {
-  return { name, remotePath, isDir: true, isSymlink: false, size: 0, modifiedUnixSecs: null };
-}
+import { hasActiveTransfer, reduceTransfers, remoteParent } from '../src/features/sftp/browser';
+import type { TransferAction } from '../src/features/sftp/browser';
 
 const STARTED: TransferAction = {
   type: 'started',
   transfer: 1,
   direction: 'download',
   name: 'report.pdf',
+  destination: 'deploy@10.4.1.20',
 };
 
 describe('reducing transfer events', () => {
@@ -36,6 +26,7 @@ describe('reducing transfer events', () => {
         transfer: 1,
         direction: 'download',
         name: 'report.pdf',
+        destination: 'deploy@10.4.1.20',
         transferred: 0,
         total: null,
         status: 'active',
@@ -45,7 +36,13 @@ describe('reducing transfer events', () => {
   });
 
   it('updates only the transfer a progress event names', () => {
-    const other: TransferAction = { type: 'started', transfer: 2, direction: 'upload', name: 'x.txt' };
+    const other: TransferAction = {
+      type: 'started',
+      transfer: 2,
+      direction: 'upload',
+      name: 'x.txt',
+      destination: 'deploy@10.9.0.5',
+    };
     const transfers = reduceTransfers(reduceTransfers([], STARTED), other);
 
     const after = reduceTransfers(transfers, {
@@ -160,73 +157,4 @@ describe('moving up a remote directory', () => {
     expect(remoteParent('/var/www/')).toBe('/var');
   });
 });
-
-describe('the chain of ancestors above a remote path', () => {
-  it('is just the path itself at the root', () => {
-    expect(ancestorChain('/')).toEqual(['/']);
-  });
-
-  it('is just the path itself before any navigation', () => {
-    expect(ancestorChain('.')).toEqual(['.']);
-  });
-
-  it('walks up to the root, in root-first order', () => {
-    expect(ancestorChain('/var/www/releases')).toEqual(['/', '/var', '/var/www', '/var/www/releases']);
-  });
-});
-
-describe('flattening a chain into sidebar tree rows', () => {
-  const chain = ['/', '/var', '/var/www'];
-
-  it('is empty for an empty chain', () => {
-    expect(treeRows([], new Map(), [])).toEqual([]);
-  });
-
-  it('draws only the root, current, once nothing is cached yet', () => {
-    const rows = treeRows(['.'], new Map(), [dir('config', './config')]);
-
-    expect(rows).toEqual([
-      { path: '.', name: '.', depth: 0, isDir: true, expandable: true, expanded: true, current: true },
-      { path: './config', name: 'config', depth: 1, isDir: true, expandable: true, expanded: false, current: false },
-    ]);
-  });
-
-  it('marks the deepest chain entry current, and its ancestors merely expanded', () => {
-    const cache = new Map<string, TreeLevel>([
-      ['/', [dir('var', '/var'), dir('etc', '/etc')]],
-      ['/var', [dir('www', '/var/www')]],
-    ]);
-
-    const rows = treeRows(chain, cache, [dir('releases', '/var/www/releases'), dir('shared', '/var/www/shared')]);
-
-    expect(rows.map((row) => [row.path, row.depth, row.expanded, row.current])).toEqual([
-      ['/', 0, true, false],
-      ['/var', 1, true, false],
-      ['/etc', 1, false, false],
-      ['/var/www', 2, true, true],
-      ['/var/www/releases', 3, false, false],
-      ['/var/www/shared', 3, false, false],
-    ]);
-  });
-
-  it('stops descending once a level is not cached yet', () => {
-    const cache = new Map<string, TreeLevel>([['/', [dir('var', '/var')]]]);
-
-    const rows = treeRows(chain, cache, []);
-
-    expect(rows.map((row) => row.path)).toEqual(['/', '/var']);
-  });
-
-  it('stops descending once a level failed to load', () => {
-    const cache = new Map<string, TreeLevel>([
-      ['/', [dir('var', '/var')]],
-      ['/var', 'error'],
-    ]);
-
-    const rows = treeRows(chain, cache, []);
-
-    expect(rows.map((row) => row.path)).toEqual(['/', '/var']);
-  });
-});
-
 

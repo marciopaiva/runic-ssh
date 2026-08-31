@@ -7,11 +7,12 @@
  * selection, and that stays true: `openTabs` still derives only from
  * sessions, and the union of all three lives here, in the shell's own model.
  *
- * SFTP is not a fourth kind here any more. ADR-0044 gives it its own
- * workspace with its own, simpler state (`App.tsx`'s `sftpFocus`, a plain
- * session id rather than a ring position): a sidebar list a person picks
- * from is not a keyboard ring with neighbours, so it never needed this
- * union's machinery, only the grid it used to sit in by way of it.
+ * SFTP is not a fourth kind here any more. ADR-0044 gave it its own
+ * workspace, and ADR-0045 grew that workspace's own state (`App.tsx`'s
+ * `useFanout`) into a source and a grid of destinations rather than a
+ * single focused id: a sidebar list a person drags from is not a keyboard
+ * ring with neighbours, so it never needed this union's machinery, only
+ * the grid it used to sit in by way of it.
  *
  * A union rather than a reserved session id. Session ids are sixteen hex
  * characters, but `new_id`'s fallback in the core is `{n}-{host}` — free text

@@ -1,31 +1,30 @@
 /**
- * Pure state for one SFTP tab: what its transfers are doing.
+ * Pure state for the SFTP workspace: what its transfers are doing.
  *
- * `use-browser.ts` is the only thing that calls IPC or listens for an event;
+ * `use-fanout.ts` is the only thing that calls IPC or listens for an event;
  * everything here is a reducer over what those events said, so what a
  * progress event does to the list is testable without a webview, the same
  * split `ssh::registry` draws on the Rust side between "what changed" and
  * "how we heard about it."
  */
 
-import type {
-  IpcErrorCode,
-  SftpEntry,
-  TransferHandle,
-  TransferOutcome,
-  TransferProgress,
-} from '../../ipc';
+import type { IpcErrorCode, TransferHandle, TransferOutcome, TransferProgress } from '../../ipc';
 
-export type TransferDirection = 'download' | 'upload';
+/** `'transfer'` is remote-to-remote (ADR-0045); the other two are the
+ * original local↔remote pair, kept for the icon `TransferRow` draws. */
+export type TransferDirection = 'download' | 'upload' | 'transfer';
 export type TransferStatus = 'active' | 'succeeded' | 'failed' | 'cancelled';
 
 export interface TransferState {
   readonly transfer: TransferHandle;
   readonly direction: TransferDirection;
   /** The file's own name, for the transfers list. Never a full path: the
-   * list is about what is moving, not where, which the two panes already
-   * say. */
+   * list is about what is moving, not where. */
   readonly name: string;
+  /** Which destination this is, for a fan-out of several: `user@host` or
+   * `localhost`. Distinguishes otherwise-identical rows when one file goes
+   * to more than one place at once. */
+  readonly destination: string;
   readonly transferred: number;
   readonly total: number | null;
   readonly status: TransferStatus;
@@ -39,6 +38,7 @@ export type TransferAction =
       readonly transfer: TransferHandle;
       readonly direction: TransferDirection;
       readonly name: string;
+      readonly destination: string;
     }
   | { readonly type: 'progress'; readonly transfer: TransferHandle; readonly progress: TransferProgress }
   | { readonly type: 'finished'; readonly transfer: TransferHandle; readonly outcome: TransferOutcome }
@@ -63,6 +63,7 @@ export function reduceTransfers(
           transfer: action.transfer,
           direction: action.direction,
           name: action.name,
+          destination: action.destination,
           transferred: 0,
           total: null,
           status: 'active',
@@ -124,97 +125,3 @@ export function remoteParent(path: string): string | null {
 
   return trimmed.slice(0, at);
 }
-
-/**
- * `path` and every ancestor above it, root first.
- *
- * The sidebar tree walks this to know which directory each depth shows: all
- * but the last entry need their own `sftpList` to draw as a level of the
- * tree, the last one is `path` itself, whose listing the caller already has.
- */
-export function ancestorChain(path: string): readonly string[] {
-  const chain: string[] = [path];
-
-  let at = remoteParent(path);
-  while (at !== null) {
-    chain.push(at);
-    at = remoteParent(at);
-  }
-
-  return chain.reverse();
-}
-
-/** One directory's listing, as the sidebar tree caches it. */
-export type TreeLevel = readonly SftpEntry[] | 'loading' | 'error';
-
-/** One row the sidebar tree draws. */
-export interface TreeRow {
-  readonly path: string;
-  readonly name: string;
-  readonly depth: number;
-  readonly isDir: boolean;
-  /** Draws a chevron: true for every directory, so clicking one is always
-   * offered, not only the ones already known to have children. */
-  readonly expandable: boolean;
-  /** The chevron points down rather than right: this row continues the
-   * lineage to `remotePath`, and its own children are drawn beneath it. */
-  readonly expanded: boolean;
-  /** This is `remotePath` itself, drawn as the canvas draws `www`: raised
-   * background, accent icon, full-strength text. */
-  readonly current: boolean;
-}
-
-/**
- * Flattens a chain and its cached levels into the rows the sidebar tree
- * draws, depth-first: a directory not on the way to `remotePath` draws
- * collapsed, with nothing fetched for it until it is clicked.
- *
- * `chain` is `ancestorChain(remotePath)`; `remoteEntries` are `remotePath`'s
- * own children, one level deeper than the chain itself goes, since the pane
- * already has them and the tree does not ask twice.
- */
-export function treeRows(
-  chain: readonly string[],
-  treeChildren: ReadonlyMap<string, TreeLevel>,
-  remoteEntries: readonly SftpEntry[],
-): readonly TreeRow[] {
-  const root = chain[0];
-  if (root === undefined) return [];
-
-  const rows: TreeRow[] = [
-    { path: root, name: root, depth: 0, isDir: true, expandable: true, expanded: true, current: chain.length === 1 },
-  ];
-
-  for (let depth = 1; depth < chain.length; depth += 1) {
-    const level = treeChildren.get(chain[depth - 1] ?? '');
-    if (level === undefined || level === 'loading' || level === 'error') break;
-
-    for (const entry of level) {
-      const onChain = entry.remotePath === chain[depth];
-      rows.push({
-        path: entry.remotePath,
-        name: entry.name,
-        depth,
-        isDir: entry.isDir,
-        expandable: entry.isDir,
-        expanded: onChain,
-        current: onChain && depth === chain.length - 1,
-      });
-    }
-  }
-
-  for (const entry of remoteEntries) {
-    rows.push({
-      path: entry.remotePath,
-      name: entry.name,
-      depth: chain.length,
-      isDir: entry.isDir,
-      expandable: entry.isDir,
-      expanded: false,
-      current: false,
-    });
-  }
-
-  return rows;
-}
-
