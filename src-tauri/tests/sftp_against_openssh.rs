@@ -15,8 +15,8 @@
 //! ```
 
 use runic_ssh::sftp::error::SftpError;
-use runic_ssh::sftp::session::{download, list, upload};
-use runic_ssh::ssh::connection::{connect, connect_reporting, Credential, Endpoint};
+use runic_ssh::sftp::session::{self, SftpSession};
+use runic_ssh::ssh::connection::{connect, connect_reporting, Connection, Credential, Endpoint};
 use runic_ssh::ssh::known_hosts::KnownHosts;
 use runic_ssh::ssh::trust::Trust;
 use runic_ssh::vault::Secret;
@@ -58,22 +58,29 @@ fn trusting(key: Vec<u8>) -> KnownHosts {
     known
 }
 
-async fn authenticated() -> runic_ssh::ssh::connection::Connection {
+/// Connects, authenticates and opens an SFTP session in one call.
+///
+/// The `Connection` is handed back too, and kept alive for as long as the
+/// session is used: nothing here calls `Connection::disconnect`, and the
+/// channel the session runs over is only guaranteed to answer while the
+/// connection that opened it has not been torn down.
+async fn authenticated() -> (Connection, SftpSession) {
     let known = trusting(offered_key().await);
     let mut connection = connect(endpoint(), known).await.expect("connects");
     connection
         .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
         .await
         .expect("authenticates");
-    connection
+    let sftp = session::open(&connection).await.expect("opens sftp");
+    (connection, sftp)
 }
 
 #[tokio::test]
 #[ignore = "needs the test container; see the module comment"]
 async fn listing_the_home_directory_shows_the_fixtures_files() {
-    let connection = authenticated().await;
+    let (_connection, sftp) = authenticated().await;
 
-    let entries = list(&connection, HOME).await.expect("lists");
+    let entries = session::list(&sftp, HOME).await.expect("lists");
     let names: Vec<&str> = entries.iter().map(|e| e.name.as_str()).collect();
 
     assert!(names.contains(&"README"), "entries were: {names:?}");
@@ -104,9 +111,9 @@ async fn listing_the_home_directory_shows_the_fixtures_files() {
 #[tokio::test]
 #[ignore = "needs the test container; see the module comment"]
 async fn listing_an_absent_directory_is_a_typed_not_found() {
-    let connection = authenticated().await;
+    let (_connection, sftp) = authenticated().await;
 
-    let error = list(&connection, "/home/deploy/does-not-exist")
+    let error = session::list(&sftp, "/home/deploy/does-not-exist")
         .await
         .expect_err("the directory does not exist");
 
@@ -116,11 +123,11 @@ async fn listing_an_absent_directory_is_a_typed_not_found() {
 #[tokio::test]
 #[ignore = "needs the test container; see the module comment"]
 async fn downloading_the_readme_matches_what_the_container_wrote() {
-    let connection = authenticated().await;
+    let (_connection, sftp) = authenticated().await;
     let dir = tempfile::tempdir().expect("a scratch directory");
 
     let mut seen_progress = false;
-    let destination = download(&connection, &format!("{HOME}/README"), dir.path(), |_| {
+    let destination = session::download(&sftp, &format!("{HOME}/README"), dir.path(), |_| {
         seen_progress = true;
     })
     .await
@@ -138,13 +145,13 @@ async fn downloading_the_readme_matches_what_the_container_wrote() {
 #[tokio::test]
 #[ignore = "needs the test container; see the module comment"]
 async fn downloading_a_larger_file_reports_progress_up_to_its_total() {
-    let connection = authenticated().await;
+    let (_connection, sftp) = authenticated().await;
     let dir = tempfile::tempdir().expect("a scratch directory");
 
     let mut last_transferred = 0_u64;
     let mut last_total = None;
-    let destination = download(
-        &connection,
+    let destination = session::download(
+        &sftp,
         &format!("{HOME}/logs/big.log"),
         dir.path(),
         |progress| {
@@ -176,7 +183,7 @@ async fn downloading_a_larger_file_reports_progress_up_to_its_total() {
 #[tokio::test]
 #[ignore = "needs the test container; see the module comment"]
 async fn uploading_then_downloading_round_trips_the_content() {
-    let connection = authenticated().await;
+    let (_connection, sftp) = authenticated().await;
     let scratch = tempfile::tempdir().expect("a scratch directory");
 
     let local_source = scratch.path().join("upload-me.txt");
@@ -184,7 +191,7 @@ async fn uploading_then_downloading_round_trips_the_content() {
     std::fs::write(&local_source, content).expect("writes the source file");
 
     let mut upload_progress = 0_u64;
-    let remote_path = upload(&connection, &local_source, HOME, |progress| {
+    let remote_path = session::upload(&sftp, &local_source, HOME, |progress| {
         upload_progress = progress.transferred;
     })
     .await
@@ -193,7 +200,7 @@ async fn uploading_then_downloading_round_trips_the_content() {
     assert_eq!(remote_path, format!("{HOME}/upload-me.txt"));
     assert_eq!(upload_progress, content.len() as u64);
 
-    let round_tripped = download(&connection, &remote_path, scratch.path(), |_| {})
+    let round_tripped = session::download(&sftp, &remote_path, scratch.path(), |_| {})
         .await
         .expect("downloads it back");
     let read_back = std::fs::read(&round_tripped).expect("reads the round trip");
@@ -203,12 +210,8 @@ async fn uploading_then_downloading_round_trips_the_content() {
     poke at by hand; leaving what this test wrote there would be found later
     with no note of where it came from. `remove_file` is deliberately not
     part of `sftp::session` (deletion is out of #127's first cut), so this
-    goes around it rather than adding the operation just to clean up after
-    a test. */
-    let channel = connection.open_sftp().await.expect("reopens for cleanup");
-    let sftp = russh_sftp::client::SftpSession::new(channel.into_stream())
-        .await
-        .expect("starts a session for cleanup");
+    goes straight to the same already-open session rather than adding the
+    operation just to clean up after a test. */
     sftp.remove_file(&remote_path)
         .await
         .expect("removes what this test uploaded");
