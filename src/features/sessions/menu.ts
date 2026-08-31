@@ -13,12 +13,12 @@
 
 import type { LiveSession } from './state';
 
-export type SessionAction = 'connect' | 'disconnect' | 'sftp';
+export type SessionAction = 'connect' | 'disconnect';
 
 export interface MenuItem {
   readonly action: SessionAction;
   /** Read aloud and shown. */
-  readonly label: 'session.menu.connect' | 'session.menu.disconnect' | 'session.menu.sftp';
+  readonly label: 'session.menu.connect' | 'session.menu.disconnect';
   /** Whether losing something is the outcome. Carried, not inferred. */
   readonly destructive: boolean;
 }
@@ -29,7 +29,6 @@ const DISCONNECT: MenuItem = {
   label: 'session.menu.disconnect',
   destructive: false,
 };
-const SFTP: MenuItem = { action: 'sftp', label: 'session.menu.sftp', destructive: false };
 
 /**
  * The menu for one row.
@@ -38,16 +37,13 @@ const SFTP: MenuItem = { action: 'sftp', label: 'session.menu.sftp', destructive
  * both is offering one that does nothing, and a menu item that does nothing is
  * how a menu stops being read.
  *
- * SFTP (#127) is offered only once a handle exists: it is a second channel
- * on the same connection, not a connection of its own, so there is nothing
- * for it to open while the first one is still being made.
+ * SFTP (#127) used to be a third item here, offered once a handle existed.
+ * ADR-0044 gave it its own workspace with its own host picker instead, so
+ * this row goes back to being about the connection alone.
  */
 export function sessionMenu(live: LiveSession): readonly MenuItem[] {
   const open = live.handle !== null || live.kind === 'connecting';
-  const items: MenuItem[] = [open ? DISCONNECT : CONNECT];
-  if (live.handle !== null) items.push(SFTP);
-
-  return items;
+  return [open ? DISCONNECT : CONNECT];
 }
 
 /**

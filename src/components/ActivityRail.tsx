@@ -92,7 +92,7 @@ function RailSlot({
 }
 
 /** Which main area the window is showing. */
-export type Workspace = 'home' | 'sessions';
+export type Workspace = 'home' | 'sessions' | 'sftp';
 
 interface ActivityRailProps {
   /** Which workspace is showing right now. */
@@ -103,6 +103,8 @@ interface ActivityRailProps {
   readonly armed: boolean;
   /** How many sessions are open, drawn on the Sessions icon. */
   readonly openCount: number;
+  /** How many sessions have an SFTP tab open, drawn on the SFTP icon. */
+  readonly sftpCount: number;
   /**
    * Switches to a workspace, or toggles the sessions sidebar when that
    * workspace is already showing. One click target for both: a rail icon
@@ -121,19 +123,17 @@ interface ActivityRailProps {
  * sidebar is the way back to it, so there is no state the window can get into
  * where the session list is gone and nothing on screen offers it.
  *
- * Two views today, not three. SFTP has no code behind it yet (#127), and an
- * icon that switches to nothing is exactly the interface rule 6 refuses. It
- * arrives with the feature (ADR-0029). Home and Sessions are both real
- * destinations now, not one view and one action wedged into its rail slot:
- * ADR-0029 moved settings and the host editor out of the Sessions workspace
- * and into Home, so a rail icon that only "opened a tab" would be lying about
- * what switching to it actually does.
+ * Three views now (ADR-0044): Home, Sessions and SFTP, each a real
+ * destination rather than one view and an action wedged into its rail slot.
+ * SFTP held out until #127 shipped, per rule 6: an icon that switches to
+ * nothing is exactly what that rule refuses.
  */
 export function ActivityRail({
   workspace,
   sidebarOpen,
   armed,
   openCount,
+  sftpCount,
   onChoose,
 }: ActivityRailProps): JSX.Element {
   const i18n = useTranslator();
@@ -195,6 +195,40 @@ export function ActivityRail({
           aria-hidden="true"
         >
           <path d="M4 17l5-5-5-5M12 19h8" />
+        </svg>
+      </RailSlot>
+
+      {/* ADR-0044: SFTP's own workspace, held shut while armed for the same
+          reason Home is: browsing away is not what someone reaching for the
+          rail mid-broadcast meant to do, and nothing here has a keystroke to
+          receive regardless. */}
+      <RailSlot
+        on={workspace === 'sftp'}
+        tone={armed ? 'warn' : 'accent'}
+        locked={armed}
+        label={i18n.t(
+          armed
+            ? 'rail.sftp.locked'
+            : workspace === 'sftp'
+              ? sidebarOpen
+                ? 'rail.sftp.hide'
+                : 'rail.sftp.show'
+              : 'rail.sftp',
+        )}
+        badge={sftpCount}
+        badgeLabel={i18n.t('rail.sftp.open', { count: String(sftpCount) })}
+        onClick={() => onChoose('sftp')}
+      >
+        <svg
+          viewBox="0 0 24 24"
+          className="h-[21px] w-[21px]"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M4 6.5h6l1.6 2H20v9.5H4z" />
         </svg>
       </RailSlot>
 

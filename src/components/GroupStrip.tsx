@@ -225,21 +225,6 @@ export function GroupStrip({
             >
               {entry.kind === 'session' && tab !== null && <SessionMarker kind={tab.kind} />}
 
-              {entry.kind === 'sftp' && (
-                /* The same folder-and-arrow shape drawn on the rail's own
-                   SFTP slot, verbatim: #127 has no marker of its own the
-                   way a shell tab does, so the icon is what tells the two
-                   tabs for one host apart. */
-                <svg viewBox="0 0 24 24" className="h-3 w-3 shrink-0" fill="none" aria-hidden="true">
-                  <path
-                    d="M4 6.5h6l1.6 2H20v9.5H4z"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              )}
-
               {entry.kind === 'editor' && (
                 <svg viewBox="0 0 16 16" className="h-3 w-3 shrink-0" fill="none" aria-hidden="true">
                   <path

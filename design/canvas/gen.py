@@ -649,11 +649,60 @@ def build_sftp():
       </div>"""
     st = status(stat_session("deploy@10.4.1.20") + "\n" + sep() + "\n" + stat_text("SFTP v3") + "\n" + stat_text("1 transferring"),
                 stat_text("SYNC OFF", T['faint'], mono=False))
-    # Still reached through Sessions here: #127 has not shipped SFTP its own
-    # rail icon yet (ADR-0029), so today's rail shows the same two slots
-    # every other Sessions screen does, whatever this becomes once it does.
+    # ADR-0044: SFTP has its own rail slot now, reached directly rather than
+    # through Sessions. This screen is one open tab focused inside that
+    # workspace; SftpWorkspace.dc.html draws the sidebar's other state, the
+    # host picker shown before any tab is focused.
     write("Sftp.dc.html", page(f'      <div style="flex: 1; min-height: 0; display: flex;">{g}</div>',
-                               sidebar_shell(hdr, tree), home_rail(workspace="sessions", badge="2"), st))
+                               sidebar_shell(hdr, tree), home_rail(workspace="sftp", sftp_badge="1"), st))
+
+# ---------- 7b. sftp workspace, before any tab is focused
+def sftp_row(name, who, state="saved", active=False, open_tab=False):
+    """A plainer `host_row`: no kind icon, no jump-chain mark, no bastion
+    `via` line, none of which mean anything to a host picked to browse
+    rather than to type into. A folder glyph at the trailing edge instead,
+    lit when that session already has a tab open, so the list doubles as
+    the answer to "which of these am I already browsing" without a second
+    icon column."""
+    dots = {"ok": f'background: {T["ok"]};', "saved": f'border: 1.5px solid {T["off"]}; box-sizing: border-box;',
+            "warn": f'border: 1.5px solid {T["warn"]}; box-sizing: border-box;'}
+    bg = f'background: {T["raised"]}; border-radius: 6px;' if active else ''
+    folder = ic("sftp", 13, T["accent"] if open_tab else T["off"]) if open_tab else ''
+    return (f'<div class="row" style="{bg} height: auto; align-items: center; padding: 6px 8px;">'
+            f'<span class="dot" style="{dots[state]} align-self: center; flex: none;"></span>'
+            f'<div style="display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1;">'
+            f'<span style="font-size: 12.5px; color: {T["ink"] if active else T["ink2"]}; {"font-weight: 600;" if active else ""}'
+            f' min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{name}</span>'
+            f'<span class="mono" style="font-size: 10.5px; color: {T["off"]}; overflow: hidden;'
+            f' text-overflow: ellipsis; white-space: nowrap;">{who}</span></div>'
+            f'{folder}</div>')
+
+def sftp_workspace_header():
+    return f"""      <div style="padding: 12px; display: flex; flex-direction: column; gap: 10px; border-bottom: 1px solid {T['line']};">
+        <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.12em; color: {T['faint']};">SFTP</span>
+        <div style="height: 32px; background: {T['input']}; border: 1px solid {T['line']}; border-radius: 6px; display: flex; align-items: center; gap: 8px; padding: 0 10px;">
+          {ic('search', 14, T['faint'])}<span style="font-size: 12px; color: {T['faint']};">Filter sessions</span>
+        </div>
+      </div>"""
+
+def build_sftp_workspace():
+    """ADR-0044: the SFTP workspace's own host picker, the sidebar's other
+    state, shown before any tab is focused (`Sftp.dc.html` draws the state
+    after). No "+"/new-group/collapse chrome from `sessions_header`: there
+    is nothing to create or manage here, only a saved host to pick."""
+    rows = [group_row("PRODUCTION", 3)]
+    for n, w in PROD:
+        rows.append(sftp_row(n, w, "ok" if n == "web-01" else "saved", active=False, open_tab=(n == "web-01")))
+    sidebar = sidebar_shell(sftp_workspace_header(), "\n".join(rows))
+    body = f"""      <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 40px;">
+        {ic('sftp', 40, T['off'])}
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+          <span style="font-size: 13.5px; color: {T['ink2']}; font-weight: 600;">Pick a host to browse</span>
+          <span style="font-size: 12px; color: {T['faint']};">Connects it first, if it isn't already.</span>
+        </div>
+      </div>"""
+    st = status(stat_text("1 host browsing", T['faint'], mono=False), stat_text("2 hosts saved", T['faint']))
+    write("SftpWorkspace.dc.html", page(body, sidebar, home_rail(workspace="sftp", sftp_badge="1"), st))
 
 # ---------- 10. Home: the rail, the nav, and the wizard's own breadcrumb
 # Drawn 2026-08-30 against the maintainer's own complaint that the wizard
@@ -663,19 +712,18 @@ def build_sftp():
 # artboards already drew the real, current wizard shape, and were held back
 # from the canonical set only by that one still-proposed piece.
 
-def home_rail(workspace="home", badge=None, armed=False):
-    """ADR-0029's rail: two peer workspaces today, not three slots inside
-    one. No gear (moved to a Home card). No SFTP either, but only because
-    #127 has no code yet, not because it never gets a slot: ADR-0029's own
-    Consequences name the third icon as a cost accepted up front ("the rail
-    grows a second real view before SFTP exists to justify the third"),
-    arriving with the feature rather than before it, per rule 6.
+def home_rail(workspace="home", badge=None, sftp_badge=None, armed=False):
+    """ADR-0029's rail, now the three peer workspaces it always said would
+    arrive once SFTP had a design of its own (ADR-0044): Home, Sessions,
+    SFTP. No gear (moved to a Home card).
 
     `armed` matches `ActivityRail.tsx`'s own prop exactly: it warn-tints
-    both slots and locks Home, never Sessions, since typing reaches hosts
-    from inside Sessions and switching away is not what someone reaching
-    for the rail mid-broadcast meant to do. `badge` draws the open-session
-    count on the Sessions slot, the same as `openCount` there.
+    every slot and locks Home and SFTP, never Sessions, since typing
+    reaches hosts from inside Sessions and switching away is not what
+    someone reaching for the rail mid-broadcast meant to do. `badge` draws
+    the open-session count on the Sessions slot, the same as `openCount`
+    there; `sftp_badge` draws the open-transfer-tab count on the SFTP slot
+    the same way.
 
     #234: `Settings.dc.html` and `NewSession.dc.html` used to still draw the
     pre-ADR-0029 three-slot shape, on purpose, not by oversight. Neither was
@@ -704,6 +752,7 @@ def home_rail(workspace="home", badge=None, armed=False):
     return f"""    <div style="width: 48px; flex: none; background: {T['chrome']}; border-right: 1px solid {T['line']}; display: flex; flex-direction: column; align-items: center; padding: 6px 0;">
       {slot('home', workspace == 'home', locked=armed)}
       {slot('ssh', workspace == 'sessions', bad=badge)}
+      {slot('sftp', workspace == 'sftp', locked=armed, bad=sftp_badge)}
     </div>"""
 
 def home_nav(section="hosts"):
@@ -1321,7 +1370,7 @@ if LIGHT_MODE:
     build_main()
 else:
     for fn in (build_empty, build_main, build_groups, build_collapsed, build_broadcast,
-               build_hostkey, build_sftp,
+               build_hostkey, build_sftp, build_sftp_workspace,
                build_hosts_host, build_hosts_access, build_home_dashboard, build_home_hosts,
                build_anatomy, build_tokens,
                build_hostkeychanged, build_failure, build_paste, build_palette):
