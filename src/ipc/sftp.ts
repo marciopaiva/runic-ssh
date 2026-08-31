@@ -91,6 +91,20 @@ export async function sftpUpload(
 }
 
 /**
+ * Starts a remote-to-remote transfer (ADR-0045). Progress and outcome arrive
+ * as events on the handle returned, the same as {@link sftpDownload} and
+ * {@link sftpUpload}.
+ */
+export async function sftpTransfer(
+  sourceHandle: SessionHandle,
+  sourcePath: string,
+  destHandle: SessionHandle,
+  destDir: string,
+): Promise<TransferHandle> {
+  return invoke<TransferHandle>('sftp_transfer', { sourceHandle, sourcePath, destHandle, destDir });
+}
+
+/**
  * Cancels a transfer in flight.
  *
  * Never rejects: a handle naming a transfer already finished, already

@@ -115,6 +115,7 @@ pub fn run() -> tauri::Result<()> {
             commands::sftp::sftp_choose_upload_source,
             commands::sftp::sftp_download,
             commands::sftp::sftp_upload,
+            commands::sftp::sftp_transfer,
             commands::sftp::sftp_cancel,
         ])
         .run(tauri::generate_context!())

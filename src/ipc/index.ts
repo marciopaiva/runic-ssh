@@ -69,6 +69,7 @@ export {
   sftpCancel,
   sftpDownload,
   sftpList,
+  sftpTransfer,
   sftpUpload,
 } from './sftp';
 export type {
