@@ -10,4 +10,5 @@ pub mod chrome;
 pub mod credential;
 pub mod sessions;
 pub mod settings;
+pub mod sftp;
 pub mod terminal;

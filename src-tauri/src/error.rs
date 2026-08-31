@@ -50,6 +50,9 @@ pub enum Error {
     #[error("the SSH connection failed")]
     Ssh(#[from] Box<crate::ssh::connection::ConnectionError>),
 
+    #[error("the SFTP operation failed")]
+    Sftp(#[from] Box<crate::sftp::error::SftpError>),
+
     #[error("no saved session has that id")]
     UnknownSession { id: String },
 
@@ -290,6 +293,26 @@ pub enum IpcError {
     InvalidSession {
         field: String,
     },
+    /// The SFTP channel or subsystem could not be opened.
+    SftpNotConnected,
+    /// A remote name failed `sftp::path::check_name` before it was let
+    /// anywhere near a local write or a rendered listing. `check` names
+    /// which of the five checks it failed, the same shape `InvalidProxyJump`
+    /// already uses `problem` for: a code the frontend's own catalogue
+    /// writes a sentence from, never a sentence written on this side.
+    SftpNameRefused {
+        check: &'static str,
+    },
+    SftpNotFound,
+    SftpPermissionDenied,
+    /// A local filesystem call failed: the chosen directory is not
+    /// writable, the disk is full, or similar. Never the remote server's
+    /// fault.
+    SftpLocalIoFailed,
+    /// Every other SFTP-level failure, named once rather than per protocol
+    /// detail: see `sftp::error::SftpError::Protocol`.
+    SftpProtocolFailed,
+    SftpTransferCancelled,
 }
 
 /// Paths are shown to the user so they can find the file; the rest of the
@@ -317,6 +340,7 @@ impl From<Error> for IpcError {
             }
             Error::InvalidLocale { requested } => Self::InvalidLocale { requested },
             Error::Ssh(ssh) => Self::from(*ssh),
+            Error::Sftp(sftp) => Self::from(*sftp),
             Error::UnknownSession { id } => Self::UnknownSession { id },
             Error::InvalidProxyJump { problem } => Self::InvalidProxyJump {
                 problem: match problem {
@@ -412,6 +436,44 @@ impl From<crate::ssh::connection::ConnectionError> for IpcError {
     }
 }
 
+impl From<Box<crate::sftp::error::SftpError>> for IpcError {
+    fn from(error: Box<crate::sftp::error::SftpError>) -> Self {
+        Self::from(*error)
+    }
+}
+
+impl From<crate::sftp::error::SftpError> for IpcError {
+    /// Maps an SFTP failure to its wire form.
+    ///
+    /// `SftpNameRefused`'s `check` is one of `sftp::path::PathError`'s own
+    /// five shapes, named rather than formatted: `PathError` already writes a
+    /// safe sentence for a human, and this is the frontend's own catalogue
+    /// doing the same job in whichever locale is active, from a code rather
+    /// than from a string this side wrote.
+    fn from(error: crate::sftp::error::SftpError) -> Self {
+        use crate::sftp::error::SftpError as Sftp;
+        use crate::sftp::path::PathError;
+
+        match error {
+            Sftp::NotConnected => Self::SftpNotConnected,
+            Sftp::RefusedName(check) => Self::SftpNameRefused {
+                check: match check {
+                    PathError::Empty => "empty",
+                    PathError::TooLong => "tooLong",
+                    PathError::NotASingleSegment => "notASingleSegment",
+                    PathError::DotEntry => "dotEntry",
+                    PathError::ControlCharacter => "controlCharacter",
+                },
+            },
+            Sftp::NotFound => Self::SftpNotFound,
+            Sftp::PermissionDenied => Self::SftpPermissionDenied,
+            Sftp::LocalIo => Self::SftpLocalIoFailed,
+            Sftp::Protocol => Self::SftpProtocolFailed,
+            Sftp::Cancelled => Self::SftpTransferCancelled,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -484,6 +546,33 @@ mod tests {
                     "an IPC error must not carry a {forbidden} field"
                 );
             }
+        }
+    }
+
+    #[test]
+    fn an_sftp_failure_crosses_with_its_own_code() {
+        use crate::sftp::error::SftpError;
+
+        let value = wire(Error::Sftp(Box::new(SftpError::NotFound)));
+        assert_eq!(value["code"], "sftpNotFound");
+    }
+
+    #[test]
+    fn a_refused_name_crosses_with_which_check_failed_and_no_sentence() {
+        use crate::sftp::error::SftpError;
+        use crate::sftp::path::PathError;
+
+        let value = wire(Error::Sftp(Box::new(SftpError::RefusedName(
+            PathError::ControlCharacter,
+        ))));
+
+        assert_eq!(value["code"], "sftpNameRefused");
+        assert_eq!(value["check"], "controlCharacter");
+        for forbidden in ["message", "description", "detail", "reason"] {
+            assert!(
+                value.get(forbidden).is_none(),
+                "an IPC error must not carry a {forbidden} field"
+            );
         }
     }
 }

@@ -147,7 +147,27 @@ export type IpcError =
    * Reported rather than dropped: a control that fails silently is
    * indistinguishable from one that was never wired up.
    */
-  | { readonly code: 'windowActionRefused' };
+  | { readonly code: 'windowActionRefused' }
+  /** The SFTP channel or subsystem could not be opened. */
+  | { readonly code: 'sftpNotConnected' }
+  /**
+   * A remote name failed a check before it was let anywhere near a local
+   * write or a rendered listing. `check` names which of the five checks it
+   * failed, the same shape `invalidProxyJump`'s `problem` already uses: a
+   * code this catalogue writes a sentence from, never a sentence the core
+   * wrote. See `sftp::path::PathError`.
+   */
+  | {
+      readonly code: 'sftpNameRefused';
+      readonly check: 'empty' | 'tooLong' | 'notASingleSegment' | 'dotEntry' | 'controlCharacter';
+    }
+  | { readonly code: 'sftpNotFound' }
+  | { readonly code: 'sftpPermissionDenied' }
+  /** A local filesystem call failed. Never the remote server's fault. */
+  | { readonly code: 'sftpLocalIoFailed' }
+  /** Every other SFTP-level failure, named once rather than per protocol detail. */
+  | { readonly code: 'sftpProtocolFailed' }
+  | { readonly code: 'sftpTransferCancelled' };
 
 export type IpcErrorCode = IpcError['code'];
 
@@ -199,6 +219,13 @@ export const CODES: ReadonlySet<IpcErrorCode> = new Set<IpcErrorCode>([
   'unknownRequest',
   'credentialDismissed',
   'windowActionRefused',
+  'sftpNotConnected',
+  'sftpNameRefused',
+  'sftpNotFound',
+  'sftpPermissionDenied',
+  'sftpLocalIoFailed',
+  'sftpProtocolFailed',
+  'sftpTransferCancelled',
 ]);
 
 /**
