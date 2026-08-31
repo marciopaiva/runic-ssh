@@ -167,7 +167,17 @@ export type IpcError =
   | { readonly code: 'sftpLocalIoFailed' }
   /** Every other SFTP-level failure, named once rather than per protocol detail. */
   | { readonly code: 'sftpProtocolFailed' }
-  | { readonly code: 'sftpTransferCancelled' };
+  | { readonly code: 'sftpTransferCancelled' }
+  /**
+   * The local directory the SFTP panel asked to list is gone, is not a
+   * directory, or answered some other way listing a local directory can
+   * fail. See ADR-0043: nothing here defends against a hostile name, since
+   * the path is the user's own, never one a remote server chose.
+   */
+  | { readonly code: 'localDirectoryNotFound' }
+  | { readonly code: 'localNotADirectory' }
+  | { readonly code: 'localPermissionDenied' }
+  | { readonly code: 'localIoFailed' };
 
 export type IpcErrorCode = IpcError['code'];
 
@@ -226,6 +236,10 @@ export const CODES: ReadonlySet<IpcErrorCode> = new Set<IpcErrorCode>([
   'sftpLocalIoFailed',
   'sftpProtocolFailed',
   'sftpTransferCancelled',
+  'localDirectoryNotFound',
+  'localNotADirectory',
+  'localPermissionDenied',
+  'localIoFailed',
 ]);
 
 /**

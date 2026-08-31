@@ -113,6 +113,71 @@ pub async fn sftp_list(
     Ok(entries.into_iter().map(SftpEntry::from).collect())
 }
 
+/// One local directory entry. ADR-0043.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalEntry {
+    pub name: String,
+    pub path: String,
+    pub is_dir: bool,
+    pub is_symlink: bool,
+    pub size: u64,
+    pub modified_unix_secs: Option<i64>,
+}
+
+impl From<crate::sftp::local::LocalEntry> for LocalEntry {
+    fn from(entry: crate::sftp::local::LocalEntry) -> Self {
+        Self {
+            name: entry.name,
+            path: entry.path.display().to_string(),
+            is_dir: entry.is_dir,
+            is_symlink: entry.is_symlink,
+            size: entry.size,
+            modified_unix_secs: entry.modified_unix_secs,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalListing {
+    pub path: String,
+    pub parent: Option<String>,
+    pub entries: Vec<LocalEntry>,
+}
+
+/// Lists a local directory, defaulting to the user's home directory when
+/// none is given.
+///
+/// `std::fs::read_dir` and the `stat` call on every entry are blocking
+/// syscalls; `spawn_blocking` is what keeps a large local directory from
+/// stalling every other command this process is mid-way through, the same
+/// rule section 6 states for the filesystem generally.
+#[tauri::command]
+pub async fn local_list_directory<R: Runtime>(
+    app: AppHandle<R>,
+    path: Option<String>,
+) -> Result<LocalListing, IpcError> {
+    let target = match path {
+        Some(path) => PathBuf::from(path),
+        None => app
+            .path()
+            .home_dir()
+            .map_err(|_| Error::LocalDirectory(crate::sftp::local::LocalError::Io))?,
+    };
+
+    let listing = tokio::task::spawn_blocking(move || crate::sftp::local::list(&target))
+        .await
+        .map_err(|_| Error::LocalDirectory(crate::sftp::local::LocalError::Io))?
+        .map_err(Error::LocalDirectory)?;
+
+    Ok(LocalListing {
+        path: listing.path.display().to_string(),
+        parent: listing.parent.map(|p| p.display().to_string()),
+        entries: listing.entries.into_iter().map(LocalEntry::from).collect(),
+    })
+}
+
 /// Shows the native "choose a folder" dialog for a download's destination.
 ///
 /// `None` on cancellation, which is not a failure: the user changed their

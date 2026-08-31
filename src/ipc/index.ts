@@ -59,6 +59,27 @@ export {
 export type { SessionStats } from './terminal';
 export type { SettingsView, Theme } from './settings';
 export {
+  chooseDownloadDestination,
+  chooseUploadSource,
+  FINISHED_EVENT as SFTP_FINISHED_EVENT,
+  localListDirectory,
+  onFinished,
+  onProgress,
+  PROGRESS_EVENT as SFTP_PROGRESS_EVENT,
+  sftpCancel,
+  sftpDownload,
+  sftpList,
+  sftpUpload,
+} from './sftp';
+export type {
+  LocalEntry,
+  LocalListing,
+  SftpEntry,
+  TransferHandle,
+  TransferOutcome,
+  TransferProgress,
+} from './sftp';
+export {
   disableInternalVault,
   enableInternalVault,
   internalVaultStatus,
