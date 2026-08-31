@@ -221,6 +221,8 @@ export const SOURCE_CATALOG = {
   "sftp.sendToDestinations": "Send to every destination",
   "sftp.source": "SOURCE",
   "sftp.source.empty": "Drag a host here to browse it",
+  "sftp.split.choose": "Choose how many destination rows to show",
+  "sftp.split.into": "Split into {count}",
   "sftp.transferSucceeded": "Done",
   "sftp.transfers": "TRANSFERS",
   "sftp.upload": "Upload",

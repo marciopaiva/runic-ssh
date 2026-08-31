@@ -125,3 +125,15 @@ export function remoteParent(path: string): string | null {
 
   return trimmed.slice(0, at);
 }
+
+/**
+ * How many destination rows the fan-out column renders: exactly `split`,
+ * the maintainer's own choice, except never fewer than `occupied`. A row
+ * filling in must not grow the split on its own, since that defeats
+ * choosing 1 and getting 1; growing past the chosen split is the split
+ * control's job, not a drop's. Capped at `max` ({@link MAX_DESTINATIONS}),
+ * since occupied can never exceed it either.
+ */
+export function visibleDestinationRows(split: number, occupied: number, max: number): number {
+  return Math.min(max, Math.max(split, occupied));
+}
