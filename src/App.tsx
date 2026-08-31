@@ -23,6 +23,7 @@ import { SessionMenu } from './components/SessionMenu';
 import { SessionWizard } from './components/SessionWizard';
 import { SessionsSidebar } from './components/SessionsSidebar';
 import { SftpBrowser } from './components/SftpBrowser';
+import { SftpSidebar } from './components/SftpSidebar';
 import { StatusBar } from './components/StatusBar';
 import { TerminalView } from './components/TerminalView';
 import { Titlebar } from './components/Titlebar';
@@ -98,6 +99,7 @@ import {
 } from './ipc';
 import type { Keep, Secret, Session, SessionDraft, SuggestedMethod } from './ipc';
 import { useLocale, useTheme } from './features/settings';
+import type { SftpRemoteView } from './features/sftp/use-browser';
 import { announceBroadcast, useSessionStats } from './features/status';
 import type { Announcement } from './features/status';
 import {
@@ -259,6 +261,11 @@ export function App(): JSX.Element {
      (#127's own `Focus` doc comment), so membership is the whole question,
      and `stripEntries` is what turns this into the tab beside each one. */
   const [sftpTabs, setSftpTabs] = useState<ReadonlySet<string>>(new Set());
+  /* The remote side of each open SFTP tab's browser, reported up by
+     `SftpBrowser` itself: the sidebar tree (`SftpSidebar`) renders in a
+     different part of this tree and reads the focused one here rather than
+     keeping its own, second idea of where the remote pane is. */
+  const [sftpRemotes, setSftpRemotes] = useState<ReadonlyMap<string, SftpRemoteView>>(new Map());
   /* What Home's own strip is pointing at: the host editor or settings, never
      a session. Home has no groups to place an entry into, so this is the
      whole of its focus model, unlike `focus` above. */
@@ -1500,6 +1507,14 @@ export function App(): JSX.Element {
      the bar and a strip cannot disagree about a session's name. */
   const activeIdentity = activeId === null ? null : (paneLabels.get(activeId) ?? null);
 
+  /* Which session's SFTP tab, if any, the sidebar slot swaps to a remote
+     tree for. `null` for anything else focused, including a session's own
+     shell tab: the ordinary `SessionsSidebar` covers that case. */
+  const sftpSidebarSession =
+    resolvedFocus?.kind === 'sftp'
+      ? (sessions.find((live) => live.session.id === resolvedFocus.sessionId) ?? null)
+      : null;
+
   /* Where a drag lands. A tab moves, a host from the list opens: `openHere`
      already knows that one of those is a connection it has to make and the
      other is one it must not make twice. */
@@ -1548,18 +1563,28 @@ export function App(): JSX.Element {
         />
 
         {workspace === 'sessions' && sidebarOpen && (
-          <SessionsSidebar
-            sessions={shown}
-            selectedId={selected}
-            receiving={reaching}
-            spared={spared}
-            onDrag={(sessionId) => {
-              setDragging(sessionId === null ? null : { kind: 'host', sessionId });
-              if (sessionId === null) setDropOver(null);
-            }}
-            onSelect={activate}
-            onMenu={(sessionId, at) => setMenu({ sessionId, at })}
-          />
+          sftpSidebarSession !== null ? (
+            /* design/canvas/gen.py's build_sftp(): the whole sidebar becomes
+               a remote directory tree while an SFTP tab is focused, not a
+               second thing drawn beside SessionsSidebar. */
+            <SftpSidebar
+              session={sftpSidebarSession}
+              remote={sftpRemotes.get(sftpSidebarSession.session.id) ?? null}
+            />
+          ) : (
+            <SessionsSidebar
+              sessions={shown}
+              selectedId={selected}
+              receiving={reaching}
+              spared={spared}
+              onDrag={(sessionId) => {
+                setDragging(sessionId === null ? null : { kind: 'host', sessionId });
+                if (sessionId === null) setDropOver(null);
+              }}
+              onSelect={activate}
+              onMenu={(sessionId, at) => setMenu({ sessionId, at })}
+            />
+          )
         )}
 
         {workspace === 'sessions' && (
@@ -1734,11 +1759,20 @@ export function App(): JSX.Element {
             return (
               <SftpBrowser
                 key={sessionId}
+                sessionId={sessionId}
                 handle={sessionHandle}
                 visible={box !== null}
                 frame={bodyStyle(box ?? WHOLE_AREA)}
                 id={panelElementId(mine)}
                 labelledBy={tabElementId(mine)}
+                onRemoteChange={(id, remote) =>
+                  setSftpRemotes((current) => {
+                    const next = new Map(current);
+                    if (remote === null) next.delete(id);
+                    else next.set(id, remote);
+                    return next;
+                  })
+                }
               />
             );
           })}
