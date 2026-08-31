@@ -216,6 +216,59 @@ pub async fn upload(
     Ok(remote_path)
 }
 
+/// Copies `source_path`, on `source`, into `dest_dir` on `destination`,
+/// joined with its own file name. ADR-0045.
+///
+/// The same chunked read/write loop as [`download`] and [`upload`], with
+/// both ends now an [`SftpSession`] rather than one being a local file:
+/// remote-to-remote is not a third kind of transfer, it is this module's
+/// one shape written a third time. `source` and `destination` are expected
+/// to come from two different connections; nothing here assumes or checks
+/// that, since two sessions on the same connection cost nothing extra to
+/// support and the caller already decides which connection each came from.
+///
+/// The name comes from `source_path`, the same untrusted-source situation
+/// [`download`] is in, so it gets the same defence `download` gives a local
+/// destination: `check_name` before it is ever joined into `dest_dir`. A
+/// remote destination path has no local filesystem underneath it for
+/// `safe_destination` to protect, but `check_name` alone (no `/`, no `..`,
+/// no control characters) is what keeps the join from leaving `dest_dir`,
+/// which is the whole of what `safe_destination` adds to `check_name` for a
+/// [`std::path::Path`]: the same guarantee, for a path that is a string on
+/// the wire rather than a local path.
+pub async fn transfer(
+    source: &SftpSession,
+    source_path: &str,
+    destination: &SftpSession,
+    dest_dir: &str,
+    mut on_progress: impl FnMut(Progress) + Send,
+) -> Result<String, SftpError> {
+    let name = last_segment(source_path);
+    check_name(name)?;
+    let dest_path = format!("{}/{name}", dest_dir.trim_end_matches('/'));
+
+    let total = source.metadata(source_path).await.ok().map(|m| m.len());
+    let mut source_file = source.open(source_path).await?;
+    let mut dest_file = destination.create(&dest_path).await?;
+
+    let mut buffer = vec![0_u8; CHUNK];
+    let mut transferred = 0_u64;
+
+    loop {
+        let n = source_file.read(&mut buffer).await?;
+        if n == 0 {
+            break;
+        }
+
+        dest_file.write_all(&buffer[..n]).await?;
+        transferred += n as u64;
+        on_progress(Progress { transferred, total });
+    }
+
+    dest_file.flush().await?;
+    Ok(dest_path)
+}
+
 /// The last `/`-separated segment of a POSIX-style remote path.
 ///
 /// SFTP paths are always POSIX-style on the wire regardless of either end's

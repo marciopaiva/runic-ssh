@@ -13,6 +13,13 @@
 //! podman run -d --name runic-test-sshd -p 2222:2222 runic-test-sshd
 //! cargo test --test sftp_against_openssh -- --ignored --nocapture
 //! ```
+//!
+//! The remote-to-remote test also needs a second instance of the same
+//! image, on `OTHER_PORT`:
+//!
+//! ```sh
+//! podman run -d --name runic-test-sshd-2223 -p 2223:2222 runic-test-sshd
+//! ```
 
 use runic_ssh::sftp::error::SftpError;
 use runic_ssh::sftp::session::{self, SftpSession};
@@ -23,21 +30,27 @@ use runic_ssh::vault::Secret;
 
 const HOST: &str = "127.0.0.1";
 const PORT: u16 = 2222;
+/// A second, independent instance of the same fixture image (see
+/// `docs/testing.md`), kept up alongside the one on `PORT` specifically so
+/// a test can hold two connections open at once and call them different
+/// hosts, the way ADR-0045's remote-to-remote transfer needs to be proven
+/// against something other than one session talking to itself.
+const OTHER_PORT: u16 = 2223;
 const USER: &str = "deploy";
 const PASSWORD: &str = "runic-test";
 const HOME: &str = "/home/deploy";
 
-fn endpoint() -> Endpoint {
+fn endpoint(port: u16) -> Endpoint {
     Endpoint {
         host: HOST.to_owned(),
-        port: PORT,
+        port,
     }
 }
 
 /// Reads the host key by connecting once and taking what was offered, the
 /// same helper `against_openssh.rs` uses.
-async fn offered_key() -> Vec<u8> {
-    let (_, offered) = connect_reporting(endpoint(), KnownHosts::default())
+async fn offered_key(port: u16) -> Vec<u8> {
+    let (_, offered) = connect_reporting(endpoint(port), KnownHosts::default())
         .await
         .err()
         .expect("an empty known_hosts must refuse");
@@ -52,9 +65,9 @@ async fn offered_key() -> Vec<u8> {
     offered.key
 }
 
-fn trusting(key: Vec<u8>) -> KnownHosts {
+fn trusting(port: u16, key: Vec<u8>) -> KnownHosts {
     let mut known = KnownHosts::default();
-    known.add(KnownHosts::entry_for(HOST, PORT, "ssh-ed25519", key));
+    known.add(KnownHosts::entry_for(HOST, port, "ssh-ed25519", key));
     known
 }
 
@@ -64,9 +77,9 @@ fn trusting(key: Vec<u8>) -> KnownHosts {
 /// session is used: nothing here calls `Connection::disconnect`, and the
 /// channel the session runs over is only guaranteed to answer while the
 /// connection that opened it has not been torn down.
-async fn authenticated() -> (Connection, SftpSession) {
-    let known = trusting(offered_key().await);
-    let mut connection = connect(endpoint(), known).await.expect("connects");
+async fn authenticated(port: u16) -> (Connection, SftpSession) {
+    let known = trusting(port, offered_key(port).await);
+    let mut connection = connect(endpoint(port), known).await.expect("connects");
     connection
         .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
         .await
@@ -78,7 +91,7 @@ async fn authenticated() -> (Connection, SftpSession) {
 #[tokio::test]
 #[ignore = "needs the test container; see the module comment"]
 async fn listing_the_home_directory_shows_the_fixtures_files() {
-    let (_connection, sftp) = authenticated().await;
+    let (_connection, sftp) = authenticated(PORT).await;
 
     let entries = session::list(&sftp, HOME).await.expect("lists");
     let names: Vec<&str> = entries.iter().map(|e| e.name.as_str()).collect();
@@ -125,8 +138,8 @@ async fn open_and_list(connection: &Connection, path: &str) -> Vec<session::Entr
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 #[ignore = "needs the test container; see #252 and the module comment"]
 async fn many_concurrent_listings_on_one_connection_all_agree_with_a_baseline() {
-    let known = trusting(offered_key().await);
-    let mut connection = connect(endpoint(), known).await.expect("connects");
+    let known = trusting(PORT, offered_key(PORT).await);
+    let mut connection = connect(endpoint(PORT), known).await.expect("connects");
     connection
         .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
         .await
@@ -157,7 +170,7 @@ async fn many_concurrent_listings_on_one_connection_all_agree_with_a_baseline() 
 #[tokio::test]
 #[ignore = "needs the test container; see the module comment"]
 async fn listing_an_absent_directory_is_a_typed_not_found() {
-    let (_connection, sftp) = authenticated().await;
+    let (_connection, sftp) = authenticated(PORT).await;
 
     let error = session::list(&sftp, "/home/deploy/does-not-exist")
         .await
@@ -169,7 +182,7 @@ async fn listing_an_absent_directory_is_a_typed_not_found() {
 #[tokio::test]
 #[ignore = "needs the test container; see the module comment"]
 async fn downloading_the_readme_matches_what_the_container_wrote() {
-    let (_connection, sftp) = authenticated().await;
+    let (_connection, sftp) = authenticated(PORT).await;
     let dir = tempfile::tempdir().expect("a scratch directory");
 
     let mut seen_progress = false;
@@ -191,7 +204,7 @@ async fn downloading_the_readme_matches_what_the_container_wrote() {
 #[tokio::test]
 #[ignore = "needs the test container; see the module comment"]
 async fn downloading_a_larger_file_reports_progress_up_to_its_total() {
-    let (_connection, sftp) = authenticated().await;
+    let (_connection, sftp) = authenticated(PORT).await;
     let dir = tempfile::tempdir().expect("a scratch directory");
 
     let mut last_transferred = 0_u64;
@@ -229,7 +242,7 @@ async fn downloading_a_larger_file_reports_progress_up_to_its_total() {
 #[tokio::test]
 #[ignore = "needs the test container; see the module comment"]
 async fn uploading_then_downloading_round_trips_the_content() {
-    let (_connection, sftp) = authenticated().await;
+    let (_connection, sftp) = authenticated(PORT).await;
     let scratch = tempfile::tempdir().expect("a scratch directory");
 
     let local_source = scratch.path().join("upload-me.txt");
@@ -261,4 +274,56 @@ async fn uploading_then_downloading_round_trips_the_content() {
     sftp.remove_file(&remote_path)
         .await
         .expect("removes what this test uploaded");
+}
+
+/// ADR-0045: neither end of this is a local file. Two real, independent
+/// connections (`PORT` and `OTHER_PORT`), so this proves the transfer
+/// against something other than one session talking to itself.
+///
+/// The fixture's own README is identical on every instance of the image,
+/// which would make "the destination now has the source's README" true
+/// whether or not the transfer actually moved anything. A freshly uploaded,
+/// distinctively-named file with unique content is what makes the
+/// assertion mean something.
+#[tokio::test]
+#[ignore = "needs both test containers; see the module comment"]
+async fn transferring_between_two_connections_matches_the_source() {
+    let (_source_connection, source) = authenticated(PORT).await;
+    let (_dest_connection, destination) = authenticated(OTHER_PORT).await;
+
+    let scratch = tempfile::tempdir().expect("a scratch directory");
+    let local_source = scratch.path().join("remote-to-remote.txt");
+    let content = b"ADR-0045's own remote-to-remote transfer wrote this\n";
+    std::fs::write(&local_source, content).expect("writes the file this test transfers");
+
+    let source_path = session::upload(&source, &local_source, HOME, |_| {})
+        .await
+        .expect("seeds the source with a file only this test could have put there");
+
+    let mut transferred = 0_u64;
+    let dest_path = session::transfer(&source, &source_path, &destination, HOME, |progress| {
+        transferred = progress.transferred;
+    })
+    .await
+    .expect("transfers");
+
+    assert_eq!(dest_path, format!("{HOME}/remote-to-remote.txt"));
+    assert_eq!(transferred, content.len() as u64);
+
+    let round_tripped = session::download(&destination, &dest_path, scratch.path(), |_| {})
+        .await
+        .expect("downloads what landed on the destination");
+    assert_eq!(
+        std::fs::read(&round_tripped).expect("reads the transferred copy"),
+        content,
+    );
+
+    source
+        .remove_file(&source_path)
+        .await
+        .expect("removes what this test uploaded to the source");
+    destination
+        .remove_file(&dest_path)
+        .await
+        .expect("removes what this test transferred to the destination");
 }

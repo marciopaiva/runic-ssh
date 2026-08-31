@@ -4,30 +4,51 @@ import type { JSX } from 'react';
 import { filterGroups, groupKey, groupSessions } from '../features/sessions/state';
 import type { LiveSession } from '../features/sessions/state';
 import { useTranslator } from '../features/settings';
+import type { DraggedEndpoint } from '../features/sftp/endpoint';
 
 import { SessionMarker } from './SessionMarker';
 
 interface SftpWorkspaceSidebarProps {
   readonly sessions: readonly LiveSession[];
-  /** Which sessions currently have an SFTP tab open, for the folder mark. */
-  readonly sftpTabs: ReadonlySet<string>;
-  readonly onOpen: (sessionId: string) => void;
+  /** A session currently sitting in the source pane or a destination slot,
+   * for the folder mark. ADR-0045 dropped the one-tab-at-a-time model this
+   * used to draw against, so a row can be marked while several others are
+   * too. */
+  readonly assigned: ReadonlySet<string>;
+  /** Sets the source pane directly, the click shortcut for the common
+   * one-destination case. Dragging (below) reaches either side, including
+   * a destination slot. */
+  readonly onOpen: (dragged: DraggedEndpoint) => void;
+  readonly onDrag: (dragged: DraggedEndpoint | null) => void;
+}
+
+function FolderMark(): JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" className="text-accent h-[13px] w-[13px] shrink-0" fill="none" aria-hidden="true">
+      <path
+        d="M4 6.5h6l1.6 2H20v9.5H4z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
 }
 
 /**
- * The SFTP workspace's own host picker (ADR-0044), the sidebar's other
- * state. `SftpSidebar` draws the state after a tab is focused.
+ * The SFTP workspace's own host picker (ADR-0044, redrawn for ADR-0045).
  *
  * A plainer `SessionsSidebar`: grouping and search are the same feature
- * slice functions, but the row itself carries none of Sessions' own
- * affordances (drag-to-split, jump-chain marks, the broadcast state) since
- * none of them mean anything to a host picked to browse rather than to type
- * into. A folder mark instead, lit on a session that already has a tab open.
+ * slice functions, and dragging a row now means exactly what it means
+ * there, into a rectangle picked by the drop rather than a fixed group.
+ * `localhost` is pinned above the list, since it is always available and
+ * saves nothing by being searched for.
  */
 export function SftpWorkspaceSidebar({
   sessions,
-  sftpTabs,
+  assigned,
   onOpen,
+  onDrag,
 }: SftpWorkspaceSidebarProps): JSX.Element {
   const i18n = useTranslator();
   const [query, setQuery] = useState('');
@@ -43,6 +64,24 @@ export function SftpWorkspaceSidebar({
           {i18n.t('sftp.workspace.title')}
         </span>
       </header>
+
+      <div className="px-2 pb-1.5">
+        <button
+          type="button"
+          draggable
+          onDragStart={(event) => {
+            event.dataTransfer.effectAllowed = 'copyMove';
+            event.dataTransfer.setData('text/plain', i18n.t('sftp.localhost'));
+            onDrag({ kind: 'local' });
+          }}
+          onDragEnd={() => onDrag(null)}
+          onClick={() => onOpen({ kind: 'local' })}
+          className="hover:bg-surface-raised/60 flex w-full items-center gap-2.5 rounded px-2 py-[7px] text-left"
+        >
+          <span className="bg-ink-faint/70 h-[9px] w-[9px] shrink-0 rounded-full" />
+          <span className="text-ink2 truncate text-[12.5px]">{i18n.t('sftp.localhost')}</span>
+        </button>
+      </div>
 
       {sessions.length > 0 && (
         <div className="relative px-3.5 pb-2">
@@ -93,13 +132,24 @@ export function SftpWorkspaceSidebar({
 
               <ul className="flex flex-col gap-0.5">
                 {group.sessions.map((live) => {
-                  const open = sftpTabs.has(live.session.id);
+                  const open = assigned.has(live.session.id);
 
                   return (
                     <li key={live.session.id}>
                       <button
                         type="button"
-                        onClick={() => onOpen(live.session.id)}
+                        /* A payload is set because some engines will not begin
+                           a drag without one, and nothing reads it: what is
+                           being dragged is held in the shell, the same
+                           convention `SessionsSidebar` uses for its own rows. */
+                        draggable
+                        onDragStart={(event) => {
+                          event.dataTransfer.effectAllowed = 'copyMove';
+                          event.dataTransfer.setData('text/plain', live.session.name);
+                          onDrag({ kind: 'host', sessionId: live.session.id });
+                        }}
+                        onDragEnd={() => onDrag(null)}
+                        onClick={() => onOpen({ kind: 'host', sessionId: live.session.id })}
                         className="hover:bg-surface-raised/60 flex w-full items-center gap-2.5 rounded px-2 py-[7px] text-left"
                       >
                         <SessionMarker kind={live.kind} />
@@ -109,21 +159,7 @@ export function SftpWorkspaceSidebar({
                             {live.session.user}@{live.session.host}
                           </span>
                         </div>
-                        {open && (
-                          <svg
-                            viewBox="0 0 24 24"
-                            className="text-accent h-[13px] w-[13px] shrink-0"
-                            fill="none"
-                            aria-hidden="true"
-                          >
-                            <path
-                              d="M4 6.5h6l1.6 2H20v9.5H4z"
-                              stroke="currentColor"
-                              strokeWidth="1.6"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                        )}
+                        {open && <FolderMark />}
                       </button>
                     </li>
                   );

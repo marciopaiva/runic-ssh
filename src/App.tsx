@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties, JSX } from 'react';
+import type { CSSProperties, DragEvent, JSX } from 'react';
 
 import { ActivityRail } from './components/ActivityRail';
 import type { Workspace } from './components/ActivityRail';
@@ -22,8 +22,7 @@ import { PasteConfirm } from './components/PasteConfirm';
 import { SessionMenu } from './components/SessionMenu';
 import { SessionWizard } from './components/SessionWizard';
 import { SessionsSidebar } from './components/SessionsSidebar';
-import { SftpBrowser } from './components/SftpBrowser';
-import { SftpSidebar } from './components/SftpSidebar';
+import { SftpPane } from './components/SftpPane';
 import { SftpWorkspaceSidebar } from './components/SftpWorkspaceSidebar';
 import { StatusBar } from './components/StatusBar';
 import { TerminalView } from './components/TerminalView';
@@ -100,7 +99,9 @@ import {
 } from './ipc';
 import type { Keep, Secret, Session, SessionDraft, SuggestedMethod } from './ipc';
 import { useLocale, useTheme } from './features/settings';
-import type { SftpRemoteView } from './features/sftp/use-browser';
+import { endpointKey } from './features/sftp/endpoint';
+import type { DraggedEndpoint, Endpoint } from './features/sftp/endpoint';
+import { destinationPaneId, MAX_DESTINATIONS, SOURCE_PANE_ID, useFanout } from './features/sftp/use-fanout';
 import { announceBroadcast, useSessionStats } from './features/status';
 import type { Announcement } from './features/status';
 import {
@@ -200,6 +201,14 @@ type Dragged =
   | { readonly kind: 'host'; readonly sessionId: string };
 
 /**
+ * Which pane of the SFTP workspace a connection being started is for
+ * (ADR-0045). Named the same way `Dragged`'s own drop target is: the source
+ * is always the one pane, a destination is one of up to
+ * {@link MAX_DESTINATIONS} slots.
+ */
+type SftpTarget = { readonly kind: 'source' } | { readonly kind: 'destination'; readonly slot: number };
+
+/**
  * The session a group is showing a *shell* for, or `null` when it is
  * showing something else: an SFTP browser included, since typing has
  * nowhere to go there either.
@@ -256,26 +265,16 @@ export function App(): JSX.Element {
      else. SFTP left this ring for its own workspace in ADR-0044, the same
      way the editor and settings left it for Home's in ADR-0029. */
   const [focus, setFocus] = useState<Focus | null>(null);
-  /* Which sessions have an SFTP tab open. A set of session ids rather than a
-     list of `Focus` values: there is at most one such tab per session, so
-     membership is the whole question. Owned by the SFTP workspace alone
-     since ADR-0044; Sessions' `entries`/`groups` never read this any more. */
-  const [sftpTabs, setSftpTabs] = useState<ReadonlySet<string>>(new Set());
-  /* Which of `sftpTabs` the SFTP workspace is currently showing. `null` only
-     when nothing has been picked yet from `SftpWorkspaceSidebar`. */
-  const [sftpFocus, setSftpFocus] = useState<string | null>(null);
-  /* The remote side of each open SFTP tab's browser, reported up by
-     `SftpBrowser` itself: the sidebar tree (`SftpSidebar`) renders in a
-     different part of this tree and reads the focused one here rather than
-     keeping its own, second idea of where the remote pane is. */
-  const [sftpRemotes, setSftpRemotes] = useState<ReadonlyMap<string, SftpRemoteView>>(new Map());
-  /* Sessions `openSftpWorkspace` asked `connect` to reach on the SFTP
-     workspace's behalf, checked by `onOpened` below to decide whether a
-     freshly connected session lands as a focused shell in Sessions (the
-     ordinary case) or as an open tab in the SFTP workspace instead. A ref,
-     not state: nothing renders from this, `onOpened` only needs whatever it
-     was most recently told. */
-  const sftpConnectTargets = useRef<Set<string>>(new Set());
+  /* The SFTP workspace's own state: one source, up to four destinations, and
+     the transfers fanning a file out between them (ADR-0045). */
+  const fanout = useFanout(sessions);
+  /* Which pane a connection `assignSftpEndpoint` started is for, checked by
+     `onOpened` below to decide whether a freshly connected session lands as
+     a focused shell in Sessions (the ordinary case) or as this workspace's
+     source or a given destination slot instead. A ref, not state: nothing
+     renders from this, `onOpened` only needs whatever it was most recently
+     told. */
+  const sftpConnectTargets = useRef<Map<string, SftpTarget>>(new Map());
   /* What Home's own strip is pointing at: the host editor or settings, never
      a session. Home has no groups to place an entry into, so this is the
      whole of its focus model, unlike `focus` above. */
@@ -325,6 +324,13 @@ export function App(): JSX.Element {
      from a file manager must never be able to look like a tab. */
   const [dragging, setDragging] = useState<Dragged | null>(null);
   const [dropOver, setDropOver] = useState<number | null>(null);
+  /* The SFTP workspace's own drag, the mirror of `dragging`/`dropOver` above:
+     what is being dragged (a saved host or localhost, ADR-0045), and which
+     pane the pointer is currently over. `'source'` and a destination slot
+     number are both valid drop targets, so `dropOver` is a plain union
+     rather than reusing the Sessions grid's index. */
+  const [sftpDragging, setSftpDragging] = useState<DraggedEndpoint | null>(null);
+  const [sftpDropOver, setSftpDropOver] = useState<SftpTarget | null>(null);
   /* A paste held back for an answer, and the session that asked. Held here
      rather than inside the terminal so it renders in that session's panel the
      way every other question does, per ADR-0015. */
@@ -392,13 +398,16 @@ export function App(): JSX.Element {
     onOpened: (sessionId, handle, via) => {
       attach(sessionId, handle);
       setState(sessionId, 'connected');
-      /* ADR-0044: a connection `openSftpWorkspace` started lands as an open
-         SFTP tab instead of a focused shell, the one place this shared
-         success handler has to ask who wanted this connection rather than
-         assuming it was Sessions. */
-      if (sftpConnectTargets.current.delete(sessionId)) {
-        setSftpTabs((current) => (current.has(sessionId) ? current : new Set(current).add(sessionId)));
-        setSftpFocus(sessionId);
+      /* ADR-0045: a connection `assignSftpEndpoint` started lands in the
+         pane it was asked for instead of a focused shell, the one place
+         this shared success handler has to ask who wanted this connection
+         rather than assuming it was Sessions. */
+      const sftpTarget = sftpConnectTargets.current.get(sessionId);
+      if (sftpTarget !== undefined) {
+        sftpConnectTargets.current.delete(sessionId);
+        const endpoint: Endpoint = { kind: 'remote', sessionId, handle };
+        if (sftpTarget.kind === 'source') fanout.setSource(endpoint);
+        else fanout.replaceDestination(sftpTarget.slot, endpoint);
       } else {
         setFocus({ kind: 'session', sessionId });
       }
@@ -724,52 +733,47 @@ export function App(): JSX.Element {
     [forget, attentionId, abandon, disconnect],
   );
 
-  /* Picking a host from the SFTP workspace's own sidebar (ADR-0044).
-     Connecting or switching is always about the SFTP workspace here, the
-     mirror of what `activate` is for Sessions: an open session just gets
-     shown, one not yet open gets connected first, `onOpened` above routing
-     it back here instead of into a focused Sessions tab because
-     `sftpConnectTargets` says to. */
-  const openSftpWorkspace = useCallback(
-    (sessionId: string): void => {
+  /* Putting a host, or localhost, into a pane of the SFTP workspace
+     (ADR-0045): the source, or one destination slot. The mirror of
+     `openHere` for the Sessions grid, except a pane holds at most one
+     occupant outright rather than a tab list, so there is no `moveEntry`
+     here, only `fanout`'s own `setSource`/`replaceDestination`.
+     `localhost` needs no connection and lands immediately; a saved host
+     not yet open is connected first, `onOpened` above routing the result
+     back to whichever `target` this call was for. */
+  const assignSftpEndpoint = useCallback(
+    (dragged: DraggedEndpoint, target: SftpTarget): void => {
       setWorkspace('sftp');
 
+      if (dragged.kind === 'local') {
+        const endpoint: Endpoint = { kind: 'local' };
+        if (target.kind === 'source') fanout.setSource(endpoint);
+        else fanout.replaceDestination(target.slot, endpoint);
+        return;
+      }
+
+      const { sessionId } = dragged;
       const live = sessions.find((entry) => entry.session.id === sessionId);
       if (live === undefined) return;
 
       if (live.handle !== null) {
-        setSftpTabs((current) => (current.has(sessionId) ? current : new Set(current).add(sessionId)));
-        setSftpFocus(sessionId);
+        const endpoint: Endpoint = { kind: 'remote', sessionId, handle: live.handle };
+        if (target.kind === 'source') fanout.setSource(endpoint);
+        else fanout.replaceDestination(target.slot, endpoint);
         return;
       }
 
-      /* Already connecting, including on `openSftpWorkspace`'s own behalf: a
-         double click must not start a second connection to the same host,
-         the same guard `activate` keeps for Sessions. */
-      if (attempt !== null && attempt.sessionId === sessionId && isInProgress(attempt.stage)) {
-        sftpConnectTargets.current.add(sessionId);
-        return;
-      }
+      /* Already connecting, including on this call's own earlier behalf: a
+         second drop must not start a second connection to the same host,
+         the same guard `activate` keeps for Sessions. The later target
+         wins, since that is the drop the maintainer just made. */
+      sftpConnectTargets.current.set(sessionId, target);
+      if (attempt !== null && attempt.sessionId === sessionId && isInProgress(attempt.stage)) return;
 
-      sftpConnectTargets.current.add(sessionId);
       void connect(sessionId);
     },
-    [connect, sessions, attempt],
+    [connect, sessions, attempt, fanout],
   );
-
-  /* Closing an SFTP tab. Nothing here disconnects: the session itself, and
-     any shell tab it has in Sessions, is untouched. #127's `Focus` doc
-     comment was explicit that this is a second view on a connection rather
-     than a connection of its own, and ADR-0044 does not change that. */
-  const closeSftpTab = useCallback((sessionId: string): void => {
-    setSftpTabs((current) => {
-      if (!current.has(sessionId)) return current;
-      const next = new Set(current);
-      next.delete(sessionId);
-      return next;
-    });
-    setSftpFocus((current) => (current === sessionId ? null : current));
-  }, []);
 
   /* Closing an editor or settings tab in Home. No group to take it out of and
      no session to disconnect: unsaved work is the only thing this has to ask
@@ -1540,11 +1544,30 @@ export function App(): JSX.Element {
      the bar and a strip cannot disagree about a session's name. */
   const activeIdentity = activeId === null ? null : (paneLabels.get(activeId) ?? null);
 
-  /* The session `sftpFocus` names, for the SFTP workspace's own sidebar to
-     draw the REMOTE tree against. `null` before anything has been picked
-     from `SftpWorkspaceSidebar`, or if the picked session has since closed. */
-  const sftpFocusSession =
-    sftpFocus === null ? null : (sessions.find((live) => live.session.id === sftpFocus) ?? null);
+  /* Every session currently sitting in the SFTP workspace's source pane or a
+     destination slot, for the sidebar's own folder mark (ADR-0045 dropped
+     the one-tab-at-a-time model that used to make this a single id). */
+  const sftpAssigned = useMemo(() => {
+    const ids = new Set<string>();
+    if (fanout.source?.kind === 'remote') ids.add(fanout.source.sessionId);
+    for (const destination of fanout.destinations) {
+      if (destination?.kind === 'remote') ids.add(destination.sessionId);
+    }
+    return ids;
+  }, [fanout.source, fanout.destinations]);
+
+  /* `user@host` for a pane's header, or `localhost`. The session may have
+     closed since the endpoint was assigned; the id is shown rather than
+     nothing, the same fallback `labelFor` inside `useFanout` itself uses
+     for the transfers bar. */
+  const sftpIdentity = useCallback(
+    (endpoint: Endpoint): string => {
+      if (endpoint.kind === 'local') return i18n.t('sftp.localhost');
+      const live = sessions.find((entry) => entry.session.id === endpoint.sessionId);
+      return live === undefined ? endpoint.sessionId : groupLabel(live.session).where;
+    },
+    [sessions, i18n],
+  );
 
   /* Where a drag lands. A tab moves, a host from the list opens: `openHere`
      already knows that one of those is a connection it has to make and the
@@ -1584,7 +1607,7 @@ export function App(): JSX.Element {
           sidebarOpen={sidebarOpen}
           armed={armed}
           openCount={tabs.length}
-          sftpCount={sftpTabs.size}
+          sftpCount={(fanout.source === null ? 0 : 1) + fanout.destinations.filter((d) => d !== null).length}
           onChoose={(next) => {
             if (next === workspace && (next === 'sessions' || next === 'sftp')) {
               setSidebarOpen((open) => !open);
@@ -1609,23 +1632,19 @@ export function App(): JSX.Element {
           />
         )}
 
-        {/* ADR-0044: the SFTP workspace's own sidebar swaps between its host
-            picker and the REMOTE tree, the same way Sessions' sidebar used
-            to swap for it before SFTP had a workspace of its own. */}
+        {/* ADR-0045: the SFTP workspace's own sidebar is a plain host picker,
+            same as Sessions' own, dragged into whichever pane the drop
+            lands on rather than swapped for a tree once one is open. */}
         {workspace === 'sftp' && sidebarOpen && (
-          sftpFocusSession !== null ? (
-            <SftpSidebar
-              session={sftpFocusSession}
-              remote={sftpRemotes.get(sftpFocusSession.session.id) ?? null}
-              onClose={() => closeSftpTab(sftpFocusSession.session.id)}
-            />
-          ) : (
-            <SftpWorkspaceSidebar
-              sessions={sessions}
-              sftpTabs={sftpTabs}
-              onOpen={openSftpWorkspace}
-            />
-          )
+          <SftpWorkspaceSidebar
+            sessions={sessions}
+            assigned={sftpAssigned}
+            onOpen={(dragged) => assignSftpEndpoint(dragged, { kind: 'source' })}
+            onDrag={(dragged) => {
+              setSftpDragging(dragged);
+              if (dragged === null) setSftpDropOver(null);
+            }}
+          />
         )}
 
         {workspace === 'sessions' && (
@@ -1856,73 +1875,146 @@ export function App(): JSX.Element {
         </main>
         )}
 
-        {/* ADR-0044: one visible browser at a time, no grid. Every session
-            with a tab stays mounted (ADR-0014's reasoning: coming back to a
-            directory five levels deep should not mean climbing back down
-            it), only the one `sftpFocus` names is shown. */}
-        {workspace === 'sftp' && (
-        <main className="bg-surface-base relative min-w-0 flex-1 overflow-hidden">
-          {[...sftpTabs].map((sessionId) => {
-            /* The session's own handle, not a second connection: #127 opens
-               the SFTP subsystem on the channel the session already has. A
-               tab whose session closed in the meantime has nothing to draw,
-               the same gap a stale terminal handle would leave. */
-            const sessionHandle = tabs.find((tab) => tab.sessionId === sessionId)?.handle ?? null;
-            if (sessionHandle === null) return null;
+        {/* ADR-0045: source on top, destinations fanning out below it in a
+            grid that grows as a host is dropped on empty space and replaces
+            outright when dropped on an occupied slot. Every occupied pane
+            stays mounted and visible at once, unlike ADR-0044's one tab at
+            a time: fanning a file out needs every destination's own listing
+            live simultaneously, not shown in turn. */}
+        {workspace === 'sftp' && (() => {
+          const occupied = fanout.destinations
+            .map((endpoint, slot) => (endpoint === null ? null : { endpoint, slot }))
+            .filter((entry): entry is { endpoint: Endpoint; slot: number } => entry !== null);
+          const nextEmptySlot = fanout.destinations.indexOf(null);
 
-            return (
-              <SftpBrowser
-                key={sessionId}
-                sessionId={sessionId}
-                handle={sessionHandle}
-                visible={sessionId === sftpFocus}
-                frame={bodyStyle(WHOLE_AREA)}
-                id={`sftp-panel-${sessionId}`}
-                labelledBy={`sftp-row-${sessionId}`}
-                onRemoteChange={(id, remote) =>
-                  setSftpRemotes((current) => {
-                    const next = new Map(current);
-                    if (remote === null) next.delete(id);
-                    else next.set(id, remote);
-                    return next;
-                  })
-                }
-              />
-            );
-          })}
+          /* Which pane, if any, `attempt` belongs to: an endpoint already
+             assigned, or (mid-connect, before `onOpened` resolves it) the
+             pane `assignSftpEndpoint` recorded it for. Positioned inside
+             that pane's own wrapper rather than full-area, now that several
+             panes can be on screen together. */
+          const attemptDestination =
+            attempt === null
+              ? undefined
+              : occupied.find((entry) => entry.endpoint.kind === 'remote' && entry.endpoint.sessionId === attempt.sessionId);
+          const attemptTarget: SftpTarget | null =
+            attempt === null
+              ? null
+              : fanout.source?.kind === 'remote' && fanout.source.sessionId === attempt.sessionId
+                ? { kind: 'source' }
+                : attemptDestination !== undefined
+                  ? { kind: 'destination', slot: attemptDestination.slot }
+                  : (sftpConnectTargets.current.get(attempt.sessionId) ?? null);
 
-          {/* SftpWorkspace.dc.html's own body: nothing to show until a host
-              is picked from the sidebar beside it. */}
-          {sftpFocus === null && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-[18px] p-10">
-              <svg viewBox="0 0 24 24" className="text-ink-disabled h-10 w-10" fill="none" aria-hidden="true">
-                <path
-                  d="M4 6.5h6l1.6 2H20v9.5H4z"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              <div className="flex flex-col items-center gap-1.5 text-center">
-                <span className="text-ink2 text-[13.5px] font-semibold">
-                  {i18n.t('sftp.workspace.pick')}
-                </span>
-                <span className="text-ink-faint text-[12px]">{i18n.t('sftp.workspace.pick.hint')}</span>
+          const sameTarget = (a: SftpTarget, b: SftpTarget): boolean =>
+            a.kind === 'source' ? b.kind === 'source' : b.kind === 'destination' && a.slot === b.slot;
+
+          const dragOverHandlers = (target: SftpTarget) =>
+            sftpDragging === null
+              ? {}
+              : {
+                  onDragOver: (event: DragEvent) => {
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = 'move';
+                    setSftpDropOver(target);
+                  },
+                  onDragLeave: () =>
+                    setSftpDropOver((current) => (current !== null && sameTarget(current, target) ? null : current)),
+                  onDrop: (event: DragEvent) => {
+                    event.preventDefault();
+                    assignSftpEndpoint(sftpDragging, target);
+                    setSftpDragging(null);
+                    setSftpDropOver(null);
+                  },
+                };
+
+          const dropTone = (target: SftpTarget): string =>
+            sftpDropOver !== null && sameTarget(sftpDropOver, target)
+              ? 'border-accent bg-accent-soft/40'
+              : 'border-line-strong';
+
+          /* One row, not a wrapping grid: up to MAX_DESTINATIONS panes side
+             by side, each an equal share of the width, the same "split"
+             Sessions' own columns layout means. `occupied.length` is never
+             more than `MAX_DESTINATIONS`, and the trailing empty slot (when
+             there is room for one) is the same width as the rest rather
+             than a narrower afterthought. */
+          const visibleDestinations = occupied.length + (nextEmptySlot >= 0 ? 1 : 0);
+
+          return (
+            <main className="bg-surface-base relative flex min-w-0 flex-1 flex-col gap-3 overflow-hidden p-3">
+              <div className="relative h-[34%] min-h-[180px] shrink-0" {...dragOverHandlers({ kind: 'source' })}>
+                {fanout.source === null ? (
+                  <div
+                    className={`text-ink-faint flex h-full flex-col items-center justify-center gap-2 rounded border-2 border-dashed text-[12.5px] transition-colors ${dropTone({ kind: 'source' })}`}
+                  >
+                    {i18n.t('sftp.source.empty')}
+                  </div>
+                ) : (
+                  <SftpPane
+                    key={endpointKey(fanout.source)}
+                    endpoint={fanout.source}
+                    paneId={SOURCE_PANE_ID}
+                    label={i18n.t('sftp.source')}
+                    identity={sftpIdentity(fanout.source)}
+                    onReport={fanout.reportPane}
+                    onSend={fanout.sendToDestinations}
+                    onClear={null}
+                  />
+                )}
               </div>
-            </div>
-          )}
 
-          {/* Host-key decisions, the "Reaching <host>…" surface and the rest
-              of `attemptSurface` are not Sessions-shaped: a connection
-              `openSftpWorkspace` started needs the exact same prompts, and
-              this workspace has no grid to draw them into, only its one
-              rectangle. Full-area rather than `attemptBox`-positioned for
-              that reason. */}
-          {attempt !== null && attemptSurface !== null && (
-            <div className="absolute inset-0">{attemptSurface}</div>
-          )}
-        </main>
-        )}
+              <div className="text-ink-faint flex shrink-0 items-center gap-2 text-[10px] font-bold tracking-[0.1em]">
+                <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" aria-hidden="true">
+                  <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                {i18n.t('sftp.fansOutTo')}
+              </div>
+
+              <div
+                className="grid min-h-0 flex-1 gap-3 overflow-x-auto"
+                style={{ gridTemplateColumns: `repeat(${String(Math.max(visibleDestinations, 1))}, minmax(220px, 1fr))` }}
+              >
+                {occupied.map(({ endpoint, slot }) => (
+                  <div key={`destination-${String(slot)}`} className="relative" {...dragOverHandlers({ kind: 'destination', slot })}>
+                    <SftpPane
+                      key={endpointKey(endpoint)}
+                      endpoint={endpoint}
+                      paneId={destinationPaneId(slot)}
+                      label={i18n.t('sftp.destination')}
+                      identity={sftpIdentity(endpoint)}
+                      onReport={fanout.reportPane}
+                      onSend={null}
+                      onClear={() => fanout.clearDestination(slot)}
+                    />
+                  </div>
+                ))}
+
+                {nextEmptySlot >= 0 && (
+                  <div
+                    key={`destination-empty-${String(nextEmptySlot)}`}
+                    className={`text-ink-faint flex flex-col items-center justify-center gap-2 rounded border-2 border-dashed text-[12px] transition-colors ${dropTone({ kind: 'destination', slot: nextEmptySlot })}`}
+                    {...dragOverHandlers({ kind: 'destination', slot: nextEmptySlot })}
+                  >
+                    {i18n.t('sftp.destination.empty')}
+                  </div>
+                )}
+              </div>
+
+              {/* Host-key decisions, the "Reaching <host>…" surface and the
+                  rest of `attemptSurface` assume a full pane's worth of
+                  room, the size every other surface using it already gets
+                  (Sessions' own `bodyStyle`, ADR-0044's one rectangle).
+                  The source pane's own, deliberately short strip clipped a
+                  host key prompt's Trust button below the fold when this
+                  was nested inside it instead. Full-area, gated on
+                  `attemptTarget` so it only covers the workspace while the
+                  attempt actually belongs to one of its panes. */}
+              {attemptTarget !== null && attemptSurface !== null && (
+                <div className="absolute inset-0">{attemptSurface}</div>
+              )}
+            </main>
+          );
+        })()}
 
         {workspace === 'home' && (
         /* One rectangle, always: nothing here is a session, so there is

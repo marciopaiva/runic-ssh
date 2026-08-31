@@ -329,6 +329,79 @@ async fn run_upload<R: Runtime>(
     app.state::<Transfers>().forget(transfer).await;
 }
 
+/// Starts a remote-to-remote transfer (ADR-0045), and returns immediately
+/// with a handle for its progress and outcome, which arrive as events the
+/// same way [`sftp_download`]'s and [`sftp_upload`]'s do.
+///
+/// `source_handle` and `dest_handle` are opened independently, in whichever
+/// order they resolve; nothing here assumes or requires they name different
+/// connections, since two sessions on the same connection cost nothing
+/// extra to support and this command has no reason to refuse it.
+#[tauri::command]
+pub async fn sftp_transfer<R: Runtime>(
+    app: AppHandle<R>,
+    registry: State<'_, Registry>,
+    transfers: State<'_, Transfers>,
+    source_handle: SessionHandle,
+    source_path: String,
+    dest_handle: SessionHandle,
+    dest_dir: String,
+) -> Result<TransferHandle, IpcError> {
+    let source = open_session(&registry, source_handle).await?;
+    let destination = open_session(&registry, dest_handle).await?;
+    let transfer = transfers.reserve();
+
+    let task = tokio::spawn(run_transfer(
+        app.clone(),
+        source,
+        source_path,
+        destination,
+        dest_dir,
+        transfer,
+    ));
+    transfers.attach(transfer, task).await;
+
+    Ok(transfer)
+}
+
+async fn run_transfer<R: Runtime>(
+    app: AppHandle<R>,
+    source: SftpSession,
+    source_path: String,
+    destination: SftpSession,
+    dest_dir: String,
+    transfer: TransferHandle,
+) {
+    let progress_app = app.clone();
+    let result = session::transfer(
+        &source,
+        &source_path,
+        &destination,
+        &dest_dir,
+        move |progress| {
+            let _ = progress_app.emit(
+                PROGRESS_EVENT,
+                ProgressEvent {
+                    transfer,
+                    transferred: progress.transferred,
+                    total: progress.total,
+                },
+            );
+        },
+    )
+    .await;
+
+    let outcome = match result {
+        Ok(dest_path) => Outcome::Succeeded { path: dest_path },
+        Err(error) => Outcome::Failed {
+            error: IpcError::from(error),
+        },
+    };
+    let _ = app.emit(FINISHED_EVENT, FinishedEvent { transfer, outcome });
+
+    app.state::<Transfers>().forget(transfer).await;
+}
+
 /// Cancels a transfer in flight.
 ///
 /// Never fails: a handle naming a transfer already finished, already
