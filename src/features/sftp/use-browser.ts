@@ -144,15 +144,11 @@ export function useSftpBrowser(handle: SessionHandle): SftpBrowserState & SftpBr
       /* The directory being left already has a correct, just-fetched
          listing sitting in `remoteEntries`: seeding the tree cache with it
          here means the ancestor effect below never needs to re-list it on
-         an ordinary parent/child navigation. That is not only one fewer
-         round trip: a second `sftp_list` for the same path, fired at
-         nearly the same moment as this one, has come back missing an entry
-         in testing, on this same connection, from two calls each opening
-         their own SFTP channel per `sftp::session`'s own module doc. Two
-         calls in flight for two different paths is exactly what a click
-         from one directory into another produces. #252 tracks the
-         underlying question; this is what keeps the sidebar tree from
-         depending on the answer. */
+         an ordinary parent/child navigation. One fewer round trip either
+         way; #252's own investigation could not reproduce the truncated
+         listing it originally set out to avoid, under a real concurrent
+         Rust-level test or a StrictMode double-invoke, so this stands on
+         that saving alone now, not on a confirmed race. */
       const departing = remotePathRef.current;
       const departingEntries = remoteEntriesRef.current;
 
