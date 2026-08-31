@@ -7,15 +7,27 @@
 //! to keep in step with a shell or another transfer running on the same
 //! handle. Reusing one across several calls is a reasonable thing to want
 //! later, and nothing about the shape below forecloses it.
+//!
+//! [`open`] is the only function here that takes a `Connection`, and a
+//! caller holds it only for the moment it takes to call that: the connection
+//! sits behind the same `Shared` mutex a shell on the same handle needs, and
+//! `Connection::open_shell`'s own callers already only lock it long enough
+//! to open a channel, never for the life of what runs over it afterwards.
+//! [`list`], [`download`] and [`upload`] take the already-open [`SftpSession`]
+//! instead, so a transfer that takes a minute never holds that mutex for a
+//! minute.
 
 use std::path::Path;
 
-use russh_sftp::client::SftpSession as RawSftpSession;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use crate::sftp::error::SftpError;
 use crate::sftp::path::{check_name, safe_destination};
 use crate::ssh::connection::Connection;
+
+/// This module's only reference to `russh_sftp`'s own type, so nothing above
+/// it needs to name that crate directly. ADR-0041.
+pub type SftpSession = russh_sftp::client::SftpSession;
 
 /// How much of a transfer has moved, for a progress event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -49,9 +61,12 @@ pub struct Entry {
 }
 
 /// Opens a fresh SFTP subsystem channel and speaks the protocol over it.
-async fn open(connection: &Connection) -> Result<RawSftpSession, SftpError> {
+///
+/// Takes `&Connection` only for the round trip this costs. Hold the lock
+/// that produced it no longer than that; see the module doc for why.
+pub async fn open(connection: &Connection) -> Result<SftpSession, SftpError> {
     let channel = connection.open_sftp().await?;
-    let session = RawSftpSession::new(channel.into_stream()).await?;
+    let session = SftpSession::new(channel.into_stream()).await?;
     Ok(session)
 }
 
@@ -63,8 +78,7 @@ async fn open(connection: &Connection) -> Result<RawSftpSession, SftpError> {
 /// directory entry it cannot trust. This is also what keeps `.` and `..`,
 /// which a real SFTP server includes, out of the result without a special
 /// case for either.
-pub async fn list(connection: &Connection, path: &str) -> Result<Vec<Entry>, SftpError> {
-    let sftp = open(connection).await?;
+pub async fn list(sftp: &SftpSession, path: &str) -> Result<Vec<Entry>, SftpError> {
     let listing = sftp.read_dir(path).await?;
 
     let mut entries = Vec::new();
@@ -111,7 +125,7 @@ const CHUNK: usize = 32 * 1024;
 /// hits every `CHUNK` bytes. Adding a token here would duplicate a
 /// cancellation story Tokio already gives the caller for free.
 pub async fn download(
-    connection: &Connection,
+    sftp: &SftpSession,
     remote_path: &str,
     local_dir: &Path,
     mut on_progress: impl FnMut(Progress) + Send,
@@ -119,7 +133,6 @@ pub async fn download(
     let name = last_segment(remote_path);
     let destination = safe_destination(local_dir, name)?;
 
-    let sftp = open(connection).await?;
     let total = sftp.metadata(remote_path).await.ok().map(|m| m.len());
     let mut remote_file = sftp.open(remote_path).await?;
 
@@ -162,7 +175,7 @@ pub async fn download(
 /// runs this in and its own `JoinHandle`, not to a token threaded through
 /// here.
 pub async fn upload(
-    connection: &Connection,
+    sftp: &SftpSession,
     local_path: &Path,
     remote_dir: &str,
     mut on_progress: impl FnMut(Progress) + Send,
@@ -180,7 +193,6 @@ pub async fn upload(
         .map_err(|_| SftpError::LocalIo)?;
     let total = local_file.metadata().await.ok().map(|m| m.len());
 
-    let sftp = open(connection).await?;
     let mut remote_file = sftp.create(&remote_path).await?;
 
     let mut buffer = vec![0_u8; CHUNK];
