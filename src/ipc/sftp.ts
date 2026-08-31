@@ -56,7 +56,7 @@ export async function sftpList(handle: SessionHandle, path: string): Promise<rea
  * Lists a local directory, defaulting to the user's home directory.
  *
  * ADR-0043: unlike the remote side, nothing here defends against a hostile
- * name — the path is the user's own, on their own machine.
+ * name. The path is the user's own, on their own machine.
  */
 export async function localListDirectory(path: string | null): Promise<LocalListing> {
   return invoke<LocalListing>('local_list_directory', { path: path ?? undefined });

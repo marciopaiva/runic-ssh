@@ -2,7 +2,7 @@
  * Guards the tab strip once it holds four different kinds of thing.
  *
  * `tabs.ts` answers for the sessions and knows nothing about the SFTP tab,
- * the editor or the settings tab, which is the point — `openTabs` still
+ * the editor or the settings tab, which is the point: `openTabs` still
  * derives only from sessions. What is new is the seam between them, and a
  * seam in a keyboard ring fails silently: the arrow key does nothing, or
  * lands somewhere that no longer exists, and neither shows up in a
@@ -55,7 +55,7 @@ describe('building the strip', () => {
   });
 
   it('places an SFTP tab right after the session it belongs to', () => {
-    /* Drawn beside the shell tab for the same host, not apart from it — the
+    /* Drawn beside the shell tab for the same host, not apart from it: the
        shape Sftp.dc.html draws and the reason this is not appended at the
        end the way the editor and settings are. */
     expect(stripEntries(TABS, new Set(['a']), [], false)).toEqual([
@@ -114,7 +114,7 @@ describe('telling two tabs apart', () => {
   });
 
   it('does not confuse a session with its own SFTP tab', () => {
-    /* Same sessionId, different kind — the exact shape that would make a
+    /* Same sessionId, different kind: the exact shape that would make a
        careless `sameFocus` say the two are one tab. */
     expect(sameFocus(SESSION('a'), SFTP('a'))).toBe(false);
   });

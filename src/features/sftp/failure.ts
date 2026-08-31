@@ -3,7 +3,7 @@
  *
  * ADR-0007: the message is written here, against the code, never built by
  * the core. Mirrors `features/sessions/failure.ts`'s own shape for the same
- * reason that one exists — a code with nothing rendering it is the worst
+ * reason that one exists. A code with nothing rendering it is the worst
  * version of an error.
  */
 
