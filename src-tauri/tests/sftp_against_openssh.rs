@@ -108,6 +108,52 @@ async fn listing_the_home_directory_shows_the_fixtures_files() {
     assert!(!names.contains(&".."));
 }
 
+/// What `commands::sftp::sftp_list` does per call: a fresh channel, then one
+/// listing over it.
+async fn open_and_list(connection: &Connection, path: &str) -> Vec<session::Entry> {
+    let sftp = session::open(connection).await.expect("opens sftp");
+    session::list(&sftp, path).await.expect("lists")
+}
+
+/// #252 suspected that two of these in flight for the same connection could
+/// corrupt one another's result, after a truncated listing was observed once
+/// while building the SFTP sidebar tree. Eight of these, genuinely
+/// concurrent across worker threads, never reproduced it: this is a
+/// regression guard against the shape of that suspicion, not evidence the
+/// original observation had this cause. #252 stays open with that written
+/// down, since the observation itself was real and is still unexplained.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "needs the test container; see #252 and the module comment"]
+async fn many_concurrent_listings_on_one_connection_all_agree_with_a_baseline() {
+    let known = trusting(offered_key().await);
+    let mut connection = connect(endpoint(), known).await.expect("connects");
+    connection
+        .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
+        .await
+        .expect("authenticates");
+
+    let mut baseline: Vec<String> = open_and_list(&connection, HOME)
+        .await
+        .into_iter()
+        .map(|entry| entry.name)
+        .collect();
+    baseline.sort();
+
+    let connection = std::sync::Arc::new(connection);
+    let mut tasks = tokio::task::JoinSet::new();
+    for _ in 0..8 {
+        let connection = std::sync::Arc::clone(&connection);
+        tasks.spawn(async move { open_and_list(&connection, HOME).await });
+    }
+
+    let results = tasks.join_all().await;
+    for (at, entries) in results.into_iter().enumerate() {
+        let mut names: Vec<String> = entries.into_iter().map(|entry| entry.name).collect();
+        names.sort();
+        assert_eq!(names, baseline, "listing {at} disagreed with the baseline");
+    }
+}
+
 #[tokio::test]
 #[ignore = "needs the test container; see the module comment"]
 async fn listing_an_absent_directory_is_a_typed_not_found() {
