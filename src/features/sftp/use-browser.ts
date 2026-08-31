@@ -7,7 +7,7 @@
  * `connect.ts`'s rules and the calls that carry them out.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   chooseUploadSource,
@@ -27,8 +27,8 @@ import type {
   TransferHandle,
 } from '../../ipc';
 import { asIpcError } from '../../ipc';
-import { reduceTransfers, remoteParent } from './browser';
-import type { TransferState } from './browser';
+import { ancestorChain, reduceTransfers, remoteParent } from './browser';
+import type { TransferState, TreeLevel } from './browser';
 
 export interface SftpBrowserState {
   /** `null` only until the first local listing answers. */
@@ -44,7 +44,28 @@ export interface SftpBrowserState {
   readonly remoteLoading: boolean;
   readonly remoteError: IpcErrorCode | null;
 
+  /** `remotePath` and every ancestor above it, root first, for the sidebar
+   * tree. The last entry is `remotePath` itself; its children are
+   * `remoteEntries`, not a `treeChildren` entry of their own. */
+  readonly treeChain: readonly string[];
+  /** One entry per ancestor in `treeChain` other than the last, fetched
+   * lazily as `remotePath` changes and kept once fetched. */
+  readonly treeChildren: ReadonlyMap<string, TreeLevel>;
+
   readonly transfers: readonly TransferState[];
+}
+
+/**
+ * The slice of a browser the sidebar tree (`SftpSidebar.tsx`) needs, shared
+ * with the pane rather than duplicated: two independent ideas of "where the
+ * remote pane is" would let a tree click move one without the other.
+ */
+export interface SftpRemoteView {
+  readonly remotePath: string;
+  readonly remoteEntries: readonly SftpEntry[];
+  readonly treeChain: readonly string[];
+  readonly treeChildren: ReadonlyMap<string, TreeLevel>;
+  readonly enterRemote: (path: string) => void;
 }
 
 export interface SftpBrowserActions {
@@ -80,6 +101,8 @@ export function useSftpBrowser(handle: SessionHandle): SftpBrowserState & SftpBr
 
   const [transfers, setTransfers] = useState<readonly TransferState[]>([]);
 
+  const [treeChildren, setTreeChildren] = useState<ReadonlyMap<string, TreeLevel>>(new Map());
+
   /* The listings a transfer's own destination is read from, without putting
      either in the callback's own dependency array: a transfer started from
      a stale closure would send a file to a directory the pane left behind a
@@ -88,6 +111,14 @@ export function useSftpBrowser(handle: SessionHandle): SftpBrowserState & SftpBr
   localPathRef.current = localPath;
   const remotePathRef = useRef(remotePath);
   remotePathRef.current = remotePath;
+  const remoteEntriesRef = useRef(remoteEntries);
+  remoteEntriesRef.current = remoteEntries;
+  /* Read inside the tree effect below instead of listed as its dependency:
+     the effect's own fetches are what change this, and depending on it
+     would just make it re-run once per fetch to notice there is nothing
+     left to do. */
+  const treeChildrenRef = useRef(treeChildren);
+  treeChildrenRef.current = treeChildren;
 
   const loadLocal = useCallback((path: string | null) => {
     setLocalLoading(true);
@@ -110,8 +141,28 @@ export function useSftpBrowser(handle: SessionHandle): SftpBrowserState & SftpBr
       setRemoteLoading(true);
       setRemoteError(null);
 
+      /* The directory being left already has a correct, just-fetched
+         listing sitting in `remoteEntries`: seeding the tree cache with it
+         here means the ancestor effect below never needs to re-list it on
+         an ordinary parent/child navigation. That is not only one fewer
+         round trip: a second `sftp_list` for the same path, fired at
+         nearly the same moment as this one, has come back missing an entry
+         in testing, on this same connection, from two calls each opening
+         their own SFTP channel per `sftp::session`'s own module doc. Two
+         calls in flight for two different paths is exactly what a click
+         from one directory into another produces. #252 tracks the
+         underlying question; this is what keeps the sidebar tree from
+         depending on the answer. */
+      const departing = remotePathRef.current;
+      const departingEntries = remoteEntriesRef.current;
+
       void sftpList(handle, path)
         .then((entries) => {
+          if (departing !== path) {
+            setTreeChildren((current) =>
+              current.has(departing) ? current : new Map(current).set(departing, departingEntries),
+            );
+          }
           setRemotePath(path);
           setRemoteEntries(entries);
           setRemoteParentPath(remoteParent(path));
@@ -132,6 +183,31 @@ export function useSftpBrowser(handle: SessionHandle): SftpBrowserState & SftpBr
        navigation with the starting directory. */
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /* Recomputed only when `remotePath` itself changes, not every render: this
+     feeds a dependency array below, and a fresh array reference every render
+     would make that array-of-strings comparison pointless. */
+  const treeChain = useMemo(() => ancestorChain(remotePath), [remotePath]);
+
+  /* Every ancestor of `remotePath` other than `remotePath` itself needs its
+     own listing to draw as a level of the sidebar tree. Fetched once per
+     path and kept: a directory does not need to be re-listed just because
+     the pane moved on to a sibling and back. */
+  useEffect(() => {
+    const missing = treeChain.slice(0, -1).filter((path) => !treeChildrenRef.current.has(path));
+
+    for (const path of missing) {
+      setTreeChildren((current) => new Map(current).set(path, 'loading'));
+
+      void sftpList(handle, path)
+        .then((entries) => {
+          setTreeChildren((current) => new Map(current).set(path, entries));
+        })
+        .catch(() => {
+          setTreeChildren((current) => new Map(current).set(path, 'error'));
+        });
+    }
+  }, [treeChain, handle]);
 
   /* One transfer's whole lifetime: started, every progress event, and the
      one finished event, unsubscribing itself once that arrives. A transfer
@@ -223,6 +299,8 @@ export function useSftpBrowser(handle: SessionHandle): SftpBrowserState & SftpBr
     remoteParent: remoteParentPath,
     remoteLoading,
     remoteError,
+    treeChain,
+    treeChildren,
     transfers,
     enterLocal: loadLocal,
     enterRemote: loadRemote,

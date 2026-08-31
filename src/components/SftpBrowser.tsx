@@ -1,23 +1,31 @@
+import { useEffect } from 'react';
 import type { JSX } from 'react';
 
 import { hasActiveTransfer } from '../features/sftp/browser';
 import type { TransferState } from '../features/sftp/browser';
 import { describeSftpFailure } from '../features/sftp/failure';
 import { useSftpBrowser } from '../features/sftp/use-browser';
+import type { SftpRemoteView } from '../features/sftp/use-browser';
 import type { LocalEntry, SessionHandle, SftpEntry } from '../ipc';
 import { useTranslator } from '../features/settings';
 import type { Translator } from '../lib/i18n';
 
 interface SftpBrowserProps {
+  readonly sessionId: string;
   readonly handle: SessionHandle;
   readonly visible: boolean;
   readonly frame: React.CSSProperties;
   readonly id: string;
   readonly labelledBy: string;
+  /** The remote side of this tab's browser, one level up: the sidebar tree
+   * (`SftpSidebar.tsx`) renders in a different part of the page and reads
+   * this same `remotePath`/`enterRemote` rather than keeping its own idea
+   * of where the remote pane is. Called with `null` on unmount. */
+  readonly onRemoteChange: (sessionId: string, remote: SftpRemoteView | null) => void;
 }
 
-/** The folder icon, also drawn on the tab itself. */
-function FolderIcon({ className }: { readonly className: string }): JSX.Element {
+/** The folder icon, also drawn on the tab itself and the sidebar tree. */
+export function FolderIcon({ className }: { readonly className: string }): JSX.Element {
   return (
     <svg viewBox="0 0 24 24" className={className} fill="none" aria-hidden="true">
       <path
@@ -30,7 +38,7 @@ function FolderIcon({ className }: { readonly className: string }): JSX.Element 
   );
 }
 
-function FileIcon({ className }: { readonly className: string }): JSX.Element {
+export function FileIcon({ className }: { readonly className: string }): JSX.Element {
   return (
     <svg viewBox="0 0 24 24" className={className} fill="none" aria-hidden="true">
       <path
@@ -238,14 +246,35 @@ function TransferRow({
  * climbing back down it.
  */
 export function SftpBrowser({
+  sessionId,
   handle,
   visible,
   frame,
   id,
   labelledBy,
+  onRemoteChange,
 }: SftpBrowserProps): JSX.Element {
   const i18n = useTranslator();
   const browser = useSftpBrowser(handle);
+
+  useEffect(() => {
+    onRemoteChange(sessionId, {
+      remotePath: browser.remotePath,
+      remoteEntries: browser.remoteEntries,
+      treeChain: browser.treeChain,
+      treeChildren: browser.treeChildren,
+      enterRemote: browser.enterRemote,
+    });
+    return () => onRemoteChange(sessionId, null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    sessionId,
+    browser.remotePath,
+    browser.remoteEntries,
+    browser.treeChain,
+    browser.treeChildren,
+    browser.enterRemote,
+  ]);
 
   const openLocal = (entry: LocalEntry): void => {
     if (entry.isDir) browser.enterLocal(entry.path);
