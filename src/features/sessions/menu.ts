@@ -13,12 +13,12 @@
 
 import type { LiveSession } from './state';
 
-export type SessionAction = 'connect' | 'disconnect';
+export type SessionAction = 'connect' | 'disconnect' | 'sftp';
 
 export interface MenuItem {
   readonly action: SessionAction;
   /** Read aloud and shown. */
-  readonly label: 'session.menu.connect' | 'session.menu.disconnect';
+  readonly label: 'session.menu.connect' | 'session.menu.disconnect' | 'session.menu.sftp';
   /** Whether losing something is the outcome. Carried, not inferred. */
   readonly destructive: boolean;
 }
@@ -29,6 +29,7 @@ const DISCONNECT: MenuItem = {
   label: 'session.menu.disconnect',
   destructive: false,
 };
+const SFTP: MenuItem = { action: 'sftp', label: 'session.menu.sftp', destructive: false };
 
 /**
  * The menu for one row.
@@ -36,11 +37,17 @@ const DISCONNECT: MenuItem = {
  * A connected session offers to disconnect rather than to connect: offering
  * both is offering one that does nothing, and a menu item that does nothing is
  * how a menu stops being read.
+ *
+ * SFTP (#127) is offered only once a handle exists: it is a second channel
+ * on the same connection, not a connection of its own, so there is nothing
+ * for it to open while the first one is still being made.
  */
 export function sessionMenu(live: LiveSession): readonly MenuItem[] {
   const open = live.handle !== null || live.kind === 'connecting';
+  const items: MenuItem[] = [open ? DISCONNECT : CONNECT];
+  if (live.handle !== null) items.push(SFTP);
 
-  return [open ? DISCONNECT : CONNECT];
+  return items;
 }
 
 /**

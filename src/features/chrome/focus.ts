@@ -1,11 +1,12 @@
 /**
  * What the tab strip is pointing at.
  *
- * The strip holds three different things: the open sessions, a host editor,
- * and the settings tab. `tabs.ts` deliberately knows nothing about the last
- * two. Its own doc comment says a tab is an open connection rather than a
- * selection, and that stays true: `openTabs` still derives only from sessions,
- * and the union of all three lives here, in the shell's own model.
+ * The strip holds four different things: the open sessions, an SFTP browser
+ * on one of them, a host editor, and the settings tab. `tabs.ts` deliberately
+ * knows nothing about the last three. Its own doc comment says a tab is an
+ * open connection rather than a selection, and that stays true: `openTabs`
+ * still derives only from sessions, and the union of all four lives here, in
+ * the shell's own model.
  *
  * A union rather than a reserved session id. Session ids are sixteen hex
  * characters, but `new_id`'s fallback in the core is `{n}-{host}` — free text
@@ -14,8 +15,13 @@
  * `EditorTarget` for the same reason: `'new'` as a magic id would be exactly
  * that sentinel.
  *
+ * `sftp` carries a session id rather than its own kind of id, because it is
+ * not a second connection: #127 opens an SFTP subsystem on the channel the
+ * session already has, and there is at most one such tab per session, the
+ * same way there is at most one shell tab per session.
+ *
  * The three used to be woven together by hand, one branch per combination.
- * With a third kind that stops scaling, so the strip is built once as an
+ * With a fourth kind that stops scaling, so the strip is built once as an
  * ordered list and every question is asked of that list instead.
  */
 
@@ -25,26 +31,33 @@ import type { EditorTarget } from '../sessions/editor';
 
 export type Focus =
   | { readonly kind: 'session'; readonly sessionId: string }
+  | { readonly kind: 'sftp'; readonly sessionId: string }
   | { readonly kind: 'editor'; readonly target: EditorTarget }
   | { readonly kind: 'settings' };
 
 /**
- * What the strip holds, left to right: sessions, then the host forms in the
- * order they were opened, then settings.
+ * What the strip holds, left to right: sessions, an SFTP tab beside each one
+ * that has one open, then the host forms in the order they were opened, then
+ * settings.
  *
  * Session tabs keep the sidebar's order at the front and settings stays at the
  * end, so opening or closing a form never shifts either sideways under the
- * pointer.
+ * pointer. An SFTP tab is placed right after the session it belongs to,
+ * matching where it is drawn: beside the shell tab for the same host, not
+ * apart from it.
  */
 export function stripEntries(
   tabs: readonly Tab[],
+  sftpOpen: ReadonlySet<string>,
   editing: readonly EditorTarget[],
   settingsOpen: boolean,
 ): readonly Focus[] {
-  const entries: Focus[] = tabs.map((tab) => ({
-    kind: 'session' as const,
-    sessionId: tab.sessionId,
-  }));
+  const entries: Focus[] = [];
+
+  for (const tab of tabs) {
+    entries.push({ kind: 'session', sessionId: tab.sessionId });
+    if (sftpOpen.has(tab.sessionId)) entries.push({ kind: 'sftp', sessionId: tab.sessionId });
+  }
 
   for (const target of editing) entries.push({ kind: 'editor', target });
   if (settingsOpen) entries.push({ kind: 'settings' });
@@ -58,6 +71,7 @@ export function sameFocus(a: Focus | null, b: Focus | null): boolean {
   if (a.kind !== b.kind) return false;
 
   if (a.kind === 'session' && b.kind === 'session') return a.sessionId === b.sessionId;
+  if (a.kind === 'sftp' && b.kind === 'sftp') return a.sessionId === b.sessionId;
 
   if (a.kind === 'editor' && b.kind === 'editor') {
     if (a.target.kind !== b.target.kind) return false;
@@ -70,9 +84,15 @@ export function sameFocus(a: Focus | null, b: Focus | null): boolean {
   return true;
 }
 
-/** The session being looked at, or `null` when the editor or settings is. */
+/**
+ * The session being looked at, or `null` when the editor or settings is.
+ *
+ * True for an SFTP tab too: it is a second view on the same session, not a
+ * second thing to be looking at, so the sidebar highlights the host it
+ * belongs to exactly as it would for that host's shell tab.
+ */
 export function focusedSession(focus: Focus | null): string | null {
-  return focus?.kind === 'session' ? focus.sessionId : null;
+  return focus?.kind === 'session' || focus?.kind === 'sftp' ? focus.sessionId : null;
 }
 
 /**
@@ -143,6 +163,7 @@ export function tabElementId(focus: Focus): string {
   if (focus.kind === 'editor') {
     return focus.target.kind === 'new' ? 'editor-tab-new' : `editor-tab-${focus.target.sessionId}`;
   }
+  if (focus.kind === 'sftp') return `sftp-tab-${focus.sessionId}`;
 
   return `session-tab-${focus.sessionId}`;
 }

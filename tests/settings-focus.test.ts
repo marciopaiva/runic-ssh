@@ -1,15 +1,20 @@
 /**
- * Guards the tab strip once it holds three different kinds of thing.
+ * Guards the tab strip once it holds four different kinds of thing.
  *
- * `tabs.ts` answers for the sessions and knows nothing about the editor or the
- * settings tab, which is the point — `openTabs` still derives only from
- * sessions. What is new is the seam between them, and a seam in a keyboard ring
- * fails silently: the arrow key does nothing, or lands somewhere that no longer
- * exists, and neither shows up in a screenshot.
+ * `tabs.ts` answers for the sessions and knows nothing about the SFTP tab,
+ * the editor or the settings tab, which is the point — `openTabs` still
+ * derives only from sessions. What is new is the seam between them, and a
+ * seam in a keyboard ring fails silently: the arrow key does nothing, or
+ * lands somewhere that no longer exists, and neither shows up in a
+ * screenshot.
  *
- * The three used to be woven by hand, one branch per combination. A third kind
- * is what made that stop scaling, so the strip is built once as an ordered list
- * and every question is asked of that list.
+ * The three used to be woven by hand, one branch per combination. A third
+ * kind is what made that stop scaling, so the strip is built once as an
+ * ordered list and every question is asked of that list. #127's SFTP tab is
+ * the fourth, and it is the one most likely to collide with its own
+ * session's tab: both carry the same `sessionId`, so `sameFocus` and
+ * `tabElementId` telling them apart is the property this file exists to
+ * pin down before a screen shows two tabs fighting over one DOM id.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -18,9 +23,11 @@ import {
   focusAfter,
   focusAfterClosing,
   focusedSession,
+  panelElementId,
   resolveFocus,
   sameFocus,
   stripEntries,
+  tabElementId,
 } from '../src/features/chrome/focus';
 import type { Focus } from '../src/features/chrome/focus';
 import type { Tab } from '../src/features/chrome/tabs';
@@ -29,7 +36,10 @@ function tab(sessionId: string): Tab {
   return { sessionId, title: sessionId, kind: 'connected', handle: 1 };
 }
 
+const NONE: ReadonlySet<string> = new Set();
+
 const SESSION = (sessionId: string): Focus => ({ kind: 'session', sessionId });
+const SFTP = (sessionId: string): Focus => ({ kind: 'sftp', sessionId });
 const NEW: Focus = { kind: 'editor', target: { kind: 'new' } };
 const EDIT = (sessionId: string): Focus => ({
   kind: 'editor',
@@ -41,13 +51,24 @@ const TABS = [tab('a'), tab('b')];
 
 describe('building the strip', () => {
   it('is the sessions alone when nothing else is open', () => {
-    expect(stripEntries(TABS, [], false)).toEqual([SESSION('a'), SESSION('b')]);
+    expect(stripEntries(TABS, NONE, [], false)).toEqual([SESSION('a'), SESSION('b')]);
+  });
+
+  it('places an SFTP tab right after the session it belongs to', () => {
+    /* Drawn beside the shell tab for the same host, not apart from it — the
+       shape Sftp.dc.html draws and the reason this is not appended at the
+       end the way the editor and settings are. */
+    expect(stripEntries(TABS, new Set(['a']), [], false)).toEqual([
+      SESSION('a'),
+      SFTP('a'),
+      SESSION('b'),
+    ]);
   });
 
   it('puts the editor after the sessions and settings last', () => {
     /* Session tabs keep the sidebar's order at the front, so opening either of
        the other two never shifts one sideways under the pointer. */
-    expect(stripEntries(TABS, [{ kind: 'new' }], true)).toEqual([
+    expect(stripEntries(TABS, NONE, [{ kind: 'new' }], true)).toEqual([
       SESSION('a'),
       SESSION('b'),
       NEW,
@@ -59,12 +80,17 @@ describe('building the strip', () => {
     /* One tab per host is what makes the unsaved question belong to a host
        rather than to a shared form — the shape #96 recorded and parked. */
     expect(
-      stripEntries([tab('a')], [{ kind: 'existing', sessionId: 'b' }, { kind: 'new' }], false),
+      stripEntries(
+        [tab('a')],
+        NONE,
+        [{ kind: 'existing', sessionId: 'b' }, { kind: 'new' }],
+        false,
+      ),
     ).toEqual([SESSION('a'), EDIT('b'), NEW]);
   });
 
   it('is empty when there is nothing at all', () => {
-    expect(stripEntries([], [], false)).toEqual([]);
+    expect(stripEntries([], NONE, [], false)).toEqual([]);
   });
 });
 
@@ -86,11 +112,46 @@ describe('telling two tabs apart', () => {
   it('does not confuse a session with the editor on that session', () => {
     expect(sameFocus(SESSION('a'), EDIT('a'))).toBe(false);
   });
+
+  it('does not confuse a session with its own SFTP tab', () => {
+    /* Same sessionId, different kind — the exact shape that would make a
+       careless `sameFocus` say the two are one tab. */
+    expect(sameFocus(SESSION('a'), SFTP('a'))).toBe(false);
+  });
+
+  it('separates two different sessions own SFTP tabs', () => {
+    expect(sameFocus(SFTP('a'), SFTP('b'))).toBe(false);
+  });
+
+  it('matches the same session own SFTP tab', () => {
+    expect(sameFocus(SFTP('a'), SFTP('a'))).toBe(true);
+  });
+});
+
+describe('naming a tab uniquely in the DOM', () => {
+  it('gives a session and its own SFTP tab different ids', () => {
+    /* Both carry the same sessionId. A shared fallback here is two `role="tab"`
+       buttons and two panels answering to one id, which breaks aria-controls
+       for whichever kind loses. */
+    expect(tabElementId(SESSION('a'))).not.toBe(tabElementId(SFTP('a')));
+    expect(panelElementId(SESSION('a'))).not.toBe(panelElementId(SFTP('a')));
+  });
+
+  it('is stable for the same focus', () => {
+    expect(tabElementId(SFTP('a'))).toBe(tabElementId(SFTP('a')));
+  });
 });
 
 describe('reading the focus', () => {
   it('names the session when one is focused', () => {
     expect(focusedSession(SESSION('a'))).toBe('a');
+  });
+
+  it('names the session an SFTP tab belongs to', () => {
+    /* A second view on the same session, not a second thing to be looking
+       at: the sidebar highlights the host exactly as it would for the
+       shell tab. */
+    expect(focusedSession(SFTP('a'))).toBe('a');
   });
 
   it('names no session while the editor or settings is focused', () => {
@@ -103,7 +164,7 @@ describe('reading the focus', () => {
 });
 
 describe('keeping the focus on something that exists', () => {
-  const FULL = stripEntries(TABS, [{ kind: 'new' }], true);
+  const FULL = stripEntries(TABS, NONE, [{ kind: 'new' }], true);
 
   it('leaves a focused tab alone while it is there', () => {
     expect(resolveFocus(FULL, SESSION('b'))).toEqual(SESSION('b'));
@@ -112,7 +173,7 @@ describe('keeping the focus on something that exists', () => {
   });
 
   it('moves off a session whose host dropped the connection', () => {
-    expect(resolveFocus(stripEntries([tab('a')], [], false), SESSION('gone'))).toEqual(
+    expect(resolveFocus(stripEntries([tab('a')], NONE, [], false), SESSION('gone'))).toEqual(
       SESSION('a'),
     );
   });
@@ -120,7 +181,7 @@ describe('keeping the focus on something that exists', () => {
   it('moves off the editor once it is closed', () => {
     /* Saving a new host closes the editor, and nothing else would notice the
        focus is pointing at a tab that is gone. */
-    expect(resolveFocus(stripEntries(TABS, [], false), NEW)).toEqual(SESSION('a'));
+    expect(resolveFocus(stripEntries(TABS, NONE, [], false), NEW)).toEqual(SESSION('a'));
   });
 
   it('is nothing when the strip is empty', () => {
@@ -129,7 +190,7 @@ describe('keeping the focus on something that exists', () => {
 });
 
 describe('moving along the strip', () => {
-  const FULL = stripEntries(TABS, [{ kind: 'new' }], true);
+  const FULL = stripEntries(TABS, NONE, [{ kind: 'new' }], true);
 
   it('steps and wraps through every kind', () => {
     expect(focusAfter(FULL, SESSION('b'), 1)).toEqual(NEW);
@@ -144,8 +205,14 @@ describe('moving along the strip', () => {
     expect(focusAfter(FULL, NEW, -1)).toEqual(SESSION('b'));
   });
 
+  it('reaches a session own SFTP tab from the keyboard', () => {
+    const withSftp = stripEntries(TABS, new Set(['a']), [], false);
+    expect(focusAfter(withSftp, SESSION('a'), 1)).toEqual(SFTP('a'));
+    expect(focusAfter(withSftp, SFTP('a'), 1)).toEqual(SESSION('b'));
+  });
+
   it('stays put when it is the only tab', () => {
-    const alone = stripEntries([], [{ kind: 'new' }], false);
+    const alone = stripEntries([], NONE, [{ kind: 'new' }], false);
 
     expect(focusAfter(alone, NEW, 1)).toEqual(NEW);
     expect(focusAfter(alone, NEW, -1)).toEqual(NEW);
@@ -176,7 +243,7 @@ describe('moving along the strip', () => {
 });
 
 describe('what takes over when a tab closes', () => {
-  const FULL = stripEntries(TABS, [{ kind: 'new' }], true);
+  const FULL = stripEntries(TABS, NONE, [{ kind: 'new' }], true);
 
   it('falls to the neighbour on the right', () => {
     expect(focusAfterClosing(FULL, SESSION('a'))).toEqual(SESSION('b'));
@@ -187,6 +254,6 @@ describe('what takes over when a tab closes', () => {
   });
 
   it('is nothing when the last tab goes', () => {
-    expect(focusAfterClosing(stripEntries([], [], true), SETTINGS)).toBeNull();
+    expect(focusAfterClosing(stripEntries([], NONE, [], true), SETTINGS)).toBeNull();
   });
 });

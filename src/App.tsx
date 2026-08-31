@@ -22,6 +22,7 @@ import { PasteConfirm } from './components/PasteConfirm';
 import { SessionMenu } from './components/SessionMenu';
 import { SessionWizard } from './components/SessionWizard';
 import { SessionsSidebar } from './components/SessionsSidebar';
+import { SftpBrowser } from './components/SftpBrowser';
 import { StatusBar } from './components/StatusBar';
 import { TerminalView } from './components/TerminalView';
 import { Titlebar } from './components/Titlebar';
@@ -195,7 +196,11 @@ type Dragged =
   | { readonly kind: 'tab'; readonly entry: Focus }
   | { readonly kind: 'host'; readonly sessionId: string };
 
-/** The session a group is showing, or `null` when it is showing something else. */
+/**
+ * The session a group is showing a *shell* for, or `null` when it is
+ * showing something else: an SFTP browser included, since typing has
+ * nowhere to go there either.
+ */
 function shownSession(group: Group): string | null {
   const entry = activeEntry(group);
   return entry?.kind === 'session' ? entry.sessionId : null;
@@ -244,10 +249,16 @@ export function App(): JSX.Element {
      and the rail does not, so the icon that closed it is the way back and the
      window has no state where the list is gone with nothing offering it. */
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  /* What the Sessions groups are pointing at. Only ever a `session` focus
-     since ADR-0029: the editor and settings moved to their own ring below,
-     `homeFocus`, once they stopped being tabs a group could hold. */
+  /* What the Sessions groups are pointing at: a `session` or, since #127, an
+     `sftp` tab on one. Never the editor or settings, which moved to their
+     own ring below, `homeFocus`, once ADR-0029 stopped them being tabs a
+     group could hold. */
   const [focus, setFocus] = useState<Focus | null>(null);
+  /* Which sessions have an SFTP tab open. A set of session ids rather than a
+     list of `Focus` values: there is at most one such tab per session
+     (#127's own `Focus` doc comment), so membership is the whole question,
+     and `stripEntries` is what turns this into the tab beside each one. */
+  const [sftpTabs, setSftpTabs] = useState<ReadonlySet<string>>(new Set());
   /* What Home's own strip is pointing at: the host editor or settings, never
      a session. Home has no groups to place an entry into, so this is the
      whole of its focus model, unlike `focus` above. */
@@ -443,11 +454,12 @@ export function App(): JSX.Element {
      clicked. Resolving on render is what keeps the active tab pointing at
      something that is still there. */
   const editing = useMemo(() => editors.map((editor) => editor.target), [editors]);
-  /* Sessions only, since ADR-0029: the editor and settings tabs used to ride
-     in this same list, which is how they ended up inside a group and picked
-     up chrome (the sync switch, the shape control) that made no sense for
-     them. `homeEntries` below is their own list now. */
-  const entries = useMemo(() => stripEntries(tabs, [], false), [tabs]);
+  /* Sessions and their SFTP tabs only, since ADR-0029: the editor and
+     settings tabs used to ride in this same list, which is how they ended
+     up inside a group and picked up chrome (the sync switch, the shape
+     control) that made no sense for them. `homeEntries` below is their own
+     list now. */
+  const entries = useMemo(() => stripEntries(tabs, sftpTabs, [], false), [tabs, sftpTabs]);
   const resolvedFocus = resolveFocus(entries, focus);
   const activeId = focusedSession(resolvedFocus);
   const activeTab = tabs.find((tab) => tab.sessionId === activeId) ?? null;
@@ -455,10 +467,14 @@ export function App(): JSX.Element {
   const stats = useSessionStats(activeHandle);
   /* One terminal per open session, kept mounted across tab switches. */
   const mounted = useMemo(() => mountedTerminals(tabs), [tabs]);
-  /* Every open session goes in a group; nothing else does any more (ADR-0029).
-     That is what makes rule 3 of ADR-0020 true within the Sessions workspace
-     rather than across the whole window: a group's active tab is always a
-     session, so there is no longer a rectangle to ask "is this really one" of. */
+  /* Every open session, and every SFTP tab on one, goes in a group; nothing
+     else does any more (ADR-0029). That is what makes rule 3 of ADR-0020
+     true within the Sessions workspace rather than across the whole window:
+     a group's active tab is always one of those two, never the editor or
+     settings, so there is no longer a rectangle to ask "is this really one"
+     of. `shownSession` is the narrower question `groupSyncState` actually
+     needs: not "is this a tab from Sessions" but "is this one with a shell
+     to type into." */
   const groups = useMemo(
     () => resolveGroups(layout, held, entries, resolvedFocus),
     [layout, held, entries, resolvedFocus],
@@ -470,7 +486,10 @@ export function App(): JSX.Element {
   /* Editors only, since the Hosts/Settings split (ADR-0029's own follow-up):
      settings is a section of Home, chosen from `HomeNav`, not a tab that can
      be open or closed, so it is never one of these entries. */
-  const homeEntries = useMemo(() => stripEntries([], editing, false), [editing]);
+  const homeEntries = useMemo(
+    () => stripEntries([], new Set<string>(), editing, false),
+    [editing],
+  );
   const resolvedHomeFocus = resolveFocus(homeEntries, homeFocus);
   /* The host the editor is open on, or `null` for a new one or none. Read
      again here, at the top level, because the hook below needs it as a
@@ -678,6 +697,35 @@ export function App(): JSX.Element {
       disconnect(target.sessionId);
     },
     [forget, attentionId, abandon, disconnect],
+  );
+
+  /* Opening an SFTP tab beside a session's shell tab. `focusOn` already does
+     the whole of "place this in the focused group, highlight it in the
+     sidebar, and switch to Sessions" for any `Focus`, so the only thing left
+     here is remembering that this session has one. */
+  const openSftp = useCallback(
+    (sessionId: string): void => {
+      setSftpTabs((current) => (current.has(sessionId) ? current : new Set(current).add(sessionId)));
+      focusOn({ kind: 'sftp', sessionId });
+    },
+    [focusOn],
+  );
+
+  /* Closing an SFTP tab. Unlike `closeFocus`, nothing here disconnects: the
+     session's own shell tab, if it has one, is untouched, since #127's own
+     `Focus` doc comment is explicit that this is a second view on a
+     connection rather than a connection of its own. */
+  const closeSftp = useCallback(
+    (sessionId: string): void => {
+      forget({ kind: 'sftp', sessionId });
+      setSftpTabs((current) => {
+        if (!current.has(sessionId)) return current;
+        const next = new Set(current);
+        next.delete(sessionId);
+        return next;
+      });
+    },
+    [forget],
   );
 
   /* Closing an editor or settings tab in Home. No group to take it out of and
@@ -1314,9 +1362,12 @@ export function App(): JSX.Element {
         case 'disconnect':
           disconnect(open.sessionId);
           return;
+        case 'sftp':
+          openSftp(open.sessionId);
+          return;
       }
     },
-    [menu, activate, disconnect],
+    [menu, activate, disconnect, openSftp],
   );
 
   const context = useMemo<CommandContext>(
@@ -1603,12 +1654,13 @@ export function App(): JSX.Element {
                     });
                   }}
                   onFocus={focusOn}
-                  /* A group holds only sessions since ADR-0029, but the prop is
-                     still typed for the general `Focus` `GroupStrip` also draws
-                     for Home; the guard documents the invariant rather than
-                     trusting it silently. */
+                  /* A group holds only sessions and SFTP tabs since ADR-0029
+                     and #127, but the prop is still typed for the general
+                     `Focus` `GroupStrip` also draws for Home; the guard
+                     documents the invariant rather than trusting it silently. */
                   onClose={(entry) => {
                     if (entry.kind === 'session') closeFocus(entry);
+                    if (entry.kind === 'sftp') closeSftp(entry.sessionId);
                   }}
                   onMenu={(entry, point) =>
                     setGroupMenu({ group: at, entry, at: point })
@@ -1665,6 +1717,28 @@ export function App(): JSX.Element {
                 }
                 onInput={(bytes) => broadcast(terminal.sessionId, bytes)}
                 broadcasting={armed && !muted.has(terminal.sessionId)}
+              />
+            );
+          })}
+
+          {[...sftpTabs].map((sessionId) => {
+            const mine: Focus = { kind: 'sftp', sessionId };
+            const box = boxOf(mine);
+            /* The session's own handle, not a second connection: #127 opens
+               the SFTP subsystem on the channel the session already has. A
+               tab whose session closed in the meantime has nothing to draw,
+               the same gap a stale terminal handle would leave. */
+            const sessionHandle = tabs.find((tab) => tab.sessionId === sessionId)?.handle ?? null;
+            if (sessionHandle === null) return null;
+
+            return (
+              <SftpBrowser
+                key={sessionId}
+                handle={sessionHandle}
+                visible={box !== null}
+                frame={bodyStyle(box ?? WHOLE_AREA)}
+                id={panelElementId(mine)}
+                labelledBy={tabElementId(mine)}
               />
             );
           })}
