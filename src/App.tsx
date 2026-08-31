@@ -1932,6 +1932,14 @@ export function App(): JSX.Element {
               ? 'border-accent bg-accent-soft/40'
               : 'border-line-strong';
 
+          /* One row, not a wrapping grid: up to MAX_DESTINATIONS panes side
+             by side, each an equal share of the width, the same "split"
+             Sessions' own columns layout means. `occupied.length` is never
+             more than `MAX_DESTINATIONS`, and the trailing empty slot (when
+             there is room for one) is the same width as the rest rather
+             than a narrower afterthought. */
+          const visibleDestinations = occupied.length + (nextEmptySlot >= 0 ? 1 : 0);
+
           return (
             <main className="bg-surface-base relative flex min-w-0 flex-1 flex-col gap-3 overflow-hidden p-3">
               <div className="relative h-[34%] min-h-[180px] shrink-0" {...dragOverHandlers({ kind: 'source' })}>
@@ -1962,7 +1970,10 @@ export function App(): JSX.Element {
                 {i18n.t('sftp.fansOutTo')}
               </div>
 
-              <div className="grid min-h-0 flex-1 auto-rows-[minmax(180px,1fr)] grid-cols-2 gap-3 overflow-y-auto">
+              <div
+                className="grid min-h-0 flex-1 gap-3 overflow-x-auto"
+                style={{ gridTemplateColumns: `repeat(${String(Math.max(visibleDestinations, 1))}, minmax(220px, 1fr))` }}
+              >
                 {occupied.map(({ endpoint, slot }) => (
                   <div key={`destination-${String(slot)}`} className="relative" {...dragOverHandlers({ kind: 'destination', slot })}>
                     <SftpPane
