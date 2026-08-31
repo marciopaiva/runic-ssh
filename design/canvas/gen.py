@@ -704,6 +704,64 @@ def build_sftp_workspace():
     st = status(stat_text("1 host browsing", T['faint'], mono=False), stat_text("2 hosts saved", T['faint']))
     write("SftpWorkspace.dc.html", page(body, sidebar, home_rail(workspace="sftp", sftp_badge="1"), st))
 
+# ---------- 7c. sftp fan-out: one source, a grid of destinations
+def build_sftp_fanout():
+    """ADR-0045: source and destination are each a plain `Endpoint`, drawn
+    from the same sidebar by dragging rather than clicking. One pane for
+    the source, always; a grid for destinations, up to four, that grows as
+    a host is dropped on empty space and replaces outright when dropped on
+    an occupied slot."""
+    def crow(name, dim=False):
+        i = ic("sftp", 12, T['faint']) if dim else f'<svg class="ic" viewBox="0 0 24 24" style="width: 12px; height: 12px; color: {T["faint"]};"><path d="M6 3h8l4 4v14H6z"></path><path d="M14 3v4h4"></path></svg>'
+        return (f'<div style="display: flex; align-items: center; gap: 7px; padding: 3px 8px;">{i}'
+                f'<span class="mono" style="font-size: 11px; color: {T["ink2"]};">{name}</span></div>')
+
+    def pane_header(label, who):
+        return (f'<div style="height: 24px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 10px;'
+                f' background: {T["chrome"]}; border-bottom: 1px solid {T["line"]};">'
+                f'<span style="font-size: 9px; font-weight: 700; letter-spacing: 0.1em; color: {T["faint"]};">{label}</span>'
+                f'<span class="mono" style="font-size: 10.5px; color: {T["muted"]};">{who}</span></div>')
+
+    def filled_slot(who, rows):
+        body = "\n".join(crow(*r) for r in rows)
+        return (f'<div style="display: flex; flex-direction: column; border: 1px solid {T["line"]}; border-radius: 6px; overflow: hidden;">'
+                f'{pane_header("DESTINATION", who)}<div style="flex: 1; padding: 4px 0; overflow: hidden;">{body}</div></div>')
+
+    empty_slot = (f'<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;'
+                  f' border: 1.5px dashed {T["line2"]}; border-radius: 6px; padding: 20px;">'
+                  f'{ic("sftp", 22, T["off"])}<span style="font-size: 11px; color: {T["faint"]}; text-align: center;">Drop a host here</span></div>')
+
+    source = (f'<div style="display: flex; flex-direction: column; border: 1px solid {T["line"]}; border-radius: 6px; overflow: hidden; height: 100%;">'
+              f'{pane_header("SOURCE", "deploy@10.4.1.20")}'
+              f'<div style="flex: 1; padding: 4px 0;">{crow("index.html")}{crow("assets", True)}{crow("app.2f9c.js")}</div></div>')
+
+    destinations = (f'<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; flex: 1;">'
+                     f'{filled_slot("deploy@10.4.1.21", [("index.html",), ("assets", True)])}'
+                     f'{filled_slot("deploy@10.9.0.5", [("releases", True), ("shared", True)])}'
+                     f'{empty_slot}</div>')
+
+    body = f"""      <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; padding: 12px;">
+        <div style="height: 140px; flex: none;">{source}</div>
+        <div style="display: flex; align-items: center; gap: 8px; color: {T['faint']};">
+          {ic('chev', 12, extra=' transform: rotate(90deg);')}
+          <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.1em;">FANS OUT TO</span>
+        </div>
+        {destinations}
+      </div>"""
+
+    # The row mid-drag: a dashed outline in the sidebar list rather than the
+    # ordinary filled row, the same idea `dragging`/`dropOver` already give
+    # Sessions' own rows, drawn once here rather than as a second component.
+    rows = [group_row("PRODUCTION", 3),
+            sftp_row("web-01", "deploy@10.4.1.20", "ok", active=False, open_tab=True),
+            (f'<div style="display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1.5px dashed {T["accent"]};'
+             f' border-radius: 6px; opacity: 0.6;"><span class="dot" style="background: {T["ok"]};"></span>'
+             f'<span class="mono" style="font-size: 12.5px; color: {T["ink2"]};">db-prod &#8594; dragging to a slot</span></div>')]
+    sidebar = sidebar_shell(sftp_workspace_header(), "\n".join(rows))
+
+    st = status(stat_text("3 destinations, 1 source", T['faint'], mono=False), stat_text("copying index.html", T['muted']))
+    write("SftpFanout.dc.html", page(body, sidebar, home_rail(workspace="sftp", sftp_badge="3"), st))
+
 # ---------- 10. Home: the rail, the nav, and the wizard's own breadcrumb
 # Drawn 2026-08-30 against the maintainer's own complaint that the wizard
 # "não mostra onde você está" once Access hands off to its automatic phase
@@ -1370,7 +1428,7 @@ if LIGHT_MODE:
     build_main()
 else:
     for fn in (build_empty, build_main, build_groups, build_collapsed, build_broadcast,
-               build_hostkey, build_sftp, build_sftp_workspace,
+               build_hostkey, build_sftp, build_sftp_workspace, build_sftp_fanout,
                build_hosts_host, build_hosts_access, build_home_dashboard, build_home_hosts,
                build_anatomy, build_tokens,
                build_hostkeychanged, build_failure, build_paste, build_palette):

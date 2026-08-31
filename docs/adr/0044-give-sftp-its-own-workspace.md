@@ -1,7 +1,14 @@
 # ADR-0044: Give SFTP its own workspace
 
-* **Status**: Accepted
+* **Status**: Superseded by ADR-0045
 * **Date**: 2026-08-31
+
+**Superseded 2026-08-31 by ADR-0045**: the destination side gets a grid
+after all, once a real want for fanning one file out to several hosts at
+once showed up. The source side keeps this document's shape exactly (one
+pane, no split); read ADR-0045 for what changed and why, and for why this
+document's own reasoning, correct at the time for a single-browser
+feature, was not simply wrong.
 
 ## Context
 
