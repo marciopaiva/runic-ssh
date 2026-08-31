@@ -224,7 +224,7 @@ bundled with above, remain exactly as open as this document already said.
 
 **Resolved on 2026-08-31, the SFTP half.** ADR-0044 gives SFTP its own
 workspace, the design this document's Follow-up section named as due, and
-with it a Sessions group can no longer hold an `sftp` entry at all —
+with it a Sessions group can no longer hold an `sftp` entry at all:
 `Focus`/`HeldGroup` are narrowed for that case specifically. The
 `editor`/`settings` half of the same narrowing is untouched and remains
 open.

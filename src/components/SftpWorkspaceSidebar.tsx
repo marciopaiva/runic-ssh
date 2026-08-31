@@ -16,7 +16,7 @@ interface SftpWorkspaceSidebarProps {
 
 /**
  * The SFTP workspace's own host picker (ADR-0044), the sidebar's other
- * state — `SftpSidebar` draws the state after a tab is focused.
+ * state. `SftpSidebar` draws the state after a tab is focused.
  *
  * A plainer `SessionsSidebar`: grouping and search are the same feature
  * slice functions, but the row itself carries none of Sessions' own

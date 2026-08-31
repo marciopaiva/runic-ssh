@@ -26,7 +26,7 @@ There is no reason to split an SFTP browser into two rectangles, and no
 keystroke to broadcast to it. What SFTP's tab actually needs from the
 Sessions grid is the one thing the grid was never asked to give up: a
 rectangle to sit in, so that something is on screen. Everything else the
-grid carries, splitting, the sync switch, `receivingSessions` — is either
+grid carries (splitting, the sync switch, `receivingSessions`) is either
 irrelevant to it or actively wrong (`receivingSessions` already special-cases
 `entry.kind !== 'session'` to keep SFTP out of the keystroke-broadcast set,
 a guard whose only job is undoing the coupling this ADR removes instead).
@@ -99,9 +99,9 @@ from the still-open `editor`/`settings` half.
 
 ## Consequences
 
-**Good**: SFTP gets chrome shaped for what it does — a host picker, one
+**Good**: SFTP gets chrome shaped for what it does: a host picker, one
 visible browser, the existing dual-pane view and remote-tree sidebar built
-for #127, unchanged — instead of borrowing a tab bar and a grid built for
+for #127, unchanged, instead of borrowing a tab bar and a grid built for
 typing into several terminals at once. One entry point (the new workspace's
 own sidebar) rather than two half-redundant ones. `receivingSessions`'s
 `entry.kind !== 'session'` guard becomes true by construction rather than

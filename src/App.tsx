@@ -758,7 +758,7 @@ export function App(): JSX.Element {
   );
 
   /* Closing an SFTP tab. Nothing here disconnects: the session itself, and
-     any shell tab it has in Sessions, is untouched — #127's `Focus` doc
+     any shell tab it has in Sessions, is untouched. #127's `Focus` doc
      comment was explicit that this is a second view on a connection rather
      than a connection of its own, and ADR-0044 does not change that. */
   const closeSftpTab = useCallback((sessionId: string): void => {
@@ -1856,7 +1856,7 @@ export function App(): JSX.Element {
         </main>
         )}
 
-        {/* ADR-0044: one visible browser at a time, no grid — every session
+        {/* ADR-0044: one visible browser at a time, no grid. Every session
             with a tab stays mounted (ADR-0014's reasoning: coming back to a
             directory five levels deep should not mean climbing back down
             it), only the one `sftpFocus` names is shown. */}
