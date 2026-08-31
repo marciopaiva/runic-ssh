@@ -110,6 +110,7 @@ pub fn run() -> tauri::Result<()> {
             commands::terminal::resize_terminal,
             commands::terminal::session_stats,
             commands::sftp::sftp_list,
+            commands::sftp::local_list_directory,
             commands::sftp::sftp_choose_download_destination,
             commands::sftp::sftp_choose_upload_source,
             commands::sftp::sftp_download,

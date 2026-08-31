@@ -53,6 +53,10 @@ pub enum Error {
     #[error("the SFTP operation failed")]
     Sftp(#[from] Box<crate::sftp::error::SftpError>),
 
+    /// ADR-0043. Listing a local directory for the SFTP panel's own side.
+    #[error("the local directory could not be listed")]
+    LocalDirectory(crate::sftp::local::LocalError),
+
     #[error("no saved session has that id")]
     UnknownSession { id: String },
 
@@ -313,6 +317,11 @@ pub enum IpcError {
     /// detail: see `sftp::error::SftpError::Protocol`.
     SftpProtocolFailed,
     SftpTransferCancelled,
+    /// ADR-0043. The local directory the SFTP panel asked to list is gone.
+    LocalDirectoryNotFound,
+    LocalNotADirectory,
+    LocalPermissionDenied,
+    LocalIoFailed,
 }
 
 /// Paths are shown to the user so they can find the file; the rest of the
@@ -341,6 +350,7 @@ impl From<Error> for IpcError {
             Error::InvalidLocale { requested } => Self::InvalidLocale { requested },
             Error::Ssh(ssh) => Self::from(*ssh),
             Error::Sftp(sftp) => Self::from(*sftp),
+            Error::LocalDirectory(local) => Self::from(local),
             Error::UnknownSession { id } => Self::UnknownSession { id },
             Error::InvalidProxyJump { problem } => Self::InvalidProxyJump {
                 problem: match problem {
@@ -470,6 +480,19 @@ impl From<crate::sftp::error::SftpError> for IpcError {
             Sftp::LocalIo => Self::SftpLocalIoFailed,
             Sftp::Protocol => Self::SftpProtocolFailed,
             Sftp::Cancelled => Self::SftpTransferCancelled,
+        }
+    }
+}
+
+impl From<crate::sftp::local::LocalError> for IpcError {
+    fn from(error: crate::sftp::local::LocalError) -> Self {
+        use crate::sftp::local::LocalError as Local;
+
+        match error {
+            Local::NotFound => Self::LocalDirectoryNotFound,
+            Local::NotADirectory => Self::LocalNotADirectory,
+            Local::PermissionDenied => Self::LocalPermissionDenied,
+            Local::Io => Self::LocalIoFailed,
         }
     }
 }

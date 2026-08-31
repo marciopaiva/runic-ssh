@@ -2,6 +2,7 @@
 //! exists. See adr/0041-use-russh-sftp-instead-of-writing-the-protocol.md.
 
 pub mod error;
+pub mod local;
 pub mod path;
 pub mod session;
 pub mod transfer;
