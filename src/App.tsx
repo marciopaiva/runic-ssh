@@ -24,6 +24,7 @@ import { SessionWizard } from './components/SessionWizard';
 import { SessionsSidebar } from './components/SessionsSidebar';
 import { SftpBrowser } from './components/SftpBrowser';
 import { SftpSidebar } from './components/SftpSidebar';
+import { SftpWorkspaceSidebar } from './components/SftpWorkspaceSidebar';
 import { StatusBar } from './components/StatusBar';
 import { TerminalView } from './components/TerminalView';
 import { Titlebar } from './components/Titlebar';
@@ -251,21 +252,30 @@ export function App(): JSX.Element {
      and the rail does not, so the icon that closed it is the way back and the
      window has no state where the list is gone with nothing offering it. */
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  /* What the Sessions groups are pointing at: a `session` or, since #127, an
-     `sftp` tab on one. Never the editor or settings, which moved to their
-     own ring below, `homeFocus`, once ADR-0029 stopped them being tabs a
-     group could hold. */
+  /* What the Sessions groups are pointing at: a `session`, never anything
+     else. SFTP left this ring for its own workspace in ADR-0044, the same
+     way the editor and settings left it for Home's in ADR-0029. */
   const [focus, setFocus] = useState<Focus | null>(null);
   /* Which sessions have an SFTP tab open. A set of session ids rather than a
-     list of `Focus` values: there is at most one such tab per session
-     (#127's own `Focus` doc comment), so membership is the whole question,
-     and `stripEntries` is what turns this into the tab beside each one. */
+     list of `Focus` values: there is at most one such tab per session, so
+     membership is the whole question. Owned by the SFTP workspace alone
+     since ADR-0044; Sessions' `entries`/`groups` never read this any more. */
   const [sftpTabs, setSftpTabs] = useState<ReadonlySet<string>>(new Set());
+  /* Which of `sftpTabs` the SFTP workspace is currently showing. `null` only
+     when nothing has been picked yet from `SftpWorkspaceSidebar`. */
+  const [sftpFocus, setSftpFocus] = useState<string | null>(null);
   /* The remote side of each open SFTP tab's browser, reported up by
      `SftpBrowser` itself: the sidebar tree (`SftpSidebar`) renders in a
      different part of this tree and reads the focused one here rather than
      keeping its own, second idea of where the remote pane is. */
   const [sftpRemotes, setSftpRemotes] = useState<ReadonlyMap<string, SftpRemoteView>>(new Map());
+  /* Sessions `openSftpWorkspace` asked `connect` to reach on the SFTP
+     workspace's behalf, checked by `onOpened` below to decide whether a
+     freshly connected session lands as a focused shell in Sessions (the
+     ordinary case) or as an open tab in the SFTP workspace instead. A ref,
+     not state: nothing renders from this, `onOpened` only needs whatever it
+     was most recently told. */
+  const sftpConnectTargets = useRef<Set<string>>(new Set());
   /* What Home's own strip is pointing at: the host editor or settings, never
      a session. Home has no groups to place an entry into, so this is the
      whole of its focus model, unlike `focus` above. */
@@ -382,7 +392,16 @@ export function App(): JSX.Element {
     onOpened: (sessionId, handle, via) => {
       attach(sessionId, handle);
       setState(sessionId, 'connected');
-      setFocus({ kind: 'session', sessionId });
+      /* ADR-0044: a connection `openSftpWorkspace` started lands as an open
+         SFTP tab instead of a focused shell, the one place this shared
+         success handler has to ask who wanted this connection rather than
+         assuming it was Sessions. */
+      if (sftpConnectTargets.current.delete(sessionId)) {
+        setSftpTabs((current) => (current.has(sessionId) ? current : new Set(current).add(sessionId)));
+        setSftpFocus(sessionId);
+      } else {
+        setFocus({ kind: 'session', sessionId });
+      }
       setCarriedOn((current) => {
         const next = new Map(current);
         /* The bastion's id comes from the saved record and the fact that there
@@ -399,6 +418,7 @@ export function App(): JSX.Element {
     /* A changed key, a host that did not answer, and a credential window the
        user closed are three different things, and the marker says which. */
     onFailed: (sessionId, code) => {
+      sftpConnectTargets.current.delete(sessionId);
       setState(sessionId, stateAfterFailure(code));
       setTestOutcome((current) => new Map(current).set(sessionId, 'failed'));
     },
@@ -408,6 +428,7 @@ export function App(): JSX.Element {
        with no answer at all, where anything left in the map would be the
        *previous* attempt's result showing on this one. */
     onAbandoned: (sessionId, settled) => {
+      sftpConnectTargets.current.delete(sessionId);
       setState(sessionId, 'saved');
       if (settled) return;
       setTestOutcome((current) => {
@@ -440,6 +461,7 @@ export function App(): JSX.Element {
        same way an abandoned one does, and the host that actually needs
        authenticating opens in Hosts with a note saying why. */
     onCredentialMissing: (sessionId, hop) => {
+      sftpConnectTargets.current.delete(sessionId);
       setState(sessionId, 'saved');
 
       const target = credentialRedirectTarget(sessionId, hop, savedRef.current);
@@ -461,12 +483,11 @@ export function App(): JSX.Element {
      clicked. Resolving on render is what keeps the active tab pointing at
      something that is still there. */
   const editing = useMemo(() => editors.map((editor) => editor.target), [editors]);
-  /* Sessions and their SFTP tabs only, since ADR-0029: the editor and
-     settings tabs used to ride in this same list, which is how they ended
-     up inside a group and picked up chrome (the sync switch, the shape
-     control) that made no sense for them. `homeEntries` below is their own
-     list now. */
-  const entries = useMemo(() => stripEntries(tabs, sftpTabs, [], false), [tabs, sftpTabs]);
+  /* Sessions only, since ADR-0029 and now ADR-0044: the editor and settings
+     tabs left for `homeEntries` below when they stopped being tabs a group
+     could hold, and SFTP left the same way, for its own workspace, once it
+     had one. */
+  const entries = useMemo(() => stripEntries(tabs, [], false), [tabs]);
   const resolvedFocus = resolveFocus(entries, focus);
   const activeId = focusedSession(resolvedFocus);
   const activeTab = tabs.find((tab) => tab.sessionId === activeId) ?? null;
@@ -474,11 +495,11 @@ export function App(): JSX.Element {
   const stats = useSessionStats(activeHandle);
   /* One terminal per open session, kept mounted across tab switches. */
   const mounted = useMemo(() => mountedTerminals(tabs), [tabs]);
-  /* Every open session, and every SFTP tab on one, goes in a group; nothing
-     else does any more (ADR-0029). That is what makes rule 3 of ADR-0020
-     true within the Sessions workspace rather than across the whole window:
-     a group's active tab is always one of those two, never the editor or
-     settings, so there is no longer a rectangle to ask "is this really one"
+  /* Every open session goes in a group; nothing else does any more
+     (ADR-0029, ADR-0044). That is what makes rule 3 of ADR-0020 true within
+     the Sessions workspace rather than across the whole window: a group's
+     active tab is always a session, never the editor, settings or an SFTP
+     browser, so there is no longer a rectangle to ask "is this really one"
      of. `shownSession` is the narrower question `groupSyncState` actually
      needs: not "is this a tab from Sessions" but "is this one with a shell
      to type into." */
@@ -493,10 +514,7 @@ export function App(): JSX.Element {
   /* Editors only, since the Hosts/Settings split (ADR-0029's own follow-up):
      settings is a section of Home, chosen from `HomeNav`, not a tab that can
      be open or closed, so it is never one of these entries. */
-  const homeEntries = useMemo(
-    () => stripEntries([], new Set<string>(), editing, false),
-    [editing],
-  );
+  const homeEntries = useMemo(() => stripEntries([], editing, false), [editing]);
   const resolvedHomeFocus = resolveFocus(homeEntries, homeFocus);
   /* The host the editor is open on, or `null` for a new one or none. Read
      again here, at the top level, because the hook below needs it as a
@@ -706,34 +724,52 @@ export function App(): JSX.Element {
     [forget, attentionId, abandon, disconnect],
   );
 
-  /* Opening an SFTP tab beside a session's shell tab. `focusOn` already does
-     the whole of "place this in the focused group, highlight it in the
-     sidebar, and switch to Sessions" for any `Focus`, so the only thing left
-     here is remembering that this session has one. */
-  const openSftp = useCallback(
+  /* Picking a host from the SFTP workspace's own sidebar (ADR-0044).
+     Connecting or switching is always about the SFTP workspace here, the
+     mirror of what `activate` is for Sessions: an open session just gets
+     shown, one not yet open gets connected first, `onOpened` above routing
+     it back here instead of into a focused Sessions tab because
+     `sftpConnectTargets` says to. */
+  const openSftpWorkspace = useCallback(
     (sessionId: string): void => {
-      setSftpTabs((current) => (current.has(sessionId) ? current : new Set(current).add(sessionId)));
-      focusOn({ kind: 'sftp', sessionId });
+      setWorkspace('sftp');
+
+      const live = sessions.find((entry) => entry.session.id === sessionId);
+      if (live === undefined) return;
+
+      if (live.handle !== null) {
+        setSftpTabs((current) => (current.has(sessionId) ? current : new Set(current).add(sessionId)));
+        setSftpFocus(sessionId);
+        return;
+      }
+
+      /* Already connecting, including on `openSftpWorkspace`'s own behalf: a
+         double click must not start a second connection to the same host,
+         the same guard `activate` keeps for Sessions. */
+      if (attempt !== null && attempt.sessionId === sessionId && isInProgress(attempt.stage)) {
+        sftpConnectTargets.current.add(sessionId);
+        return;
+      }
+
+      sftpConnectTargets.current.add(sessionId);
+      void connect(sessionId);
     },
-    [focusOn],
+    [connect, sessions, attempt],
   );
 
-  /* Closing an SFTP tab. Unlike `closeFocus`, nothing here disconnects: the
-     session's own shell tab, if it has one, is untouched, since #127's own
-     `Focus` doc comment is explicit that this is a second view on a
-     connection rather than a connection of its own. */
-  const closeSftp = useCallback(
-    (sessionId: string): void => {
-      forget({ kind: 'sftp', sessionId });
-      setSftpTabs((current) => {
-        if (!current.has(sessionId)) return current;
-        const next = new Set(current);
-        next.delete(sessionId);
-        return next;
-      });
-    },
-    [forget],
-  );
+  /* Closing an SFTP tab. Nothing here disconnects: the session itself, and
+     any shell tab it has in Sessions, is untouched — #127's `Focus` doc
+     comment was explicit that this is a second view on a connection rather
+     than a connection of its own, and ADR-0044 does not change that. */
+  const closeSftpTab = useCallback((sessionId: string): void => {
+    setSftpTabs((current) => {
+      if (!current.has(sessionId)) return current;
+      const next = new Set(current);
+      next.delete(sessionId);
+      return next;
+    });
+    setSftpFocus((current) => (current === sessionId ? null : current));
+  }, []);
 
   /* Closing an editor or settings tab in Home. No group to take it out of and
      no session to disconnect: unsaved work is the only thing this has to ask
@@ -1369,12 +1405,9 @@ export function App(): JSX.Element {
         case 'disconnect':
           disconnect(open.sessionId);
           return;
-        case 'sftp':
-          openSftp(open.sessionId);
-          return;
       }
     },
-    [menu, activate, disconnect, openSftp],
+    [menu, activate, disconnect],
   );
 
   const context = useMemo<CommandContext>(
@@ -1507,13 +1540,11 @@ export function App(): JSX.Element {
      the bar and a strip cannot disagree about a session's name. */
   const activeIdentity = activeId === null ? null : (paneLabels.get(activeId) ?? null);
 
-  /* Which session's SFTP tab, if any, the sidebar slot swaps to a remote
-     tree for. `null` for anything else focused, including a session's own
-     shell tab: the ordinary `SessionsSidebar` covers that case. */
-  const sftpSidebarSession =
-    resolvedFocus?.kind === 'sftp'
-      ? (sessions.find((live) => live.session.id === resolvedFocus.sessionId) ?? null)
-      : null;
+  /* The session `sftpFocus` names, for the SFTP workspace's own sidebar to
+     draw the REMOTE tree against. `null` before anything has been picked
+     from `SftpWorkspaceSidebar`, or if the picked session has since closed. */
+  const sftpFocusSession =
+    sftpFocus === null ? null : (sessions.find((live) => live.session.id === sftpFocus) ?? null);
 
   /* Where a drag lands. A tab moves, a host from the list opens: `openHere`
      already knows that one of those is a connection it has to make and the
@@ -1553,8 +1584,9 @@ export function App(): JSX.Element {
           sidebarOpen={sidebarOpen}
           armed={armed}
           openCount={tabs.length}
+          sftpCount={sftpTabs.size}
           onChoose={(next) => {
-            if (next === workspace && next === 'sessions') {
+            if (next === workspace && (next === 'sessions' || next === 'sftp')) {
               setSidebarOpen((open) => !open);
               return;
             }
@@ -1563,26 +1595,35 @@ export function App(): JSX.Element {
         />
 
         {workspace === 'sessions' && sidebarOpen && (
-          sftpSidebarSession !== null ? (
-            /* design/canvas/gen.py's build_sftp(): the whole sidebar becomes
-               a remote directory tree while an SFTP tab is focused, not a
-               second thing drawn beside SessionsSidebar. */
+          <SessionsSidebar
+            sessions={shown}
+            selectedId={selected}
+            receiving={reaching}
+            spared={spared}
+            onDrag={(sessionId) => {
+              setDragging(sessionId === null ? null : { kind: 'host', sessionId });
+              if (sessionId === null) setDropOver(null);
+            }}
+            onSelect={activate}
+            onMenu={(sessionId, at) => setMenu({ sessionId, at })}
+          />
+        )}
+
+        {/* ADR-0044: the SFTP workspace's own sidebar swaps between its host
+            picker and the REMOTE tree, the same way Sessions' sidebar used
+            to swap for it before SFTP had a workspace of its own. */}
+        {workspace === 'sftp' && sidebarOpen && (
+          sftpFocusSession !== null ? (
             <SftpSidebar
-              session={sftpSidebarSession}
-              remote={sftpRemotes.get(sftpSidebarSession.session.id) ?? null}
+              session={sftpFocusSession}
+              remote={sftpRemotes.get(sftpFocusSession.session.id) ?? null}
+              onClose={() => closeSftpTab(sftpFocusSession.session.id)}
             />
           ) : (
-            <SessionsSidebar
-              sessions={shown}
-              selectedId={selected}
-              receiving={reaching}
-              spared={spared}
-              onDrag={(sessionId) => {
-                setDragging(sessionId === null ? null : { kind: 'host', sessionId });
-                if (sessionId === null) setDropOver(null);
-              }}
-              onSelect={activate}
-              onMenu={(sessionId, at) => setMenu({ sessionId, at })}
+            <SftpWorkspaceSidebar
+              sessions={sessions}
+              sftpTabs={sftpTabs}
+              onOpen={openSftpWorkspace}
             />
           )
         )}
@@ -1679,13 +1720,12 @@ export function App(): JSX.Element {
                     });
                   }}
                   onFocus={focusOn}
-                  /* A group holds only sessions and SFTP tabs since ADR-0029
-                     and #127, but the prop is still typed for the general
-                     `Focus` `GroupStrip` also draws for Home; the guard
-                     documents the invariant rather than trusting it silently. */
+                  /* A group holds only sessions since ADR-0029 and ADR-0044,
+                     but the prop is still typed for the general `Focus`
+                     `GroupStrip` also draws for Home; the guard documents
+                     the invariant rather than trusting it silently. */
                   onClose={(entry) => {
                     if (entry.kind === 'session') closeFocus(entry);
-                    if (entry.kind === 'sftp') closeSftp(entry.sessionId);
                   }}
                   onMenu={(entry, point) =>
                     setGroupMenu({ group: at, entry, at: point })
@@ -1742,37 +1782,6 @@ export function App(): JSX.Element {
                 }
                 onInput={(bytes) => broadcast(terminal.sessionId, bytes)}
                 broadcasting={armed && !muted.has(terminal.sessionId)}
-              />
-            );
-          })}
-
-          {[...sftpTabs].map((sessionId) => {
-            const mine: Focus = { kind: 'sftp', sessionId };
-            const box = boxOf(mine);
-            /* The session's own handle, not a second connection: #127 opens
-               the SFTP subsystem on the channel the session already has. A
-               tab whose session closed in the meantime has nothing to draw,
-               the same gap a stale terminal handle would leave. */
-            const sessionHandle = tabs.find((tab) => tab.sessionId === sessionId)?.handle ?? null;
-            if (sessionHandle === null) return null;
-
-            return (
-              <SftpBrowser
-                key={sessionId}
-                sessionId={sessionId}
-                handle={sessionHandle}
-                visible={box !== null}
-                frame={bodyStyle(box ?? WHOLE_AREA)}
-                id={panelElementId(mine)}
-                labelledBy={tabElementId(mine)}
-                onRemoteChange={(id, remote) =>
-                  setSftpRemotes((current) => {
-                    const next = new Map(current);
-                    if (remote === null) next.delete(id);
-                    else next.set(id, remote);
-                    return next;
-                  })
-                }
               />
             );
           })}
@@ -1843,6 +1852,74 @@ export function App(): JSX.Element {
             <div className="absolute" style={bodyStyle(attemptBox)}>
               {attemptSurface}
             </div>
+          )}
+        </main>
+        )}
+
+        {/* ADR-0044: one visible browser at a time, no grid — every session
+            with a tab stays mounted (ADR-0014's reasoning: coming back to a
+            directory five levels deep should not mean climbing back down
+            it), only the one `sftpFocus` names is shown. */}
+        {workspace === 'sftp' && (
+        <main className="bg-surface-base relative min-w-0 flex-1 overflow-hidden">
+          {[...sftpTabs].map((sessionId) => {
+            /* The session's own handle, not a second connection: #127 opens
+               the SFTP subsystem on the channel the session already has. A
+               tab whose session closed in the meantime has nothing to draw,
+               the same gap a stale terminal handle would leave. */
+            const sessionHandle = tabs.find((tab) => tab.sessionId === sessionId)?.handle ?? null;
+            if (sessionHandle === null) return null;
+
+            return (
+              <SftpBrowser
+                key={sessionId}
+                sessionId={sessionId}
+                handle={sessionHandle}
+                visible={sessionId === sftpFocus}
+                frame={bodyStyle(WHOLE_AREA)}
+                id={`sftp-panel-${sessionId}`}
+                labelledBy={`sftp-row-${sessionId}`}
+                onRemoteChange={(id, remote) =>
+                  setSftpRemotes((current) => {
+                    const next = new Map(current);
+                    if (remote === null) next.delete(id);
+                    else next.set(id, remote);
+                    return next;
+                  })
+                }
+              />
+            );
+          })}
+
+          {/* SftpWorkspace.dc.html's own body: nothing to show until a host
+              is picked from the sidebar beside it. */}
+          {sftpFocus === null && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-[18px] p-10">
+              <svg viewBox="0 0 24 24" className="text-ink-disabled h-10 w-10" fill="none" aria-hidden="true">
+                <path
+                  d="M4 6.5h6l1.6 2H20v9.5H4z"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <div className="flex flex-col items-center gap-1.5 text-center">
+                <span className="text-ink2 text-[13.5px] font-semibold">
+                  {i18n.t('sftp.workspace.pick')}
+                </span>
+                <span className="text-ink-faint text-[12px]">{i18n.t('sftp.workspace.pick.hint')}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Host-key decisions, the "Reaching <host>…" surface and the rest
+              of `attemptSurface` are not Sessions-shaped: a connection
+              `openSftpWorkspace` started needs the exact same prompts, and
+              this workspace has no grid to draw them into, only its one
+              rectangle. Full-area rather than `attemptBox`-positioned for
+              that reason. */}
+          {attempt !== null && attemptSurface !== null && (
+            <div className="absolute inset-0">{attemptSurface}</div>
           )}
         </main>
         )}

@@ -14,6 +14,9 @@ interface SftpSidebarProps {
   /** `null` for the one render between opening the tab and the pane's own
    * `useSftpBrowser` reporting its first state up. */
   readonly remote: SftpRemoteView | null;
+  /** Stops browsing this session and returns to the workspace's own host
+   * picker (ADR-0044). */
+  readonly onClose: () => void;
 }
 
 /**
@@ -26,7 +29,7 @@ interface SftpSidebarProps {
  * pane's own rows already call, so the two never disagree about where the
  * remote side is.
  */
-export function SftpSidebar({ session, remote }: SftpSidebarProps): JSX.Element {
+export function SftpSidebar({ session, remote, onClose }: SftpSidebarProps): JSX.Element {
   const i18n = useTranslator();
   const rows =
     remote === null ? [] : treeRows(remote.treeChain, remote.treeChildren, remote.remoteEntries);
@@ -37,9 +40,22 @@ export function SftpSidebar({ session, remote }: SftpSidebarProps): JSX.Element 
       className="bg-surface-panel border-line-subtle flex h-full w-[280px] shrink-0 flex-col border-r"
     >
       <div className="border-line-subtle flex flex-col gap-2 border-b p-3">
-        <span className="text-ink-faint text-[10px] font-bold tracking-[0.12em]">
-          {i18n.t('sftp.remote')}
-        </span>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-ink-faint text-[10px] font-bold tracking-[0.12em]">
+            {i18n.t('sftp.remote')}
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={i18n.t('sftp.workspace.stopBrowsing')}
+            title={i18n.t('sftp.workspace.stopBrowsing')}
+            className="text-ink-faint hover:text-ink flex h-4 w-4 shrink-0 items-center justify-center rounded"
+          >
+            <svg viewBox="0 0 10 10" className="h-2 w-2" fill="none" aria-hidden="true">
+              <path d="M0.5 0.5l9 9M9.5 0.5l-9 9" stroke="currentColor" strokeWidth="1.4" />
+            </svg>
+          </button>
+        </div>
         <div className="flex items-center gap-1.5">
           <SessionMarker kind={session.kind} />
           <span className="text-ink2 truncate font-mono text-[11.5px]">

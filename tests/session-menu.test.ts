@@ -61,16 +61,6 @@ describe('the row menu', () => {
     }
   });
 
-  it('offers SFTP only once a handle exists', () => {
-    /* A second channel on the same connection, not a connection of its own
-       (#127): there is nothing for it to open while the first one is still
-       being made. */
-    expect(sessionMenu(live('connected', 1)).map((item) => item.action)).toContain('sftp');
-    expect(sessionMenu(live('saved')).map((item) => item.action)).not.toContain('sftp');
-    expect(sessionMenu(live('connecting')).map((item) => item.action)).not.toContain('sftp');
-    expect(sessionMenu(live('unreachable')).map((item) => item.action)).not.toContain('sftp');
-  });
-
   it('marks nothing as destructive', () => {
     /* Disconnecting loses nothing a reconnect does not get back; the one
        action that does, deleting the record, is not offered here any more. */
