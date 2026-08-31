@@ -20,6 +20,7 @@
 pub mod commands;
 pub mod config;
 pub mod error;
+pub mod sftp;
 pub mod ssh;
 pub mod vault;
 
