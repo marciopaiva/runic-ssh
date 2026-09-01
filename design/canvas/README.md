@@ -40,7 +40,7 @@ ADR-0020 exists to stop.
 | Page | What is on it |
 | --- | --- |
 | `System` | The anatomy and its seven rules, and the token, type, density and marker sheet |
-| `Surfaces` | Fifteen screens |
+| `Surfaces` | Nineteen screens |
 | `Variants` | Light, and the same window in pt-BR and neutral es |
 
 ## Files
@@ -64,6 +64,10 @@ ADR-0020 exists to stop.
 | `HomeHosts.dc.html` | Hosts, chosen from Home's own nav |
 | `HostsHost.dc.html` | The wizard's Host step, opened from Hosts |
 | `HostsAccess.dc.html` | The wizard's Access step, credential and all |
+| `SftpWorkspace.dc.html` | SFTP's own workspace, nothing picked yet (ADR-0044) |
+| `SftpFanout.dc.html` | One source, a grid of up to four destinations (ADR-0045) |
+| `SftpFileOps.dc.html` | Creating, renaming and deleting a file or folder in place (ADR-0048) |
+| `SftpFolderCopy.dc.html` | Copying a folder: one still in progress, one finished with failures (ADR-0049) |
 | `Main{Light,PtBr,Es}.dc.html` | The same window, generated |
 
 Every screen a user can meet is drawn here. That is the point of the set rather
@@ -101,13 +105,21 @@ remaining two joined the set above, closing #233 along with
 
 ## What is drawn here and not built
 
-The canvas is the record of the anatomy, not a checklist of the tree. One
-thing it draws deliberately has no code behind it, and this is where that is
-written down so the next person does not build it from the picture.
+The canvas is the record of the anatomy, not a checklist of the tree. Nothing
+here currently draws a feature with no code behind it, but the list stays,
+so a gap like this gets written down the day it is found rather than the day
+somebody trips over it.
 
-* **SFTP.** `Sftp.dc.html` and the rail's second icon. The feature has no code
-  (#127), and rule 6 of ADR-0020 refuses an icon that switches to nothing. The
-  slot arrives with the feature.
+**SFTP was this list's entry from ADR-0020 until #250.** `Sftp.dc.html` and
+the rail's second icon drew a slot with nothing behind it, deliberately: rule
+6 of ADR-0020 refuses an icon that switches to nothing, and the slot was
+meant to arrive with the feature. #250 built the dual-pane browser the slot
+promised; ADR-0044 through ADR-0049 then gave it its own workspace,
+drag-and-drop, fan-out to several destinations, create/rename/delete, and a
+recursive folder copy, each drawn (`SftpWorkspace.dc.html`,
+`SftpFanout.dc.html`, `SftpFileOps.dc.html`, `SftpFolderCopy.dc.html`) before
+it was built. This is the direction this section exists for: the drawing
+ahead of the tree, not behind it.
 
 This list had a third entry for a while without anybody writing it down, which
 is the failure the list exists to prevent. Nine artboards drew `SYNC OFF` in the
