@@ -213,7 +213,6 @@
   "sftp.error.permissionDenied": "El servidor rechazó el permiso.",
   "sftp.error.protocol": "El protocolo SFTP falló.",
   "sftp.failed": "Falló",
-  "sftp.fansOutTo": "SE ENVÍA A",
   "sftp.localhost": "localhost",
   "sftp.nav.back": "Atrás",
   "sftp.nav.refresh": "Actualizar",

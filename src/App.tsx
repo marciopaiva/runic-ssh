@@ -2042,13 +2042,11 @@ export function App(): JSX.Element {
                 </div>
 
                 <div className="flex min-w-0 flex-1 flex-col gap-3">
-                  <div className="flex shrink-0 items-center gap-2 text-ink-faint text-[10px] font-bold tracking-[0.1em]">
-                    <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" aria-hidden="true">
-                      <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    {i18n.t('sftp.fansOutTo')}
-                  </div>
-
+                  {/* No "FANS OUT TO" label: confirmed directly that left is
+                      source and right is destination in essentially every
+                      file manager, so a label naming that convention says
+                      nothing a reader doesn't already assume from the two
+                      columns themselves (SftpProposal.dc.html). */}
                   <div
                     className="grid min-h-0 flex-1 gap-3 overflow-y-auto"
                     style={{ gridTemplateRows: `repeat(${String(visibleRows)}, minmax(120px, 1fr))` }}
