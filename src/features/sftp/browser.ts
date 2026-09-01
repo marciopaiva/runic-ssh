@@ -137,3 +137,52 @@ export function remoteParent(path: string): string | null {
 export function visibleDestinationRows(split: number, occupied: number, max: number): number {
   return Math.min(max, Math.max(split, occupied));
 }
+
+/** One clickable crumb in a pane's nav bar: what it says, and the path
+ * clicking it re-enters. */
+export interface PathSegment {
+  readonly label: string;
+  readonly path: string;
+}
+
+/**
+ * Breadcrumb segments for a pane's current path (ADR-0047).
+ *
+ * Split on `/`, which is exact for every remote path (always POSIX on the
+ * wire, per `remoteParent` above) and correct for a local path on every
+ * platform this ships on except Windows, where a path separated by `\`
+ * instead comes back as one segment naming the whole thing: coarser
+ * information, not wrong information, and not worth a second splitting
+ * rule for the one platform that needs it until somebody is looking at it
+ * there. `.`, the remote root `sftpList` starts a fresh pane at, has
+ * nothing to break into and draws no breadcrumb at all.
+ */
+export function pathSegments(path: string): readonly PathSegment[] {
+  const trimmed = path.replace(/\/+$/, '');
+  if (trimmed === '' || trimmed === '.') return [];
+
+  const absolute = trimmed.startsWith('/');
+  const parts = trimmed.split('/').filter((part) => part.length > 0);
+
+  const segments: PathSegment[] = [];
+  let running = '';
+  for (const part of parts) {
+    running = running === '' ? (absolute ? `/${part}` : part) : `${running}/${part}`;
+    segments.push({ label: part, path: running });
+  }
+
+  if (absolute) segments.unshift({ label: '/', path: '/' });
+  return segments;
+}
+
+/** Flips one destination slot's own receive toggle (ADR-0047): a slot
+ * absent from the set receives a fan-out, one present in it is spared.
+ * The same shape Sessions' own `muted` already is, and for the same
+ * reason: arming (occupying a slot) has always started with everyone
+ * included, which an empty set gives for free. */
+export function toggleReceiving(muted: ReadonlySet<number>, slot: number): ReadonlySet<number> {
+  const next = new Set(muted);
+  if (next.has(slot)) next.delete(slot);
+  else next.add(slot);
+  return next;
+}

@@ -17,7 +17,7 @@
  * local pane always worked.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { asIpcError, localListDirectory, sftpList } from '../../ipc';
 import type { IpcErrorCode } from '../../ipc';
@@ -33,11 +33,18 @@ export interface PaneState {
   readonly parent: string | null;
   readonly loading: boolean;
   readonly error: IpcErrorCode | null;
+  /** Paths this pane was at before, most recently left last. ADR-0047:
+   * back only, no forward, which is the one direction the nav bar draws. */
+  readonly history: readonly string[];
 }
 
 export interface PaneActions {
   readonly enter: (path: string | null) => void;
   readonly goUp: () => void;
+  /** Returns to the last entry in `history`, without pushing anything: a
+   * back that could itself be gone back from would need forward too, which
+   * ADR-0047 does not draw. */
+  readonly back: () => void;
 }
 
 const START_REMOTE = '.';
@@ -48,11 +55,18 @@ export function usePane(endpoint: Endpoint): PaneState & PaneActions {
   const [parent, setParent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<IpcErrorCode | null>(null);
+  const [history, setHistory] = useState<readonly string[]>([]);
+  /* `navigate` has to stay a stable reference (the mount effect below and
+     `reload` in `App.tsx`'s `reportPane` close over it once), so the path
+     being left is read from here rather than from `path` state, which
+     would otherwise have to be a dependency. */
+  const pathRef = useRef<string | null>(null);
 
-  const load = useCallback(
-    (requested: string | null) => {
+  const navigate = useCallback(
+    (requested: string | null, record: boolean) => {
       setLoading(true);
       setError(null);
+      const leaving = pathRef.current;
 
       const listing =
         endpoint.kind === 'local'
@@ -68,6 +82,14 @@ export function usePane(endpoint: Endpoint): PaneState & PaneActions {
 
       void listing
         .then((result) => {
+          /* Only on an actual move, and only once it is known to have
+             succeeded: a refresh (`reload` asking for the path it is
+             already at) or a failed navigation must not leave a dead end
+             in the back stack. */
+          if (record && leaving !== null && leaving !== result.path) {
+            setHistory((current) => [...current, leaving]);
+          }
+          pathRef.current = result.path;
           setPath(result.path);
           setEntries(result.entries);
           setParent(result.parent);
@@ -82,7 +104,7 @@ export function usePane(endpoint: Endpoint): PaneState & PaneActions {
   );
 
   useEffect(() => {
-    load(null);
+    navigate(null, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -92,9 +114,16 @@ export function usePane(endpoint: Endpoint): PaneState & PaneActions {
     parent,
     loading,
     error,
-    enter: load,
+    history,
+    enter: (requested) => navigate(requested, true),
     goUp: () => {
-      if (parent !== null) load(parent);
+      if (parent !== null) navigate(parent, true);
+    },
+    back: () => {
+      const target = history.at(-1);
+      if (target === undefined) return;
+      setHistory((current) => current.slice(0, -1));
+      navigate(target, false);
     },
   };
 }

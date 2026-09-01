@@ -1,11 +1,14 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import type { JSX } from 'react';
 
+import { pathSegments } from '../features/sftp/browser';
 import { describeSftpFailure } from '../features/sftp/failure';
 import { usePane } from '../features/sftp/use-pane';
 import type { Endpoint, PaneEntry } from '../features/sftp/endpoint';
 import { useTranslator } from '../features/settings';
 import type { Translator } from '../lib/i18n';
+
+import { BroadcastGlyph } from './BroadcastGlyph';
 
 interface SftpPaneProps {
   readonly endpoint: Endpoint;
@@ -20,12 +23,18 @@ interface SftpPaneProps {
    * up to the fan-out orchestration: `useFanout`'s own `reportPane`.
    * Called with `null` on unmount. */
   readonly onReport: (paneId: string, report: { readonly path: string | null; readonly reload: () => void } | null) => void;
-  /** Present only on the source pane: sends a file to every occupied
-   * destination. `null` on a destination pane, which only ever receives. */
+  /** Present only on the source pane: sends a file to every occupied,
+   * receiving destination. `null` on a destination pane, which only ever
+   * receives. Called once per file selected, ADR-0047's own reading of
+   * "check one row, press Send" covering the single-file case too. */
   readonly onSend: ((entry: PaneEntry) => void) | null;
   /** A destination slot's own way to clear itself, drawn beside its
    * identity. `null` on the source, which has nothing to clear to. */
   readonly onClear: (() => void) | null;
+  /** Whether this destination slot receives a fan-out right now. `null` on
+   * the source, which the question does not apply to (ADR-0047). */
+  readonly receiving: boolean | null;
+  readonly onToggleReceiving: (() => void) | null;
 }
 
 /** The folder icon, also drawn on the rail's own SFTP slot and the sidebar. */
@@ -87,11 +96,24 @@ interface RowProps {
   readonly size: number;
   readonly modifiedUnixSecs: number | null;
   readonly onOpen: () => void;
-  readonly onSend: (() => void) | null;
-  readonly sendLabel: string;
+  /** `null` on a destination pane, and on a directory: only a source
+   * pane's own files are selectable for sending (ADR-0047). Replaces the
+   * previous hover-only send icon rather than sitting beside it. */
+  readonly selected: boolean | null;
+  readonly onToggleSelect: (() => void) | null;
+  readonly selectLabel: string;
 }
 
-function Row({ name, isDir, size, modifiedUnixSecs, onOpen, onSend, sendLabel }: RowProps): JSX.Element {
+function Row({
+  name,
+  isDir,
+  size,
+  modifiedUnixSecs,
+  onOpen,
+  selected,
+  onToggleSelect,
+  selectLabel,
+}: RowProps): JSX.Element {
   return (
     <div className="hover:bg-surface-raised/40 group flex items-center gap-2.5 px-2.5 py-[3px]">
       <button
@@ -113,25 +135,134 @@ function Row({ name, isDir, size, modifiedUnixSecs, onOpen, onSend, sendLabel }:
       <span className="text-ink-faint w-[96px] shrink-0 text-right font-mono text-[11px]">
         {formatModified(modifiedUnixSecs)}
       </span>
-      {onSend !== null && (
-        <button
-          type="button"
-          onClick={onSend}
-          aria-label={sendLabel}
-          title={sendLabel}
-          className="text-ink-faint hover:text-accent flex h-4 w-4 shrink-0 items-center justify-center opacity-0 group-hover:opacity-100"
-        >
-          <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" aria-hidden="true">
-            <path
-              d="M2 8h10M8 3.5L12.5 8 8 12.5"
-              stroke="currentColor"
-              strokeWidth="1.4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
-      )}
+      <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+        {onToggleSelect !== null && (
+          <input
+            type="checkbox"
+            checked={selected === true}
+            onChange={onToggleSelect}
+            aria-label={selectLabel}
+            title={selectLabel}
+            className="accent-accent h-3.5 w-3.5"
+          />
+        )}
+      </span>
+    </div>
+  );
+}
+
+interface NavBarProps {
+  readonly i18n: Translator;
+  readonly path: string | null;
+  readonly canGoBack: boolean;
+  readonly canGoUp: boolean;
+  readonly onBack: () => void;
+  readonly onUp: () => void;
+  readonly onEnter: (path: string) => void;
+  readonly onRefresh: () => void;
+}
+
+/**
+ * Back, up, a clickable breadcrumb and refresh, below a pane's identity
+ * header (ADR-0047). No forward: `usePane`'s own history is back-only,
+ * which is the one direction this draws.
+ */
+function NavBar({ i18n, path, canGoBack, canGoUp, onBack, onUp, onEnter, onRefresh }: NavBarProps): JSX.Element {
+  const segments = pathSegments(path ?? '');
+
+  return (
+    <div className="border-line-subtle bg-surface-chrome flex h-7 shrink-0 items-center gap-0.5 border-b px-1.5">
+      <button
+        type="button"
+        disabled={!canGoBack}
+        onClick={onBack}
+        aria-label={i18n.t('sftp.nav.back')}
+        title={i18n.t('sftp.nav.back')}
+        className="text-ink-muted enabled:hover:text-ink disabled:text-ink-disabled flex h-5 w-5 shrink-0 items-center justify-center"
+      >
+        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" aria-hidden="true">
+          <path d="M14 5l-6 7 6 7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        disabled={!canGoUp}
+        onClick={onUp}
+        aria-label={i18n.t('sftp.nav.up')}
+        title={i18n.t('sftp.nav.up')}
+        className="text-ink-muted enabled:hover:text-ink disabled:text-ink-disabled flex h-5 w-5 shrink-0 items-center justify-center"
+      >
+        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" aria-hidden="true">
+          <path d="M5 14l7-6 7 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
+      <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-1">
+        {segments.length === 0 ? (
+          <span className="text-ink-disabled font-mono text-[11px]">/</span>
+        ) : (
+          segments.map((segment, at) => (
+            <span key={segment.path} className="flex shrink-0 items-center gap-1">
+              {at > 0 && <span className="text-ink-disabled">/</span>}
+              <button
+                type="button"
+                onClick={() => onEnter(segment.path)}
+                className="text-ink-muted hover:text-ink truncate font-mono text-[11px]"
+              >
+                {segment.label}
+              </button>
+            </span>
+          ))
+        )}
+      </div>
+
+      <button
+        type="button"
+        onClick={onRefresh}
+        aria-label={i18n.t('sftp.nav.refresh')}
+        title={i18n.t('sftp.nav.refresh')}
+        className="text-ink-muted hover:text-ink flex h-5 w-5 shrink-0 items-center justify-center"
+      >
+        <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" aria-hidden="true">
+          <path d="M20 12a8 8 0 1 1-2.6-5.9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          <path d="M20 4v5h-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
+interface SendBarProps {
+  readonly i18n: Translator;
+  readonly count: number;
+  readonly onClear: () => void;
+  readonly onSend: () => void;
+}
+
+/** The source pane's own way to start a transfer, once one or more files
+ * are checked (ADR-0047). Replaces the previous hover-only send icon. */
+function SendBar({ i18n, count, onClear, onSend }: SendBarProps): JSX.Element {
+  return (
+    <div className="border-line-subtle bg-surface-chrome flex h-9 shrink-0 items-center gap-2.5 border-t px-2.5">
+      <span className="text-ink-muted flex-1 text-[11.5px]">
+        {i18n.t('sftp.selected', { count: String(count) })}
+      </span>
+      <button
+        type="button"
+        onClick={onClear}
+        className="text-ink-faint hover:text-ink text-[11.5px]"
+      >
+        {i18n.t('sftp.clearSelection')}
+      </button>
+      <button
+        type="button"
+        onClick={onSend}
+        aria-label={i18n.t('sftp.sendToDestinations')}
+        title={i18n.t('sftp.sendToDestinations')}
+        className="bg-accent text-surface-base rounded px-3 py-1 text-[11.5px] font-semibold"
+      >
+        {i18n.t('sftp.send')}
+      </button>
     </div>
   );
 }
@@ -164,9 +295,15 @@ export function SftpPane({
   onReport,
   onSend,
   onClear,
+  receiving,
+  onToggleReceiving,
 }: SftpPaneProps): JSX.Element {
   const i18n = useTranslator();
   const pane = usePane(endpoint);
+  /* Which of this pane's own files are checked, source only (`onSend` is
+     `null` on a destination). Reset on every navigation: a selection made
+     in one directory has nothing to say about the next one. */
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
 
   useEffect(() => {
     onReport(paneId, { path: pane.path, reload: () => pane.enter(pane.path) });
@@ -174,8 +311,21 @@ export function SftpPane({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paneId, pane.path, pane.enter, onReport]);
 
+  useEffect(() => {
+    setSelected(new Set());
+  }, [pane.path]);
+
   const open = (entry: PaneEntry): void => {
     if (entry.isDir) pane.enter(entry.path);
+  };
+
+  const toggleSelect = (path: string): void => {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
   };
 
   return (
@@ -185,6 +335,21 @@ export function SftpPane({
         <span className="text-ink-muted truncate font-mono text-[11px]">{identity}</span>
         <span className="text-ink-disabled truncate font-mono text-[10.5px]">{pane.path ?? ''}</span>
         <div className="flex-1" />
+        {receiving !== null && onToggleReceiving !== null && (
+          <button
+            type="button"
+            role="switch"
+            aria-checked={receiving}
+            onClick={onToggleReceiving}
+            aria-label={i18n.t(receiving ? 'sftp.receiving.on' : 'sftp.receiving.off')}
+            title={i18n.t(receiving ? 'sftp.receiving.on' : 'sftp.receiving.off')}
+            className={`flex h-4 w-4 shrink-0 items-center justify-center ${
+              receiving ? 'text-warn' : 'text-ink-faint hover:text-ink-muted'
+            }`}
+          >
+            <BroadcastGlyph className="h-3.5 w-3.5" />
+          </button>
+        )}
         {onClear !== null && (
           <button
             type="button"
@@ -200,6 +365,17 @@ export function SftpPane({
         )}
       </div>
 
+      <NavBar
+        i18n={i18n}
+        path={pane.path}
+        canGoBack={pane.history.length > 0}
+        canGoUp={pane.parent !== null}
+        onBack={pane.back}
+        onUp={pane.goUp}
+        onEnter={pane.enter}
+        onRefresh={() => pane.enter(pane.path)}
+      />
+
       <div className="min-h-0 flex-1 overflow-y-auto py-1">
         <Header i18n={i18n} />
         {pane.error !== null && (
@@ -212,8 +388,9 @@ export function SftpPane({
             size={0}
             modifiedUnixSecs={null}
             onOpen={() => pane.enter(pane.parent)}
-            onSend={null}
-            sendLabel=""
+            selected={null}
+            onToggleSelect={null}
+            selectLabel=""
           />
         )}
         {pane.error === null && !pane.loading && pane.entries.length === 0 && (
@@ -228,11 +405,26 @@ export function SftpPane({
               size={entry.size}
               modifiedUnixSecs={entry.modifiedUnixSecs}
               onOpen={() => open(entry)}
-              onSend={onSend === null || entry.isDir ? null : () => onSend(entry)}
-              sendLabel={i18n.t('sftp.sendToDestinations')}
+              selected={onSend === null || entry.isDir ? null : selected.has(entry.path)}
+              onToggleSelect={onSend === null || entry.isDir ? null : () => toggleSelect(entry.path)}
+              selectLabel={i18n.t('sftp.selectFile', { name: entry.name })}
             />
           ))}
       </div>
+
+      {onSend !== null && selected.size > 0 && (
+        <SendBar
+          i18n={i18n}
+          count={selected.size}
+          onClear={() => setSelected(new Set())}
+          onSend={() => {
+            for (const entry of pane.entries) {
+              if (selected.has(entry.path)) onSend(entry);
+            }
+            setSelected(new Set());
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -27,7 +27,7 @@ import type { TransferHandle } from '../../ipc';
 import type { LiveSession } from '../sessions/state';
 import { groupLabel } from '../terminal';
 import { useTranslator } from '../settings';
-import { reduceTransfers } from './browser';
+import { reduceTransfers, toggleReceiving } from './browser';
 import type { TransferDirection, TransferState } from './browser';
 import type { Endpoint, PaneEntry } from './endpoint';
 
@@ -45,6 +45,11 @@ export interface FanoutState {
   readonly source: Endpoint | null;
   readonly destinations: readonly (Endpoint | null)[];
   readonly transfers: readonly TransferState[];
+  /** Occupied destination slots spared from a fan-out (ADR-0047). A slot
+   * absent from this set receives; one present in it does not. Empty by
+   * default, the same "arming starts with everyone included" rule
+   * Sessions' own broadcast follows. */
+  readonly mutedDestinations: ReadonlySet<number>;
 }
 
 export interface FanoutActions {
@@ -57,6 +62,10 @@ export interface FanoutActions {
    * drop behaviour, which does not fit a destination. */
   readonly replaceDestination: (slot: number, endpoint: Endpoint) => void;
   readonly clearDestination: (slot: number) => void;
+  readonly toggleDestinationReceiving: (slot: number) => void;
+  /** Includes every occupied destination again: the toolbar's own
+   * "select every occupied destination" shortcut (ADR-0047). */
+  readonly includeEveryDestination: () => void;
   readonly reportPane: (paneId: string, report: PaneReport | null) => void;
   readonly sendToDestinations: (entry: PaneEntry) => void;
   readonly cancelTransfer: (transfer: TransferHandle) => void;
@@ -75,6 +84,7 @@ export function useFanout(sessions: readonly LiveSession[]): FanoutState & Fanou
     Array.from({ length: MAX_DESTINATIONS }, () => null),
   );
   const [transfers, setTransfers] = useState<readonly TransferState[]>([]);
+  const [mutedDestinations, setMutedDestinations] = useState<ReadonlySet<number>>(new Set());
 
   /* Where each mounted pane currently is, and how to refresh it. A ref, not
      state: nothing renders from this directly, `sendToDestinations` only
@@ -86,20 +96,52 @@ export function useFanout(sessions: readonly LiveSession[]): FanoutState & Fanou
     else panes.current.set(paneId, report);
   }, []);
 
-  const addDestination = useCallback((endpoint: Endpoint) => {
-    setDestinations((current) => {
-      const empty = current.indexOf(null);
-      if (empty < 0) return current;
-      return current.map((slot, at) => (at === empty ? endpoint : slot));
+  /* Occupying a slot, however it happens, always starts it receiving:
+     "arming starts with everyone included" (ADR-0019), read onto a single
+     slot rather than the whole broadcast. */
+  const include = useCallback((slot: number) => {
+    setMutedDestinations((current) => {
+      if (!current.has(slot)) return current;
+      const next = new Set(current);
+      next.delete(slot);
+      return next;
     });
   }, []);
 
-  const replaceDestination = useCallback((slot: number, endpoint: Endpoint) => {
-    setDestinations((current) => current.map((occupant, at) => (at === slot ? endpoint : occupant)));
+  const addDestination = useCallback(
+    (endpoint: Endpoint) => {
+      setDestinations((current) => {
+        const empty = current.indexOf(null);
+        if (empty < 0) return current;
+        include(empty);
+        return current.map((slot, at) => (at === empty ? endpoint : slot));
+      });
+    },
+    [include],
+  );
+
+  const replaceDestination = useCallback(
+    (slot: number, endpoint: Endpoint) => {
+      include(slot);
+      setDestinations((current) => current.map((occupant, at) => (at === slot ? endpoint : occupant)));
+    },
+    [include],
+  );
+
+  const clearDestination = useCallback(
+    (slot: number) => {
+      include(slot);
+      setDestinations((current) => current.map((occupant, at) => (at === slot ? null : occupant)));
+    },
+    [include],
+  );
+
+  const toggleDestinationReceiving = useCallback((slot: number) => {
+    setMutedDestinations((current) => toggleReceiving(current, slot));
   }, []);
 
-  const clearDestination = useCallback((slot: number) => {
-    setDestinations((current) => current.map((occupant, at) => (at === slot ? null : occupant)));
+  const includeEveryDestination = useCallback(() => {
+    setMutedDestinations(new Set());
   }, []);
 
   const labelFor = useCallback(
@@ -147,7 +189,7 @@ export function useFanout(sessions: readonly LiveSession[]): FanoutState & Fanou
       if (source === null || entry.isDir) return;
 
       destinations.forEach((destination, slot) => {
-        if (destination === null) return;
+        if (destination === null || mutedDestinations.has(slot)) return;
         const pane = panes.current.get(destinationPaneId(slot));
         if (pane?.path == null) return;
 
@@ -179,7 +221,7 @@ export function useFanout(sessions: readonly LiveSession[]): FanoutState & Fanou
         });
       });
     },
-    [source, destinations, labelFor, track],
+    [source, destinations, mutedDestinations, labelFor, track],
   );
 
   const cancelTransfer = useCallback((transfer: TransferHandle) => {
@@ -194,10 +236,13 @@ export function useFanout(sessions: readonly LiveSession[]): FanoutState & Fanou
     source,
     destinations,
     transfers,
+    mutedDestinations,
     setSource,
     addDestination,
     replaceDestination,
     clearDestination,
+    toggleDestinationReceiving,
+    includeEveryDestination,
     reportPane,
     sendToDestinations,
     cancelTransfer,
