@@ -2010,7 +2010,12 @@ export function App(): JSX.Element {
           return (
             <main className="bg-surface-base relative flex min-w-0 flex-1 flex-col gap-3 overflow-hidden p-3">
               <div className="flex min-h-0 flex-1 gap-3">
-                <div className="relative w-[32%] min-w-[260px] shrink-0" {...dragOverHandlers({ kind: 'source' })}>
+                {/* Same width as the destination column: confirmed directly
+                    against the canvas (SftpProposal.dc.html), source and
+                    destination each `width: 50%` there, and against the
+                    maintainer's own instruction during that review that the
+                    two must match. */}
+                <div className="relative w-1/2 min-w-[260px] shrink-0" {...dragOverHandlers({ kind: 'source' })}>
                   {fanout.source === null ? (
                     <div
                       className={`text-ink-faint flex h-full flex-col items-center justify-center gap-2 rounded border-2 border-dashed text-[12.5px] transition-colors ${dropTone({ kind: 'source' })}`}

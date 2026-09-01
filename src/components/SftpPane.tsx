@@ -207,7 +207,12 @@ function NavBar({ i18n, path, canGoBack, canGoUp, onBack, onUp, onEnter, onRefre
               <button
                 type="button"
                 onClick={() => onEnter(segment.path)}
-                className="text-ink-muted hover:text-ink truncate font-mono text-[11px]"
+                /* The tail reads brighter than the rest, the same weight
+                   rule a breadcrumb usually gives its own current segment
+                   (matches the canvas's own `nav_bar()`). */
+                className={`hover:text-ink truncate font-mono text-[11px] ${
+                  at === segments.length - 1 ? 'text-ink' : 'text-ink-muted'
+                }`}
               >
                 {segment.label}
               </button>
@@ -240,13 +245,17 @@ interface SendBarProps {
 }
 
 /** The source pane's own way to start a transfer, once one or more files
- * are checked (ADR-0047). Replaces the previous hover-only send icon. */
+ * are checked (ADR-0047). Replaces the previous hover-only send icon. The
+ * panel tone (not the chrome the header and nav bar use) matches the
+ * canvas's own `send_bar()`, which draws it as the sidebar's own surface
+ * rather than one more chrome bar. */
 function SendBar({ i18n, count, onClear, onSend }: SendBarProps): JSX.Element {
   return (
-    <div className="border-line-subtle bg-surface-chrome flex h-9 shrink-0 items-center gap-2.5 border-t px-2.5">
-      <span className="text-ink-muted flex-1 text-[11.5px]">
+    <div className="border-line-subtle bg-surface-panel flex h-9 shrink-0 items-center gap-3 border-t px-2.5">
+      <span className="text-ink-muted font-mono text-[11px]">
         {i18n.t('sftp.selected', { count: String(count) })}
       </span>
+      <div className="flex-1" />
       <button
         type="button"
         onClick={onClear}
@@ -259,9 +268,12 @@ function SendBar({ i18n, count, onClear, onSend }: SendBarProps): JSX.Element {
         onClick={onSend}
         aria-label={i18n.t('sftp.sendToDestinations')}
         title={i18n.t('sftp.sendToDestinations')}
-        className="bg-accent text-surface-base rounded px-3 py-1 text-[11.5px] font-semibold"
+        className="bg-accent text-surface-base flex items-center gap-1.5 rounded-md px-3.5 py-1.5 text-[12px] font-semibold"
       >
         {i18n.t('sftp.send')}
+        <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" aria-hidden="true">
+          <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
       </button>
     </div>
   );
