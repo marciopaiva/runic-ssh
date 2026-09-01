@@ -68,8 +68,7 @@ vi.mock('../src/features/terminal/theme', () => ({ terminalTheme: () => ({}) }))
 const ipc = vi.hoisted(() => ({
   openTerminal: vi.fn(async () => {}),
   resizeTerminal: vi.fn(async () => {}),
-  onOutput: vi.fn(async () => vi.fn()),
-  onClosed: vi.fn(async () => vi.fn()),
+  watchTerminal: vi.fn(async () => vi.fn()),
 }));
 
 vi.mock('../src/ipc', () => ipc);
@@ -111,9 +110,10 @@ async function mountProbe(container: HTMLDivElement, handle: number) {
   });
 
   // `start()` inside the effect is async and fire-and-forget; wait for its
-  // last await (subscribing to `onClosed`) rather than guessing a delay.
+  // last await (opening the shell, which `watchTerminal` now precedes)
+  // rather than guessing a delay.
   await vi.waitFor(() => {
-    expect(ipc.onClosed).toHaveBeenCalled();
+    expect(ipc.openTerminal).toHaveBeenCalled();
   });
 
   const terminal = xterm.instances.at(-1);
@@ -165,8 +165,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   ipc.openTerminal.mockClear();
   ipc.resizeTerminal.mockClear();
-  ipc.onOutput.mockClear();
-  ipc.onClosed.mockClear();
+  ipc.watchTerminal.mockClear();
   xterm.instances.length = 0;
 });
 
@@ -256,19 +255,15 @@ describe('what unmounting a terminal releases', () => {
     const container = document.createElement('div');
     const probe = await mountProbe(container, 6);
 
-    const stopOutput = (await ipc.onOutput.mock.results[0]?.value) as
+    const stopWatching = (await ipc.watchTerminal.mock.results[0]?.value) as
       | ReturnType<typeof vi.fn>
       | undefined;
-    const stopClosed = (await ipc.onClosed.mock.results[0]?.value) as
-      | ReturnType<typeof vi.fn>
-      | undefined;
-    if (stopOutput === undefined || stopClosed === undefined) {
-      throw new Error('onOutput/onClosed did not resolve an unsubscribe function');
+    if (stopWatching === undefined) {
+      throw new Error('watchTerminal did not resolve an unsubscribe function');
     }
 
     await probe.unmount();
 
-    expect(stopOutput).toHaveBeenCalledOnce();
-    expect(stopClosed).toHaveBeenCalledOnce();
+    expect(stopWatching).toHaveBeenCalledOnce();
   });
 });

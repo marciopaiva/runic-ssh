@@ -49,12 +49,11 @@ export type {
 export {
   CLOSED_EVENT,
   OUTPUT_EVENT,
-  onClosed,
-  onOutput,
   openTerminal,
   resizeTerminal,
   sendInput,
   sessionStats,
+  watchTerminal,
 } from './terminal';
 export type { SessionStats } from './terminal';
 export type { SettingsView, Theme } from './settings';

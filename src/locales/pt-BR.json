@@ -320,6 +320,7 @@
   "tabs.settings.close": "Fechar as configurações",
   "tabs.settings.unsaved": "Configurações — alterações não salvas",
   "terminal.ended": "Sessão encerrada, saída {status}",
+  "terminal.endedUnknown": "Sessão encerrada",
   "terminal.group.focused": "FOCADO",
   "terminal.group.sync.off": "Digitar em todos os grupos ao mesmo tempo",
   "terminal.group.sync.on": "Este grupo recebe o que você digita. Clique para excluí-lo da sincronização",

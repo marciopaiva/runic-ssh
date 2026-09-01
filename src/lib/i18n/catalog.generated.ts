@@ -326,6 +326,7 @@ export const SOURCE_CATALOG = {
   "tabs.settings.close": "Close settings",
   "tabs.settings.unsaved": "Settings — unsaved changes",
   "terminal.ended": "Session ended, exit {status}",
+  "terminal.endedUnknown": "Session ended",
   "terminal.group.focused": "FOCUSED",
   "terminal.group.sync.off": "Type into every group at once",
   "terminal.group.sync.on": "This group receives what you type. Press to spare it",

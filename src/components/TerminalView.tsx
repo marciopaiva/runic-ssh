@@ -78,7 +78,7 @@ export function TerminalView({
 }: TerminalViewProps): JSX.Element {
   const i18n = useTranslator();
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
-  const { exitStatus, size } = useTerminal(
+  const { closed, exitStatus, size } = useTerminal(
     container,
     handle,
     modifier,
@@ -118,9 +118,11 @@ export function TerminalView({
         <div ref={setContainer} className="h-full w-full" />
       </div>
 
-      {exitStatus !== null && (
+      {closed && (
         <p className="text-ink-muted border-line-subtle border-t px-3 py-1.5 font-mono text-xs">
-          {i18n.t('terminal.ended', { status: String(exitStatus) })}
+          {exitStatus === null
+            ? i18n.t('terminal.endedUnknown')
+            : i18n.t('terminal.ended', { status: String(exitStatus) })}
         </p>
       )}
     </section>

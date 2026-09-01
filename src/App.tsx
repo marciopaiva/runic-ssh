@@ -671,8 +671,8 @@ export function App(): JSX.Element {
         if (target === undefined) continue;
         /* Rejections are caught and dropped on purpose. The input is split to
            stay inside what the core accepts, so what is left is a session that
-           has ended, and `onClosed` already says so. A banner per keystroke
-           after that would bury it. */
+           has ended, and the closed notification already says so. A banner
+           per keystroke after that would bury it. */
         void sendInput(target.handle, bytes).catch(() => {});
       }
     },
