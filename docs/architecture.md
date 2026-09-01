@@ -4,37 +4,37 @@ This document describes how Runic SSH is put together and why the boundaries
 sit where they do. It is the map; `security-model.md` is the set of rules that
 map has to satisfy.
 
-Status: mostly built. `commands/`, `ssh/`, `vault/`, `config/` and the whole
-frontend exist and are what the application runs on. Two things in the tables
-below are still the target rather than the tree: the `sftp/` module, which no
-file corresponds to yet, and tunnels, listed under what `ssh/` owns. Both are
-marked where they appear. Decisions that are already binding are recorded in
-`adr/`.
+Status: built. `commands/`, `ssh/`, `sftp/`, `vault/`, `config/` and the whole
+frontend exist and are what the application runs on. One thing in the tables
+below is still the target rather than the tree: tunnels, listed under what
+`ssh/` owns. It is marked where it appears. Decisions that are already binding
+are recorded in `adr/`.
 
-That line used to say the source tree was not yet written, which was true when
-it was typed and quietly stopped being true. A stale architecture document is
-worse than an absent one in a project that asks to be audited, because it is
-where somebody auditing starts.
+This document has twice said the tree was behind where it actually was: once
+about the source tree overall, and once about the credential window below,
+which this revision removes for good rather than correcting again. A stale
+architecture document is worse than an absent one in a project that asks to be
+audited, because it is where somebody auditing starts.
 
 ## Process model
 
-One process, one privileged core, and two webviews that are equally untrusted:
+One process, one privileged core, one webview:
 
 ```
-┌──────────────────────────────┐  ┌────────────────────────────┐
-│  Main webview (untrusted)    │  │  Credential window         │
-│  React + TypeScript          │  │  Its own document          │
-│  + xterm.js: remote output   │  │  and its own script        │
-│  Renders UI. Holds no        │  │  No terminal in it         │
-│  secrets. No filesystem.     │  │  ADR-0008                  │
-└──────────────┬───────────────┘  └─────────────┬──────────────┘
-               │  IPC: named commands + events  │
-               │  Serializable payloads only    │
-┌──────────────┴────────────────────────────────┴──────────────┐
-│  Core (privileged)                                           │
-│  Rust + Tokio                                                │
-│  Network, filesystem, OS keychain, crypto                    │
-└──────────────────────────────────────────────────────────────┘
+┌──────────────────────────────┐
+│  Main webview (untrusted)    │
+│  React + TypeScript          │
+│  + xterm.js: remote output   │
+│  Renders UI. Holds no        │
+│  secrets. No filesystem.     │
+└──────────────┬───────────────┘
+               │  IPC: named commands + events
+               │  Serializable payloads only
+┌──────────────┴────────────────────────────────────────────────┐
+│  Core (privileged)                                            │
+│  Rust + Tokio                                                 │
+│  Network, filesystem, OS keychain, crypto                     │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 The webview is treated as hostile. It renders remote output, including terminal
@@ -42,11 +42,20 @@ escape sequences from a machine the user does not control, so every value
 crossing into the core is validated on the Rust side regardless of what the
 frontend claims to have checked.
 
-A password is typed into the **second** window, not the first. Two documents
-means a script running in the one that renders a hostile host's output cannot
-reach the one holding a secret, and the prompt has no terminal in it to be
-reached from. That is ADR-0008 and it is the reason the credential flow looks
-more complicated than a modal would.
+A credential is typed into a plain, uncontrolled `<input>` in the wizard's own
+Access step, read once through `FormData` at submit and never bound to a
+React state value, then the form resets. There used to be a second window
+here, a separate document and script a hostile host's output could not reach,
+which is what made typing a password safe when there was nowhere else on
+screen to type one (ADR-0008). ADR-0032 and ADR-0034 made the wizard the only
+place a credential is set, ADR-0039 retired the window once nothing but a
+now-obsolete recovery path still opened it, and none of the four re-argued
+whether one document was still enough. What is true now: the secret never
+becomes a value the render tree can read back, which is the property section
+6 of `CLAUDE.md` asks for regardless of how many documents there are, but the
+document boundary itself, an XSS anywhere else in this webview being unable
+to reach the field at all, is gone. `docs/security-model.md`'s Rule 1 says the
+same thing without the history attached.
 
 ## Module responsibilities
 
@@ -56,7 +65,7 @@ more complicated than a modal would.
 | --- | --- | --- |
 | `commands/` | Input validation, delegation, error mapping | Business logic |
 | `ssh/` | Connection lifecycle, auth, channels, tunnels (tunnels: target) | Talk to the webview |
-| `sftp/` (target) | Directory listing, transfer, resume | Talk to the webview |
+| `sftp/` | Directory listing, upload, download, remote-to-remote transfer, recursive folder copy (ADR-0041, ADR-0045, ADR-0049) | Talk to the webview; resume an interrupted transfer, which nothing here does yet |
 | `vault/` | Credential storage: the OS keychain, and the run-lifetime store beside it | Return plaintext across IPC |
 | `config/` | Session and app settings persistence | Store secrets |
 
@@ -69,7 +78,7 @@ That constraint is what keeps the test suite fast and the logic reviewable.
 | Directory | Owns |
 | --- | --- |
 | `ipc/` | Typed wrappers over commands. The only place `invoke` appears. |
-| `features/` | State and effects per feature slice: sessions, terminal, chrome, commands, settings, status (sftp: target) |
+| `features/` | State and effects per feature slice: sessions, terminal, chrome, commands, settings, status, sftp |
 | `components/` | Presentational components. Props in, markup out. |
 | `lib/` | Framework-free helpers |
 
@@ -80,7 +89,7 @@ directory, which is what makes the boundary auditable.
 
 It is two commands, not one, and that is the part worth reading. `connect_session`
 returns **before** authentication, because the credential for the host the user
-clicked is collected in a window of its own and submitted separately.
+clicked is collected on the wizard's own Access step and submitted separately.
 
 1. User picks a saved session in the UI.
 2. `features/sessions` calls `ipc/sessions.connectSession(id)`.

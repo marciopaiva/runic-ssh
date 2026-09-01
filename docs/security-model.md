@@ -42,11 +42,23 @@ The webview renders content from untrusted hosts. Any secret that reaches it is
 one XSS or one malicious escape sequence away from exfiltration. The frontend
 holds an opaque id; the core resolves it at the moment of use.
 
-A credential is collected in a **window of its own**, which is a second webview
-with its own document and its own script (ADR-0008). That is not a layout
-choice. The window that renders a remote host's output and the window that holds
-a password are different documents, so a script running in the first cannot
-reach the second, and the prompt has no terminal in it to be reached from.
+A credential is typed into a plain, **uncontrolled** `<input>` on the wizard's
+own Access step (ADR-0032, ADR-0034): read once through `FormData` at submit,
+never bound to a React state value, and the form resets once it is sent. That
+keeps the secret out of the render tree the way section 6 of `CLAUDE.md`
+requires, whatever else is true of the page around it.
+
+What is no longer true: this field used to sit in a **window of its own**, a
+second webview with its own document and its own script (ADR-0008), so a
+script running in the one that renders a remote host's output could not reach
+the one holding a password even if it existed. ADR-0039 retired that window
+once nothing but an already-obsolete recovery path still opened it, and
+folded credential collection entirely into the main webview. The isolation
+this rule used to lean on is gone with it: an XSS anywhere else in this
+document, if one existed, would sit in the same page as this field. Nothing
+in ADR-0032, ADR-0034 or ADR-0039 re-argues that trade, because none of them
+frames the change as a security decision, and this document is where that
+gap gets written down rather than left implicit.
 
 There are two places a resolved credential can come from, and both are inside
 the core. The OS keychain is one. The other is a store that lives for the length

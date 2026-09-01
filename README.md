@@ -111,11 +111,20 @@ carries your keys.
 - **English, Brazilian Portuguese and Spanish.** Spanish was held out of the
   selector from the first release until a native speaker read the copy that
   describes a security decision, which happened for v0.2.1.
+- **SFTP, beside the terminal rather than instead of it.** Its own workspace,
+  reached from the activity rail: one source and up to four destinations,
+  each dragged in from the same saved-hosts list Sessions uses, `localhost`
+  included on either side. A file sent from the source lands in every
+  occupied destination at once; a folder copies recursively and keeps going
+  past a single file's failure rather than aborting the whole tree. Create,
+  rename and delete are here too, and every name a server sends is checked
+  before it is trusted the same way a host key is (ADR-0041, ADR-0044
+  through ADR-0049).
 
-Not yet: **SFTP**, **port forwarding**, snippets, and a signed
-installer of any kind. Those are the roadmap further down, not this
-list. A features section describing software that does not exist is the kind of
-thing this project would rather not do.
+Not yet: **port forwarding**, snippets, and a signed installer of any kind.
+Those are the roadmap further down, not this list. A features section
+describing software that does not exist is the kind of thing this project
+would rather not do.
 
 ## 📸 What it looks like
 
@@ -196,7 +205,8 @@ sha256sum -c SHA256SUMS --ignore-missing   # before installing anything
 - **Core:** Rust and Tauri 2.0
 - **Frontend:** React, TypeScript, TailwindCSS
 - **Terminal:** xterm.js, DOM renderer, no GPU path ([ADR-0011](docs/adr/0011-drop-the-webgl-renderer.md))
-- **SSH:** the `russh` crate, in process, no OpenSSH binary ([ADR-0003](docs/adr/0003-use-russh-instead-of-openssh.md)). `russh-sftp` is the plan for v0.3.0 and is not wired up yet
+- **SSH:** the `russh` crate, in process, no OpenSSH binary ([ADR-0003](docs/adr/0003-use-russh-instead-of-openssh.md))
+- **SFTP:** the `russh-sftp` crate, over a fresh subsystem channel per call ([ADR-0041](docs/adr/0041-use-russh-sftp-instead-of-writing-the-protocol.md))
 - **Secrets:** the OS keychain, referenced by opaque id ([ADR-0004](docs/adr/0004-store-credentials-in-the-os-keychain.md))
 - **Languages:** English, Brazilian Portuguese and Spanish, each with its security copy read by a native speaker before being offered ([ADR-0007](docs/adr/0007-localize-in-the-frontend-from-typed-error-codes.md))
 
@@ -250,7 +260,7 @@ the tree. Five green commands and a red pull request is what happens without it.
 - [x] **v0.1.1:** copy and paste in the terminal. [Released 2026-08-23](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.1.1).
 - [x] **v0.2.0:** reaching a host through a bastion, a main area divided into groups, and typing into all of them at once. [Released 2026-08-26](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.2.0).
 - [x] **v0.2.1:** finishing what v0.2.0 claimed: a jump host that asks for its own credential, a password saved from a host's own form, and a bastion that admits it is carrying somebody else's session. [Released 2026-08-26](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.2.1).
-- [ ] **v0.3.0:** SFTP, upload and download over the connection that is already open.
+- [x] **v0.3.0:** SFTP, upload and download over the connection that is already open. [Released 2026-09-01](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.3.0).
 - [ ] **v0.4.0:** port forwarding (SSH tunnels), customizable themes, and session import from PuTTY and OpenSSH.
 - [ ] **v1.0.0:** production grade stability, and a signed installer on every platform.
 
