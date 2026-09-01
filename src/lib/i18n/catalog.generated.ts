@@ -219,6 +219,8 @@ export const SOURCE_CATALOG = {
   "sftp.error.permissionDenied": "The server refused permission.",
   "sftp.error.protocol": "The SFTP protocol failed.",
   "sftp.failed": "Failed",
+  "sftp.folderCopy.failed": "{count} failed",
+  "sftp.folderCopy.progress": "{done} of {total} files",
   "sftp.localhost": "localhost",
   "sftp.menu.delete": "Delete",
   "sftp.menu.delete.detail.folder": "Deletes the folder and everything inside it.",

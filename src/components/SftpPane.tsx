@@ -163,8 +163,14 @@ function Row({
   const clickable = editing === null && (isDir || onSelectClick !== null);
   const draggable = editing === null && onDragStart !== null;
 
+  /* A directory is now selectable too (ADR-0049), which a plain click on
+     it must not quietly stop opening: Shift or Ctrl/Cmd means "change the
+     selection," the same as it already does on a file, and a plain click
+     on a directory keeps doing what it has always done, since navigating
+     is the far more common reason to click one. The checkbox stays the
+     precise, modifier-free way to select a directory without leaving it. */
   const activate = (modifiers: SelectModifiers): void => {
-    if (isDir) {
+    if (isDir && (onSelectClick === null || (!modifiers.shift && !modifiers.additive))) {
       onOpen();
       return;
     }
@@ -700,7 +706,7 @@ export function SftpPane({
             : (event) => {
                 if ((event.ctrlKey || event.metaKey) && event.key === 'a') {
                   event.preventDefault();
-                  setSelected(new Set(pane.entries.filter((entry) => !entry.isDir).map((entry) => entry.path)));
+                  setSelected(new Set(pane.entries.map((entry) => entry.path)));
                 }
               }
         }
@@ -760,14 +766,12 @@ export function SftpPane({
               size={entry.size}
               modifiedUnixSecs={entry.modifiedUnixSecs}
               onOpen={() => open(entry)}
-              selected={onSend === null || entry.isDir ? null : selected.has(entry.path)}
-              onSelectClick={onSend === null || entry.isDir ? null : (modifiers) => selectFile(entry, modifiers)}
-              onToggleSelect={onSend === null || entry.isDir ? null : () => toggleSelect(entry.path)}
+              selected={onSend === null ? null : selected.has(entry.path)}
+              onSelectClick={onSend === null ? null : (modifiers) => selectFile(entry, modifiers)}
+              onToggleSelect={onSend === null ? null : () => toggleSelect(entry.path)}
               selectLabel={i18n.t('sftp.selectFile', { name: entry.name })}
               onDragStart={
-                onSend === null || onDragEntriesStart === null || entry.isDir
-                  ? null
-                  : () => handleDragStart(entry)
+                onSend === null || onDragEntriesStart === null ? null : () => handleDragStart(entry)
               }
               onDragEnd={onDragEntriesEnd}
               editing={

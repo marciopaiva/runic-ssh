@@ -1068,6 +1068,36 @@ def transfer_row(name, destination, transferred, total, active=True):
       <span style="width: 14px; flex: none; display: flex; align-items: center; justify-content: center;">{action}</span>
     </div>"""
 
+def folder_transfer_row(name, destination, done, total, failed=0, active=True):
+    """A recursive folder copy's own row (ADR-0049): count-based progress
+    ("N of M files") rather than `transfer_row()`'s bytes, since a folder's
+    total size is not known up front the way one file's is, and how many of
+    its files have finished is the number this application actually has.
+    `failed` prints only once the copy has stopped (`active=False`) and is
+    nonzero: a running copy does not yet know its own final failure count,
+    and zero failures says nothing worth a reader's attention."""
+    pct = round(100 * done / total) if total else 0
+    progress = f'{done} of {total} files'
+    if not active and failed > 0:
+        progress += f', {failed} failed'
+    action = (
+        f'<span style="display: flex; color: {T["faint"]};">{ic("close", 10)}</span>' if active
+        else (
+            f'<svg viewBox="0 0 24 24" style="width: 12px; height: 12px; color: {T["warn"]};" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 16.5h.01"></path><path d="M10.3 3.9 2.7 17a2 2 0 0 0 1.7 3h15.2a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path></svg>'
+            if failed > 0 else
+            f'<svg viewBox="0 0 24 24" style="width: 12px; height: 12px; color: {T["ok"]};" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>'
+        )
+    )
+    bar_color = T['accent'] if active else (T['warn'] if failed > 0 else T['ok'])
+    return f"""<div style="display: flex; align-items: center; gap: 10px; height: 26px;">
+      <svg viewBox="0 0 24 24" style="width: 13px; height: 13px; color: {T['accent']}; flex: none;" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M4 6.5h6l1.6 2H20v9.5H4z"></path></svg>
+      <span class="mono" style="font-size: 11.5px; color: {T['ink']}; width: 130px; flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{name}</span>
+      <span class="mono" style="font-size: 10.5px; color: {T['muted']}; width: 130px; flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{destination}</span>
+      <div style="flex: 1; height: 4px; background: {T['raised']}; border-radius: 2px; overflow: hidden;"><div style="width: {pct}%; height: 100%; background: {bar_color};"></div></div>
+      <span class="mono" style="font-size: 10.5px; color: {T['faint']}; width: 120px; text-align: right; flex: none;">{progress}</span>
+      <span style="width: 14px; flex: none; display: flex; align-items: center; justify-content: center;">{action}</span>
+    </div>"""
+
 def transfers_bar(rows_html, count):
     """Where a fan-out's own progress lives: full width, below both
     columns, one shared list rather than one per pane. `TransferState`
@@ -1333,6 +1363,104 @@ def build_sftp_file_ops():
 </div>
 """
     write("SftpFileOps.dc.html", HEAD + page_html + FOOT)
+
+def build_sftp_folder_copy():
+    """Exploratory (2026-09-01), Phase 4 of the SFTP roadmap (ADR-0049): a
+    folder joins the same checkbox-and-Send flow a file already has,
+    confirmed directly rather than a drag-only path, so marking a folder
+    and pressing Send works the same way marking a file already does.
+
+    The one new thing to draw is `folder_transfer_row()` in the transfers
+    bar: count-based progress ("N of M files"), never bytes, since a
+    folder's total size is not known the way one file's already-fetched
+    metadata gives `transfer_row()` its own total for free. Two states
+    shown together: `assets` still copying (accent bar, X to cancel), and
+    `logs` finished with two files failed (warning triangle, amber bar,
+    "12 of 12 files, 2 failed"). Confirmed directly that a partial
+    failure does not stop the rest of a folder's own copy, so the finished
+    state has to be able to say "done, but not all of it worked"."""
+    def crow(name, dim=False, checked=None, is_dir=False):
+        if is_dir:
+            i = f'<svg class="ic" viewBox="0 0 24 24" style="width: 12px; height: 12px; color: {T["faint"]};" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M4 6.5h6l1.6 2H20v9.5H4z"></path></svg>'
+        else:
+            i = ic("sftp", 12, T['faint']) if dim else f'<svg class="ic" viewBox="0 0 24 24" style="width: 12px; height: 12px; color: {T["faint"]};"><path d="M6 3h8l4 4v14H6z"></path><path d="M14 3v4h4"></path></svg>'
+        if checked is None:
+            box = '<span style="width: 13px; flex: none;"></span>' if not dim else ''
+        elif checked:
+            box = (f'<span style="width: 13px; height: 13px; border-radius: 3px; background: {T["accent"]}; flex: none;'
+                    f' display: flex; align-items: center; justify-content: center;">'
+                    f'<svg viewBox="0 0 24 24" style="width: 9px; height: 9px; color: {T["base"]};" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg></span>')
+        else:
+            box = f'<span style="width: 13px; height: 13px; border-radius: 3px; border: 1.5px solid {T["off"]}; flex: none;"></span>'
+        bg = f'background: {T["accentsoft"]};' if checked else ''
+        return (f'<div style="display: flex; align-items: center; gap: 8px; padding: 3px 8px; {bg}">{box}{i}'
+                f'<span class="mono" style="font-size: 11px; color: {T["ink2"]};">{name}</span></div>')
+
+    def send_bar(count):
+        return (f'<div style="flex: none; display: flex; align-items: center; gap: 12px; padding: 7px 10px;'
+                f' border-top: 1px solid {T["line"]}; background: {T["panel"]};">'
+                f'<span class="mono" style="font-size: 11px; color: {T["muted"]};">{count} selected</span>'
+                f'<div style="flex: 1;"></div>'
+                f'<span style="font-size: 11.5px; color: {T["faint"]};">Clear</span>'
+                f'<span style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: {T["base"]};'
+                f' background: {T["accent"]}; border-radius: 6px; padding: 6px 14px;">Send'
+                f'<svg viewBox="0 0 24 24" style="width: 12px; height: 12px;" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></span></div>')
+
+    def pane_header(label, who):
+        return (f'<div style="height: 24px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 10px;'
+                f' background: {T["chrome"]}; border-bottom: 1px solid {T["line"]};">'
+                f'<span style="font-size: 9px; font-weight: 700; letter-spacing: 0.1em; color: {T["faint"]};">{label}</span>'
+                f'<span class="mono" style="font-size: 10.5px; color: {T["muted"]};">{who}</span></div>')
+
+    source_rows = (
+        crow("assets", checked=True, is_dir=True)
+        + crow("logs", checked=True, is_dir=True)
+        + crow("index.html", checked=False)
+        + crow("app.2f9c.js", checked=True)
+    )
+    source = (f'<div style="display: flex; flex-direction: column; overflow: hidden; border: 1px solid {T["line"]}; border-radius: 6px;">'
+              f'{pane_header("SOURCE", "deploy@10.4.1.20")}{nav_bar(["/", "var", "www"], True)}'
+              f'<div style="flex: 1; padding: 4px 0; overflow: hidden;">{source_rows}</div>'
+              f'{send_bar(3)}</div>')
+
+    d1 = (f'<div style="display: flex; flex-direction: column; overflow: hidden; border: 1px solid {T["line"]}; border-radius: 6px;">'
+          f'{pane_header("DESTINATION", "deploy@10.4.1.21")}{nav_bar(["/", "var", "www"], False)}'
+          f'<div style="flex: 1; padding: 4px 0; overflow: hidden;">{crow("assets", is_dir=True)}{crow("logs", is_dir=True)}</div></div>')
+    d2 = (f'<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;'
+          f' border: 1.5px dashed {T["line2"]}; border-radius: 6px;">'
+          f'{ic("sftp", 22, T["off"])}<span style="font-size: 11px; color: {T["faint"]};">Drop a host here</span></div>')
+
+    body = f"""      <div style="flex: 1; min-height: 0; display: flex; gap: 10px; padding: 12px;">
+        <div style="width: 50%;">{source}</div>
+        <div style="width: 50%; display: grid; grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 8px;">{d1}{d2}</div>
+      </div>"""
+
+    transfers = transfers_bar(
+        folder_transfer_row("assets", "deploy@10.4.1.21", 7, 20)
+        + folder_transfer_row("logs", "deploy@10.4.1.21", 12, 12, failed=2, active=False)
+        + transfer_row("app.2f9c.js", "deploy@10.4.1.21", 82_000, 82_000, active=False),
+        3,
+    )
+    page_body = f'{body}\n{transfers}'
+
+    sidebar = sessions_sidebar(active=None, states={"web-01": "ok"})
+    st = status(stat_text("1 destination, 1 source", T['faint'], mono=False), stat_text("copying 2 folders", T['muted']))
+
+    page_html = f"""
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{plain_titlebar()}
+{toolbar_row(right_html=select_all_button(1) + split_control(active=2))}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{home_rail(workspace="sftp", sftp_badge="2")}
+{sidebar}
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: {T['base']};">
+{page_body}
+    </div>
+  </div>
+{st}
+</div>
+"""
+    write("SftpFolderCopy.dc.html", HEAD + page_html + FOOT)
 
 def build_sessions_proposal():
     """Exploratory (2026-08-31), the SSH counterpart to
@@ -2167,7 +2295,7 @@ if LIGHT_MODE:
 else:
     for fn in (build_empty, build_main, build_groups, build_collapsed, build_broadcast,
                build_hostkey, build_sftp, build_sftp_workspace, build_sftp_fanout, build_sftp_proposal,
-               build_sftp_proposal_broadcast, build_sftp_file_ops,
+               build_sftp_proposal_broadcast, build_sftp_file_ops, build_sftp_folder_copy,
                build_sessions_proposal, build_sessions_proposal_broadcast,
                build_sessions_proposal_broadcast_multi,
                build_hosts_host, build_hosts_access, build_home_dashboard, build_home_hosts,

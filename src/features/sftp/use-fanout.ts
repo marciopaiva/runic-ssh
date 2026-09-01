@@ -17,10 +17,14 @@ import { useCallback, useRef, useState } from 'react';
 
 import {
   chooseUploadSource,
+  localListDirectory,
+  localMkdir,
   onFinished,
   onProgress,
   sftpCancel,
   sftpDownload,
+  sftpList,
+  sftpMkdir,
   sftpTransfer,
   sftpUpload,
 } from '../../ipc';
@@ -28,8 +32,9 @@ import type { TransferHandle } from '../../ipc';
 import type { LiveSession } from '../sessions/state';
 import { groupLabel } from '../terminal';
 import { useTranslator } from '../settings';
-import { localFileName, reduceTransfers, toggleReceiving } from './browser';
-import type { TransferDirection, TransferState } from './browser';
+import { localFileName, reduceFolderCopies, reduceTransfers, toggleReceiving } from './browser';
+import type { FolderCopyState, TransferDirection, TransferState } from './browser';
+import { fromLocalEntry, fromRemoteEntry } from './endpoint';
 import type { Endpoint, PaneEntry } from './endpoint';
 
 /**
@@ -69,6 +74,69 @@ function startTransfer(
   return null;
 }
 
+async function listEntries(source: Endpoint, path: string): Promise<readonly PaneEntry[]> {
+  if (source.kind === 'local') {
+    const listing = await localListDirectory(path);
+    return listing.entries.map(fromLocalEntry);
+  }
+  const entries = await sftpList(source.handle, path);
+  return entries.map(fromRemoteEntry);
+}
+
+/** One entry discovered while walking a folder being copied: `relativeDir`
+ * is its parent's own path relative to the folder's own root (`''` for a
+ * direct child), which is what lets the same entry be joined under
+ * whichever directory this copy is landing in on the far side, rather than
+ * carrying a source-side path that means nothing there. ADR-0049. */
+interface PlannedEntry {
+  readonly sourcePath: string;
+  readonly relativeDir: string;
+  readonly name: string;
+  readonly isDir: boolean;
+}
+
+/**
+ * Walks `rootPath` (a folder just marked for sending) into a flat, ordered
+ * plan: every entry it contains, at any depth, each carrying where it
+ * belongs relative to the folder's own root. ADR-0049.
+ *
+ * Walked once and reused across every destination a fan-out sends the same
+ * folder to, rather than once per destination: the source tree does not
+ * change between them, and re-listing it that many times would cost real
+ * round trips for nothing new learned.
+ */
+async function planFolderCopy(source: Endpoint, rootPath: string): Promise<readonly PlannedEntry[]> {
+  const plan: PlannedEntry[] = [];
+
+  const walk = async (path: string, relativeDir: string): Promise<void> => {
+    const entries = await listEntries(source, path);
+    for (const entry of entries) {
+      plan.push({ sourcePath: entry.path, relativeDir, name: entry.name, isDir: entry.isDir });
+      if (entry.isDir) {
+        await walk(entry.path, relativeDir === '' ? entry.name : `${relativeDir}/${entry.name}`);
+      }
+    }
+  };
+
+  await walk(rootPath, '');
+  return plan;
+}
+
+/** Resolves once the transfer's own `FINISHED_EVENT` arrives, to `true`
+ * only on an outright success: a cancelled or failed file is the same
+ * "did not make it" outcome to a folder copy's own count. */
+function awaitTransfer(transfer: TransferHandle): Promise<boolean> {
+  return new Promise((resolve) => {
+    let unsub: (() => void) | null = null;
+    void onFinished(transfer, (outcome) => {
+      unsub?.();
+      resolve(outcome.outcome === 'succeeded');
+    }).then((unlisten) => {
+      unsub = unlisten;
+    });
+  });
+}
+
 /** A starting number, not a settled one (ADR-0045's own Decision section). */
 export const MAX_DESTINATIONS = 4;
 
@@ -83,6 +151,10 @@ export interface FanoutState {
   readonly source: Endpoint | null;
   readonly destinations: readonly (Endpoint | null)[];
   readonly transfers: readonly TransferState[];
+  /** Every recursive folder copy in flight or just finished (ADR-0049), a
+   * sibling list to `transfers` rather than entries inside it: a folder
+   * copy has no single `TransferHandle` of its own. */
+  readonly folderCopies: readonly FolderCopyState[];
   /** Occupied destination slots spared from a fan-out (ADR-0047). A slot
    * absent from this set receives; one present in it does not. Empty by
    * default, the same "arming starts with everyone included" rule
@@ -115,6 +187,10 @@ export interface FanoutActions {
   readonly uploadFromDialogTo: (slot: number) => void;
   readonly cancelTransfer: (transfer: TransferHandle) => void;
   readonly dismissTransfer: (transfer: TransferHandle) => void;
+  /** Stops a folder copy after whichever file is currently in flight
+   * finishes, and dispatches no more. ADR-0049. */
+  readonly cancelFolderCopy: (id: string) => void;
+  readonly dismissFolderCopy: (id: string) => void;
 }
 
 export const SOURCE_PANE_ID = 'source';
@@ -129,7 +205,16 @@ export function useFanout(sessions: readonly LiveSession[]): FanoutState & Fanou
     Array.from({ length: MAX_DESTINATIONS }, () => null),
   );
   const [transfers, setTransfers] = useState<readonly TransferState[]>([]);
+  const [folderCopies, setFolderCopies] = useState<readonly FolderCopyState[]>([]);
   const [mutedDestinations, setMutedDestinations] = useState<ReadonlySet<number>>(new Set());
+  /* One entry per folder copy in flight: whether it has been asked to
+     stop, and the handle of whichever single file it is transferring at
+     this moment (ADR-0049 runs one file at a time within a copy), so
+     cancelling reaches the transfer actually in flight rather than only
+     stopping the walk from starting another. A ref, not state: nothing
+     renders from this directly. */
+  const folderCopyControl = useRef<Map<string, { cancelled: boolean; current: TransferHandle | null }>>(new Map());
+  const nextCopyId = useRef(0);
 
   /* Where each mounted pane currently is, and how to refresh it. A ref, not
      state: nothing renders from this directly, `sendToDestinations` only
@@ -223,15 +308,102 @@ export function useFanout(sessions: readonly LiveSession[]): FanoutState & Fanou
     [],
   );
 
+  /* Runs one recursive folder copy to completion (or until cancelled):
+     directories first, so a file never tries to land in one that does not
+     exist yet, one file transferred at a time (ADR-0049's own choice,
+     simpler to reason about than several at once, revisited only if a
+     real large tree shows it mattering). A directory this application
+     could not create is not treated as fatal: the files meant for it fail
+     on their own when they try to land somewhere that was never made,
+     each counted the same way any other failed file is, rather than this
+     function trying to guess how many of `plan` a failed `mkdir` took
+     down with it. */
+  const runFolderCopy = useCallback(
+    (id: string, plan: readonly PlannedEntry[], source: Endpoint, destination: Endpoint, destRootDir: string, reload: () => void) => {
+      const control: { cancelled: boolean; current: TransferHandle | null } = { cancelled: false, current: null };
+      folderCopyControl.current.set(id, control);
+
+      const recordFileDone = (succeeded: boolean): void => {
+        if (control.cancelled) return;
+        setFolderCopies((current) => reduceFolderCopies(current, { type: 'fileDone', id, succeeded }));
+      };
+
+      void (async () => {
+        for (const item of plan) {
+          if (control.cancelled) break;
+          const destDir = item.relativeDir === '' ? destRootDir : `${destRootDir}/${item.relativeDir}`;
+
+          if (item.isDir) {
+            try {
+              if (destination.kind === 'local') await localMkdir(destDir, item.name);
+              else await sftpMkdir(destination.handle, destDir, item.name);
+            } catch {
+              /* Best-effort; see this function's own doc comment. */
+            }
+            continue;
+          }
+
+          const started = startTransfer(source, item.sourcePath, destination, destDir);
+          if (started === null) {
+            recordFileDone(false);
+            continue;
+          }
+
+          try {
+            const { transfer } = await started;
+            control.current = transfer;
+            const succeeded = await awaitTransfer(transfer);
+            control.current = null;
+            recordFileDone(succeeded);
+          } catch {
+            control.current = null;
+            recordFileDone(false);
+          }
+        }
+
+        folderCopyControl.current.delete(id);
+        setFolderCopies((current) =>
+          reduceFolderCopies(current, { type: control.cancelled ? 'cancelled' : 'finished', id }),
+        );
+        reload();
+      })();
+    },
+    [],
+  );
+
   /* One read from the source, one write to every occupied destination,
      issued together rather than one after another: `Promise.all` over the
      per-destination IPC calls below, so a slow destination does not delay
      starting the others. Each destination is its own `TransferHandle`
      (ADR-0045): a fan-out of four is four ordinary transfers, not a new
-     kind of thing on the wire. */
+     kind of thing on the wire. A folder is walked once (`planFolderCopy`)
+     and the same plan reused for every destination, rather than walked
+     once per destination (ADR-0049): the source tree is the same fan-out
+     to fan-out. */
   const sendToDestinations = useCallback(
     (entry: PaneEntry) => {
-      if (source === null || entry.isDir) return;
+      if (source === null) return;
+
+      if (entry.isDir) {
+        void planFolderCopy(source, entry.path).then((plan) => {
+          const total = plan.filter((item) => !item.isDir).length;
+          destinations.forEach((destination, slot) => {
+            if (destination === null || mutedDestinations.has(slot)) return;
+            const pane = panes.current.get(destinationPaneId(slot));
+            if (pane === undefined || pane.path === null) return;
+            const destDir = pane.path;
+
+            const id = `folder-${String(nextCopyId.current)}`;
+            nextCopyId.current += 1;
+            const label = labelFor(destination);
+            setFolderCopies((current) =>
+              reduceFolderCopies(current, { type: 'started', id, name: entry.name, destination: label, total }),
+            );
+            runFolderCopy(id, plan, source, destination, destDir, () => pane.reload());
+          });
+        });
+        return;
+      }
 
       destinations.forEach((destination, slot) => {
         if (destination === null || mutedDestinations.has(slot)) return;
@@ -247,7 +419,7 @@ export function useFanout(sessions: readonly LiveSession[]): FanoutState & Fanou
         });
       });
     },
-    [source, destinations, mutedDestinations, labelFor, track],
+    [source, destinations, mutedDestinations, labelFor, track, runFolderCopy],
   );
 
   /* Dropped directly onto one pane rather than checked and sent to every
@@ -263,10 +435,22 @@ export function useFanout(sessions: readonly LiveSession[]): FanoutState & Fanou
       if (destination === undefined || destination === null) return;
       const pane = panes.current.get(destinationPaneId(slot));
       if (pane?.path == null) return;
+      const destDir = pane.path;
 
       const label = labelFor(destination);
       for (const entry of entries) {
-        if (entry.isDir) continue;
+        if (entry.isDir) {
+          void planFolderCopy(source, entry.path).then((plan) => {
+            const total = plan.filter((item) => !item.isDir).length;
+            const id = `folder-${String(nextCopyId.current)}`;
+            nextCopyId.current += 1;
+            setFolderCopies((current) =>
+              reduceFolderCopies(current, { type: 'started', id, name: entry.name, destination: label, total }),
+            );
+            runFolderCopy(id, plan, source, destination, destDir, () => pane.reload());
+          });
+          continue;
+        }
         const started = startTransfer(source, entry.path, destination, pane.path);
         if (started === null) continue;
 
@@ -275,7 +459,7 @@ export function useFanout(sessions: readonly LiveSession[]): FanoutState & Fanou
         });
       }
     },
-    [source, destinations, labelFor, track],
+    [source, destinations, labelFor, track, runFolderCopy],
   );
 
   /* The native "choose a file" dialog (ADR-0042), aimed at one destination
@@ -315,10 +499,22 @@ export function useFanout(sessions: readonly LiveSession[]): FanoutState & Fanou
     setTransfers((current) => reduceTransfers(current, { type: 'dismissed', transfer }));
   }, []);
 
+  const cancelFolderCopy = useCallback((id: string) => {
+    const control = folderCopyControl.current.get(id);
+    if (control === undefined) return;
+    control.cancelled = true;
+    if (control.current !== null) void sftpCancel(control.current);
+  }, []);
+
+  const dismissFolderCopy = useCallback((id: string) => {
+    setFolderCopies((current) => reduceFolderCopies(current, { type: 'dismissed', id }));
+  }, []);
+
   return {
     source,
     destinations,
     transfers,
+    folderCopies,
     mutedDestinations,
     setSource,
     addDestination,
@@ -332,5 +528,7 @@ export function useFanout(sessions: readonly LiveSession[]): FanoutState & Fanou
     uploadFromDialogTo,
     cancelTransfer,
     dismissTransfer,
+    cancelFolderCopy,
+    dismissFolderCopy,
   };
 }

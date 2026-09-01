@@ -2119,6 +2119,9 @@ export function App(): JSX.Element {
                 transfers={fanout.transfers}
                 onCancel={fanout.cancelTransfer}
                 onDismiss={fanout.dismissTransfer}
+                folderCopies={fanout.folderCopies}
+                onCancelFolder={fanout.cancelFolderCopy}
+                onDismissFolder={fanout.dismissFolderCopy}
               />
 
               {/* Host-key decisions, the "Reaching <host>…" surface and the
