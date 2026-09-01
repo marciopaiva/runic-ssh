@@ -213,6 +213,8 @@
   "sftp.error.permissionDenied": "El servidor rechazó el permiso.",
   "sftp.error.protocol": "El protocolo SFTP falló.",
   "sftp.failed": "Falló",
+  "sftp.folderCopy.failed": "{count} fallaron",
+  "sftp.folderCopy.progress": "{done} de {total} archivos",
   "sftp.localhost": "localhost",
   "sftp.menu.delete": "Eliminar",
   "sftp.menu.delete.detail.folder": "Elimina la carpeta y todo lo que hay dentro.",

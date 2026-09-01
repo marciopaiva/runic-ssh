@@ -10,13 +10,14 @@ import {
   hasActiveTransfer,
   localFileName,
   pathSegments,
+  reduceFolderCopies,
   reduceTransfers,
   remoteParent,
   selectionRange,
   toggleReceiving,
   visibleDestinationRows,
 } from '../src/features/sftp/browser';
-import type { TransferAction } from '../src/features/sftp/browser';
+import type { FolderCopyAction, TransferAction } from '../src/features/sftp/browser';
 import type { PaneEntry } from '../src/features/sftp/endpoint';
 
 const STARTED: TransferAction = {
@@ -256,15 +257,15 @@ describe('a shift-click range', () => {
   ];
 
   it('covers everything between the anchor and the target, inclusive', () => {
-    expect(selectionRange(entries, 'a.txt', 'c.txt')).toEqual(['a.txt', 'b.txt', 'c.txt']);
+    expect(selectionRange(entries, 'a.txt', 'c.txt')).toEqual(['a.txt', 'b.txt', 'sub', 'c.txt']);
   });
 
   it('works the same in reverse, anchor after the target', () => {
-    expect(selectionRange(entries, 'd.txt', 'b.txt')).toEqual(['b.txt', 'c.txt', 'd.txt']);
+    expect(selectionRange(entries, 'd.txt', 'b.txt')).toEqual(['b.txt', 'sub', 'c.txt', 'd.txt']);
   });
 
-  it('skips a directory the range passes over', () => {
-    expect(selectionRange(entries, 'b.txt', 'c.txt')).toEqual(['b.txt', 'c.txt']);
+  it('includes a directory the range passes over (ADR-0049: a folder is selectable too)', () => {
+    expect(selectionRange(entries, 'b.txt', 'c.txt')).toEqual(['b.txt', 'sub', 'c.txt']);
   });
 
   it('is just the target when anchor and target are the same row', () => {
@@ -294,3 +295,93 @@ describe("a native dialog's own last path segment", () => {
   });
 });
 
+
+describe('reducing folder-copy events (ADR-0049)', () => {
+  const STARTED_FOLDER: FolderCopyAction = {
+    type: 'started',
+    id: 'folder-1',
+    name: 'assets',
+    destination: 'deploy@10.4.1.20',
+    total: 3,
+  };
+
+  it('adds a copy as active with nothing attempted yet', () => {
+    const copies = reduceFolderCopies([], STARTED_FOLDER);
+
+    expect(copies).toEqual([
+      {
+        id: 'folder-1',
+        name: 'assets',
+        destination: 'deploy@10.4.1.20',
+        done: 0,
+        total: 3,
+        failed: 0,
+        status: 'active',
+      },
+    ]);
+  });
+
+  it('counts a succeeded file without touching the failed count', () => {
+    const copies = reduceFolderCopies(reduceFolderCopies([], STARTED_FOLDER), {
+      type: 'fileDone',
+      id: 'folder-1',
+      succeeded: true,
+    });
+
+    expect(copies[0]).toMatchObject({ done: 1, failed: 0 });
+  });
+
+  it('counts a failed file in both done and failed', () => {
+    const copies = reduceFolderCopies(reduceFolderCopies([], STARTED_FOLDER), {
+      type: 'fileDone',
+      id: 'folder-1',
+      succeeded: false,
+    });
+
+    expect(copies[0]).toMatchObject({ done: 1, failed: 1 });
+  });
+
+  it('updates only the copy an event names', () => {
+    const other: FolderCopyAction = { ...STARTED_FOLDER, id: 'folder-2', name: 'logs' };
+    const copies = reduceFolderCopies(reduceFolderCopies([], STARTED_FOLDER), other);
+
+    const after = reduceFolderCopies(copies, { type: 'fileDone', id: 'folder-1', succeeded: true });
+
+    expect(after.find((c) => c.id === 'folder-1')).toMatchObject({ done: 1 });
+    expect(after.find((c) => c.id === 'folder-2')).toMatchObject({ done: 0 });
+  });
+
+  it('marks a copy done, keeping whatever failed count it already had', () => {
+    let copies = reduceFolderCopies([], STARTED_FOLDER);
+    copies = reduceFolderCopies(copies, { type: 'fileDone', id: 'folder-1', succeeded: false });
+    copies = reduceFolderCopies(copies, { type: 'finished', id: 'folder-1' });
+
+    expect(copies[0]).toMatchObject({ status: 'done', done: 1, failed: 1 });
+  });
+
+  it('marks a copy cancelled rather than done', () => {
+    const copies = reduceFolderCopies(reduceFolderCopies([], STARTED_FOLDER), {
+      type: 'cancelled',
+      id: 'folder-1',
+    });
+
+    expect(copies[0]).toMatchObject({ status: 'cancelled' });
+  });
+
+  it('drops a dismissed copy and nothing else', () => {
+    const copies = [
+      reduceFolderCopies([], STARTED_FOLDER)[0]!,
+      reduceFolderCopies([], { ...STARTED_FOLDER, id: 'folder-2' })[0]!,
+    ];
+
+    const after = reduceFolderCopies(copies, { type: 'dismissed', id: 'folder-1' });
+    expect(after.map((c) => c.id)).toEqual(['folder-2']);
+  });
+
+  it('is a no-op for an event naming a copy that is not in the list', () => {
+    const copies = reduceFolderCopies([], STARTED_FOLDER);
+    const after = reduceFolderCopies(copies, { type: 'fileDone', id: 'missing', succeeded: true });
+
+    expect(after).toEqual(copies);
+  });
+});

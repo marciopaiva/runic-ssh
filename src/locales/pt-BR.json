@@ -213,6 +213,8 @@
   "sftp.error.permissionDenied": "O servidor recusou a permissão.",
   "sftp.error.protocol": "O protocolo SFTP falhou.",
   "sftp.failed": "Falhou",
+  "sftp.folderCopy.failed": "{count} falharam",
+  "sftp.folderCopy.progress": "{done} de {total} arquivos",
   "sftp.localhost": "localhost",
   "sftp.menu.delete": "Apagar",
   "sftp.menu.delete.detail.folder": "Apaga a pasta e tudo o que está dentro dela.",

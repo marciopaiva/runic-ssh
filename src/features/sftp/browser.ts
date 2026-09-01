@@ -194,13 +194,13 @@ export function localFileName(path: string): string {
  * Which files a shift-click range covers, between `anchor` and `target`
  * inclusive, in `entries`' own displayed order.
  *
- * A directory sitting between the two is skipped rather than included:
- * only a source pane's files are selectable at all, so a folder the range
- * happens to pass over is not part of what got selected, the same way a
- * real file manager's own shift-click range never selects a heading.
- * Neither endpoint found (a stale anchor from a listing that has since
- * changed under it) falls back to selecting just `target`, rather than
- * guessing at a range that no longer means anything.
+ * A directory sitting inside the range is included, not skipped: ADR-0049
+ * put a folder in the same checkbox-and-Send flow a file already has, so a
+ * range that passes over one now means to select it too, the same way a
+ * real file manager's own shift-click range covers a folder row exactly
+ * like any other. Neither endpoint found (a stale anchor from a listing
+ * that has since changed under it) falls back to selecting just `target`,
+ * rather than guessing at a range that no longer means anything.
  */
 export function selectionRange(
   entries: readonly PaneEntry[],
@@ -213,10 +213,87 @@ export function selectionRange(
   if (anchorAt === -1 || targetAt === -1) return [target];
 
   const [start, end] = anchorAt < targetAt ? [anchorAt, targetAt] : [targetAt, anchorAt];
-  return entries
-    .slice(start, end + 1)
-    .filter((entry) => !entry.isDir)
-    .map((entry) => entry.path);
+  return entries.slice(start, end + 1).map((entry) => entry.path);
+}
+
+/** A recursive folder copy's own status: `'active'` while still walking or
+ * transferring, `'done'` once every file in the tree has been attempted
+ * (`failed` says how many did not make it), `'cancelled'` if stopped
+ * before that. ADR-0049. */
+export type FolderCopyStatus = 'active' | 'done' | 'cancelled';
+
+/**
+ * One recursive folder copy's aggregate state, a sibling to
+ * {@link TransferState} rather than a variant of it: a folder copy has no
+ * single `TransferHandle` (it dispatches one file transfer at a time,
+ * sequentially, ADR-0049), no byte total known up front the way one
+ * file's already-fetched metadata gives a single transfer its own, and a
+ * partial-failure count `TransferState` has no field for.
+ */
+export interface FolderCopyState {
+  /** Synthetic, since no single `TransferHandle` names a whole copy. */
+  readonly id: string;
+  readonly name: string;
+  readonly destination: string;
+  /** How many of `total` files have been attempted (succeeded or failed),
+   * not how many bytes moved: a folder's total size is not known the way
+   * one file's already is. */
+  readonly done: number;
+  readonly total: number;
+  readonly failed: number;
+  readonly status: FolderCopyStatus;
+}
+
+export type FolderCopyAction =
+  | {
+      readonly type: 'started';
+      readonly id: string;
+      readonly name: string;
+      readonly destination: string;
+      readonly total: number;
+    }
+  | { readonly type: 'fileDone'; readonly id: string; readonly succeeded: boolean }
+  | { readonly type: 'finished'; readonly id: string }
+  | { readonly type: 'cancelled'; readonly id: string }
+  | { readonly type: 'dismissed'; readonly id: string };
+
+/** Folds one event into the folder-copy list, the same shape
+ * {@link reduceTransfers} already gives a single file. ADR-0049. */
+export function reduceFolderCopies(
+  copies: readonly FolderCopyState[],
+  action: FolderCopyAction,
+): readonly FolderCopyState[] {
+  switch (action.type) {
+    case 'started':
+      return [
+        ...copies,
+        {
+          id: action.id,
+          name: action.name,
+          destination: action.destination,
+          done: 0,
+          total: action.total,
+          failed: 0,
+          status: 'active',
+        },
+      ];
+
+    case 'fileDone':
+      return copies.map((copy) =>
+        copy.id === action.id
+          ? { ...copy, done: copy.done + 1, failed: copy.failed + (action.succeeded ? 0 : 1) }
+          : copy,
+      );
+
+    case 'finished':
+      return copies.map((copy) => (copy.id === action.id ? { ...copy, status: 'done' as const } : copy));
+
+    case 'cancelled':
+      return copies.map((copy) => (copy.id === action.id ? { ...copy, status: 'cancelled' as const } : copy));
+
+    case 'dismissed':
+      return copies.filter((copy) => copy.id !== action.id);
+  }
 }
 
 /** Flips one destination slot's own receive toggle (ADR-0047): a slot
