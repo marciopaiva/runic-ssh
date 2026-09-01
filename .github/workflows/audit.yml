@@ -108,3 +108,43 @@ jobs:
       - name: cargo deny
         working-directory: src-tauri
         run: cargo deny check bans licenses sources
+
+  pnpm-audit:
+    name: audit / npm advisories
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      # pnpm comes from the packageManager field in package.json, so CI runs
+      # the exact version the lockfile was written with.
+      - name: Enable pnpm
+        run: corepack enable
+
+      # `pnpm-lock.yaml` is committed and `--frozen-lockfile` is enforced
+      # everywhere else, so nothing on this tree moves without a commit. What
+      # was missing, #92, was any check of what's pinned against a known
+      # vulnerability. This is the smallest thing that closes that gap: the
+      # same workflow the Rust side already uses, the pnpm equivalent of
+      # `cargo audit` above. Version drift with no advisory attached is a
+      # separate question, deliberately left open by #92, since a tree this
+      # small (6 runtime, 10 dev dependencies) doesn't yet justify a bot
+      # opening one pull request per outdated package.
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Fails on any advisory at low severity or above. There is no allow
+      # list file the way `cargo audit` has one in `src-tauri/.cargo/`: pnpm
+      # has no such config, only a per-run `--ignore <GHSA-id>` flag. If an
+      # unfixable advisory is ever found here and reviewed as not reachable,
+      # add that flag to the command below with a comment naming the
+      # advisory and the reason, the same way `audit.toml` explains each of
+      # its entries.
+      - name: pnpm audit
+        run: pnpm audit --audit-level=low

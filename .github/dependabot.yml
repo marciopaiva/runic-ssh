@@ -15,9 +15,10 @@
 # this repository and to CI secrets, referenced by a pointer somebody else can
 # move — which is why it is pinned by commit when no other dependency is.
 # Cargo and npm dependencies are pinned by lockfile and cannot move underneath
-# us, and the Rust tree is already checked against the advisory database daily
-# by audit.yml. The npm half has no such watch; that gap is issue #92 rather
-# than an ecosystem bolted on here, because "should we take a dependency
+# us, and both trees are checked against their advisory databases daily by
+# audit.yml (#92 added the npm half). Version drift with no advisory attached
+# is a separate question, left open on purpose rather than answered with an
+# ecosystem bolted on here, because "should we take a dependency
 # upgrade" is a different question from "did the code we pinned move".
 #
 # A pull request from this bot is not a rubber stamp. It is a change to the one
