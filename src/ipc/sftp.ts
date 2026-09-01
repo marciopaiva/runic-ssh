@@ -104,6 +104,48 @@ export async function sftpTransfer(
   return invoke<TransferHandle>('sftp_transfer', { sourceHandle, sourcePath, destHandle, destDir });
 }
 
+/** Creates a directory named `name` inside `dir`, remotely. ADR-0048. */
+export async function sftpMkdir(handle: SessionHandle, dir: string, name: string): Promise<string> {
+  return invoke<string>('sftp_mkdir', { handle, dir, name });
+}
+
+/** Renames `oldName` to `newName`, within `dir`, remotely. ADR-0048. */
+export async function sftpRename(
+  handle: SessionHandle,
+  dir: string,
+  oldName: string,
+  newName: string,
+): Promise<string> {
+  return invoke<string>('sftp_rename', { handle, dir, oldName, newName });
+}
+
+/** Removes `name` inside `dir`, remotely. A directory is removed
+ * recursively. ADR-0048. */
+export async function sftpRemove(
+  handle: SessionHandle,
+  dir: string,
+  name: string,
+  isDir: boolean,
+): Promise<void> {
+  return invoke<void>('sftp_remove', { handle, dir, name, isDir });
+}
+
+/** Creates a directory named `name` inside `dir`, locally. ADR-0048. */
+export async function localMkdir(dir: string, name: string): Promise<string> {
+  return invoke<string>('local_mkdir', { dir, name });
+}
+
+/** Renames `oldName` to `newName`, within `dir`, locally. ADR-0048. */
+export async function localRename(dir: string, oldName: string, newName: string): Promise<string> {
+  return invoke<string>('local_rename', { dir, oldName, newName });
+}
+
+/** Removes `name` inside `dir`, locally. A directory is removed
+ * recursively. ADR-0048. */
+export async function localRemove(dir: string, name: string, isDir: boolean): Promise<void> {
+  return invoke<void>('local_remove', { dir, name, isDir });
+}
+
 /**
  * Cancels a transfer in flight.
  *

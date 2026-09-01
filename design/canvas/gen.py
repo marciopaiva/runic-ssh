@@ -105,6 +105,10 @@ ICON = dict(
     # triangle `warn_chip`/StatusBar.tsx's own `syncing` indicator already
     # uses, since one is a control and the other a caution.
     broadcast='<circle cx="12" cy="19" r="1.6" fill="currentColor" stroke="none"></circle><path d="M8 15.5a5.5 5.5 0 0 1 8 0"></path><path d="M4.5 12a10 10 0 0 1 15 0"></path>',
+    # Exploratory (`build_sftp_file_ops`): the plain folder outline
+    # `FolderIcon`/`ic('sftp', ...)` already draw, with a plus in place of
+    # `sftp`'s own receiving-arrow, for the nav bar's "new folder" action.
+    newfolder='<path d="M4 6.5h6l1.6 2H20v9.5H4z"></path><path d="M12 12v4M10 14h4"></path>',
 )
 
 def ic(name, size=14, color=None, cls="ic", extra=""):
@@ -864,23 +868,35 @@ def toolbar_row(right_html="", left_html=""):
     {right_html}
   </div>"""
 
-def nav_bar(segments, can_back=False):
+def nav_bar(segments, can_back=False, new_folder=False):
     """Back, up, a breadcrumb, refresh: what `SftpPane.tsx` does not have
     today, drawing its path as inert text and asking for a click on a row
     or the `..` entry to move at all. `segments` is the path split on `/`;
     the last one is the current directory and reads brighter than the rest,
-    the same weight rule a breadcrumb usually gives its own tail."""
+    the same weight rule a breadcrumb usually gives its own tail.
+
+    `new_folder` is exploratory (`build_sftp_file_ops`): a visible entry
+    point for creating a directory, next to refresh rather than buried in a
+    context menu on empty space, the same "a context menu is the
+    convention and a visible button is the thing somebody finds without
+    being told the convention" reasoning `SessionMenu.tsx`'s own doc
+    comment already gives for pairing a menu with a button. Off by default
+    so every artboard already drawing a plain `nav_bar()` is unaffected."""
     back_color = T['muted'] if can_back else T['off']
     crumbs = [
         f'<span class="mono" style="font-size: 11px; color: {T["ink2"] if i == len(segments) - 1 else T["faint"]};">{seg}</span>'
         for i, seg in enumerate(segments)
     ]
     crumb_html = f'<span style="color: {T["off"]}; font-size: 10px;">/</span>'.join(crumbs)
+    newfolder_html = (
+        f'<span style="color: {T["muted"]}; display: flex;">{ic("newfolder", 13)}</span>' if new_folder else ''
+    )
     return (f'<div style="height: 24px; flex: none; display: flex; align-items: center; gap: 7px; padding: 0 8px;'
             f' background: {T["chrome"]}; border-bottom: 1px solid {T["line"]};">'
             f'<span style="color: {back_color}; display: flex;">{ic("chev", 13, extra=" transform: rotate(180deg);")}</span>'
             f'<span style="color: {T["muted"]}; display: flex;">{ic("chev", 13, extra=" transform: rotate(-90deg);")}</span>'
             f'<div style="flex: 1; min-width: 0; display: flex; align-items: center; gap: 3px; overflow: hidden; white-space: nowrap;">{crumb_html}</div>'
+            f'{newfolder_html}'
             f'<span style="color: {T["muted"]}; display: flex;">{ic("refresh", 12)}</span></div>')
 
 def build_sftp_proposal():
@@ -1193,6 +1209,130 @@ def build_sftp_proposal_broadcast():
 </div>
 """
     write("SftpProposalBroadcast.dc.html", HEAD + page_html + FOOT)
+
+def menu_item(label, detail=None, destructive=False, focused=False):
+    """`GroupMenu.tsx`'s own row, redrawn rather than invented: no icon, a
+    `detail` line under a destructive item naming what is about to be lost
+    (`GroupMenu`'s own reasoning: "the count belongs on the control that
+    does the thing, where it is read a moment before the decision"), which
+    is why apagar needs no second confirmation screen of its own."""
+    bg = f'background: {T["raised"]};' if focused else ''
+    color = T['dangertext'] if destructive else T['ink2']
+    detail_html = (
+        f'<span style="font-size: 11px; line-height: 1.3; color: {T["faint"]};">{detail}</span>' if detail else ''
+    )
+    return (f'<div style="display: flex; flex-direction: column; justify-content: center; gap: 1px; padding: 5px 12px; {bg}">'
+            f'<span style="font-size: 12.5px; color: {color};">{label}</span>{detail_html}</div>')
+
+def context_menu(items, top, left, width=210):
+    """Positioned absolutely over the pane it was opened from, the same
+    `fixed` + computed `left`/`top` `GroupMenu.tsx` uses (`menuPosition`),
+    approximated here at a fixed spot rather than computed, since this
+    artboard draws one open state rather than every possible one."""
+    body = "".join(items)
+    return (f'<div style="position: absolute; top: {top}px; left: {left}px; width: {width}px; z-index: 20;'
+            f' background: {T["overlay"]}; border: 1px solid {T["line2"]}; border-radius: 6px; padding: 4px 0;'
+            f' box-shadow: 0 12px 32px rgba(0,0,0,0.45); display: flex; flex-direction: column;">{body}</div>')
+
+def action_banner(text):
+    """The gap `pane.error` leaves: that one replaces the whole listing, so
+    a failed rename or a failed mkdir needs a shorter-lived strip that says
+    what went wrong without taking the files on screen down with it."""
+    return (f'<div style="flex: none; display: flex; align-items: center; gap: 6px; padding: 5px 10px;'
+            f' background: {T["dangersoft"]}; border-bottom: 1px solid {T["line"]};">'
+            f'<span style="font-size: 11.5px; color: {T["dangertext"]};">{text}</span></div>')
+
+def build_sftp_file_ops():
+    """Exploratory (2026-09-01), Phase 3 of #256's SFTP roadmap: creating a
+    directory, renaming an entry, deleting one or several, confirmed
+    directly to take the shape already proven elsewhere in this tree rather
+    than a new one: `GroupMenu.tsx`'s context menu (`menu_item`/
+    `context_menu` above), in-place editing for a name (no modal, ADR-0042's
+    own `SessionSurface` is reserved for heavier decisions than a routine
+    rename), and a one-click destructive delete carrying its own warning in
+    the `detail` line instead of a second confirmation screen.
+
+    Confirmed directly: deleting a directory is recursive (this client talks
+    plain SFTP and the local filesystem, no trash on either side), which is
+    exactly what the menu's own `detail` line says before the click rather
+    than after it.
+
+    Three edit states drawn together on one source pane, each real but
+    never simultaneous in the shipped tree: a fresh "New folder" row mid
+    entry (opened from the nav bar's new icon), an existing name mid
+    rename, and the context menu open over a third row. The destination
+    pane alongside shows the same nav bar icon, since file management is a
+    property of the pane's own endpoint, not of whether it sends."""
+    def crow(name, dim=False, editing=None):
+        """`editing`, given, replaces the name with a bordered input box
+        holding that text, selected the way a fresh "New folder" or a
+        rename starts: ready to type over immediately."""
+        if editing is not None:
+            i = ic("sftp", 12, T['faint']) if dim else f'<svg class="ic" viewBox="0 0 24 24" style="width: 12px; height: 12px; color: {T["faint"]};"><path d="M6 3h8l4 4v14H6z"></path><path d="M14 3v4h4"></path></svg>'
+            box = (f'<span class="mono" style="flex: 1; min-width: 0; font-size: 11px; color: {T["ink"]}; background: {T["input"]};'
+                   f' border: 1px solid {T["accent"]}; border-radius: 3px; padding: 1px 5px;">{editing}<span style="display: inline-block; width: 1px; height: 11px; background: {T["accent"]}; margin-left: 1px; vertical-align: text-bottom;"></span></span>')
+            return f'<div style="display: flex; align-items: center; gap: 7px; padding: 3px 8px;">{i}{box}</div>'
+        i = ic("sftp", 12, T['faint']) if dim else f'<svg class="ic" viewBox="0 0 24 24" style="width: 12px; height: 12px; color: {T["faint"]};"><path d="M6 3h8l4 4v14H6z"></path><path d="M14 3v4h4"></path></svg>'
+        return (f'<div style="display: flex; align-items: center; gap: 7px; padding: 3px 8px;">{i}'
+                f'<span class="mono" style="font-size: 11px; color: {T["ink2"]};">{name}</span></div>')
+
+    def pane_header(label, who):
+        return (f'<div style="height: 24px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 10px;'
+                f' background: {T["chrome"]}; border-bottom: 1px solid {T["line"]};">'
+                f'<span style="font-size: 9px; font-weight: 700; letter-spacing: 0.1em; color: {T["faint"]};">{label}</span>'
+                f'<span class="mono" style="font-size: 10.5px; color: {T["muted"]};">{who}</span></div>')
+
+    source_rows = (
+        crow("New folder", editing="New folder")
+        + crow("index.html")
+        + crow("assets", dim=True)
+        + crow("app.2f9c.js", editing="report-final.js")
+    )
+    source_menu = context_menu(
+        [
+            menu_item("Rename"),
+            menu_item("Delete", detail="Deletes the folder and everything inside it.", destructive=True, focused=True),
+        ],
+        top=118, left=170,
+    )
+    source = (f'<div style="position: relative; display: flex; flex-direction: column; overflow: hidden;'
+              f' border: 1px solid {T["line"]}; border-radius: 6px;">'
+              f'{pane_header("SOURCE", "deploy@10.4.1.20")}{nav_bar(["/", "var", "www"], True, new_folder=True)}'
+              f'{action_banner("A file named “report-final.js” already exists here.")}'
+              f'<div style="flex: 1; padding: 4px 0; overflow: hidden;">{source_rows}</div>'
+              f'{source_menu}</div>')
+
+    d1_rows = crow("index.html") + crow("assets", dim=True)
+    d1 = (f'<div style="display: flex; flex-direction: column; overflow: hidden; border: 1px solid {T["line"]}; border-radius: 6px;">'
+          f'{pane_header("DESTINATION", "deploy@10.4.1.21")}{nav_bar(["/", "var", "www"], False, new_folder=True)}'
+          f'<div style="flex: 1; padding: 4px 0; overflow: hidden;">{d1_rows}</div></div>')
+    d2 = (f'<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;'
+          f' border: 1.5px dashed {T["line2"]}; border-radius: 6px;">'
+          f'{ic("sftp", 22, T["off"])}<span style="font-size: 11px; color: {T["faint"]};">Drop a host here</span></div>')
+
+    body = f"""      <div style="flex: 1; min-height: 0; display: flex; gap: 10px; padding: 12px;">
+        <div style="width: 50%;">{source}</div>
+        <div style="width: 50%; display: grid; grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 8px;">{d1}{d2}</div>
+      </div>"""
+
+    sidebar = sessions_sidebar(active=None, states={"web-01": "ok"})
+    st = status(stat_text("1 destination, 1 source", T['faint'], mono=False), stat_text("", T['muted']))
+
+    page_html = f"""
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{plain_titlebar()}
+{toolbar_row(right_html=select_all_button(1) + split_control(active=2))}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{home_rail(workspace="sftp", sftp_badge="2")}
+{sidebar}
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: {T['base']};">
+{body}
+    </div>
+  </div>
+{st}
+</div>
+"""
+    write("SftpFileOps.dc.html", HEAD + page_html + FOOT)
 
 def build_sessions_proposal():
     """Exploratory (2026-08-31), the SSH counterpart to
@@ -2027,7 +2167,7 @@ if LIGHT_MODE:
 else:
     for fn in (build_empty, build_main, build_groups, build_collapsed, build_broadcast,
                build_hostkey, build_sftp, build_sftp_workspace, build_sftp_fanout, build_sftp_proposal,
-               build_sftp_proposal_broadcast,
+               build_sftp_proposal_broadcast, build_sftp_file_ops,
                build_sessions_proposal, build_sessions_proposal_broadcast,
                build_sessions_proposal_broadcast_multi,
                build_hosts_host, build_hosts_access, build_home_dashboard, build_home_hosts,

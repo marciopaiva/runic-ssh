@@ -402,6 +402,95 @@ async fn run_transfer<R: Runtime>(
     app.state::<Transfers>().forget(transfer).await;
 }
 
+/// Creates a directory named `name` inside `dir`, remotely. ADR-0048.
+#[tauri::command]
+pub async fn sftp_mkdir(
+    registry: State<'_, Registry>,
+    handle: SessionHandle,
+    dir: String,
+    name: String,
+) -> Result<String, IpcError> {
+    let sftp = open_session(&registry, handle).await?;
+    session::create_dir(&sftp, &dir, &name)
+        .await
+        .map_err(|error| Error::Sftp(Box::new(error)).into())
+}
+
+/// Renames `old_name` to `new_name`, within `dir`, remotely. ADR-0048.
+#[tauri::command]
+pub async fn sftp_rename(
+    registry: State<'_, Registry>,
+    handle: SessionHandle,
+    dir: String,
+    old_name: String,
+    new_name: String,
+) -> Result<String, IpcError> {
+    let sftp = open_session(&registry, handle).await?;
+    session::rename(&sftp, &dir, &old_name, &new_name)
+        .await
+        .map_err(|error| Error::Sftp(Box::new(error)).into())
+}
+
+/// Removes `name` inside `dir`, remotely. A directory is removed
+/// recursively. ADR-0048.
+#[tauri::command]
+pub async fn sftp_remove(
+    registry: State<'_, Registry>,
+    handle: SessionHandle,
+    dir: String,
+    name: String,
+    is_dir: bool,
+) -> Result<(), IpcError> {
+    let sftp = open_session(&registry, handle).await?;
+    session::remove(&sftp, &dir, &name, is_dir)
+        .await
+        .map_err(|error| Error::Sftp(Box::new(error)).into())
+}
+
+/// Creates a directory named `name` inside `dir`, locally. ADR-0048.
+///
+/// `spawn_blocking`, the same reason `local_list_directory` already needs
+/// it: `std::fs::create_dir` is a blocking syscall, and running it inline
+/// would stall every other command this process is mid-way through.
+#[tauri::command]
+pub async fn local_mkdir(dir: String, name: String) -> Result<String, IpcError> {
+    tokio::task::spawn_blocking(move || {
+        crate::sftp::local::create_dir(std::path::Path::new(&dir), &name)
+    })
+    .await
+    .map_err(|_| Error::LocalFilesystem(crate::sftp::local::LocalError::Io))?
+    .map(|path| path.display().to_string())
+    .map_err(|error| Error::LocalFilesystem(error).into())
+}
+
+/// Renames `old_name` to `new_name`, within `dir`, locally. ADR-0048.
+#[tauri::command]
+pub async fn local_rename(
+    dir: String,
+    old_name: String,
+    new_name: String,
+) -> Result<String, IpcError> {
+    tokio::task::spawn_blocking(move || {
+        crate::sftp::local::rename(std::path::Path::new(&dir), &old_name, &new_name)
+    })
+    .await
+    .map_err(|_| Error::LocalFilesystem(crate::sftp::local::LocalError::Io))?
+    .map(|path| path.display().to_string())
+    .map_err(|error| Error::LocalFilesystem(error).into())
+}
+
+/// Removes `name` inside `dir`, locally. A directory is removed
+/// recursively. ADR-0048.
+#[tauri::command]
+pub async fn local_remove(dir: String, name: String, is_dir: bool) -> Result<(), IpcError> {
+    tokio::task::spawn_blocking(move || {
+        crate::sftp::local::remove(std::path::Path::new(&dir), &name, is_dir)
+    })
+    .await
+    .map_err(|_| Error::LocalFilesystem(crate::sftp::local::LocalError::Io))?
+    .map_err(|error| Error::LocalFilesystem(error).into())
+}
+
 /// Cancels a transfer in flight.
 ///
 /// Never fails: a handle naming a transfer already finished, already

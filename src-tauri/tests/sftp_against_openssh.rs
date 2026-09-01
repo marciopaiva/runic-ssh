@@ -11,8 +11,18 @@
 //! ```sh
 //! podman build -t runic-test-sshd src-tauri/tests/fixtures/sshd
 //! podman run -d --name runic-test-sshd -p 2222:2222 runic-test-sshd
-//! cargo test --test sftp_against_openssh -- --ignored --nocapture
+//! cargo test --test sftp_against_openssh -- --ignored --test-threads=1 --nocapture
 //! ```
+//!
+//! `--test-threads=1`: several of these mutate the same fixture directory
+//! (ADR-0048's create/rename/remove tests, alongside the upload/transfer
+//! ones already here), and `many_concurrent_listings_on_one_connection_
+//! all_agree_with_a_baseline` reads that same directory across its own
+//! span expecting nothing else to touch it meanwhile. Run in parallel, a
+//! mutating test landing mid-span makes that one fail on a real
+//! interleaving rather than a bug in what either test proves; run
+//! serially, the fixture is exactly as stable as `docs/testing.md` already
+//! assumes.
 //!
 //! The remote-to-remote test also needs a second instance of the same
 //! image, on `OTHER_PORT`:
@@ -269,11 +279,8 @@ async fn uploading_then_downloading_round_trips_the_content() {
 
     /* The fixture is a long-lived container other tests and the maintainer
     poke at by hand; leaving what this test wrote there would be found later
-    with no note of where it came from. `remove_file` is deliberately not
-    part of `sftp::session` (deletion is out of #127's first cut), so this
-    goes straight to the same already-open session rather than adding the
-    operation just to clean up after a test. */
-    sftp.remove_file(&remote_path)
+    with no note of where it came from. */
+    session::remove(&sftp, HOME, "upload-me.txt", false)
         .await
         .expect("removes what this test uploaded");
 }
@@ -463,4 +470,106 @@ async fn transferring_to_a_destination_behind_a_jump_host() {
         .remove_file(&dest_path)
         .await
         .expect("removes what this test transferred to the destination");
+}
+
+/// ADR-0048.
+#[tokio::test]
+#[ignore = "needs the test container; see the module comment"]
+async fn creating_a_directory_makes_it_listable_and_it_is_removable_after() {
+    let (_connection, sftp) = authenticated(PORT).await;
+
+    let created = session::create_dir(&sftp, HOME, "a-new-directory")
+        .await
+        .expect("creates the directory");
+    assert_eq!(created, format!("{HOME}/a-new-directory"));
+
+    let entries = session::list(&sftp, HOME).await.expect("lists");
+    assert!(
+        entries
+            .iter()
+            .any(|e| e.name == "a-new-directory" && e.is_dir),
+        "the new directory should be listed"
+    );
+
+    session::remove(&sftp, HOME, "a-new-directory", true)
+        .await
+        .expect("removes the now-empty directory");
+}
+
+/// ADR-0048.
+#[tokio::test]
+#[ignore = "needs the test container; see the module comment"]
+async fn a_hostile_new_directory_name_is_refused_before_reaching_the_server() {
+    let (_connection, sftp) = authenticated(PORT).await;
+
+    let error = session::create_dir(&sftp, HOME, "../escape")
+        .await
+        .expect_err("a name with a separator is refused");
+
+    assert!(matches!(error, SftpError::RefusedName(_)));
+}
+
+/// ADR-0048.
+#[tokio::test]
+#[ignore = "needs the test container; see the module comment"]
+async fn renaming_moves_the_entry_within_its_own_directory() {
+    let (_connection, sftp) = authenticated(PORT).await;
+
+    session::create_dir(&sftp, HOME, "rename-me")
+        .await
+        .expect("creates a directory to rename");
+
+    let renamed = session::rename(&sftp, HOME, "rename-me", "renamed")
+        .await
+        .expect("renames it");
+    assert_eq!(renamed, format!("{HOME}/renamed"));
+
+    let entries = session::list(&sftp, HOME).await.expect("lists");
+    assert!(
+        !entries.iter().any(|e| e.name == "rename-me"),
+        "the old name is gone"
+    );
+    assert!(
+        entries.iter().any(|e| e.name == "renamed"),
+        "the new name is listed"
+    );
+
+    session::remove(&sftp, HOME, "renamed", true)
+        .await
+        .expect("removes what this test created");
+}
+
+/// ADR-0048: SFTP v3's own `remove_dir` only removes an empty directory,
+/// so a directory with a file inside it proves the recursive walk, not
+/// only the empty-directory case already covered above.
+#[tokio::test]
+#[ignore = "needs the test container; see the module comment"]
+async fn removing_a_directory_removes_what_is_inside_it_too() {
+    let (_connection, sftp) = authenticated(PORT).await;
+    let scratch = tempfile::tempdir().expect("a scratch directory");
+
+    let dir_path = session::create_dir(&sftp, HOME, "non-empty-dir")
+        .await
+        .expect("creates the directory");
+
+    let local_source = scratch.path().join("inner.txt");
+    std::fs::write(&local_source, b"x").expect("writes the fixture");
+    let inner_path = session::upload(&sftp, &local_source, &dir_path, |_| {})
+        .await
+        .expect("uploads a file inside the new directory");
+
+    session::remove(&sftp, HOME, "non-empty-dir", true)
+        .await
+        .expect("removes the directory and everything inside it");
+
+    let entries = session::list(&sftp, HOME).await.expect("lists");
+    assert!(
+        !entries.iter().any(|e| e.name == "non-empty-dir"),
+        "the directory should be gone"
+    );
+
+    let error = session::list(&sftp, &inner_path)
+        .await
+        .expect_err("the file inside it went with it");
+    assert_eq!(error, SftpError::NotFound);
 }
