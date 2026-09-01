@@ -23,7 +23,9 @@
 
 use runic_ssh::sftp::error::SftpError;
 use runic_ssh::sftp::session::{self, SftpSession};
-use runic_ssh::ssh::connection::{connect, connect_reporting, Connection, Credential, Endpoint};
+use runic_ssh::ssh::connection::{
+    connect, connect_reporting, connect_via, share, Connection, Credential, Endpoint,
+};
 use runic_ssh::ssh::known_hosts::KnownHosts;
 use runic_ssh::ssh::trust::Trust;
 use runic_ssh::vault::Secret;
@@ -317,6 +319,141 @@ async fn transferring_between_two_connections_matches_the_source() {
         std::fs::read(&round_tripped).expect("reads the transferred copy"),
         content,
     );
+
+    source
+        .remove_file(&source_path)
+        .await
+        .expect("removes what this test uploaded to the source");
+    destination
+        .remove_file(&dest_path)
+        .await
+        .expect("removes what this test transferred to the destination");
+}
+
+/// Temporary diagnosis for a report that a transfer to a destination behind
+/// a jump host never lands, even though a plain listing of one already
+/// works. Uses the same bastion/target fixture `against_openssh.rs` does
+/// (`docs/testing.md`, "A bastion and a host behind it"), and the same
+/// `authenticated` shape as this file's other tests for the direct source.
+const BASTION_PORT: u16 = 2226;
+const BASTION_USER: &str = "jump";
+const BASTION_PASSWORD: &str = "runic-bastion";
+const TARGET_HOST: &str = "target.internal";
+const TARGET_PORT: u16 = 2222;
+const TARGET_USER: &str = "deploy";
+const TARGET_PASSWORD: &str = "runic-target";
+
+#[tokio::test]
+#[ignore = "needs the jump fixture; see docs/testing.md"]
+async fn transferring_to_a_destination_behind_a_jump_host() {
+    let (_source_connection, source) = authenticated(PORT).await;
+
+    let (_, offered) = connect_reporting(
+        Endpoint {
+            host: HOST.to_owned(),
+            port: BASTION_PORT,
+        },
+        KnownHosts::default(),
+    )
+    .await
+    .err()
+    .expect("an empty known_hosts must refuse the bastion");
+    let mut known = KnownHosts::default();
+    known.add(KnownHosts::entry_for(
+        HOST,
+        BASTION_PORT,
+        "ssh-ed25519",
+        offered.expect("the bastion offered a key").key,
+    ));
+
+    let mut bastion = connect(
+        Endpoint {
+            host: HOST.to_owned(),
+            port: BASTION_PORT,
+        },
+        known.clone(),
+    )
+    .await
+    .expect("the bastion connects");
+    bastion
+        .authenticate(
+            BASTION_USER,
+            Credential::Password(Secret::new(BASTION_PASSWORD.to_owned())),
+        )
+        .await
+        .expect("the bastion authenticates");
+
+    let target_endpoint = Endpoint {
+        host: TARGET_HOST.to_owned(),
+        port: TARGET_PORT,
+    };
+    let failure = connect_via(share(bastion), target_endpoint.clone(), known.clone())
+        .await
+        .err()
+        .expect("an empty known_hosts must refuse the far host too");
+    known.add(KnownHosts::entry_for(
+        TARGET_HOST,
+        TARGET_PORT,
+        "ssh-ed25519",
+        failure.offered.expect("the far host offered a key").key,
+    ));
+
+    let mut bastion = connect(
+        Endpoint {
+            host: HOST.to_owned(),
+            port: BASTION_PORT,
+        },
+        known.clone(),
+    )
+    .await
+    .expect("the bastion reconnects");
+    bastion
+        .authenticate(
+            BASTION_USER,
+            Credential::Password(Secret::new(BASTION_PASSWORD.to_owned())),
+        )
+        .await
+        .expect("the bastion authenticates again");
+
+    let mut far = connect_via(share(bastion), target_endpoint, known)
+        .await
+        .map_err(|failure| failure.error)
+        .expect("the far host connects through the bastion");
+    far.authenticate(
+        TARGET_USER,
+        Credential::Password(Secret::new(TARGET_PASSWORD.to_owned())),
+    )
+    .await
+    .expect("the far host authenticates");
+
+    let destination = session::open(&far)
+        .await
+        .expect("opens sftp on the far host");
+
+    let scratch = tempfile::tempdir().expect("a scratch directory");
+    let local_source = scratch.path().join("via-jump.txt");
+    let content = b"a file this test wrote to check a jump-hosted transfer\n";
+    std::fs::write(&local_source, content).expect("writes the source file");
+
+    let source_path = session::upload(&source, &local_source, HOME, |_| {})
+        .await
+        .expect("seeds the source with a file only this test could have put there");
+
+    let mut transferred = 0_u64;
+    let dest_path = session::transfer(
+        &source,
+        &source_path,
+        &destination,
+        "/home/deploy",
+        |progress| {
+            transferred = progress.transferred;
+        },
+    )
+    .await
+    .expect("transfers to the destination behind the bastion");
+
+    assert_eq!(dest_path, "/home/deploy/via-jump.txt");
+    assert_eq!(transferred, content.len() as u64);
 
     source
         .remove_file(&source_path)

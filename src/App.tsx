@@ -481,7 +481,12 @@ export function App(): JSX.Element {
        same way an abandoned one does, and the host that actually needs
        authenticating opens in Hosts with a note saying why. */
     onCredentialMissing: (sessionId, hop) => {
-      sftpConnectTargets.current.delete(sessionId);
+      /* Not cleared here: ADR-0040 may retry this exact `sessionId` once
+         the redirect's editor saves a credential, and if it was
+         `assignSftpEndpoint`'s own attempt, that retry's `onOpened` still
+         needs this to land the connection in the pane that asked for it
+         rather than a focused shell. `finishWizard` clears it instead, and
+         only once it knows for certain no retry is coming. */
       setState(sessionId, 'saved');
 
       const target = credentialRedirectTarget(sessionId, hop, savedRef.current);
@@ -1294,7 +1299,8 @@ export function App(): JSX.Element {
         provisional.current.delete(target.sessionId);
 
         const key = editorKey(target);
-        const resumeId = resumeTargetAfterEditor(editorOpenedFor.get(key), testOutcome.get(target.sessionId));
+        const redirectedFrom = editorOpenedFor.get(key);
+        const resumeId = resumeTargetAfterEditor(redirectedFrom, testOutcome.get(target.sessionId));
         if (editorOpenedFor.has(key)) {
           setEditorOpenedFor((current) => {
             const next = new Map(current);
@@ -1302,7 +1308,16 @@ export function App(): JSX.Element {
             return next;
           });
         }
-        if (resumeId !== null) void connect(resumeId);
+        if (resumeId !== null) {
+          void connect(resumeId);
+        } else if (redirectedFrom !== undefined) {
+          /* Abandoned or failed: no retry is coming, so an SFTP pane
+             `assignSftpEndpoint` set this up for (ADR-0045) must stop
+             waiting for one, the same cleanup `onCredentialMissing` used
+             to do too early, before ADR-0040 gave this a chance to
+             retry. */
+          sftpConnectTargets.current.delete(redirectedFrom);
+        }
       }
 
       forgetHome({ kind: 'editor', target });
