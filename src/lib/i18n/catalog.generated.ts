@@ -219,7 +219,6 @@ export const SOURCE_CATALOG = {
   "sftp.error.permissionDenied": "The server refused permission.",
   "sftp.error.protocol": "The SFTP protocol failed.",
   "sftp.failed": "Failed",
-  "sftp.fansOutTo": "FANS OUT TO",
   "sftp.localhost": "localhost",
   "sftp.nav.back": "Back",
   "sftp.nav.refresh": "Refresh",
