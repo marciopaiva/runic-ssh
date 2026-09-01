@@ -417,12 +417,15 @@ def kv(label, keys=None, hint=None, lead=False):
             f'{right}</div>') if lead else None
 
 def build_empty():
-    body = f"""      <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 46px; padding: 40px;">
-        <svg width="190" height="190" viewBox="0 0 24 24" fill="none" style="opacity: 0.085;">
-          <circle cx="9.5" cy="12" r="7" stroke="{T['bstart']}" stroke-width="1.1"></circle>
-          <circle cx="14.5" cy="12" r="7" stroke="{T['bend']}" stroke-width="1.1"></circle>
-          <path d="M12 6.5v11M12 10l3-2.5M12 14l3 2.5M12 12l-2.6-2.2" stroke="{T['brune']}" stroke-width="1.1" stroke-linecap="round"></path>
-        </svg>
+    body = f"""      <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 40px; padding: 40px;">
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none">
+            <circle cx="9.5" cy="12" r="7" stroke="{T['bstart']}" stroke-width="1.2"></circle>
+            <circle cx="14.5" cy="12" r="7" stroke="{T['bend']}" stroke-width="1.2"></circle>
+            <path d="M12 6.5v11M12 10l3-2.5M12 14l3 2.5M12 12l-2.6-2.2" stroke="{T['brune']}" stroke-width="1.2" stroke-linecap="round"></path>
+          </svg>
+          <span style="font-size: 27px; font-weight: 800; color: {T['ink']}; letter-spacing: -0.01em;">Runic SSH</span>
+        </div>
         <div style="display: flex; flex-direction: column; gap: 13px; min-width: 348px;">
           <div style="display: flex; align-items: center; justify-content: space-between; gap: 44px;">
             <span style="font-size: 13.5px; color: {T['ink2']}; font-weight: 600;">Connect to a host</span>

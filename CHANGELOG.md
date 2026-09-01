@@ -76,6 +76,11 @@ window and is not held back for a release of its own.
   so a second chain to the same host shares the connection instead of
   opening another one against the same `MaxSessions`.
 
+- **Sessions with nothing open names itself.** The mark beside the empty
+  state now carries the wordmark next to it, the same brand mark and the
+  same `app.name` string the title bar already uses, drawn larger. Purely
+  decorative; nothing about the empty state's behaviour changed.
+
 ### Fixed
 
 - **A shell that exits with no explicit status now shows the closed
