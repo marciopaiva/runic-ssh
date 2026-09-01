@@ -179,6 +179,65 @@ async fn many_concurrent_listings_on_one_connection_all_agree_with_a_baseline() 
     }
 }
 
+/// A second angle on #252, beside the test above: two *different* paths
+/// racing rather than eight of the same one. Two identical listings can
+/// swap results under a dispatch bug and still both look correct, since
+/// they expect the same entries either way; `HOME` and `HOME/config` do
+/// not, so a swap or a cross-talked packet would show up as one of them
+/// gaining or losing entries that belong to the other. `tokio::join!`
+/// rather than a `JoinSet`, for the tightest simultaneity two calls on one
+/// connection can have. Fifty rounds, since a race that only shows once in
+/// a while would not have shown on the first.
+///
+/// This also never reproduced the truncated listing, the same as #254's
+/// eight-way version. See #252 for what that leaves standing: the
+/// reachable site that produced the original observation is gone, and the
+/// mechanism it suspected has now been exercised this way twice with
+/// nothing to show for it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "needs the test container; see #252 and the module comment"]
+async fn concurrent_listings_of_two_different_paths_on_one_connection_never_cross_talk() {
+    let known = trusting(PORT, offered_key(PORT).await);
+    let mut connection = connect(endpoint(PORT), known).await.expect("connects");
+    connection
+        .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
+        .await
+        .expect("authenticates");
+
+    let home_baseline: std::collections::BTreeSet<String> = open_and_list(&connection, HOME)
+        .await
+        .into_iter()
+        .map(|entry| entry.name)
+        .collect();
+    let config_dir = format!("{HOME}/config");
+    let config_baseline: std::collections::BTreeSet<String> =
+        open_and_list(&connection, &config_dir)
+            .await
+            .into_iter()
+            .map(|entry| entry.name)
+            .collect();
+
+    let connection = std::sync::Arc::new(connection);
+    for round in 0..50 {
+        let home_connection = std::sync::Arc::clone(&connection);
+        let config_connection = std::sync::Arc::clone(&connection);
+        let (home_result, config_result) = tokio::join!(
+            open_and_list(&home_connection, HOME),
+            open_and_list(&config_connection, &config_dir)
+        );
+        let home_names: std::collections::BTreeSet<String> =
+            home_result.into_iter().map(|entry| entry.name).collect();
+        let config_names: std::collections::BTreeSet<String> =
+            config_result.into_iter().map(|entry| entry.name).collect();
+
+        assert_eq!(home_names, home_baseline, "round {round}: HOME disagreed");
+        assert_eq!(
+            config_names, config_baseline,
+            "round {round}: HOME/config disagreed"
+        );
+    }
+}
+
 #[tokio::test]
 #[ignore = "needs the test container; see the module comment"]
 async fn listing_an_absent_directory_is_a_typed_not_found() {
