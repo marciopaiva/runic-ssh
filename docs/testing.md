@@ -97,9 +97,9 @@ test. It runs on the browser's own `copy` and `paste` events (ADR-0018), so what
 is being checked is whether the webview raises them, and WebKitGTK and WebView2
 each get their own vote. Half of this can be driven synthetically and half
 cannot: `xdotool` typing reaches the webview on a display that has a window
-manager, so a paste can be sent, but a drag never reaches it, so nothing can be
-selected and copy is a person's job. See "What synthetic input can and cannot
-drive" below before assuming either way.
+manager, so a paste can be sent, but selecting text by dragging the mouse does
+not, so nothing can be selected and copy is a person's job. See "What
+synthetic input can and cannot drive" below before assuming either way.
 
 Connect a session, then:
 
@@ -159,9 +159,9 @@ separate pane header any more; the strip is the header.
 
 Nothing here can be asserted from a test either, for the same reason as the
 clipboard: what is being checked is what the webview does with a keyboard in
-real rectangles. Typing can be sent synthetically, so most of this list can be
-walked without a person; moving a host into an empty rectangle cannot, because
-that is a drag.
+real rectangles. Typing can be sent synthetically, and so, built up in real
+steps, can moving a host into an empty rectangle: see "What synthetic input
+can and cannot drive" below for the shape a drag needs to actually land.
 
 Divide the area from the shape control in the top strip, or from the palette
 (`Ctrl-Shift-P`, then "Split"). One open session is enough: dividing first and
@@ -637,6 +637,9 @@ This list was measured on 2026-08-26, on `:91` with `openbox` running and a
 release build, while retaking the README screenshots (#146). It corrects a
 claim this document made in two places: that injected keys never reach the
 WebKit web process. They do, once something gives the window keyboard focus.
+The drag rows were re-measured on 2026-09-01 (dragging a saved host into an
+SFTP destination slot, then a folder row between panes) and corrected below;
+everything else here is still the 2026-08-26 measurement.
 
 | Gesture | Reaches the webview |
 | --- | --- |
@@ -644,16 +647,28 @@ WebKit web process. They do, once something gives the window keyboard focus.
 | `Ctrl-Shift-V`, pasting from the clipboard | **yes** |
 | Middle click, pasting the primary selection into a form field | **yes** |
 | `xdotool click` | **yes** |
+| An HTML5 drag, built up in real steps (see below) | **yes** |
 | Middle click into the terminal | no |
-| Any drag: selecting text, moving a host into a rectangle | no |
+| Selecting text by dragging the mouse | no |
+| A single-jump drag: `mousemove` straight to the target, `mousedown`/`mouseup` | no |
 | `xdotool type --window <id>` | no |
 
-Two of those are worth keeping in mind. `--window` sends `XSendEvent` and
-WebKit ignores it, so a failure there says nothing about whether keys work; use
-plain `xdotool type` with the window activated. And a drag failing silently is
-what makes it expensive: the pointer moves, the button goes down and up, and
-the application simply never hears it, which reads exactly like a bug in the
-feature being driven.
+One of those is worth keeping in mind on its own: `--window` sends
+`XSendEvent` and WebKit ignores it, so a failure there says nothing about
+whether keys work; use plain `xdotool type` with the window activated.
+
+**A drag needs real steps, not a jump.** `xdotool mousemove ...; mousedown 1;
+mousemove ...` (several calls, each a small step, roughly 150ms apart)
+`; mouseup 1` reliably fires a real `dragstart`/`drop` on a `draggable`
+element in this webview. A single `mousemove` straight to the target followed
+by `mousedown`/`mouseup` does not: WebKit needs the pointer to actually cross
+its drag-start distance threshold before it begins a drag, and one jump never
+does. This was the source of an earlier, wrong "a drag never reaches it"
+finding here: the failure is silent either way, so a single-jump attempt and a
+webview genuinely ignoring the gesture look identical, and only the multi-step
+form tells them apart. It has not been checked whether the same distance
+threshold applies to selecting text by dragging; that row above is still the
+2026-08-26 measurement, unrevisited.
 
 **Read coordinates off `xwininfo`, not off `xdotool getwindowgeometry.`** With a
 window manager running they disagree: `xdotool` reports the frame and
