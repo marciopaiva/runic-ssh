@@ -20,7 +20,21 @@ export interface TerminalSize {
 }
 
 export interface TerminalState {
-  /** The remote shell's exit status, once it has one. */
+  /**
+   * Whether the remote shell has closed.
+   *
+   * Separate from {@link TerminalState.exitStatus} on purpose: a server can
+   * close the channel without ever sending an exit-status request first (the
+   * fixture in `docs/testing.md` does, for a plain interactive `exit`), and
+   * `exitStatus` then stays `null` exactly as it was before the shell ever
+   * closed. Without this field, that close was indistinguishable from a
+   * session still running: confirmed live (#281), typing `exit` left the tab
+   * looking connected forever, with no banner and no error, because the only
+   * signal a caller had was a value that meant both things at once.
+   */
+  readonly closed: boolean;
+  /** The remote shell's exit status, once it has one. `null` both before the
+      shell closes and after, if it closed without ever reporting one. */
   readonly exitStatus: number | null;
   /**
    * What the pty was last told, or `null` before a terminal is mounted.
@@ -47,6 +61,7 @@ export function useTerminal(
   broadcasting: boolean,
 ): TerminalState {
   const [state, setState] = useState<TerminalState>({
+    closed: false,
     exitStatus: null,
     size: null,
   });
@@ -149,7 +164,7 @@ export function useTerminal(
           writeRef.current?.(bytes);
         },
         (exitStatus) => {
-          setState((current) => ({ ...current, exitStatus }));
+          setState((current) => ({ ...current, closed: true, exitStatus }));
         },
       );
 
