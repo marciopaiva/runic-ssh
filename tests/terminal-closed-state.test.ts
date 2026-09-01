@@ -9,8 +9,8 @@
  *
  * Reproduced live against `runic-test-sshd`: `ssh/terminal.rs`'s `pump`
  * correctly saw `Eof` and called `sink.closed(None)`, and the frontend
- * correctly received `CLOSED_EVENT` with `exitStatus: null` — the whole
- * pipeline #280 fixed worked exactly as intended. The bug was one level up:
+ * correctly received `CLOSED_EVENT` with `exitStatus: null`, the whole
+ * pipeline #280 fixed working exactly as intended. The bug was one level up:
  * `TerminalState.exitStatus` used `null` to mean both "still running" and
  * "closed, no numeric status known," and `TerminalView.tsx` gated its banner
  * on `exitStatus !== null`, so a close that never got as far as an
@@ -160,7 +160,7 @@ describe('a shell that closes (#281)', () => {
 
   it('is marked closed even when no numeric exit status ever arrives', async () => {
     /* The exact shape #281 reproduced: `sink.closed(None)`, `exitStatus:
-       null` — indistinguishable from "still open" without a separate flag. */
+       null`, indistinguishable from "still open" without a separate flag. */
     const probe = await mountProbe(2);
 
     await probe.fireClose(null);
