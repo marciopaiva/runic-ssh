@@ -13,14 +13,14 @@
  * current directory, and a successful transfer needs to refresh it.
  */
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   chooseUploadSource,
   localListDirectory,
   localMkdir,
-  onFinished,
-  onProgress,
+  onAnyFinished,
+  onAnyProgress,
   sftpCancel,
   sftpDownload,
   sftpList,
@@ -28,7 +28,7 @@ import {
   sftpTransfer,
   sftpUpload,
 } from '../../ipc';
-import type { TransferHandle } from '../../ipc';
+import type { TransferHandle, TransferOutcome, TransferProgress } from '../../ipc';
 import type { LiveSession } from '../sessions/state';
 import { groupLabel } from '../terminal';
 import { useTranslator } from '../settings';
@@ -122,21 +122,6 @@ async function planFolderCopy(source: Endpoint, rootPath: string): Promise<reado
   return plan;
 }
 
-/** Resolves once the transfer's own `FINISHED_EVENT` arrives, to `true`
- * only on an outright success: a cancelled or failed file is the same
- * "did not make it" outcome to a folder copy's own count. */
-function awaitTransfer(transfer: TransferHandle): Promise<boolean> {
-  return new Promise((resolve) => {
-    let unsub: (() => void) | null = null;
-    void onFinished(transfer, (outcome) => {
-      unsub?.();
-      resolve(outcome.outcome === 'succeeded');
-    }).then((unlisten) => {
-      unsub = unlisten;
-    });
-  });
-}
-
 /** A starting number, not a settled one (ADR-0045's own Decision section). */
 export const MAX_DESTINATIONS = 4;
 
@@ -221,6 +206,71 @@ export function useFanout(sessions: readonly LiveSession[]): FanoutState & Fanou
      needs whatever the panes most recently reported. */
   const panes = useRef<Map<string, PaneReport>>(new Map());
 
+  /* Who is waiting for which transfer's own progress or ending, and any
+     ending that arrived before anyone asked (see `onAnyFinished`'s own
+     doc comment): held rather than dropped, since a fast local transfer
+     can finish before this side even learns its own handle back. Two
+     refs plus a subscription made once, at mount, rather than the
+     handle-filtered subscription-per-transfer this used to be: that one
+     raced the transfer it was meant to watch, since it could only be set
+     up after a handle already existed, by which point a fast enough
+     transfer had already finished and said so to nobody. */
+  const progressWatchers = useRef<Map<TransferHandle, (progress: TransferProgress) => void>>(new Map());
+  const finishedWatchers = useRef<Map<TransferHandle, (outcome: TransferOutcome) => void>>(new Map());
+  const unclaimedFinished = useRef<Map<TransferHandle, TransferOutcome>>(new Map());
+
+  useEffect(() => {
+    let disposed = false;
+    let unsubProgress: (() => void) | null = null;
+    let unsubFinished: (() => void) | null = null;
+
+    void onAnyProgress((event) => {
+      progressWatchers.current.get(event.transfer)?.({ transferred: event.transferred, total: event.total });
+    }).then((unlisten) => {
+      if (disposed) {
+        unlisten();
+        return;
+      }
+      unsubProgress = unlisten;
+    });
+
+    void onAnyFinished((event) => {
+      const { transfer, ...outcome } = event;
+      const watcher = finishedWatchers.current.get(transfer);
+      if (watcher !== undefined) {
+        finishedWatchers.current.delete(transfer);
+        watcher(outcome);
+      } else {
+        unclaimedFinished.current.set(transfer, outcome);
+      }
+    }).then((unlisten) => {
+      if (disposed) {
+        unlisten();
+        return;
+      }
+      unsubFinished = unlisten;
+    });
+
+    return () => {
+      disposed = true;
+      unsubProgress?.();
+      unsubFinished?.();
+    };
+  }, []);
+
+  /** Resolves with `transfer`'s own ending, from the unclaimed map if it
+   * already arrived, otherwise once `onAnyFinished` above delivers it. */
+  const waitForFinished = useCallback((transfer: TransferHandle): Promise<TransferOutcome> => {
+    const already = unclaimedFinished.current.get(transfer);
+    if (already !== undefined) {
+      unclaimedFinished.current.delete(transfer);
+      return Promise.resolve(already);
+    }
+    return new Promise((resolve) => {
+      finishedWatchers.current.set(transfer, resolve);
+    });
+  }, []);
+
   const reportPane = useCallback((paneId: string, report: PaneReport | null) => {
     if (report === null) panes.current.delete(paneId);
     else panes.current.set(paneId, report);
@@ -287,25 +337,17 @@ export function useFanout(sessions: readonly LiveSession[]): FanoutState & Fanou
     (transfer: TransferHandle, direction: TransferDirection, name: string, destination: string, onDone: () => void) => {
       setTransfers((current) => reduceTransfers(current, { type: 'started', transfer, direction, name, destination }));
 
-      let unsubProgress: (() => void) | null = null;
-      let unsubFinished: (() => void) | null = null;
-
-      void onProgress(transfer, (progress) => {
+      progressWatchers.current.set(transfer, (progress) => {
         setTransfers((current) => reduceTransfers(current, { type: 'progress', transfer, progress }));
-      }).then((unlisten) => {
-        unsubProgress = unlisten;
       });
 
-      void onFinished(transfer, (outcome) => {
+      void waitForFinished(transfer).then((outcome) => {
+        progressWatchers.current.delete(transfer);
         setTransfers((current) => reduceTransfers(current, { type: 'finished', transfer, outcome }));
-        unsubProgress?.();
-        unsubFinished?.();
         if (outcome.outcome === 'succeeded') onDone();
-      }).then((unlisten) => {
-        unsubFinished = unlisten;
       });
     },
-    [],
+    [waitForFinished],
   );
 
   /* Runs one recursive folder copy to completion (or until cancelled): the
@@ -371,9 +413,9 @@ export function useFanout(sessions: readonly LiveSession[]): FanoutState & Fanou
           try {
             const { transfer } = await started;
             control.current = transfer;
-            const succeeded = await awaitTransfer(transfer);
+            const outcome = await waitForFinished(transfer);
             control.current = null;
-            recordFileDone(succeeded);
+            recordFileDone(outcome.outcome === 'succeeded');
           } catch {
             control.current = null;
             recordFileDone(false);
@@ -387,7 +429,7 @@ export function useFanout(sessions: readonly LiveSession[]): FanoutState & Fanou
         reload();
       })();
     },
-    [],
+    [waitForFinished],
   );
 
   /* One read from the source, one write to every occupied destination,

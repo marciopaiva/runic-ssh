@@ -66,8 +66,8 @@ export {
   localMkdir,
   localRemove,
   localRename,
-  onFinished,
-  onProgress,
+  onAnyFinished,
+  onAnyProgress,
   PROGRESS_EVENT as SFTP_PROGRESS_EVENT,
   sftpCancel,
   sftpDownload,
@@ -79,6 +79,8 @@ export {
   sftpUpload,
 } from './sftp';
 export type {
+  AnyTransferFinished,
+  AnyTransferProgress,
   LocalEntry,
   LocalListing,
   SftpEntry,
