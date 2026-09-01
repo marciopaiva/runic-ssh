@@ -157,15 +157,17 @@ export async function sftpCancel(transfer: TransferHandle): Promise<void> {
   return invoke<void>('sftp_cancel', { transfer });
 }
 
-interface ProgressPayload {
-  readonly transfer: TransferHandle;
+export interface TransferProgress {
   readonly transferred: number;
   readonly total: number | null;
 }
 
-export interface TransferProgress {
-  readonly transferred: number;
-  readonly total: number | null;
+/** One transfer's own progress batch, named which transfer it is: unlike a
+ * per-handle subscription (see {@link onAnyProgress}'s own doc comment for
+ * why there no longer is one), a caller filtering several transfers at
+ * once has to be told which. */
+export interface AnyTransferProgress extends TransferProgress {
+  readonly transfer: TransferHandle;
 }
 
 /** One transfer's ending, whichever way it went. */
@@ -173,31 +175,31 @@ export type TransferOutcome =
   | { readonly outcome: 'succeeded'; readonly path: string }
   | { readonly outcome: 'failed'; readonly error: IpcError };
 
-type FinishedPayload = TransferOutcome & { readonly transfer: TransferHandle };
+export type AnyTransferFinished = TransferOutcome & { readonly transfer: TransferHandle };
 
 /**
- * Subscribes to progress for one transfer.
+ * Subscribes to every transfer's progress, named by handle rather than
+ * filtered to one.
  *
- * The handle filter is applied here rather than by the core, because Tauri
- * events are broadcast to every listener: a second transfer must not receive
- * the first one's progress just because it was listening.
+ * A per-handle filtered subscription used to exist here instead, set up
+ * only once a caller already had a handle back from `sftpUpload` and its
+ * kin, which is to say only after the transfer had already started. A
+ * transfer against a fast local connection can finish, and emit its own
+ * `FINISHED_EVENT`, before that later subscription's own round trip to
+ * register it completes, and an event nothing was listening for yet is
+ * gone, not queued: the promise waiting on it then waits forever. Reported
+ * directly, reproduced with a recursive folder copy (ADR-0049) sending
+ * several small local files back to back, each one shortening the odds
+ * the next subscription wins its own race. One subscription, made once
+ * and kept for as long as this window runs, has nothing left to race:
+ * it is already listening before any transfer this session starts.
  */
-export async function onProgress(
-  transfer: TransferHandle,
-  onBatch: (progress: TransferProgress) => void,
-): Promise<UnlistenFn> {
-  return listen<ProgressPayload>(PROGRESS_EVENT, (event) => {
-    if (event.payload.transfer !== transfer) return;
-    onBatch({ transferred: event.payload.transferred, total: event.payload.total });
-  });
+export async function onAnyProgress(onBatch: (progress: AnyTransferProgress) => void): Promise<UnlistenFn> {
+  return listen<AnyTransferProgress>(PROGRESS_EVENT, (event) => onBatch(event.payload));
 }
 
-export async function onFinished(
-  transfer: TransferHandle,
-  onDone: (outcome: TransferOutcome) => void,
-): Promise<UnlistenFn> {
-  return listen<FinishedPayload>(FINISHED_EVENT, (event) => {
-    if (event.payload.transfer !== transfer) return;
-    onDone(event.payload);
-  });
+/** See {@link onAnyProgress}'s own doc comment: the same subscribe-once
+ * reasoning, for the event a caller actually cannot afford to miss. */
+export async function onAnyFinished(onDone: (outcome: AnyTransferFinished) => void): Promise<UnlistenFn> {
+  return listen<AnyTransferFinished>(FINISHED_EVENT, (event) => onDone(event.payload));
 }

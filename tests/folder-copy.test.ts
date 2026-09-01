@@ -20,6 +20,18 @@
  * `sftpMkdir`/`localMkdir` and the transfer functions are mocked; what is
  * under test is the order and the paths `useFanout` calls them with, not
  * whether a real SFTP server accepts a `create_dir`.
+ *
+ * A second, separate bug surfaced chasing a report against this same
+ * copy: it would stop partway through and never move again. A transfer
+ * used to be watched for its own ending only after the frontend already
+ * had a handle back from `sftpUpload` and its kin, by which point a fast
+ * local transfer could already have finished and emitted the event
+ * nothing was listening for yet. Copying several small local files back
+ * to back, exactly what a folder copy does, made the race easy to lose.
+ * The mock's `startTransfer` fires that event before the handle is even
+ * returned, the worst case the fix (a subscription made once, before any
+ * transfer starts, plus a map of endings nobody has claimed yet) has to
+ * survive.
  */
 
 import { act, createElement } from 'react';
@@ -31,26 +43,54 @@ declare global {
 }
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
-const ipc = vi.hoisted(() => ({
-  chooseUploadSource: vi.fn(async () => null),
-  localListDirectory: vi.fn(),
-  localMkdir: vi.fn(async (dir: string, name: string) => `${dir}/${name}`),
-  localRemove: vi.fn(async () => undefined),
-  localRename: vi.fn(async (dir: string, _old: string, name: string) => `${dir}/${name}`),
-  onFinished: vi.fn(async (_transfer: number, onDone: (outcome: unknown) => void) => {
-    queueMicrotask(() => onDone({ outcome: 'succeeded', path: 'irrelevant' }));
-    return () => {};
-  }),
-  onProgress: vi.fn(async () => () => {}),
-  sftpCancel: vi.fn(async () => undefined),
-  sftpDownload: vi.fn(async () => 1),
-  sftpList: vi.fn(),
-  sftpMkdir: vi.fn(async (_handle: number, dir: string, name: string) => `${dir}/${name}`),
-  sftpRemove: vi.fn(async () => undefined),
-  sftpRename: vi.fn(async (_handle: number, dir: string, _old: string, name: string) => `${dir}/${name}`),
-  sftpTransfer: vi.fn(async () => 1),
-  sftpUpload: vi.fn(async () => 1),
-}));
+/* `onAnyFinished` is registered exactly once, at `useFanout`'s own mount
+ * (the fix under test): this mock keeps that one callback and calls it
+ * itself, from each transfer-shaped function, the same "already
+ * listening before any transfer starts" order the real fix relies on. A
+ * per-handle `onFinished(transfer, cb)` mock would not exercise this at
+ * all, since it could never race anything by construction.
+ *
+ * Firing `finishedCallback` synchronously, before `startTransfer` even
+ * returns the handle, is deliberate: it reproduces the exact race a fast
+ * local transfer won against the frontend, which learns a transfer's own
+ * handle only once the surrounding `await` resolves. `waitForFinished`
+ * (`use-fanout.ts`) has to find this in its own unclaimed-outcomes map
+ * rather than missing it, or this test hangs the same way the real bug
+ * did. */
+const ipc = vi.hoisted(() => {
+  let finishedCallback: ((event: { transfer: number; outcome: string; path: string }) => void) | null = null;
+  let nextTransfer = 1;
+
+  const startTransfer = async (): Promise<number> => {
+    const transfer = nextTransfer;
+    nextTransfer += 1;
+    finishedCallback?.({ transfer, outcome: 'succeeded', path: 'irrelevant' });
+    return transfer;
+  };
+
+  return {
+    chooseUploadSource: vi.fn(async () => null),
+    localListDirectory: vi.fn(),
+    localMkdir: vi.fn(async (dir: string, name: string) => `${dir}/${name}`),
+    localRemove: vi.fn(async () => undefined),
+    localRename: vi.fn(async (dir: string, _old: string, name: string) => `${dir}/${name}`),
+    onAnyFinished: vi.fn(async (onDone: (event: { transfer: number; outcome: string; path: string }) => void) => {
+      finishedCallback = onDone;
+      return () => {
+        finishedCallback = null;
+      };
+    }),
+    onAnyProgress: vi.fn(async () => () => {}),
+    sftpCancel: vi.fn(async () => undefined),
+    sftpDownload: vi.fn(startTransfer),
+    sftpList: vi.fn(),
+    sftpMkdir: vi.fn(async (_handle: number, dir: string, name: string) => `${dir}/${name}`),
+    sftpRemove: vi.fn(async () => undefined),
+    sftpRename: vi.fn(async (_handle: number, dir: string, _old: string, name: string) => `${dir}/${name}`),
+    sftpTransfer: vi.fn(startTransfer),
+    sftpUpload: vi.fn(startTransfer),
+  };
+});
 vi.mock('../src/ipc', () => ipc);
 
 const stubTranslator = {
