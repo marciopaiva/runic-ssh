@@ -310,6 +310,8 @@
   "terminal.paste.line": "¿Pegar una línea?",
   "terminal.paste.more": "y {count} más",
   "terminal.paste.title": "¿Pegar {count} líneas?",
+  "toolbar.broadcast.off": "Escribir en todos los grupos a la vez",
+  "toolbar.broadcast.on": "Dejar de escribir en todos los grupos a la vez",
   "vault.description": "Un almacén cifrado en esta máquina, para conectar cuando no hay un llavero del sistema disponible.",
   "vault.disable": "Volver al llavero del sistema",
   "vault.disable.hint": "Cada credencial del almacén interno vuelve al llavero del sistema, y el almacén interno se elimina.",

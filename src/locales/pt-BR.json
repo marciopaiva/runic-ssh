@@ -310,6 +310,8 @@
   "terminal.paste.line": "Colar uma linha?",
   "terminal.paste.more": "e mais {count}",
   "terminal.paste.title": "Colar {count} linhas?",
+  "toolbar.broadcast.off": "Digitar em todos os grupos ao mesmo tempo",
+  "toolbar.broadcast.on": "Parar de digitar em todos os grupos ao mesmo tempo",
   "vault.description": "Um armazenamento criptografado nesta máquina, para conectar quando não há um chaveiro do sistema para usar no lugar.",
   "vault.disable": "Voltar para o chaveiro do sistema",
   "vault.disable.hint": "Toda credencial do vault interno volta para o chaveiro do sistema, e o vault interno é apagado.",
