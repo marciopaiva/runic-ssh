@@ -7,7 +7,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-import { onClosed, onOutput, openTerminal, resizeTerminal } from '../../ipc';
+import { openTerminal, resizeTerminal, watchTerminal } from '../../ipc';
 import type { SessionHandle } from '../../ipc';
 
 import { keyIntent, pasteNeedsConfirming } from './clipboard';
@@ -139,14 +139,21 @@ export function useTerminal(
         attributeFilter: ['data-theme'],
       });
 
-      await openTerminal(handle, terminal.cols, terminal.rows);
+      /* Registered before the shell opens: a shell that closes right after
+         opening must not be able to race this subscription. The SFTP
+         transfer events had the same race; see `watchTerminal`'s own doc
+         comment for the mechanism. */
+      const stopWatching = await watchTerminal(
+        handle,
+        (bytes) => {
+          writeRef.current?.(bytes);
+        },
+        (exitStatus) => {
+          setState((current) => ({ ...current, exitStatus }));
+        },
+      );
 
-      const stopOutput = await onOutput(handle, (bytes) => {
-        writeRef.current?.(bytes);
-      });
-      const stopClosed = await onClosed(handle, (exitStatus) => {
-        setState((current) => ({ ...current, exitStatus }));
-      });
+      await openTerminal(handle, terminal.cols, terminal.rows);
 
       /* Ctrl-C is the keystroke this has to be careful with. Returning `false`
          makes xterm return from its key handler before it calls
@@ -224,8 +231,7 @@ export function useTerminal(
         () => observer.disconnect(),
         () => typed.dispose(),
         () => binary.dispose(),
-        stopOutput,
-        stopClosed,
+        stopWatching,
         () => terminal.dispose(),
       );
     };

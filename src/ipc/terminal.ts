@@ -132,31 +132,90 @@ export async function resizeTerminal(
   return invoke<void>('resize_terminal', { handle, columns, rows });
 }
 
+type OutputHandler = (bytes: Uint8Array) => void;
+type ClosedHandler = (exitStatus: number | null) => void;
+
+const outputWatchers = new Map<SessionHandle, OutputHandler>();
+const closedWatchers = new Map<SessionHandle, ClosedHandler>();
+
 /**
- * Subscribes to output for one session.
+ * A `CLOSED_EVENT` that arrived for a handle nobody was watching yet.
  *
- * The handle filter is applied here rather than by the core, because Tauri
- * events are broadcast to every listener: a second terminal must not receive
- * the first one's output just because it was listening.
+ * `open_terminal`'s spawned pump (`ssh/terminal.rs`) calls `sink.closed()` the
+ * instant its channel reports EOF or Close, with no minimum delay: unlike
+ * output, which waits for the first rate-limit tick, a shell that closes
+ * right after opening can have this fire before a caller here has even
+ * finished registering. One entry per handle is enough: a session closes
+ * exactly once.
  */
-export async function onOutput(
-  handle: SessionHandle,
-  onBatch: (bytes: Uint8Array) => void,
-): Promise<UnlistenFn> {
-  return listen<OutputEvent>(OUTPUT_EVENT, (event) => {
-    if (event.payload.handle !== handle) return;
-    onBatch(decode(event.payload.data));
-  });
+const unclaimedClosed = new Map<SessionHandle, number | null>();
+
+/**
+ * Subscribed once, unfiltered, the first time anything here needs it, kept
+ * for as long as this window runs.
+ *
+ * A per-handle filtered subscription used to live here instead, set up only
+ * after `openTerminal` had already returned, which is to say only after the
+ * shell was already open and its output pump already spawned and running.
+ * Tauri does not queue an event for a listener that was not registered yet:
+ * a shell that produces output, or closes, before that later subscription's
+ * own round trip finishes has that event gone, not queued. Lazy rather than
+ * fired at module load: this file loads in plenty of contexts, tests among
+ * them, that never open a terminal and have no Tauri event bridge to answer
+ * a `listen()` call at all. What matters is that `watchTerminal` below
+ * awaits this before doing anything else, and is itself awaited before
+ * `openTerminal` (see `use-terminal.ts`), so it is always live before the
+ * shell that could race it exists.
+ */
+let subscribed: Promise<void> | null = null;
+
+function ensureSubscribed(): Promise<void> {
+  subscribed ??= (async () => {
+    await listen<OutputEvent>(OUTPUT_EVENT, (event) => {
+      outputWatchers.get(event.payload.handle)?.(decode(event.payload.data));
+    });
+    await listen<ClosedEvent>(CLOSED_EVENT, (event) => {
+      const { handle, exitStatus } = event.payload;
+      const watcher = closedWatchers.get(handle);
+      if (watcher) {
+        watcher(exitStatus);
+      } else {
+        unclaimedClosed.set(handle, exitStatus);
+      }
+    });
+  })();
+  return subscribed;
 }
 
-export async function onClosed(
+/**
+ * Watches one session's output and closing, from before it is opened.
+ *
+ * Registers before the caller opens the shell, and checks
+ * {@link unclaimedClosed} first: between them, a `CLOSED_EVENT` for this
+ * handle cannot be lost, whichever of the two races it against.
+ */
+export async function watchTerminal(
   handle: SessionHandle,
-  onClose: (exitStatus: number | null) => void,
+  onBatch: OutputHandler,
+  onClose: ClosedHandler,
 ): Promise<UnlistenFn> {
-  return listen<ClosedEvent>(CLOSED_EVENT, (event) => {
-    if (event.payload.handle !== handle) return;
-    onClose(event.payload.exitStatus);
-  });
+  await ensureSubscribed();
+
+  outputWatchers.set(handle, onBatch);
+
+  if (unclaimedClosed.has(handle)) {
+    const exitStatus = unclaimedClosed.get(handle) ?? null;
+    unclaimedClosed.delete(handle);
+    onClose(exitStatus);
+  } else {
+    closedWatchers.set(handle, onClose);
+  }
+
+  return () => {
+    outputWatchers.delete(handle);
+    closedWatchers.delete(handle);
+    unclaimedClosed.delete(handle);
+  };
 }
 
 /** How much has moved, and how long the host takes to answer. */
