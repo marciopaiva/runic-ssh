@@ -232,6 +232,7 @@
   "sftp.transferSucceeded": "Concluído",
   "sftp.transfers": "TRANSFERÊNCIAS",
   "sftp.upload": "Enviar",
+  "sftp.uploadFromDialog": "Enviar um arquivo do seu computador",
   "sftp.workspace.empty.body": "Adicione um host para conectar, em Sessões. Nada é enviado até você fazer isso.",
   "sftp.workspace.empty.title": "Nenhuma sessão ainda",
   "sftp.workspace.title": "SFTP",

@@ -106,7 +106,7 @@ import type { Keep, Secret, Session, SessionDraft, SuggestedMethod } from './ipc
 import { useLocale, useTheme } from './features/settings';
 import { visibleDestinationRows } from './features/sftp/browser';
 import { endpointKey } from './features/sftp/endpoint';
-import type { DraggedEndpoint, Endpoint } from './features/sftp/endpoint';
+import type { DraggedEndpoint, Endpoint, PaneEntry } from './features/sftp/endpoint';
 import { destinationPaneId, MAX_DESTINATIONS, SOURCE_PANE_ID, useFanout } from './features/sftp/use-fanout';
 import { announceBroadcast, useSessionStats } from './features/status';
 import type { Announcement } from './features/status';
@@ -337,6 +337,13 @@ export function App(): JSX.Element {
      rather than reusing the Sessions grid's index. */
   const [sftpDragging, setSftpDragging] = useState<DraggedEndpoint | null>(null);
   const [sftpDropOver, setSftpDropOver] = useState<SftpTarget | null>(null);
+  /* One or more files, picked up from the source pane's own listing rather
+     than the sidebar: the same `dropOver` target as a host drag, but a drop
+     sends the entries to that one destination (`sendEntriesToDestination`)
+     instead of assigning it an endpoint. Never both at once, since a host
+     drag starts from the sidebar and a file drag starts from a pane, so
+     `sftpDropOver` is shared rather than doubled. */
+  const [draggedEntries, setDraggedEntries] = useState<readonly PaneEntry[] | null>(null);
   /* How many destination rows the fan-out column pre-allocates, chosen
      directly rather than only ever growing one empty slot at a time: a
      maintainer setting up three destinations before dragging anything
@@ -2000,7 +2007,7 @@ export function App(): JSX.Element {
             a.kind === 'source' ? b.kind === 'source' : b.kind === 'destination' && a.slot === b.slot;
 
           const dragOverHandlers = (target: SftpTarget) =>
-            sftpDragging === null
+            sftpDragging === null && draggedEntries === null
               ? {}
               : {
                   onDragOver: (event: DragEvent) => {
@@ -2012,8 +2019,12 @@ export function App(): JSX.Element {
                     setSftpDropOver((current) => (current !== null && sameTarget(current, target) ? null : current)),
                   onDrop: (event: DragEvent) => {
                     event.preventDefault();
-                    assignSftpEndpoint(sftpDragging, target);
-                    setSftpDragging(null);
+                    if (sftpDragging !== null) {
+                      assignSftpEndpoint(sftpDragging, target);
+                      setSftpDragging(null);
+                    } else if (draggedEntries !== null && target.kind === 'destination') {
+                      fanout.sendEntriesToDestination(draggedEntries, target.slot);
+                    }
                     setSftpDropOver(null);
                   },
                 };
@@ -2052,6 +2063,9 @@ export function App(): JSX.Element {
                       onClear={null}
                       receiving={null}
                       onToggleReceiving={null}
+                      onUploadFromDialog={null}
+                      onDragEntriesStart={setDraggedEntries}
+                      onDragEntriesEnd={() => setDraggedEntries(null)}
                     />
                   )}
                 </div>
@@ -2089,6 +2103,9 @@ export function App(): JSX.Element {
                               onClear={() => fanout.clearDestination(slot)}
                               receiving={!fanout.mutedDestinations.has(slot)}
                               onToggleReceiving={() => fanout.toggleDestinationReceiving(slot)}
+                              onUploadFromDialog={endpoint.kind === 'remote' ? () => fanout.uploadFromDialogTo(slot) : null}
+                              onDragEntriesStart={null}
+                              onDragEntriesEnd={null}
                             />
                           )}
                         </div>
