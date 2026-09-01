@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { JSX } from 'react';
 
-import { pathSegments } from '../features/sftp/browser';
+import { pathSegments, selectionRange } from '../features/sftp/browser';
 import { describeSftpFailure } from '../features/sftp/failure';
 import { usePane } from '../features/sftp/use-pane';
 import type { Endpoint, PaneEntry } from '../features/sftp/endpoint';
@@ -90,6 +90,15 @@ export function formatModified(unixSecs: number | null): string {
   });
 }
 
+/** A plain click selects only this row; the two modifier conventions every
+ * file manager already uses. Shift extends a range from whichever row was
+ * last plainly clicked; Ctrl (Cmd on macOS) adds or removes just this one
+ * without touching the rest. */
+export interface SelectModifiers {
+  readonly shift: boolean;
+  readonly additive: boolean;
+}
+
 interface RowProps {
   readonly name: string;
   readonly isDir: boolean;
@@ -97,9 +106,13 @@ interface RowProps {
   readonly modifiedUnixSecs: number | null;
   readonly onOpen: () => void;
   /** `null` on a destination pane, and on a directory: only a source
-   * pane's own files are selectable for sending (ADR-0047). Replaces the
-   * previous hover-only send icon rather than sitting beside it. */
+   * pane's own files are selectable for sending (ADR-0047). */
   readonly selected: boolean | null;
+  /** Clicking or activating the row itself, for a selectable file. `null`
+   * wherever `selected` is: a directory still only ever opens. */
+  readonly onSelectClick: ((modifiers: SelectModifiers) => void) | null;
+  /** The checkbox's own plain toggle, independent of the row click above:
+   * a precise tool that never touches the shift-range anchor. */
   readonly onToggleSelect: (() => void) | null;
   readonly selectLabel: string;
 }
@@ -111,24 +124,50 @@ function Row({
   modifiedUnixSecs,
   onOpen,
   selected,
+  onSelectClick,
   onToggleSelect,
   selectLabel,
 }: RowProps): JSX.Element {
+  const clickable = isDir || onSelectClick !== null;
+
+  const activate = (modifiers: SelectModifiers): void => {
+    if (isDir) {
+      onOpen();
+      return;
+    }
+    onSelectClick?.(modifiers);
+  };
+
   return (
-    <div className="hover:bg-surface-raised/40 group flex items-center gap-2.5 px-2.5 py-[3px]">
-      <button
-        type="button"
-        onClick={onOpen}
-        disabled={!isDir}
-        className="text-ink2 flex min-w-0 flex-1 items-center gap-2.5 text-left disabled:cursor-default"
-      >
+    <div
+      role="button"
+      tabIndex={clickable ? 0 : -1}
+      onClick={
+        clickable
+          ? (event) => activate({ shift: event.shiftKey, additive: event.ctrlKey || event.metaKey })
+          : undefined
+      }
+      onKeyDown={
+        clickable
+          ? (event) => {
+              if (event.key !== 'Enter' && event.key !== ' ') return;
+              event.preventDefault();
+              activate({ shift: event.shiftKey, additive: event.ctrlKey || event.metaKey });
+            }
+          : undefined
+      }
+      className={`group flex items-center gap-2.5 px-2.5 py-[3px] ${clickable ? 'cursor-default' : ''} ${
+        selected === true ? 'bg-accent-soft/30' : 'hover:bg-surface-raised/40'
+      }`}
+    >
+      <span className="text-ink2 flex min-w-0 flex-1 items-center gap-2.5">
         {isDir ? (
           <FolderIcon className="text-ink-faint h-[13px] w-[13px] shrink-0" />
         ) : (
           <FileIcon className="text-ink-faint h-[13px] w-[13px] shrink-0" />
         )}
         <span className="text-ink truncate font-mono text-[12px]">{name}</span>
-      </button>
+      </span>
       <span className="text-ink-muted w-[74px] shrink-0 text-right font-mono text-[11.5px]">
         {isDir ? '—' : formatSize(size)}
       </span>
@@ -141,6 +180,7 @@ function Row({
             type="checkbox"
             checked={selected === true}
             onChange={onToggleSelect}
+            onClick={(event) => event.stopPropagation()}
             aria-label={selectLabel}
             title={selectLabel}
             className="accent-accent h-3.5 w-3.5"
@@ -316,6 +356,12 @@ export function SftpPane({
      `null` on a destination). Reset on every navigation: a selection made
      in one directory has nothing to say about the next one. */
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  /* The row a shift-click extends a range from: whichever one was last
+     plainly clicked. Cleared alongside `selected`, and never moved by a
+     shift-click itself, the same convention every file manager already
+     uses so a second shift-click from the same anchor can shrink a range
+     it just grew. */
+  const [selectAnchor, setSelectAnchor] = useState<string | null>(null);
 
   useEffect(() => {
     onReport(paneId, { path: pane.path, reload: () => pane.enter(pane.path) });
@@ -325,6 +371,7 @@ export function SftpPane({
 
   useEffect(() => {
     setSelected(new Set());
+    setSelectAnchor(null);
   }, [pane.path]);
 
   const open = (entry: PaneEntry): void => {
@@ -338,6 +385,22 @@ export function SftpPane({
       else next.add(path);
       return next;
     });
+  };
+
+  const selectFile = (entry: PaneEntry, modifiers: SelectModifiers): void => {
+    if (modifiers.shift && selectAnchor !== null) {
+      setSelected(new Set(selectionRange(pane.entries, selectAnchor, entry.path)));
+      return;
+    }
+
+    if (modifiers.additive) {
+      toggleSelect(entry.path);
+      setSelectAnchor(entry.path);
+      return;
+    }
+
+    setSelected(new Set([entry.path]));
+    setSelectAnchor(entry.path);
   };
 
   return (
@@ -396,7 +459,19 @@ export function SftpPane({
           with a cancelled margin, since it wants the scrollbar flush with
           the window's edge; nothing here needs that, only somewhere empty
           for the thumb to sit that isn't the checkbox underneath it. */}
-      <div className="min-h-0 flex-1 overflow-y-auto py-1 pr-2">
+      <div
+        className="min-h-0 flex-1 overflow-y-auto py-1 pr-2"
+        onKeyDown={
+          onSend === null
+            ? undefined
+            : (event) => {
+                if ((event.ctrlKey || event.metaKey) && event.key === 'a') {
+                  event.preventDefault();
+                  setSelected(new Set(pane.entries.filter((entry) => !entry.isDir).map((entry) => entry.path)));
+                }
+              }
+        }
+      >
         <Header i18n={i18n} />
         {pane.error !== null && (
           <p className="text-danger-text px-2.5 py-2 text-[12px]">{i18n.t(describeSftpFailure(pane.error))}</p>
@@ -409,6 +484,7 @@ export function SftpPane({
             modifiedUnixSecs={null}
             onOpen={() => pane.enter(pane.parent)}
             selected={null}
+            onSelectClick={null}
             onToggleSelect={null}
             selectLabel=""
           />
@@ -426,6 +502,7 @@ export function SftpPane({
               modifiedUnixSecs={entry.modifiedUnixSecs}
               onOpen={() => open(entry)}
               selected={onSend === null || entry.isDir ? null : selected.has(entry.path)}
+              onSelectClick={onSend === null || entry.isDir ? null : (modifiers) => selectFile(entry, modifiers)}
               onToggleSelect={onSend === null || entry.isDir ? null : () => toggleSelect(entry.path)}
               selectLabel={i18n.t('sftp.selectFile', { name: entry.name })}
             />

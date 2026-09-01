@@ -11,10 +11,12 @@ import {
   pathSegments,
   reduceTransfers,
   remoteParent,
+  selectionRange,
   toggleReceiving,
   visibleDestinationRows,
 } from '../src/features/sftp/browser';
 import type { TransferAction } from '../src/features/sftp/browser';
+import type { PaneEntry } from '../src/features/sftp/endpoint';
 
 const STARTED: TransferAction = {
   type: 'started',
@@ -231,6 +233,45 @@ describe("a destination's own receive toggle", () => {
 
   it('leaves every other slot as it was', () => {
     expect(toggleReceiving(new Set([0, 2]), 1)).toEqual(new Set([0, 1, 2]));
+  });
+});
+
+describe('a shift-click range', () => {
+  const entry = (name: string, isDir = false): PaneEntry => ({
+    name,
+    path: name,
+    isDir,
+    isSymlink: false,
+    size: 0,
+    modifiedUnixSecs: null,
+  });
+
+  const entries = [
+    entry('a.txt'),
+    entry('b.txt'),
+    entry('sub', true),
+    entry('c.txt'),
+    entry('d.txt'),
+  ];
+
+  it('covers everything between the anchor and the target, inclusive', () => {
+    expect(selectionRange(entries, 'a.txt', 'c.txt')).toEqual(['a.txt', 'b.txt', 'c.txt']);
+  });
+
+  it('works the same in reverse, anchor after the target', () => {
+    expect(selectionRange(entries, 'd.txt', 'b.txt')).toEqual(['b.txt', 'c.txt', 'd.txt']);
+  });
+
+  it('skips a directory the range passes over', () => {
+    expect(selectionRange(entries, 'b.txt', 'c.txt')).toEqual(['b.txt', 'c.txt']);
+  });
+
+  it('is just the target when anchor and target are the same row', () => {
+    expect(selectionRange(entries, 'b.txt', 'b.txt')).toEqual(['b.txt']);
+  });
+
+  it('falls back to only the target when the anchor no longer exists', () => {
+    expect(selectionRange(entries, 'long-gone.txt', 'c.txt')).toEqual(['c.txt']);
   });
 });
 

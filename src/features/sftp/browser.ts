@@ -9,6 +9,7 @@
  */
 
 import type { IpcErrorCode, TransferHandle, TransferOutcome, TransferProgress } from '../../ipc';
+import type { PaneEntry } from './endpoint';
 
 /** `'transfer'` is remote-to-remote (ADR-0045); the other two are the
  * original local↔remote pair, kept for the icon `TransferRow` draws. */
@@ -173,6 +174,35 @@ export function pathSegments(path: string): readonly PathSegment[] {
 
   if (absolute) segments.unshift({ label: '/', path: '/' });
   return segments;
+}
+
+/**
+ * Which files a shift-click range covers, between `anchor` and `target`
+ * inclusive, in `entries`' own displayed order.
+ *
+ * A directory sitting between the two is skipped rather than included:
+ * only a source pane's files are selectable at all, so a folder the range
+ * happens to pass over is not part of what got selected, the same way a
+ * real file manager's own shift-click range never selects a heading.
+ * Neither endpoint found (a stale anchor from a listing that has since
+ * changed under it) falls back to selecting just `target`, rather than
+ * guessing at a range that no longer means anything.
+ */
+export function selectionRange(
+  entries: readonly PaneEntry[],
+  anchor: string,
+  target: string,
+): readonly string[] {
+  const order = entries.map((entry) => entry.path);
+  const anchorAt = order.indexOf(anchor);
+  const targetAt = order.indexOf(target);
+  if (anchorAt === -1 || targetAt === -1) return [target];
+
+  const [start, end] = anchorAt < targetAt ? [anchorAt, targetAt] : [targetAt, anchorAt];
+  return entries
+    .slice(start, end + 1)
+    .filter((entry) => !entry.isDir)
+    .map((entry) => entry.path);
 }
 
 /** Flips one destination slot's own receive toggle (ADR-0047): a slot
