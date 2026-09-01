@@ -57,6 +57,10 @@ pub enum Error {
     #[error("the local directory could not be listed")]
     LocalDirectory(crate::sftp::local::LocalError),
 
+    /// ADR-0048. Creating, renaming or removing a local entry.
+    #[error("the local filesystem refused the operation")]
+    LocalFilesystem(crate::sftp::local::LocalError),
+
     #[error("no saved session has that id")]
     UnknownSession { id: String },
 
@@ -322,6 +326,13 @@ pub enum IpcError {
     LocalNotADirectory,
     LocalPermissionDenied,
     LocalIoFailed,
+    /// ADR-0048. A name typed into this application's own UI, for a new
+    /// directory or a rename, failed the same check a remote name does:
+    /// `check` is one of `sftp::path::PathError`'s five shapes, exactly as
+    /// `SftpNameRefused` already carries it.
+    LocalNameRefused {
+        check: &'static str,
+    },
 }
 
 /// Paths are shown to the user so they can find the file; the rest of the
@@ -351,6 +362,7 @@ impl From<Error> for IpcError {
             Error::Ssh(ssh) => Self::from(*ssh),
             Error::Sftp(sftp) => Self::from(*sftp),
             Error::LocalDirectory(local) => Self::from(local),
+            Error::LocalFilesystem(local) => Self::from(local),
             Error::UnknownSession { id } => Self::UnknownSession { id },
             Error::InvalidProxyJump { problem } => Self::InvalidProxyJump {
                 problem: match problem {
@@ -452,28 +464,33 @@ impl From<Box<crate::sftp::error::SftpError>> for IpcError {
     }
 }
 
+/// One of `sftp::path::PathError`'s own five shapes, named rather than
+/// formatted: `PathError` already writes a safe sentence for a human, and
+/// this is the frontend's own catalogue doing the same job in whichever
+/// locale is active, from a code rather than from a string this side
+/// wrote. Shared by `SftpNameRefused` and `LocalNameRefused`, ADR-0048: the
+/// same five checks refuse a name whichever side rejected it.
+fn path_error_code(check: crate::sftp::path::PathError) -> &'static str {
+    use crate::sftp::path::PathError;
+
+    match check {
+        PathError::Empty => "empty",
+        PathError::TooLong => "tooLong",
+        PathError::NotASingleSegment => "notASingleSegment",
+        PathError::DotEntry => "dotEntry",
+        PathError::ControlCharacter => "controlCharacter",
+    }
+}
+
 impl From<crate::sftp::error::SftpError> for IpcError {
     /// Maps an SFTP failure to its wire form.
-    ///
-    /// `SftpNameRefused`'s `check` is one of `sftp::path::PathError`'s own
-    /// five shapes, named rather than formatted: `PathError` already writes a
-    /// safe sentence for a human, and this is the frontend's own catalogue
-    /// doing the same job in whichever locale is active, from a code rather
-    /// than from a string this side wrote.
     fn from(error: crate::sftp::error::SftpError) -> Self {
         use crate::sftp::error::SftpError as Sftp;
-        use crate::sftp::path::PathError;
 
         match error {
             Sftp::NotConnected => Self::SftpNotConnected,
             Sftp::RefusedName(check) => Self::SftpNameRefused {
-                check: match check {
-                    PathError::Empty => "empty",
-                    PathError::TooLong => "tooLong",
-                    PathError::NotASingleSegment => "notASingleSegment",
-                    PathError::DotEntry => "dotEntry",
-                    PathError::ControlCharacter => "controlCharacter",
-                },
+                check: path_error_code(check),
             },
             Sftp::NotFound => Self::SftpNotFound,
             Sftp::PermissionDenied => Self::SftpPermissionDenied,
@@ -493,6 +510,9 @@ impl From<crate::sftp::local::LocalError> for IpcError {
             Local::NotADirectory => Self::LocalNotADirectory,
             Local::PermissionDenied => Self::LocalPermissionDenied,
             Local::Io => Self::LocalIoFailed,
+            Local::RefusedName(check) => Self::LocalNameRefused {
+                check: path_error_code(check),
+            },
         }
     }
 }
@@ -597,5 +617,18 @@ mod tests {
                 "an IPC error must not carry a {forbidden} field"
             );
         }
+    }
+
+    #[test]
+    fn a_locally_refused_name_crosses_with_which_check_failed() {
+        use crate::sftp::local::LocalError;
+        use crate::sftp::path::PathError;
+
+        let value = wire(Error::LocalFilesystem(LocalError::RefusedName(
+            PathError::DotEntry,
+        )));
+
+        assert_eq!(value["code"], "localNameRefused");
+        assert_eq!(value["check"], "dotEntry");
     }
 }

@@ -9,6 +9,8 @@ import { useTranslator } from '../features/settings';
 import type { Translator } from '../lib/i18n';
 
 import { BroadcastGlyph } from './BroadcastGlyph';
+import { GroupMenu } from './GroupMenu';
+import type { GroupMenuItem } from './GroupMenu';
 
 interface SftpPaneProps {
   readonly endpoint: Endpoint;
@@ -129,6 +131,18 @@ interface RowProps {
    * `onSelectClick` is: only a selectable file is draggable at all. */
   readonly onDragStart: (() => void) | null;
   readonly onDragEnd: (() => void) | null;
+  /** Replaces the name with a plain text input, for a rename in progress or
+   * a freshly created "New folder" row (ADR-0048). `null` the rest of the
+   * time, which is almost always. */
+  readonly editing: {
+    readonly value: string;
+    readonly onChange: (value: string) => void;
+    readonly onCommit: () => void;
+    readonly onCancel: () => void;
+  } | null;
+  /** Opens the file-management menu (rename, delete). `null` on the `..`
+   * row, which is navigation, not an entry. */
+  readonly onContextMenu: ((point: { readonly x: number; readonly y: number }) => void) | null;
 }
 
 function Row({
@@ -143,9 +157,11 @@ function Row({
   selectLabel,
   onDragStart,
   onDragEnd,
+  editing,
+  onContextMenu,
 }: RowProps): JSX.Element {
-  const clickable = isDir || onSelectClick !== null;
-  const draggable = onDragStart !== null;
+  const clickable = editing === null && (isDir || onSelectClick !== null);
+  const draggable = editing === null && onDragStart !== null;
 
   const activate = (modifiers: SelectModifiers): void => {
     if (isDir) {
@@ -190,6 +206,14 @@ function Row({
             }
           : undefined
       }
+      onContextMenu={
+        onContextMenu === null
+          ? undefined
+          : (event) => {
+              event.preventDefault();
+              onContextMenu({ x: event.clientX, y: event.clientY });
+            }
+      }
       className={`group flex items-center gap-2.5 px-2.5 py-[3px] ${clickable ? 'cursor-default' : ''} ${
         selected === true ? 'bg-accent-soft/30' : 'hover:bg-surface-raised/40'
       }`}
@@ -200,7 +224,41 @@ function Row({
         ) : (
           <FileIcon className="text-ink-faint h-[13px] w-[13px] shrink-0" />
         )}
-        <span className="text-ink truncate font-mono text-[12px]">{name}</span>
+        {editing === null ? (
+          <span className="text-ink truncate font-mono text-[12px]">{name}</span>
+        ) : (
+          <input
+            type="text"
+            value={editing.value}
+            onChange={(event) => editing.onChange(event.target.value)}
+            onClick={(event) => event.stopPropagation()}
+            onKeyDown={(event) => {
+              event.stopPropagation();
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                editing.onCommit();
+              } else if (event.key === 'Escape') {
+                event.preventDefault();
+                editing.onCancel();
+              }
+            }}
+            /* Losing focus without an explicit Enter is read the same as
+               Escape: an edit nobody confirmed is discarded, never sent
+               just because the pointer moved away. `onCancel` is safe to
+               call twice (Escape already having called it), since it only
+               ever clears the same piece of state. */
+            onBlur={() => editing.onCancel()}
+            /* Selects the starting text once, on the real DOM focus event
+               `autoFocus` causes: an inline ref callback would do this on
+               every re-render instead (a fresh function identity each
+               time, which React treats as the ref changing), reselecting
+               after every keystroke and letting each new character
+               overwrite everything typed so far. */
+            onFocus={(event) => event.currentTarget.select()}
+            autoFocus
+            className="bg-surface-input border-accent text-ink min-w-0 flex-1 rounded border px-1 py-0 font-mono text-[12px] outline-none"
+          />
+        )}
       </span>
       <span className="text-ink-muted w-[74px] shrink-0 text-right font-mono text-[11.5px]">
         {isDir ? '—' : formatSize(size)}
@@ -234,14 +292,20 @@ interface NavBarProps {
   readonly onUp: () => void;
   readonly onEnter: (path: string) => void;
   readonly onRefresh: () => void;
+  /** Starts a new, editable "New folder" row (ADR-0048). A visible entry
+   * point next to refresh, not only a right-click on empty space: the same
+   * "a context menu is the convention and a visible button is the thing
+   * somebody finds without being told the convention" reasoning
+   * `SessionMenu.tsx`'s own doc comment already gives. */
+  readonly onNewFolder: () => void;
 }
 
 /**
- * Back, up, a clickable breadcrumb and refresh, below a pane's identity
- * header (ADR-0047). No forward: `usePane`'s own history is back-only,
- * which is the one direction this draws.
+ * Back, up, a clickable breadcrumb, new folder and refresh, below a pane's
+ * identity header (ADR-0047, ADR-0048). No forward: `usePane`'s own
+ * history is back-only, which is the one direction this draws.
  */
-function NavBar({ i18n, path, canGoBack, canGoUp, onBack, onUp, onEnter, onRefresh }: NavBarProps): JSX.Element {
+function NavBar({ i18n, path, canGoBack, canGoUp, onBack, onUp, onEnter, onRefresh, onNewFolder }: NavBarProps): JSX.Element {
   const segments = pathSegments(path ?? '');
 
   return (
@@ -295,6 +359,23 @@ function NavBar({ i18n, path, canGoBack, canGoUp, onBack, onUp, onEnter, onRefre
         )}
       </div>
 
+      <button
+        type="button"
+        onClick={onNewFolder}
+        aria-label={i18n.t('sftp.nav.newFolder')}
+        title={i18n.t('sftp.nav.newFolder')}
+        className="text-ink-muted hover:text-ink flex h-5 w-5 shrink-0 items-center justify-center"
+      >
+        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" aria-hidden="true">
+          <path
+            d="M4 6.5h6l1.6 2H20v9.5H4z"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinejoin="round"
+          />
+          <path d="M12 12v4M10 14h4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+        </svg>
+      </button>
       <button
         type="button"
         onClick={onRefresh}
@@ -452,6 +533,83 @@ export function SftpPane({
     onDragEntriesStart(entries);
   };
 
+  /* A fresh, editable "New folder" row, drawn above the real listing.
+   * `null` the rest of the time. ADR-0048. */
+  const [creating, setCreating] = useState<{ readonly value: string } | null>(null);
+  /* Which existing entry is mid-rename, by its own path, and the text so
+   * far. `null` the rest of the time; never more than one at once. */
+  const [renaming, setRenaming] = useState<{ readonly path: string; readonly value: string } | null>(null);
+  const [menu, setMenu] = useState<{
+    readonly at: { readonly x: number; readonly y: number };
+    readonly entry: PaneEntry;
+  } | null>(null);
+
+  useEffect(() => {
+    setCreating(null);
+    setRenaming(null);
+    setMenu(null);
+  }, [pane.path]);
+
+  const startCreating = (): void => {
+    if (creating !== null) return;
+    setCreating({ value: i18n.t('sftp.newFolder.defaultName') });
+  };
+
+  const commitCreating = (): void => {
+    const value = creating?.value.trim() ?? '';
+    if (value !== '') pane.createDirectory(value);
+    setCreating(null);
+  };
+
+  const startRenaming = (entry: PaneEntry): void => {
+    setRenaming({ path: entry.path, value: entry.name });
+  };
+
+  const commitRenaming = (entry: PaneEntry): void => {
+    const value = renaming?.value.trim() ?? '';
+    if (value !== '' && value !== entry.name) pane.renameEntry(entry.name, value);
+    setRenaming(null);
+  };
+
+  /* What the right-click menu offers for `entry`: renaming (never for more
+   * than one at once) and deleting, either just `entry` or, when it is
+   * part of the current selection, every selected entry together
+   * (ADR-0048). The label never changes; the weight of a multi-delete or a
+   * recursive folder delete is carried by `detail`, read a moment before
+   * the click, the same reasoning `GroupMenu.tsx`'s own doc comment gives
+   * for closing several tabs at once. */
+  const menuItemsFor = (entry: PaneEntry): readonly GroupMenuItem[] => {
+    const multi = selected.has(entry.path) && selected.size > 1;
+    const targets = multi ? pane.entries.filter((candidate) => selected.has(candidate.path)) : [entry];
+
+    const items: GroupMenuItem[] = [];
+    if (!multi) {
+      items.push({
+        id: 'rename',
+        label: i18n.t('sftp.menu.rename'),
+        run: () => {
+          setMenu(null);
+          startRenaming(entry);
+        },
+      });
+    }
+    items.push({
+      id: 'delete',
+      label: i18n.t('sftp.menu.delete'),
+      ...(multi
+        ? { detail: i18n.t('sftp.menu.delete.detail.selected', { count: String(targets.length) }) }
+        : entry.isDir
+          ? { detail: i18n.t('sftp.menu.delete.detail.folder') }
+          : {}),
+      destructive: true,
+      run: () => {
+        setMenu(null);
+        pane.removeEntries(targets.map((target) => ({ name: target.name, isDir: target.isDir })));
+      },
+    });
+    return items;
+  };
+
   return (
     <div className="border-line-subtle bg-surface-terminal flex h-full flex-col overflow-hidden rounded border">
       <div className="border-line-subtle bg-surface-chrome flex h-8 shrink-0 items-center gap-2.5 border-b px-2.5">
@@ -517,7 +675,14 @@ export function SftpPane({
         onUp={pane.goUp}
         onEnter={pane.enter}
         onRefresh={() => pane.enter(pane.path)}
+        onNewFolder={startCreating}
       />
+
+      {pane.actionError !== null && (
+        <p className="bg-danger-soft border-line-subtle text-danger-text border-b px-2.5 py-1.5 text-[11.5px]">
+          {i18n.t(describeSftpFailure(pane.actionError))}
+        </p>
+      )}
 
       {/* `pr-2` is dead space, not a column: an overlay scrollbar (WebKit's
           own on Linux) draws on top of the content rather than reserving
@@ -557,9 +722,33 @@ export function SftpPane({
             selectLabel=""
             onDragStart={null}
             onDragEnd={null}
+            editing={null}
+            onContextMenu={null}
           />
         )}
-        {pane.error === null && !pane.loading && pane.entries.length === 0 && (
+        {pane.error === null && creating !== null && (
+          <Row
+            name={creating.value}
+            isDir
+            size={0}
+            modifiedUnixSecs={null}
+            onOpen={() => undefined}
+            selected={null}
+            onSelectClick={null}
+            onToggleSelect={null}
+            selectLabel=""
+            onDragStart={null}
+            onDragEnd={null}
+            editing={{
+              value: creating.value,
+              onChange: (value) => setCreating({ value }),
+              onCommit: commitCreating,
+              onCancel: () => setCreating(null),
+            }}
+            onContextMenu={null}
+          />
+        )}
+        {pane.error === null && creating === null && !pane.loading && pane.entries.length === 0 && (
           <p className="text-ink-faint px-2.5 py-2 text-[12px]">{i18n.t('sftp.empty')}</p>
         )}
         {pane.error === null &&
@@ -581,9 +770,29 @@ export function SftpPane({
                   : () => handleDragStart(entry)
               }
               onDragEnd={onDragEntriesEnd}
+              editing={
+                renaming !== null && renaming.path === entry.path
+                  ? {
+                      value: renaming.value,
+                      onChange: (value) => setRenaming({ path: entry.path, value }),
+                      onCommit: () => commitRenaming(entry),
+                      onCancel: () => setRenaming(null),
+                    }
+                  : null
+              }
+              onContextMenu={(point) => setMenu({ at: point, entry })}
             />
           ))}
       </div>
+
+      {menu !== null && (
+        <GroupMenu
+          items={menuItemsFor(menu.entry)}
+          at={menu.at}
+          label={menu.entry.name}
+          onDismiss={() => setMenu(null)}
+        />
+      )}
 
       {onSend !== null && selected.size > 0 && (
         <SendBar

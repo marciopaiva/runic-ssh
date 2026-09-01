@@ -269,6 +269,80 @@ pub async fn transfer(
     Ok(dest_path)
 }
 
+/// Creates a directory named `name` inside `dir`. ADR-0048.
+pub async fn create_dir(sftp: &SftpSession, dir: &str, name: &str) -> Result<String, SftpError> {
+    check_name(name)?;
+    let path = format!("{}/{name}", dir.trim_end_matches('/'));
+    sftp.create_dir(path.as_str()).await?;
+    Ok(path)
+}
+
+/// Renames `old_name` to `new_name`, within `dir`. Never moves an entry to
+/// a different directory: this is the pane's "rename" action, not a
+/// general move.
+pub async fn rename(
+    sftp: &SftpSession,
+    dir: &str,
+    old_name: &str,
+    new_name: &str,
+) -> Result<String, SftpError> {
+    check_name(old_name)?;
+    check_name(new_name)?;
+    let dir = dir.trim_end_matches('/');
+    let old_path = format!("{dir}/{old_name}");
+    let new_path = format!("{dir}/{new_name}");
+    sftp.rename(old_path.as_str(), new_path.as_str()).await?;
+    Ok(new_path)
+}
+
+/// Removes `name` inside `dir`. ADR-0048.
+///
+/// A directory is removed recursively: SFTP v3, the version `russh-sftp`
+/// speaks, gives `remove_dir` no way to remove a non-empty one, and has no
+/// tree-delete operation of its own to reach for instead. `is_dir` is
+/// trusted from the caller (already known from the same listing the entry
+/// being deleted came from) rather than re-confirmed with a `metadata`
+/// call: a caller that gets this wrong gets an ordinary protocol failure
+/// back, not a different outcome than an honest mistake would produce.
+pub async fn remove(
+    sftp: &SftpSession,
+    dir: &str,
+    name: &str,
+    is_dir: bool,
+) -> Result<(), SftpError> {
+    check_name(name)?;
+    let path = format!("{}/{name}", dir.trim_end_matches('/'));
+    if is_dir {
+        remove_dir_recursive(sftp, &path).await
+    } else {
+        sftp.remove_file(path.as_str()).await?;
+        Ok(())
+    }
+}
+
+/// Boxed because an `async fn` cannot recurse into itself directly: each
+/// call would need to embed its own not-yet-sized future, which is exactly
+/// what `Pin<Box<dyn Future>>` erases. Walks bottom-up (every child gone
+/// before `remove_dir` runs on their parent) since SFTP v3's `remove_dir`
+/// only ever accepts an empty directory.
+fn remove_dir_recursive<'a>(
+    sftp: &'a SftpSession,
+    path: &'a str,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), SftpError>> + Send + 'a>> {
+    Box::pin(async move {
+        let entries = list(sftp, path).await?;
+        for entry in entries {
+            if entry.is_dir {
+                remove_dir_recursive(sftp, &entry.remote_path).await?;
+            } else {
+                sftp.remove_file(entry.remote_path.as_str()).await?;
+            }
+        }
+        sftp.remove_dir(path).await?;
+        Ok(())
+    })
+}
+
 /// The last `/`-separated segment of a POSIX-style remote path.
 ///
 /// SFTP paths are always POSIX-style on the wire regardless of either end's

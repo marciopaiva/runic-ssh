@@ -1,12 +1,20 @@
-//! Listing a local directory, for the SFTP panel's own side. ADR-0043.
+//! Listing a local directory, for the SFTP panel's own side (ADR-0043), and
+//! creating, renaming or removing an entry in one (ADR-0048).
 //!
-//! Unlike `sftp::path`, nothing here defends against a hostile name: a path
-//! given to this module is the user's own, on their own machine, never a
-//! name a remote server chose. What this module refuses is a path that
-//! is not a real, readable directory, nothing more.
+//! Unlike `sftp::path`, nothing here defends against a hostile name for an
+//! entry already on disk: a path given to this module to *list* is the
+//! user's own, on their own machine, never a name a remote server chose.
+//! [`create_dir`] and [`rename`] are the one exception: the *new* name they
+//! are given is typed into this application's own UI, and `check_name`
+//! still runs on it, not because it is hostile but because a text field
+//! that is supposed to hold one path segment is not a path field, and a
+//! stray `/` typed into it by accident should refuse rather than silently
+//! reach somewhere else on disk.
 
 use std::fs;
 use std::path::{Path, PathBuf};
+
+use crate::sftp::path::{check_name, PathError};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum LocalError {
@@ -18,6 +26,10 @@ pub enum LocalError {
     PermissionDenied,
     #[error("the local filesystem refused the operation")]
     Io,
+    /// A name meant for [`create_dir`] or [`rename`] failed `check_name`.
+    /// ADR-0048.
+    #[error("the name was refused: {0}")]
+    RefusedName(#[from] PathError),
 }
 
 impl From<std::io::Error> for LocalError {
@@ -93,6 +105,104 @@ pub fn list(path: &Path) -> Result<Listing, LocalError> {
         parent: path.parent().map(Path::to_path_buf),
         entries,
     })
+}
+
+/// Creates a directory named `name` inside `dir`. ADR-0048.
+pub fn create_dir(dir: &Path, name: &str) -> Result<PathBuf, LocalError> {
+    check_name(name)?;
+    let path = dir.join(name);
+    fs::create_dir(&path)?;
+    Ok(path)
+}
+
+/// Renames `old_name` to `new_name`, within `dir`. Never moves an entry to
+/// a different directory: this is the pane's "rename" action, not a
+/// general move.
+pub fn rename(dir: &Path, old_name: &str, new_name: &str) -> Result<PathBuf, LocalError> {
+    check_name(new_name)?;
+    let new_path = dir.join(new_name);
+    fs::rename(dir.join(old_name), &new_path)?;
+    Ok(new_path)
+}
+
+/// Removes `name` inside `dir`. A directory is removed recursively: this
+/// application gives a deleted entry nowhere to go on either side of a
+/// transfer, so there is no "trash" for `remove_dir` alone to defer to.
+pub fn remove(dir: &Path, name: &str, is_dir: bool) -> Result<(), LocalError> {
+    let path = dir.join(name);
+    if is_dir {
+        fs::remove_dir_all(&path)?;
+    } else {
+        fs::remove_file(&path)?;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod ops_tests {
+    use super::*;
+
+    #[test]
+    fn a_directory_is_created_under_the_given_base() {
+        let dir = tempfile::tempdir().expect("a scratch directory");
+        let created = create_dir(dir.path(), "sub").expect("creates");
+
+        assert_eq!(created, dir.path().join("sub"));
+        assert!(created.is_dir());
+    }
+
+    #[test]
+    fn a_hostile_new_directory_name_is_refused() {
+        let dir = tempfile::tempdir().expect("a scratch directory");
+        assert_eq!(
+            create_dir(dir.path(), "../escape"),
+            Err(LocalError::RefusedName(PathError::NotASingleSegment))
+        );
+    }
+
+    #[test]
+    fn a_file_is_renamed_within_its_own_directory() {
+        let dir = tempfile::tempdir().expect("a scratch directory");
+        fs::write(dir.path().join("old.txt"), b"x").expect("writes the fixture");
+
+        let renamed = rename(dir.path(), "old.txt", "new.txt").expect("renames");
+
+        assert_eq!(renamed, dir.path().join("new.txt"));
+        assert!(!dir.path().join("old.txt").exists());
+        assert!(renamed.exists());
+    }
+
+    #[test]
+    fn a_hostile_rename_target_is_refused() {
+        let dir = tempfile::tempdir().expect("a scratch directory");
+        fs::write(dir.path().join("old.txt"), b"x").expect("writes the fixture");
+
+        assert_eq!(
+            rename(dir.path(), "old.txt", "..").expect_err("a dot entry is refused"),
+            LocalError::RefusedName(PathError::DotEntry)
+        );
+        assert!(dir.path().join("old.txt").exists(), "nothing moved");
+    }
+
+    #[test]
+    fn a_file_is_removed() {
+        let dir = tempfile::tempdir().expect("a scratch directory");
+        fs::write(dir.path().join("gone.txt"), b"x").expect("writes the fixture");
+
+        remove(dir.path(), "gone.txt", false).expect("removes");
+        assert!(!dir.path().join("gone.txt").exists());
+    }
+
+    #[test]
+    fn a_non_empty_directory_is_removed_recursively() {
+        let dir = tempfile::tempdir().expect("a scratch directory");
+        let sub = dir.path().join("sub");
+        fs::create_dir(&sub).expect("creates the fixture directory");
+        fs::write(sub.join("inner.txt"), b"x").expect("writes the fixture");
+
+        remove(dir.path(), "sub", true).expect("removes");
+        assert!(!sub.exists());
+    }
 }
 
 #[cfg(test)]

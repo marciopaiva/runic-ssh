@@ -177,7 +177,15 @@ export type IpcError =
   | { readonly code: 'localDirectoryNotFound' }
   | { readonly code: 'localNotADirectory' }
   | { readonly code: 'localPermissionDenied' }
-  | { readonly code: 'localIoFailed' };
+  | { readonly code: 'localIoFailed' }
+  /**
+   * A name typed into this application's own UI, for a new directory or a
+   * rename, failed the same check a remote name does. ADR-0048.
+   */
+  | {
+      readonly code: 'localNameRefused';
+      readonly check: 'empty' | 'tooLong' | 'notASingleSegment' | 'dotEntry' | 'controlCharacter';
+    };
 
 export type IpcErrorCode = IpcError['code'];
 
@@ -240,6 +248,7 @@ export const CODES: ReadonlySet<IpcErrorCode> = new Set<IpcErrorCode>([
   'localNotADirectory',
   'localPermissionDenied',
   'localIoFailed',
+  'localNameRefused',
 ]);
 
 /**

@@ -24,8 +24,12 @@ const MESSAGES: Partial<Record<IpcErrorCode, ParameterlessKey>> = {
   sftpTransferCancelled: 'sftp.error.cancelled',
   /* `check` names which of `sftp::path::PathError`'s five shapes refused the
      name; none of the five reads as more actionable to a user than the
-     others; a name landed here at all, so one sentence covers it. */
+     others; a name landed here at all, so one sentence covers it. Shared
+     with `localNameRefused` (ADR-0048): the same five checks refuse a name
+     typed into this application's own UI, for a new directory or a
+     rename, whichever endpoint it targets. */
   sftpNameRefused: 'sftp.error.nameRefused',
+  localNameRefused: 'sftp.error.nameRefused',
   localDirectoryNotFound: 'sftp.error.localNotFound',
   localNotADirectory: 'sftp.error.localNotADirectory',
   localPermissionDenied: 'sftp.error.localPermissionDenied',

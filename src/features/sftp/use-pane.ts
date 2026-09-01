@@ -19,7 +19,17 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { asIpcError, localListDirectory, sftpList } from '../../ipc';
+import {
+  asIpcError,
+  localListDirectory,
+  localMkdir,
+  localRemove,
+  localRename,
+  sftpList,
+  sftpMkdir,
+  sftpRemove,
+  sftpRename,
+} from '../../ipc';
 import type { IpcErrorCode } from '../../ipc';
 import type { Endpoint } from './endpoint';
 import { fromLocalEntry, fromRemoteEntry } from './endpoint';
@@ -33,6 +43,12 @@ export interface PaneState {
   readonly parent: string | null;
   readonly loading: boolean;
   readonly error: IpcErrorCode | null;
+  /** A create, rename or delete against this pane's own listing failed
+   * (ADR-0048). Distinct from `error`: that one means the listing itself
+   * could not be loaded and replaces it on screen; this one is about an
+   * action against a listing that loaded fine, and must not take it down
+   * too. Cleared at the start of the next action and on navigation. */
+  readonly actionError: IpcErrorCode | null;
   /** Paths this pane was at before, most recently left last. ADR-0047:
    * back only, no forward, which is the one direction the nav bar draws. */
   readonly history: readonly string[];
@@ -45,6 +61,16 @@ export interface PaneActions {
    * back that could itself be gone back from would need forward too, which
    * ADR-0047 does not draw. */
   readonly back: () => void;
+  /** Creates a directory named `name` in this pane's current directory,
+   * then reloads the listing. ADR-0048. */
+  readonly createDirectory: (name: string) => void;
+  /** Renames `oldName` to `newName`, within this pane's current directory,
+   * then reloads the listing. ADR-0048. */
+  readonly renameEntry: (oldName: string, newName: string) => void;
+  /** Removes one or more entries from this pane's current directory, then
+   * reloads the listing once rather than once per entry. A directory is
+   * removed recursively. ADR-0048. */
+  readonly removeEntries: (entries: readonly { readonly name: string; readonly isDir: boolean }[]) => void;
 }
 
 const START_REMOTE = '.';
@@ -55,6 +81,7 @@ export function usePane(endpoint: Endpoint): PaneState & PaneActions {
   const [parent, setParent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<IpcErrorCode | null>(null);
+  const [actionError, setActionError] = useState<IpcErrorCode | null>(null);
   const [history, setHistory] = useState<readonly string[]>([]);
   /* `navigate` has to stay a stable reference (the mount effect below and
      `reload` in `App.tsx`'s `reportPane` close over it once), so the path
@@ -66,6 +93,7 @@ export function usePane(endpoint: Endpoint): PaneState & PaneActions {
     (requested: string | null, record: boolean) => {
       setLoading(true);
       setError(null);
+      setActionError(null);
       const leaving = pathRef.current;
 
       const listing =
@@ -108,12 +136,30 @@ export function usePane(endpoint: Endpoint): PaneState & PaneActions {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /* Every mutation shares this shape: clear the last action's own error,
+     run the IPC call against whichever endpoint kind this pane is, reload
+     the listing on success (`navigate` at the current path, no history
+     push), or record the failure without touching what is already on
+     screen. */
+  const runAction = useCallback(
+    (run: () => Promise<unknown>) => {
+      setActionError(null);
+      void run()
+        .then(() => navigate(pathRef.current, false))
+        .catch((rejection: unknown) => {
+          setActionError(asIpcError(rejection)?.code ?? null);
+        });
+    },
+    [navigate],
+  );
+
   return {
     path,
     entries,
     parent,
     loading,
     error,
+    actionError,
     history,
     enter: (requested) => navigate(requested, true),
     goUp: () => {
@@ -124,6 +170,33 @@ export function usePane(endpoint: Endpoint): PaneState & PaneActions {
       if (target === undefined) return;
       setHistory((current) => current.slice(0, -1));
       navigate(target, false);
+    },
+    createDirectory: (name) => {
+      const dir = pathRef.current;
+      if (dir === null) return;
+      runAction(() =>
+        endpoint.kind === 'local' ? localMkdir(dir, name) : sftpMkdir(endpoint.handle, dir, name),
+      );
+    },
+    renameEntry: (oldName, newName) => {
+      const dir = pathRef.current;
+      if (dir === null) return;
+      runAction(() =>
+        endpoint.kind === 'local'
+          ? localRename(dir, oldName, newName)
+          : sftpRename(endpoint.handle, dir, oldName, newName),
+      );
+    },
+    removeEntries: (targets) => {
+      const dir = pathRef.current;
+      if (dir === null || targets.length === 0) return;
+      runAction(() =>
+        Promise.all(
+          targets.map(({ name, isDir }) =>
+            endpoint.kind === 'local' ? localRemove(dir, name, isDir) : sftpRemove(endpoint.handle, dir, name, isDir),
+          ),
+        ),
+      );
     },
   };
 }
