@@ -599,6 +599,136 @@ The last row is the only way a broken session gets repaired, so it is worth
 building one: write the `proxyJump` into `sessions.json` by hand on a host that
 already carries others, and open the form.
 
+### SFTP
+
+ADR-0044 through ADR-0049. One fixture on 2222 is enough for browsing,
+transferring toward `localhost`, and every create/rename/delete/folder-copy
+row below; the remote-to-remote row needs a second instance on 2223, the same
+one `docs/adr/0045-let-sftp-fan-out-to-several-destinations.md`'s own test
+uses:
+
+```sh
+podman run -d --name runic-test-sshd-2223 -p 2223:2222 runic-test-sshd
+```
+
+The rail's third icon opens the workspace. It carries a numeric badge, how
+many panes are currently occupied, and it locks shut while synchronised
+typing is armed, the same rule Home follows, because a workspace switch mid
+broadcast is the wrong moment to invite one.
+
+**Filling a pane is always a drag**, from the same saved-hosts list Sessions
+uses, now shared between both workspaces (ADR-0046). `localhost` sits pinned
+above the search box and drags the same way a saved host does. A plain click
+on any row in that sidebar goes to the **source** pane, always; a
+destination is only ever filled by dropping a row onto one of its slots.
+There is no click-to-fill-a-destination shortcut, which is worth checking for
+directly since it is the one place this UI's two input styles, click and
+drag, do different things rather than the same thing two ways.
+
+| Do this | Expect |
+| --- | --- |
+| Click a saved host in the sidebar | it fills the source pane, replacing whatever was there |
+| Click `localhost` | it fills the source pane the same way |
+| Drag a saved host onto an empty destination slot | it fills that slot and starts browsing there |
+| Drag a host onto an **occupied** slot | it replaces that slot outright, no confirmation |
+| Occupy a slot already marked as spared from an earlier session | it resets to receiving, not spared |
+
+The drag itself needs the multi-step form "What synthetic input can and
+cannot drive" describes below, not a single jump; that section's own
+2026-09-01 measurement is this exact gesture, dragging a saved host into an
+SFTP destination slot.
+
+Splitting the destination side into 1 through 4 rows is the toolbar's fold
+control (`sftp.split.into`), mirroring the shape control Sessions already
+has. Lowering the count never hides a slot that already has a host in it,
+only how many empty drop targets are pre-drawn.
+
+**Navigating a pane**: a row click enters a directory; the `..` row, the Up
+chevron, and a clickable breadcrumb segment all go up, three ways to do the
+one thing, all worth trying at least once. Back is one level of history, no
+forward, so a wrong turn is undone by Back rather than retraced by hand.
+
+| Do this | Expect |
+| --- | --- |
+| Click a folder row | enters it, breadcrumb grows one segment |
+| Click a breadcrumb segment | jumps straight there |
+| Click `..`, or the Up chevron | goes to the parent, same destination either way |
+| Click Back after entering three directories | returns one level, not to the root |
+| Navigate into a directory you lack permission for | the whole listing is replaced by one red line, not a blank pane |
+
+**Selecting and sending** live only on the source pane; a destination pane
+has no checkbox and cannot be dragged from at all.
+
+| Do this | Expect |
+| --- | --- |
+| Click a file row | selects only it |
+| `Ctrl`/`Cmd`-click a file | toggles it without touching the rest |
+| Shift-click | selects the range between the last plain click and this one |
+| Click a directory row, plain | opens it, exactly like before |
+| `Ctrl`/`Cmd`-click or Shift-click a directory | selects it instead of opening it |
+| Tick a directory's own checkbox | selects it without navigating in, the one way to do that with no modifier key |
+| `Ctrl`/`Cmd`-A with focus in the source listing | selects every row currently listed |
+| `Ctrl`/`Cmd`-A with focus in a destination pane | nothing, by design: the shortcut is not wired there |
+| Select two files, press Send | one transfer per file, to every occupied and receiving destination at once |
+| Select a folder, press Send | a recursive copy, sequential inside itself, to every occupied and receiving destination |
+| Drag a file straight onto one destination pane | reaches only that one, **even if its receive toggle currently spares it from Send** |
+| Navigate away and back in the source pane | the selection from before is gone |
+
+That last drag row and the receive toggle disagreeing on purpose is worth
+seeing once rather than taking on faith: spare a destination, then drag a
+file onto it directly. It lands anyway.
+
+**Cancelling** has no group control: a fan-out to three destinations is three
+rows in the transfers bar at the bottom of the window, and each is cancelled
+or dismissed on its own.
+
+| Do this | Expect |
+| --- | --- |
+| Cancel a file transfer mid-flight | its row turns into a grey "Cancelled" line, not red "Failed" |
+| Cancel a folder copy mid-flight | the file in flight finishes, no further file in the tree is dispatched, the row shows the count reached so far |
+| Dismiss a finished row | it leaves the list; nothing on disk changes |
+| Fan a file out to three destinations, cancel one | the other two keep running and finish on their own |
+
+**Create, rename and delete** (ADR-0048) work on any pane, source or
+destination, right-click for the menu:
+
+| Do this | Expect |
+| --- | --- |
+| Click the folder-plus icon in the nav bar | an inline "New folder" row appears, pre-selected, ready to type over |
+| Press Escape while naming it | discarded, nothing created |
+| Right-click one file, not part of a selection | menu offers Rename and Delete |
+| Right-click a file that is part of a multi-selection | menu offers only Delete, for the whole selection |
+| Delete a folder | removes it and everything inside, no "must be empty" refusal, one line under the item warns before you click |
+| Cause a rename to collide with an existing name | the pane's own listing stays correct; a red banner under the nav bar names the failure, the row list is untouched |
+
+**A folder copy's progress is a file count, never bytes** ("N of M files"),
+and a copy that finishes with failures says how many, not which ones:
+
+| Do this | Expect |
+| --- | --- |
+| Copy a folder with everything readable | progress bar in the accent colour while running, green once done |
+| Copy a folder where one file's permission is refused mid-copy | the copy keeps going past it; finishes amber, "N of M files, K failed" |
+| Look for which file failed | it is not shown anywhere in this UI; only the count is |
+
+That last row is worth confirming rather than assuming: a tester expecting a
+per-file error list will not find one, and that is the shipped shape
+(ADR-0049), not a gap in the walkthrough.
+
+**Remote-to-remote**, against the second fixture on 2223: drag one host into
+the source, a different host into a destination, and send a file between
+them with neither endpoint being this machine. The transfers bar draws this
+with its own icon, two arrows crossing, distinct from the plain download and
+upload arrows, which is the detail to check if the two are being told apart
+by eye rather than by reading the row.
+
+**What this section cannot assert from a test**: the same limit "Groups and
+synchronised typing" names above, restated for a second feature that leans on
+it just as hard. Whether a row is actually draggable, whether a drop target
+highlights under the pointer, whether the transfers bar animates in rather
+than appearing already full, is what a person watching the window answers.
+The IPC layer and the pure reducers in `browser.ts` have their own test
+coverage; this section is for the part above them that no assertion reaches.
+
 ### On WSL2
 
 Reaching a container in WSL *from a Windows build* is a separate problem:
