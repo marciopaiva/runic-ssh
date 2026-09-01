@@ -31,17 +31,33 @@ export function EmptyPanel({ modifier, variant = 'panel' }: EmptyPanelProps): JS
   const keys = paletteKeys(modifier).join(' ');
 
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-[18px] p-8">
-      <svg viewBox="0 0 24 24" className="h-[46px] w-[46px] opacity-50" fill="none" aria-hidden="true">
-        <circle cx="9.5" cy="12" r="7" className="stroke-brand-start" strokeWidth="1.2" />
-        <circle cx="14.5" cy="12" r="7" className="stroke-brand-end" strokeWidth="1.2" />
-        <path
-          d="M12 6.5v11M12 10l3-2.5M12 14l3 2.5M12 12l-2.6-2.2"
-          className="stroke-brand-rune"
-          strokeWidth="1.2"
-          strokeLinecap="round"
-        />
-      </svg>
+    <div className="flex h-full flex-col items-center justify-center gap-10 p-8">
+      {variant === 'panel' ? (
+        <div className="flex items-center gap-3.5" aria-hidden="true">
+          <svg viewBox="0 0 24 24" className="h-16 w-16" fill="none">
+            <circle cx="9.5" cy="12" r="7" className="stroke-brand-start" strokeWidth="1.2" />
+            <circle cx="14.5" cy="12" r="7" className="stroke-brand-end" strokeWidth="1.2" />
+            <path
+              d="M12 6.5v11M12 10l3-2.5M12 14l3 2.5M12 12l-2.6-2.2"
+              className="stroke-brand-rune"
+              strokeWidth="1.2"
+              strokeLinecap="round"
+            />
+          </svg>
+          <span className="text-ink text-[27px] font-extrabold tracking-tight">{i18n.t('app.name')}</span>
+        </div>
+      ) : (
+        <svg viewBox="0 0 24 24" className="h-[46px] w-[46px] opacity-50" fill="none" aria-hidden="true">
+          <circle cx="9.5" cy="12" r="7" className="stroke-brand-start" strokeWidth="1.2" />
+          <circle cx="14.5" cy="12" r="7" className="stroke-brand-end" strokeWidth="1.2" />
+          <path
+            d="M12 6.5v11M12 10l3-2.5M12 14l3 2.5M12 12l-2.6-2.2"
+            className="stroke-brand-rune"
+            strokeWidth="1.2"
+            strokeLinecap="round"
+          />
+        </svg>
+      )}
 
       <div className="flex flex-col items-center gap-[7px]">
         <span className="text-ink-secondary text-[14px] font-semibold">
