@@ -397,6 +397,44 @@ pub fn resolve_credential(
     }
 }
 
+/// [`resolve_credential`], off the async runtime's own thread for the part
+/// that can block it.
+///
+/// `SessionSecrets::resolve` never leaves memory, so it still runs on the
+/// caller's own thread; only the fallback, a real read from the OS secret
+/// store, moves to `spawn_blocking`. On Linux that read is a synchronous
+/// D-Bus round trip, and section 6 of `CLAUDE.md` already states the rule
+/// this is: nothing here is the network or the filesystem in the literal
+/// sense, but it is exactly the class of syscall-shaped wait that rule
+/// exists to keep off the IPC thread. #251 was this: a connect attempt hung
+/// on "Reaching <host>..." for 30s+, non-deterministically, on a fixture a
+/// real `ssh` client reached instantly every time. The difference was this
+/// call, blocking whichever worker thread `authenticate_with_saved` happened
+/// to run on.
+///
+/// `Vault` and `InternalVault` are both cheap to clone (a label, and a
+/// `PathBuf` plus an `Arc`), so the clone this needs to hand the closure its
+/// own owned data costs nothing worth avoiding.
+pub async fn resolve_credential_async(
+    secrets: &SessionSecrets,
+    vault: &Vault,
+    internal: &InternalVault,
+    id: &CredentialId,
+) -> Result<Secret, Error> {
+    if let Some(secret) = secrets.resolve(id) {
+        return Ok(secret);
+    }
+
+    let vault = vault.clone();
+    let internal = internal.clone();
+    let id = id.clone();
+    tokio::task::spawn_blocking(move || backend(&vault, &internal)?.resolve(&id))
+        .await
+        .map_err(|_| Error::KeychainUnavailable {
+            reason: String::from("the keychain lookup did not finish"),
+        })?
+}
+
 /// Forgets a secret wherever it is: the copy this run is holding, and
 /// whichever of the two stores is this installation's own.
 ///
@@ -548,6 +586,38 @@ mod tests {
         let id = CredentialId::for_session("never-kept");
 
         let resolved = resolve_credential(&secrets, &vault, &internal, &id);
+        assert!(resolved.is_err(), "nothing is kept and nothing is stored");
+    }
+
+    /* #251: the async twin answers exactly what the sync one does, run first
+    and the keychain as its fallback, the two behaviours `resolve_credential`
+    already had and the only two `resolve_credential_async` is allowed to
+    change nothing about. What moved is only which thread the fallback runs
+    on, which neither test below can observe from here, only the join
+    surviving proves `spawn_blocking` was reached and returned at all. */
+    #[tokio::test]
+    async fn the_async_run_answers_before_the_keychain_too() {
+        let secrets = SessionSecrets::new();
+        let vault = scratch();
+        let (internal, _dir) = scratch_internal();
+        let id = CredentialId::for_session("web-01-async");
+
+        secrets.keep(&id, &Secret::new("from-this-run"));
+
+        let resolved = resolve_credential_async(&secrets, &vault, &internal, &id)
+            .await
+            .expect("it resolves");
+        assert_eq!(resolved.expose(), "from-this-run");
+    }
+
+    #[tokio::test]
+    async fn the_async_fallback_reaches_the_keychain_too() {
+        let secrets = SessionSecrets::new();
+        let vault = scratch();
+        let (internal, _dir) = scratch_internal();
+        let id = CredentialId::for_session("never-kept-async");
+
+        let resolved = resolve_credential_async(&secrets, &vault, &internal, &id).await;
         assert!(resolved.is_err(), "nothing is kept and nothing is stored");
     }
 

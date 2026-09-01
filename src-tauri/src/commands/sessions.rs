@@ -25,8 +25,8 @@ use crate::ssh::pending::{Carried, CarriedCredentials, PendingHostKeys, PendingI
 use crate::ssh::registry::{Busy, ChainedBastions, Open, Registry, SessionHandle};
 use crate::ssh::trust::Trust;
 use crate::vault::{
-    can_remember, resolve_credential, store_credential, Availability, CredentialId, InternalVault,
-    Secret, SessionSecrets, StoredCredential, Vault,
+    can_remember, resolve_credential_async, store_credential, Availability, CredentialId,
+    InternalVault, Secret, SessionSecrets, StoredCredential, Vault,
 };
 
 pub const KNOWN_HOSTS_FILE: &str = "known_hosts";
@@ -578,12 +578,13 @@ pub async fn authenticate_with_saved(
         .await
         .ok_or(Error::UnknownHandle)?;
 
-    let stored = resolve_credential(
+    let stored = resolve_credential_async(
         &secrets,
         &vault,
         &internal,
         &CredentialId::for_session(&session_id),
-    )?;
+    )
+    .await?;
     let credential = from_stored(StoredCredential::decode(&stored)?);
 
     let outcome = registry
@@ -868,11 +869,17 @@ async fn open_bastion<R: Runtime>(
     bastion is crossed dozens of times a day, and a window on the way to every
     host behind it is what makes somebody stop using the feature. The prompt is
     for the case where there is nothing to read, not an alternative to reading
-    it. */
-    let saved = || {
-        resolve_credential(chain.secrets, chain.vault, chain.internal, &id)
-            .and_then(|stored| StoredCredential::decode(&stored))
-    };
+    it.
+
+    Awaited eagerly rather than behind a closure called only in the `None`
+    branch below: `resolve_credential_async` (#251) needs to run off this
+    task's own thread, which means it has to be a real `await` here rather
+    than something a synchronous closure could still call. The cost is one
+    lookup this attempt does not use on the rare path where `continued` is
+    already `Some`, which is only ever a host-key-decision retry. */
+    let saved = resolve_credential_async(chain.secrets, chain.vault, chain.internal, &id)
+        .await
+        .and_then(|stored| StoredCredential::decode(&stored));
 
     /* `carry` is the whole of the difference: whether this answer has anywhere
     else to be found if the chain is rebuilt. One read back out of the keychain
@@ -885,7 +892,7 @@ async fn open_bastion<R: Runtime>(
                 return Err(chain_failure(Hop::Bastion, IpcError::from(error)));
             }
         },
-        None => match saved() {
+        None => match saved {
             Ok(stored) => (stored, Keep::Never, false),
             Err(error) if worth_asking_now(chain.inline, &error) => {
                 let prompt = CredentialPrompt {
