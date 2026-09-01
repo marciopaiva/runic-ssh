@@ -223,7 +223,17 @@ def tab(name, sub=None, state="idle", dot="ok", icon=None, close=True, accent=No
     return (f'<div class="tab" style="{style}">'
             f'{d}<span style="font-size: 11.5px; color: {color}; {weight}">{name}</span>{subhtml}{endcap}</div>')
 
-def strip(tabs, actions=True, extra=""):
+def strip(tabs, actions=False, extra=""):
+    """`GroupStrip.tsx` as it actually reads today: tabs, then whatever
+    `extra` a caller draws (`sync_icon()`, most often). `actions=True` is
+    kept only so an artboard from before the command palette existed can
+    still ask for the plus/dots pair it drew then; every current artboard
+    leaves it at the default. #262: this used to default to `True`, drawing
+    that pair on every artboard that did not opt out, well after
+    `GroupStrip.tsx`'s own comment says they were retired ("everything it
+    offered is either a drag away or in the palette"). Flipped 2026-09-01,
+    once `sessions_header()`'s own identical drift (fixed 2026-08-31) made
+    it obvious this one had not been."""
     acts = ""
     if actions:
         # Two, not three. The split icon this used to draw moved to the top
