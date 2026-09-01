@@ -68,7 +68,9 @@ export function BroadcastButton({
       {armed && count > 0 && (
         <span
           aria-hidden="true"
-          className="bg-surface-raised text-ink-muted absolute -right-1 -bottom-1 flex h-[13px] min-w-[13px] items-center justify-center rounded-full px-[3px] font-mono text-[8.5px] font-bold"
+          /* Solid warn, not a neutral pill: the same treatment
+             `ActivityRail`'s own badge already gives an armed count. */
+          className="bg-warn text-surface-base absolute -right-1 -bottom-1 flex h-[13px] min-w-[13px] items-center justify-center rounded-full px-[3px] font-mono text-[8.5px] font-bold"
         >
           {count}
         </span>

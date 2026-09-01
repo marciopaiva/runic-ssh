@@ -138,6 +138,81 @@ export function GroupStrip({
     queueMicrotask(() => document.getElementById(tabElementId(next))?.focus());
   };
 
+  /* Option 1, confirmed directly against the canvas's own `SessionsProposal`
+     review: a group holding exactly one session collapses the packed,
+     left-aligned tab layout below into a single full-width identity bar,
+     closer to `SftpPane.tsx`'s own header than to a tab strip with one tab
+     in it. Two or more tabs, or a lone host form or settings tab, still get
+     the packed strip: the address this bar makes room for only exists for
+     a session, and a lone non-session tab is rare enough not to need its
+     own shape. */
+  const solo = entries.length === 1 ? (entries[0] ?? null) : null;
+  const soloTab =
+    solo?.kind === 'session' ? (tabs.find((candidate) => candidate.sessionId === solo.sessionId) ?? null) : null;
+
+  if (solo !== null && soloTab !== null) {
+    const id = tabElementId(solo);
+    const title = entryTitle(solo, tabs, editorTabs, i18n);
+    const where = labels.get(soloTab.sessionId)?.where ?? null;
+    const hasKeyboard = sameFocus(solo, focus);
+    const closeLabel = i18n.t('tabs.close', { name: title });
+
+    return (
+      <div
+        role="tablist"
+        aria-label={label}
+        className="bg-surface-chrome border-line-subtle flex h-7 shrink-0 items-center gap-2 border-b px-3"
+      >
+        <div
+          role="tab"
+          id={id}
+          aria-selected="true"
+          aria-controls={panelElementId(solo)}
+          tabIndex={0}
+          draggable
+          onDragStart={(event) => {
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', title);
+            onDrag(solo);
+          }}
+          onDragEnd={() => onDrag(null)}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            onMenu(solo, { x: event.clientX, y: event.clientY });
+          }}
+          onClick={() => onFocus(solo)}
+          className="flex min-w-0 flex-1 items-center gap-2"
+        >
+          <SessionMarker kind={soloTab.kind} />
+          <span className="text-ink truncate text-[11.5px] font-semibold">{title}</span>
+          {where !== null && (
+            <span className="text-ink-faint truncate font-mono text-[10.5px]">{where}</span>
+          )}
+        </div>
+
+        {hasKeyboard && sync === 'on' && (
+          <span className="text-ink-secondary shrink-0 font-mono text-[10px] font-bold tracking-[0.08em]">
+            {i18n.t('terminal.group.focused')}
+          </span>
+        )}
+
+        {sync !== null && <SyncToggle state={sync} onToggle={onToggleSync} />}
+
+        <button
+          type="button"
+          onClick={() => onClose(solo)}
+          aria-label={closeLabel}
+          title={closeLabel}
+          className="text-ink-faint hover:text-ink flex h-4 w-4 shrink-0 items-center justify-center rounded"
+        >
+          <svg viewBox="0 0 10 10" className="h-2 w-2" fill="none" aria-hidden="true">
+            <path d="M0.5 0.5l9 9M9.5 0.5l-9 9" stroke="currentColor" strokeWidth="1.4" />
+          </svg>
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div
       role="tablist"
