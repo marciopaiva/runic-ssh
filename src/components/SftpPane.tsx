@@ -388,7 +388,15 @@ export function SftpPane({
         onRefresh={() => pane.enter(pane.path)}
       />
 
-      <div className="min-h-0 flex-1 overflow-y-auto py-1">
+      {/* `pr-2` is dead space, not a column: an overlay scrollbar (WebKit's
+          own on Linux) draws on top of the content rather than reserving
+          its own width, and with none to spare here it sat directly over
+          the last column's own checkbox, which a click then landed on
+          instead of reaching. `SessionSurface.tsx` solves the same failure
+          with a cancelled margin, since it wants the scrollbar flush with
+          the window's edge; nothing here needs that, only somewhere empty
+          for the thumb to sit that isn't the checkbox underneath it. */}
+      <div className="min-h-0 flex-1 overflow-y-auto py-1 pr-2">
         <Header i18n={i18n} />
         {pane.error !== null && (
           <p className="text-danger-text px-2.5 py-2 text-[12px]">{i18n.t(describeSftpFailure(pane.error))}</p>
