@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { JSX } from 'react';
+import type { JSX, ReactNode } from 'react';
 
 import { bastionName, jumpRole, orderChain } from '../features/sessions';
 import { describeState, filterGroups, groupKey, groupSessions, soloGroup } from '../features/sessions/state';
@@ -9,20 +9,42 @@ import { useTranslator } from '../features/settings';
 import { HostKindIcon } from './HostKindIcon';
 import { SessionMarker } from './SessionMarker';
 
+function FolderMark(): JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" className="text-accent h-[13px] w-[13px] shrink-0" fill="none" aria-hidden="true">
+      <path d="M4 6.5h6l1.6 2H20v9.5H4z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 interface SessionsSidebarProps {
+  readonly title: string;
+  readonly emptyTitle: string;
+  readonly emptyBody: string;
   readonly sessions: readonly LiveSession[];
-  readonly selectedId: string | null;
-  /** Which hosts a keystroke reaches, or `null` when it reaches one. */
-  readonly receiving: ReadonlySet<string> | null;
-  /** Connected hosts a keystroke does not reach. Empty unless something is armed. */
-  readonly spared: ReadonlySet<string>;
+  /** Sessions mode only: the tab currently focused. */
+  readonly selectedId?: string | null;
+  /** Sessions mode only: which hosts a keystroke reaches, or `null` when it
+   * reaches one. */
+  readonly receiving?: ReadonlySet<string> | null;
+  /** Sessions mode only: connected hosts a keystroke does not reach. */
+  readonly spared?: ReadonlySet<string>;
+  /** SFTP mode only: hosts currently sitting in the source pane or a
+   * destination slot (ADR-0046). Several may be marked at once, since
+   * ADR-0045 dropped the one-tab-at-a-time model this used to draw against. */
+  readonly assigned?: ReadonlySet<string>;
+  /** Content specific to one workspace's meaning of a row, drawn above the
+   * search box. SFTP's `localhost` pick lives here: it needs no saved host
+   * and answers to neither `onDrag` nor `onSelect` below, which both name a
+   * saved session by id. */
+  readonly leading?: ReactNode;
   /** Which host is being dragged towards a rectangle, or `null` when none is. */
   readonly onDrag: (sessionId: string | null) => void;
   readonly onSelect: (sessionId: string) => void;
-  /** Opens the row's menu at a point on screen. Connect or disconnect only:
-   * creating, editing and deleting a host live in Home's Hosts section now
-   * (ADR-0029). */
-  readonly onMenu: (sessionId: string, at: { readonly x: number; readonly y: number }) => void;
+  /** Opens the row's menu at a point on screen. Sessions mode only: SFTP has
+   * nothing to connect or disconnect from a row's own menu, since a row
+   * there is a pick for a pane rather than a tab. */
+  readonly onMenu?: (sessionId: string, at: { readonly x: number; readonly y: number }) => void;
 }
 
 /**
@@ -30,12 +52,26 @@ interface SessionsSidebarProps {
  *
  * Presentational: it renders what it is handed and reports what was clicked.
  * Loading, grouping and connection state live in the feature slice.
+ *
+ * Shared between Sessions and SFTP since ADR-0046: `SftpWorkspaceSidebar`'s
+ * own reasoning for a plainer list ("a host picked to browse does not need a
+ * kind icon or a jump mark") was overridden directly, in favour of one
+ * sidebar rather than two that have to be kept looking alike by hand. What
+ * changes between the two callers is never the row's own shape, only what a
+ * row *means*: `selectedId`/`receiving`/`spared` for Sessions' "which tab is
+ * this and does it receive," `assigned` for SFTP's "is this open in a pane
+ * right now."
  */
 export function SessionsSidebar({
+  title,
+  emptyTitle,
+  emptyBody,
   sessions,
-  selectedId,
-  receiving,
+  selectedId = null,
+  receiving = null,
   spared,
+  assigned,
+  leading,
   onDrag,
   onSelect,
   onMenu,
@@ -44,6 +80,7 @@ export function SessionsSidebar({
   const [query, setQuery] = useState('');
   /** The one group asked to be shown alone, by `groupKey`, or `null`. */
   const [solo, setSolo] = useState<string | null>(null);
+  const sparedSet = spared ?? new Set<string>();
   /* Both marks are relations between two saved hosts, so the whole list is
      what decides them: a host is a jump host because something else names it,
      which is not a fact its own row carries. */
@@ -60,12 +97,12 @@ export function SessionsSidebar({
 
   return (
     <nav
-      aria-label={i18n.t('sessions.title')}
+      aria-label={title}
       className="bg-surface-panel border-line-subtle flex h-full w-[280px] shrink-0 flex-col border-r"
     >
       <header className="flex items-center gap-2 px-3.5 pt-3.5 pb-2.5">
         <span className="text-ink-faint shrink-0 text-[10.5px] font-bold tracking-[0.1em]">
-          {i18n.t('sessions.title')}
+          {title}
         </span>
 
         <span className="min-w-0 flex-1" />
@@ -100,6 +137,8 @@ export function SessionsSidebar({
         )}
       </header>
 
+      {leading}
+
       {sessions.length > 0 && (
         <div className="relative px-3.5 pb-2">
           <svg
@@ -129,12 +168,8 @@ export function SessionsSidebar({
 
       {sessions.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-1.5 px-6 text-center">
-          <p className="text-ink-secondary text-[12.5px] font-semibold">
-            {i18n.t('sessions.empty.title')}
-          </p>
-          <p className="text-ink-faint text-[11.5px] leading-snug text-pretty">
-            {i18n.t('sessions.empty.body')}
-          </p>
+          <p className="text-ink-secondary text-[12.5px] font-semibold">{emptyTitle}</p>
+          <p className="text-ink-faint text-[11.5px] leading-snug text-pretty">{emptyBody}</p>
         </div>
       ) : groups.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-1.5 px-6 text-center">
@@ -204,7 +239,8 @@ export function SessionsSidebar({
                     const carriesShown = role.carries && !row.childrenShown;
                     const selected = session.id === selectedId;
                     const reached = receiving?.has(session.id) === true;
-                    const held = spared.has(session.id);
+                    const held = sparedSet.has(session.id);
+                    const isAssigned = assigned?.has(session.id) === true;
 
                     /* The receiving edge outranks the selection edge. Both are
                        2px down the leading edge and only one can be drawn, and
@@ -242,10 +278,14 @@ export function SessionsSidebar({
                         /* Right-click is the convention. The button beside it
                            is what somebody finds without knowing the
                            convention. */
-                        onContextMenu={(event) => {
-                          event.preventDefault();
-                          onMenu(session.id, { x: event.clientX, y: event.clientY });
-                        }}
+                        onContextMenu={
+                          onMenu === undefined
+                            ? undefined
+                            : (event) => {
+                                event.preventDefault();
+                                onMenu(session.id, { x: event.clientX, y: event.clientY });
+                              }
+                        }
                       >
                         <button
                           type="button"
@@ -358,26 +398,38 @@ export function SessionsSidebar({
                           </div>
                         </button>
 
-                        <button
-                          type="button"
-                          aria-label={i18n.t('sessions.actions', { name: session.name })}
-                          title={i18n.t('sessions.actions', { name: session.name })}
-                          onClick={(event) => {
-                            const box = event.currentTarget.getBoundingClientRect();
-                            onMenu(session.id, { x: box.right - 4, y: box.bottom + 2 });
-                          }}
-                          /* Hidden until the row is hovered or the button is
-                             focused, so the list stays quiet. Never hidden
-                             from the keyboard, though, which is how a
-                             hover-only affordance becomes unreachable. */
-                          className="text-ink-faint hover:text-ink mr-1 flex h-5 w-5 shrink-0 items-center justify-center rounded opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-                        >
-                          <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" aria-hidden="true">
-                            <circle cx="8" cy="3.5" r="1.2" fill="currentColor" />
-                            <circle cx="8" cy="8" r="1.2" fill="currentColor" />
-                            <circle cx="8" cy="12.5" r="1.2" fill="currentColor" />
-                          </svg>
-                        </button>
+                        {/* SFTP mode's own mark: this host is sitting in a
+                            pane right now. Always shown rather than
+                            hover-gated, since it names a fact about the row
+                            rather than an action on it. */}
+                        {isAssigned && (
+                          <span className="mr-1.5 flex h-5 w-5 shrink-0 items-center justify-center">
+                            <FolderMark />
+                          </span>
+                        )}
+
+                        {onMenu !== undefined && (
+                          <button
+                            type="button"
+                            aria-label={i18n.t('sessions.actions', { name: session.name })}
+                            title={i18n.t('sessions.actions', { name: session.name })}
+                            onClick={(event) => {
+                              const box = event.currentTarget.getBoundingClientRect();
+                              onMenu(session.id, { x: box.right - 4, y: box.bottom + 2 });
+                            }}
+                            /* Hidden until the row is hovered or the button is
+                               focused, so the list stays quiet. Never hidden
+                               from the keyboard, though, which is how a
+                               hover-only affordance becomes unreachable. */
+                            className="text-ink-faint hover:text-ink mr-1 flex h-5 w-5 shrink-0 items-center justify-center rounded opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                          >
+                            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" aria-hidden="true">
+                              <circle cx="8" cy="3.5" r="1.2" fill="currentColor" />
+                              <circle cx="8" cy="8" r="1.2" fill="currentColor" />
+                              <circle cx="8" cy="12.5" r="1.2" fill="currentColor" />
+                            </svg>
+                          </button>
+                        )}
                       </li>
                     );
                   })}

@@ -3,6 +3,7 @@ import type { CSSProperties, DragEvent, JSX } from 'react';
 
 import { ActivityRail } from './components/ActivityRail';
 import type { Workspace } from './components/ActivityRail';
+import { BroadcastButton } from './components/BroadcastButton';
 import { CommandPalette } from './components/CommandPalette';
 import { ConnectingSurface } from './components/ConnectingSurface';
 import { EmptyPanel } from './components/EmptyPanel';
@@ -22,12 +23,13 @@ import { PasteConfirm } from './components/PasteConfirm';
 import { SessionMenu } from './components/SessionMenu';
 import { SessionWizard } from './components/SessionWizard';
 import { SessionsSidebar } from './components/SessionsSidebar';
+import { ShapeControl } from './components/ShapeControl';
 import { SftpPane } from './components/SftpPane';
 import { SftpSplitControl } from './components/SftpSplitControl';
-import { SftpWorkspaceSidebar } from './components/SftpWorkspaceSidebar';
 import { StatusBar } from './components/StatusBar';
 import { TerminalView } from './components/TerminalView';
 import { Titlebar } from './components/Titlebar';
+import { Toolbar } from './components/Toolbar';
 import { actionCommands, sessionCommands, usePalette } from './features/commands';
 import type { CommandContext } from './features/commands';
 import {
@@ -1595,6 +1597,11 @@ export function App(): JSX.Element {
   const attemptBox =
     attempt === null ? null : boxOf({ kind: 'session', sessionId: attempt.sessionId });
 
+  /* ADR-0021's own guard for "nowhere for a broadcast to reach," reused
+     rather than reinvented: `groupSyncState` refuses the identical shape
+     (`layout === '1x1' || filled < 2`) for the exact same reason. */
+  const broadcastAvailable = layout !== '1x1' && filled >= 2;
+
   return (
     <div className="flex h-full flex-col">
       <Titlebar
@@ -1602,11 +1609,36 @@ export function App(): JSX.Element {
            same height either way, so nothing below it moves. */
         controls={chrome === null ? [] : windowControls(chrome, maximized)}
         leadingInset={chrome?.leadingInset ?? 0}
-        layout={layout}
-        onLayout={chooseLayout}
-        showShapeControl={workspace === 'sessions'}
         onAct={act}
       />
+
+      {/* ADR-0046: a shared row for a workspace's own controls, between the
+          Titlebar and the rail/sidebar/body below. Home keeps `HomeNav`
+          inside its own body instead; it switches sections, not the
+          workspace's shape, and ADR-0029 already gave it that on purpose. */}
+      {workspace === 'sessions' && (
+        <Toolbar
+          trailing={
+            <>
+              <BroadcastButton
+                armed={armed}
+                available={broadcastAvailable}
+                count={receiving.length}
+                onToggle={() => {
+                  setMuted(new Set());
+                  setSync((on) => !on);
+                }}
+              />
+              <ShapeControl layout={layout} onChoose={chooseLayout} />
+            </>
+          }
+        />
+      )}
+      {workspace === 'sftp' && (
+        <Toolbar
+          trailing={<SftpSplitControl value={destinationSplit} onChange={setDestinationSplit} />}
+        />
+      )}
 
       <div className="flex min-h-0 flex-1">
         <ActivityRail
@@ -1626,6 +1658,9 @@ export function App(): JSX.Element {
 
         {workspace === 'sessions' && sidebarOpen && (
           <SessionsSidebar
+            title={i18n.t('sessions.title')}
+            emptyTitle={i18n.t('sessions.empty.title')}
+            emptyBody={i18n.t('sessions.empty.body')}
             sessions={shown}
             selectedId={selected}
             receiving={reaching}
@@ -1639,18 +1674,43 @@ export function App(): JSX.Element {
           />
         )}
 
-        {/* ADR-0045: the SFTP workspace's own sidebar is a plain host picker,
-            same as Sessions' own, dragged into whichever pane the drop
-            lands on rather than swapped for a tree once one is open. */}
+        {/* ADR-0046: SFTP's own sidebar is now `SessionsSidebar` itself,
+            same kind icon, jump mark, chain indent, filter and groups, with
+            `assigned` in place of `selectedId`/`receiving`/`spared` (a
+            picker for a pane rather than a tab) and a `localhost` row
+            pinned above the list, which needs no saved host and reaches
+            neither `onDrag` nor `onSelect` below. */}
         {workspace === 'sftp' && sidebarOpen && (
-          <SftpWorkspaceSidebar
+          <SessionsSidebar
+            title={i18n.t('sftp.workspace.title')}
+            emptyTitle={i18n.t('sftp.workspace.empty.title')}
+            emptyBody={i18n.t('sftp.workspace.empty.body')}
             sessions={sessions}
             assigned={sftpAssigned}
-            onOpen={(dragged) => assignSftpEndpoint(dragged, { kind: 'source' })}
-            onDrag={(dragged) => {
-              setSftpDragging(dragged);
-              if (dragged === null) setSftpDropOver(null);
+            leading={
+              <div className="px-2 pb-1.5">
+                <button
+                  type="button"
+                  draggable
+                  onDragStart={(event) => {
+                    event.dataTransfer.effectAllowed = 'copyMove';
+                    event.dataTransfer.setData('text/plain', i18n.t('sftp.localhost'));
+                    setSftpDragging({ kind: 'local' });
+                  }}
+                  onDragEnd={() => setSftpDragging(null)}
+                  onClick={() => assignSftpEndpoint({ kind: 'local' }, { kind: 'source' })}
+                  className="hover:bg-surface-raised/60 flex w-full items-center gap-2.5 rounded px-2 py-[7px] text-left"
+                >
+                  <span className="bg-ink-faint/70 h-[9px] w-[9px] shrink-0 rounded-full" />
+                  <span className="text-ink2 truncate text-[12.5px]">{i18n.t('sftp.localhost')}</span>
+                </button>
+              </div>
+            }
+            onDrag={(sessionId) => {
+              setSftpDragging(sessionId === null ? null : { kind: 'host', sessionId });
+              if (sessionId === null) setSftpDropOver(null);
             }}
+            onSelect={(sessionId) => assignSftpEndpoint({ kind: 'host', sessionId }, { kind: 'source' })}
           />
         )}
 
@@ -1964,14 +2024,11 @@ export function App(): JSX.Element {
               </div>
 
               <div className="flex min-w-0 flex-1 flex-col gap-3">
-                <div className="flex shrink-0 items-center justify-between">
-                  <div className="text-ink-faint flex items-center gap-2 text-[10px] font-bold tracking-[0.1em]">
-                    <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" aria-hidden="true">
-                      <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    {i18n.t('sftp.fansOutTo')}
-                  </div>
-                  <SftpSplitControl value={destinationSplit} onChange={setDestinationSplit} />
+                <div className="flex shrink-0 items-center gap-2 text-ink-faint text-[10px] font-bold tracking-[0.1em]">
+                  <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" aria-hidden="true">
+                    <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  {i18n.t('sftp.fansOutTo')}
                 </div>
 
                 <div

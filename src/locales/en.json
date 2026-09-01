@@ -310,6 +310,8 @@
   "terminal.paste.line": "Paste one line?",
   "terminal.paste.more": "and {count} more",
   "terminal.paste.title": "Paste {count} lines?",
+  "toolbar.broadcast.off": "Type into every group at once",
+  "toolbar.broadcast.on": "Stop typing into every group at once",
   "vault.description": "An encrypted store on this machine, for connecting when there is no system keychain to use instead.",
   "vault.disable": "Switch back to the system keychain",
   "vault.disable.hint": "Every credential in the internal vault moves back into the system keychain, and the internal vault is deleted.",

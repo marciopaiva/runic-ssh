@@ -1,26 +1,14 @@
 import type { JSX } from 'react';
 
 import type { WindowAction, WindowControl } from '../features/chrome';
-import type { Grid } from '../features/terminal';
 import { useTranslator } from '../features/settings';
 
-import { ShapeControl } from './ShapeControl';
 import { WindowControls } from './WindowControls';
 
 interface TitlebarProps {
   readonly controls: readonly WindowControl[];
   /** Space to keep clear at the leading edge for controls the system draws. */
   readonly leadingInset: number;
-  /** How the main area is divided right now. */
-  readonly layout: Grid;
-  readonly onLayout: (kind: Grid) => void;
-  /**
-   * Whether the Sessions workspace is showing. ADR-0029: the shape control
-   * divides that workspace's main area, not "the window" in general, so it
-   * has nothing to do while Home is showing and draws nothing at all rather
-   * than a control aimed at a grid nobody can see.
-   */
-  readonly showShapeControl: boolean;
   readonly onAct: (action: WindowAction) => void;
 }
 
@@ -39,28 +27,19 @@ interface TitlebarProps {
  * than the bar it replaces: the rail below is paid for in width and not in
  * height.
  *
- * ADR-0021 put the shape control here, at the trailing edge. It is the first
- * thing to go back into the strip, and it belongs for the reason the tabs do
- * not: a tab names something inside the main area, and a shape names the main
- * area itself.
- *
- * The switch for typing into every rectangle followed it, for the same reason
- * and by the same argument. It used to live in the status bar, which is
- * measurement, and a control among the readings reads as one more reading.
+ * ADR-0021 put the shape control here for a while, at the trailing edge, and
+ * the switch for typing into every rectangle followed it for a day before
+ * settling on each group's own strip. ADR-0046 moved the shape control out
+ * again, into a toolbar row of its own beneath this bar, once SFTP needed a
+ * home for its own split control and this bar turned out to be the wrong
+ * place to ask a second workspace to share. What is left here is 36px of
+ * mark, drag surface and window controls, same as ADR-0020 first drew it.
  *
  * `deep` on the drag region means a drag starting anywhere on the bar moves
  * the window, *except* on a button: Tauri's handler stops at the first
- * clickable element it walks through. That is what keeps the shape buttons
- * clickable without the gaps around them having to be marked by hand.
+ * clickable element it walks through.
  */
-export function Titlebar({
-  controls,
-  leadingInset,
-  layout,
-  onLayout,
-  showShapeControl,
-  onAct,
-}: TitlebarProps): JSX.Element {
+export function Titlebar({ controls, leadingInset, onAct }: TitlebarProps): JSX.Element {
   const i18n = useTranslator();
 
   return (
@@ -108,8 +87,6 @@ export function Titlebar({
           {i18n.t('app.name')}
         </span>
       </div>
-
-      {showShapeControl && <ShapeControl layout={layout} onChoose={onLayout} />}
 
       <WindowControls controls={controls} onAct={onAct} />
     </header>
