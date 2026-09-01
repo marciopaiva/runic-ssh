@@ -57,8 +57,15 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
  * (`use-fanout.ts`) has to find this in its own unclaimed-outcomes map
  * rather than missing it, or this test hangs the same way the real bug
  * did. */
+interface FakeFinishedEvent {
+  readonly transfer: number;
+  readonly outcome: string;
+  readonly path?: string;
+  readonly error?: { readonly code: string };
+}
+
 const ipc = vi.hoisted(() => {
-  let finishedCallback: ((event: { transfer: number; outcome: string; path: string }) => void) | null = null;
+  let finishedCallback: ((event: FakeFinishedEvent) => void) | null = null;
   let nextTransfer = 1;
 
   const startTransfer = async (): Promise<number> => {
@@ -74,14 +81,20 @@ const ipc = vi.hoisted(() => {
     localMkdir: vi.fn(async (dir: string, name: string) => `${dir}/${name}`),
     localRemove: vi.fn(async () => undefined),
     localRename: vi.fn(async (dir: string, _old: string, name: string) => `${dir}/${name}`),
-    onAnyFinished: vi.fn(async (onDone: (event: { transfer: number; outcome: string; path: string }) => void) => {
+    onAnyFinished: vi.fn(async (onDone: (event: FakeFinishedEvent) => void) => {
       finishedCallback = onDone;
       return () => {
         finishedCallback = null;
       };
     }),
     onAnyProgress: vi.fn(async () => () => {}),
-    sftpCancel: vi.fn(async () => undefined),
+    /* A cancelled transfer still ends through the ordinary `FINISHED_EVENT`
+     * (`commands::sftp`'s own doc comment: `sftp_cancel` never rejects, the
+     * transfer it aborts reports its own ending the usual way), tagged
+     * with the error `SftpError::Cancelled` maps to. */
+    sftpCancel: vi.fn(async (transfer: number) => {
+      finishedCallback?.({ transfer, outcome: 'failed', error: { code: 'sftpTransferCancelled' } });
+    }),
     sftpDownload: vi.fn(startTransfer),
     sftpList: vi.fn(),
     sftpMkdir: vi.fn(async (_handle: number, dir: string, name: string) => `${dir}/${name}`),
@@ -225,6 +238,86 @@ describe('sending a folder recreates it at the destination', () => {
     expect(firstUploadAt).toBeDefined();
     expect(wrapperMkdirAt as number).toBeLessThan(firstUploadAt as number);
     expect(order.length).toBe(4);
+
+    await probe.unmount();
+  });
+});
+
+describe('cancelling a folder copy', () => {
+  /* Reported directly, alongside the stall this file's other test guards:
+   * while a copy was stuck, its own Cancel button did nothing either.
+   * Both had the same cause. `cancelFolderCopy` only ever set a flag the
+   * stuck loop was never going to check again, since it was permanently
+   * parked on a promise for an event that had already been lost. Fixing
+   * the loss (the fix above) is what makes a flag set while a file is
+   * genuinely still in flight reach anywhere at all: this test holds one
+   * file open on purpose and checks cancelling it actually stops the copy,
+   * rather than assuming the other fix covered this by implication. */
+  it('stops after the file in flight, starts no more, and marks the copy cancelled', async () => {
+    ipc.localListDirectory.mockImplementation(async (path: string | null) => {
+      if (path === '/home/paiva/probe') {
+        return {
+          path,
+          parent: '/home/paiva',
+          entries: [
+            { name: 'x.txt', path: '/home/paiva/probe/x.txt', isDir: false, isSymlink: false, size: 1, modifiedUnixSecs: null },
+            { name: 'y.txt', path: '/home/paiva/probe/y.txt', isDir: false, isSymlink: false, size: 1, modifiedUnixSecs: null },
+          ],
+        };
+      }
+      throw new Error(`unexpected localListDirectory(${path})`);
+    });
+
+    /* Unlike every other upload in this file's mock, this one does not
+     * fire its own ending: it stays in flight, the way a real transfer
+     * against a real connection does for at least a moment, until this
+     * test cancels it. */
+    ipc.sftpUpload.mockImplementationOnce(async () => 1);
+
+    const probe = await mountProbe();
+
+    await act(async () => {
+      probe.current.setSource({ kind: 'local' });
+      probe.current.addDestination({ kind: 'remote', sessionId: 'fixture', handle: 7 });
+    });
+    await probe.rerender();
+
+    await act(async () => {
+      probe.current.reportPane(destinationPaneId(0), { path: '/home/deploy', reload: () => {} });
+    });
+    await probe.rerender();
+
+    await act(async () => {
+      probe.current.sendToDestinations({
+        name: 'probe',
+        path: '/home/paiva/probe',
+        isDir: true,
+        isSymlink: false,
+        size: 0,
+        modifiedUnixSecs: null,
+      });
+    });
+
+    await vi.waitFor(() => {
+      expect(ipc.sftpUpload).toHaveBeenCalledTimes(1);
+    });
+    await probe.rerender();
+
+    const id = probe.current.folderCopies[0]?.id;
+    expect(id).toBeDefined();
+
+    await act(async () => {
+      probe.current.cancelFolderCopy(id as string);
+    });
+
+    await vi.waitFor(() => {
+      expect(probe.current.folderCopies.find((copy) => copy.id === id)?.status).toBe('cancelled');
+    });
+
+    expect(ipc.sftpCancel).toHaveBeenCalledWith(1);
+    /* `y.txt` was never dispatched: cancelling reached the file actually
+       in flight and stopped the walk before it could start another. */
+    expect(ipc.sftpUpload).toHaveBeenCalledTimes(1);
 
     await probe.unmount();
   });
