@@ -308,18 +308,29 @@ export function useFanout(sessions: readonly LiveSession[]): FanoutState & Fanou
     [],
   );
 
-  /* Runs one recursive folder copy to completion (or until cancelled):
-     directories first, so a file never tries to land in one that does not
-     exist yet, one file transferred at a time (ADR-0049's own choice,
-     simpler to reason about than several at once, revisited only if a
-     real large tree shows it mattering). A directory this application
-     could not create is not treated as fatal: the files meant for it fail
-     on their own when they try to land somewhere that was never made,
-     each counted the same way any other failed file is, rather than this
-     function trying to guess how many of `plan` a failed `mkdir` took
-     down with it. */
+  /* Runs one recursive folder copy to completion (or until cancelled): the
+     copied folder's own directory first (named after itself, the way
+     dragging a folder in any real file manager lands a folder at the far
+     end, never its contents poured loose into whatever it was dropped
+     on), then every other directory inside it, so a file never tries to
+     land in one that does not exist yet, one file transferred at a time
+     (ADR-0049's own choice, simpler to reason about than several at once,
+     revisited only if a real large tree shows it mattering). A directory
+     this application could not create is not treated as fatal: the files
+     meant for it fail on their own when they try to land somewhere that
+     was never made, each counted the same way any other failed file is,
+     rather than this function trying to guess how many of `plan` a
+     failed `mkdir` took down with it. */
   const runFolderCopy = useCallback(
-    (id: string, plan: readonly PlannedEntry[], source: Endpoint, destination: Endpoint, destRootDir: string, reload: () => void) => {
+    (
+      id: string,
+      name: string,
+      plan: readonly PlannedEntry[],
+      source: Endpoint,
+      destination: Endpoint,
+      destParentDir: string,
+      reload: () => void,
+    ) => {
       const control: { cancelled: boolean; current: TransferHandle | null } = { cancelled: false, current: null };
       folderCopyControl.current.set(id, control);
 
@@ -329,6 +340,14 @@ export function useFanout(sessions: readonly LiveSession[]): FanoutState & Fanou
       };
 
       void (async () => {
+        try {
+          if (destination.kind === 'local') await localMkdir(destParentDir, name);
+          else await sftpMkdir(destination.handle, destParentDir, name);
+        } catch {
+          /* Best-effort, same reasoning as any other directory below. */
+        }
+        const destRootDir = `${destParentDir}/${name}`;
+
         for (const item of plan) {
           if (control.cancelled) break;
           const destDir = item.relativeDir === '' ? destRootDir : `${destRootDir}/${item.relativeDir}`;
@@ -399,7 +418,7 @@ export function useFanout(sessions: readonly LiveSession[]): FanoutState & Fanou
             setFolderCopies((current) =>
               reduceFolderCopies(current, { type: 'started', id, name: entry.name, destination: label, total }),
             );
-            runFolderCopy(id, plan, source, destination, destDir, () => pane.reload());
+            runFolderCopy(id, entry.name, plan, source, destination, destDir, () => pane.reload());
           });
         });
         return;
@@ -447,7 +466,7 @@ export function useFanout(sessions: readonly LiveSession[]): FanoutState & Fanou
             setFolderCopies((current) =>
               reduceFolderCopies(current, { type: 'started', id, name: entry.name, destination: label, total }),
             );
-            runFolderCopy(id, plan, source, destination, destDir, () => pane.reload());
+            runFolderCopy(id, entry.name, plan, source, destination, destDir, () => pane.reload());
           });
           continue;
         }
