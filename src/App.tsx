@@ -1640,7 +1640,10 @@ export function App(): JSX.Element {
         <Toolbar
           trailing={
             <>
-              <SftpSelectAllButton onSelectAll={fanout.includeEveryDestination} />
+              <SftpSelectAllButton
+                sparedCount={fanout.mutedDestinations.size}
+                onSelectAll={fanout.includeEveryDestination}
+              />
               <SftpSplitControl value={destinationSplit} onChange={setDestinationSplit} />
             </>
           }

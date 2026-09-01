@@ -63,7 +63,7 @@ function TransferRow({
   const finished = transfer.status !== 'active';
 
   return (
-    <div className="border-line-subtle flex h-8 shrink-0 items-center gap-2.5 border-b px-2.5 last:border-b-0">
+    <div className="flex h-[26px] shrink-0 items-center gap-2.5">
       <span className="text-ink-faint flex h-3.5 w-3.5 shrink-0 items-center justify-center" title={i18n.t(DIRECTION_LABEL[transfer.direction])}>
         <DirectionIcon direction={transfer.direction} />
       </span>
@@ -128,13 +128,18 @@ export function TransfersBar({ transfers, onCancel, onDismiss }: TransfersBarPro
   if (transfers.length === 0) return null;
 
   return (
-    <div className="border-line-subtle bg-surface-terminal max-h-[152px] shrink-0 overflow-y-auto rounded border">
-      <div className="text-ink-faint sticky top-0 flex h-6 shrink-0 items-center bg-inherit px-2.5 text-[9.5px] font-bold tracking-[0.1em]">
-        {i18n.t('sftp.transfers')}
+    <div className="border-line-subtle bg-surface-panel max-h-[152px] shrink-0 overflow-y-auto border-t px-3.5 py-2">
+      <div className="sticky top-0 mb-1.5 flex items-center gap-2 bg-inherit">
+        <span className="text-ink-faint text-[10px] font-bold tracking-[0.1em]">{i18n.t('sftp.transfers')}</span>
+        <span className="text-ink-disabled bg-surface-raised rounded px-1.5 py-px font-mono text-[9.5px] font-bold">
+          {transfers.length}
+        </span>
       </div>
-      {transfers.map((transfer) => (
-        <TransferRow key={transfer.transfer} i18n={i18n} transfer={transfer} onCancel={onCancel} onDismiss={onDismiss} />
-      ))}
+      <div className="flex flex-col gap-0.5">
+        {transfers.map((transfer) => (
+          <TransferRow key={transfer.transfer} i18n={i18n} transfer={transfer} onCancel={onCancel} onDismiss={onDismiss} />
+        ))}
+      </div>
     </div>
   );
 }

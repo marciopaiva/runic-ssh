@@ -159,21 +159,16 @@ shape control alone; it now also applies to whatever a workspace's toolbar
 shows). `SftpWorkspaceSidebar` and its own doc-commented reasoning are
 retired within one release of being written, the same short lifespan
 ADR-0044's Bad section already named for the "⋮" menu action it replaced.
-A viewer comparing `SyncToggle.tsx`'s real component against the canvas
-will see a pill switch where the canvas now draws a broadcast glyph, until
-the follow-up below lands.
 
 **Follow-up**:
 
-* `SyncToggle.tsx` still draws a pill-and-knob switch rather than the
-  broadcast glyph the toolbar control and the per-destination SFTP toggle
-  both settled on (ADR-0047). Left alone on purpose rather than changed to
-  match the canvas on this pass: `SyncToggle.tsx`'s own doc comment argues
-  for the pill shape specifically ("somebody looking for whether this is
-  on wants a shape that says on or off without a second one to compare
-  against"), which is a reasoned decision this ADR did not revisit, not an
-  oversight to silently fix. Revisit deliberately, as its own Phase 2, if
-  this is still wanted.
+* `SyncToggle.tsx` drew a pill-and-knob switch until 2026-09-01, on its own
+  reasoned argument for that shape specifically, which this document had
+  not revisited. The maintainer confirmed directly that the canvas
+  approved for both Sessions and SFTP stands, which settled it: `SyncToggle`
+  now draws the same broadcast glyph the toolbar control and SFTP's
+  per-destination toggle already do, colour-only on/off. No longer
+  outstanding.
 * `sessions_header()` and `strip()` (`design/canvas/gen.py`) were both
   found stale against the real `SessionsSidebar.tsx`/`GroupStrip.tsx` (a
   chrome row the command palette retired, drawn on regardless).

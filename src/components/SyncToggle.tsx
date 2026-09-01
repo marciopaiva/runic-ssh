@@ -2,6 +2,8 @@ import type { JSX } from 'react';
 
 import { useTranslator } from '../features/settings';
 
+import { BroadcastGlyph } from './BroadcastGlyph';
+
 /**
  * What this rectangle does with what you type.
  *
@@ -32,9 +34,14 @@ interface SyncToggleProps {
  * So the first press lights every strip, which is loud on purpose. Pressing it
  * while armed takes this rectangle out, or puts it back.
  *
- * A pill with a knob rather than one glyph that fills. Somebody looking for
- * whether this is on wants a shape that says on or off without a second one to
- * compare against, and a switch is the shape everybody already reads that way.
+ * Drew a pill with a knob until 2026-09-01, on the reasoning that somebody
+ * looking for whether this is on wants a shape that says on or off without a
+ * second one to compare against. The maintainer confirmed directly that the
+ * canvas approved for both Sessions and SFTP is what stands, which settles it
+ * the other way: `sync_icon()` there is the same broadcast glyph
+ * `BroadcastButton` and SFTP's own per-destination toggle already draw, told
+ * apart from each other by colour alone, and a third shape for the identical
+ * question was the inconsistency actually worth avoiding.
  */
 export function SyncToggle({ state, onToggle }: SyncToggleProps): JSX.Element {
   const i18n = useTranslator();
@@ -65,24 +72,7 @@ export function SyncToggle({ state, onToggle }: SyncToggleProps): JSX.Element {
             : 'text-ink-faint hover:text-ink-muted'
       }`}
     >
-      <svg viewBox="0 0 24 16" className="h-3.5 w-[21px]" fill="none" aria-hidden="true">
-        <rect
-          x="1"
-          y="1"
-          width="22"
-          height="14"
-          rx="7"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          fill={on ? 'currentColor' : 'none'}
-        />
-        <circle
-          cx={on ? 16 : 8}
-          cy="8"
-          r="3.4"
-          fill={on ? 'var(--color-surface-base)' : 'currentColor'}
-        />
-      </svg>
+      <BroadcastGlyph className="h-3.5 w-3.5" />
     </button>
   );
 }
