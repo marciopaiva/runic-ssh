@@ -16,6 +16,7 @@
 import { useCallback, useRef, useState } from 'react';
 
 import {
+  chooseUploadSource,
   onFinished,
   onProgress,
   sftpCancel,
@@ -27,9 +28,46 @@ import type { TransferHandle } from '../../ipc';
 import type { LiveSession } from '../sessions/state';
 import { groupLabel } from '../terminal';
 import { useTranslator } from '../settings';
-import { reduceTransfers, toggleReceiving } from './browser';
+import { localFileName, reduceTransfers, toggleReceiving } from './browser';
 import type { TransferDirection, TransferState } from './browser';
 import type { Endpoint, PaneEntry } from './endpoint';
+
+/**
+ * Dispatches one file from `source` to `destination`, whichever of the
+ * three combinations that pair is (ADR-0045's own shape, named once here
+ * instead of three times: `sendToDestinations`' own fan-out and a single
+ * targeted send, dragged onto one pane specifically, are the same dispatch
+ * repeated a different number of times).
+ *
+ * `null` for local source, local destination: nothing here sends a file to
+ * itself, not a supported combination in this first cut.
+ */
+function startTransfer(
+  source: Endpoint,
+  sourcePath: string,
+  destination: Endpoint,
+  destinationDir: string,
+): Promise<{ readonly transfer: TransferHandle; readonly direction: TransferDirection }> | null {
+  if (source.kind === 'local' && destination.kind === 'remote') {
+    return sftpUpload(destination.handle, sourcePath, destinationDir).then((transfer) => ({
+      transfer,
+      direction: 'upload' as const,
+    }));
+  }
+  if (source.kind === 'remote' && destination.kind === 'local') {
+    return sftpDownload(source.handle, sourcePath, destinationDir).then((transfer) => ({
+      transfer,
+      direction: 'download' as const,
+    }));
+  }
+  if (source.kind === 'remote' && destination.kind === 'remote') {
+    return sftpTransfer(source.handle, sourcePath, destination.handle, destinationDir).then((transfer) => ({
+      transfer,
+      direction: 'transfer' as const,
+    }));
+  }
+  return null;
+}
 
 /** A starting number, not a settled one (ADR-0045's own Decision section). */
 export const MAX_DESTINATIONS = 4;
@@ -68,6 +106,13 @@ export interface FanoutActions {
   readonly includeEveryDestination: () => void;
   readonly reportPane: (paneId: string, report: PaneReport | null) => void;
   readonly sendToDestinations: (entry: PaneEntry) => void;
+  /** One or more files, dropped onto one destination pane specifically:
+   * reaches only that slot, whether or not its own receive toggle spares
+   * it from a broadcast `sendToDestinations` run. */
+  readonly sendEntriesToDestination: (entries: readonly PaneEntry[], slot: number) => void;
+  /** The native "choose a file" dialog, aimed at one destination without
+   * needing a source pane set up at all. */
+  readonly uploadFromDialogTo: (slot: number) => void;
   readonly cancelTransfer: (transfer: TransferHandle) => void;
   readonly dismissTransfer: (transfer: TransferHandle) => void;
 }
@@ -193,35 +238,73 @@ export function useFanout(sessions: readonly LiveSession[]): FanoutState & Fanou
         const pane = panes.current.get(destinationPaneId(slot));
         if (pane?.path == null) return;
 
-        const label = labelFor(destination);
-        const started =
-          source.kind === 'local' && destination.kind === 'remote'
-            ? sftpUpload(destination.handle, entry.path, pane.path).then((transfer) => ({
-                transfer,
-                direction: 'upload' as const,
-              }))
-            : source.kind === 'remote' && destination.kind === 'local'
-              ? sftpDownload(source.handle, entry.path, pane.path).then((transfer) => ({
-                  transfer,
-                  direction: 'download' as const,
-                }))
-              : source.kind === 'remote' && destination.kind === 'remote'
-                ? sftpTransfer(source.handle, entry.path, destination.handle, pane.path).then((transfer) => ({
-                    transfer,
-                    direction: 'transfer' as const,
-                  }))
-                : null;
-
-        /* local source, local destination: nothing here sends a file to
-           itself. Not a supported combination in this first cut. */
+        const started = startTransfer(source, entry.path, destination, pane.path);
         if (started === null) return;
 
+        const label = labelFor(destination);
         void started.then(({ transfer, direction }) => {
           track(transfer, direction, entry.name, label, () => pane.reload());
         });
       });
     },
     [source, destinations, mutedDestinations, labelFor, track],
+  );
+
+  /* Dropped directly onto one pane rather than checked and sent to every
+   * receiving destination: a deliberate, targeted request that reaches
+   * this one slot whether or not its own receive toggle currently spares
+   * it from the broadcast `sendToDestinations` runs. Dragging a file onto
+   * a specific pane and having it not land there because that pane was
+   * quietly spared would read as broken, not as the toggle working. */
+  const sendEntriesToDestination = useCallback(
+    (entries: readonly PaneEntry[], slot: number) => {
+      if (source === null) return;
+      const destination = destinations[slot];
+      if (destination === undefined || destination === null) return;
+      const pane = panes.current.get(destinationPaneId(slot));
+      if (pane?.path == null) return;
+
+      const label = labelFor(destination);
+      for (const entry of entries) {
+        if (entry.isDir) continue;
+        const started = startTransfer(source, entry.path, destination, pane.path);
+        if (started === null) continue;
+
+        void started.then(({ transfer, direction }) => {
+          track(transfer, direction, entry.name, label, () => pane.reload());
+        });
+      }
+    },
+    [source, destinations, labelFor, track],
+  );
+
+  /* The native "choose a file" dialog (ADR-0042), aimed at one destination
+   * directly rather than at browsing a local source pane first: a
+   * shortcut for "send this one file here" that needs no source pane set
+   * up at all. Remote destinations only, the same restriction
+   * `startTransfer` already enforces for local-to-local. */
+  const uploadFromDialogTo = useCallback(
+    (slot: number) => {
+      const destination = destinations[slot];
+      if (destination === undefined || destination === null || destination.kind !== 'remote') return;
+
+      const label = labelFor(destination);
+      /* The pane's own path is read fresh once the dialog answers, not
+         captured before it opened: a native dialog holds the OS's own
+         focus for as long as it is up, so nothing in this window can
+         navigate meanwhile, but there is no reason to rely on that when
+         reading it late costs nothing. */
+      void chooseUploadSource().then((path) => {
+        if (path === null) return;
+        const pane = panes.current.get(destinationPaneId(slot));
+        if (pane?.path == null) return;
+
+        void sftpUpload(destination.handle, path, pane.path).then((transfer) => {
+          track(transfer, 'upload', localFileName(path), label, () => pane.reload());
+        });
+      });
+    },
+    [destinations, labelFor, track],
   );
 
   const cancelTransfer = useCallback((transfer: TransferHandle) => {
@@ -245,6 +328,8 @@ export function useFanout(sessions: readonly LiveSession[]): FanoutState & Fanou
     includeEveryDestination,
     reportPane,
     sendToDestinations,
+    sendEntriesToDestination,
+    uploadFromDialogTo,
     cancelTransfer,
     dismissTransfer,
   };

@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   hasActiveTransfer,
+  localFileName,
   pathSegments,
   reduceTransfers,
   remoteParent,
@@ -272,6 +273,24 @@ describe('a shift-click range', () => {
 
   it('falls back to only the target when the anchor no longer exists', () => {
     expect(selectionRange(entries, 'long-gone.txt', 'c.txt')).toEqual(['c.txt']);
+  });
+});
+
+describe("a native dialog's own last path segment", () => {
+  it('takes the last segment of a forward-slash path', () => {
+    expect(localFileName('/home/deploy/report.pdf')).toBe('report.pdf');
+  });
+
+  it('takes the last segment of a backslash path', () => {
+    expect(localFileName('C:\\Users\\deploy\\report.pdf')).toBe('report.pdf');
+  });
+
+  it('is the path itself when there is no separator', () => {
+    expect(localFileName('report.pdf')).toBe('report.pdf');
+  });
+
+  it('ignores a trailing separator', () => {
+    expect(localFileName('/home/deploy/reports/')).toBe('reports');
   });
 });
 

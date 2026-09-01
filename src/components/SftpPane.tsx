@@ -35,6 +35,16 @@ interface SftpPaneProps {
    * the source, which the question does not apply to (ADR-0047). */
   readonly receiving: boolean | null;
   readonly onToggleReceiving: (() => void) | null;
+  /** The native "choose a file" dialog (ADR-0042), aimed at this one
+   * destination. `null` on the source (nothing to browse for there) and on
+   * a local destination (nothing here sends a file to itself). */
+  readonly onUploadFromDialog: (() => void) | null;
+  /** A file row has started being dragged out of this pane, carrying
+   * whichever entries the drag actually means (this one alone, or the
+   * whole current selection if the dragged row was part of it). `null` on
+   * a destination, which is a target rather than a source for this. */
+  readonly onDragEntriesStart: ((entries: readonly PaneEntry[]) => void) | null;
+  readonly onDragEntriesEnd: (() => void) | null;
 }
 
 /** The folder icon, also drawn on the rail's own SFTP slot and the sidebar. */
@@ -115,6 +125,10 @@ interface RowProps {
    * a precise tool that never touches the shift-range anchor. */
   readonly onToggleSelect: (() => void) | null;
   readonly selectLabel: string;
+  /** Picking this row up to drop it on a destination pane. `null` wherever
+   * `onSelectClick` is: only a selectable file is draggable at all. */
+  readonly onDragStart: (() => void) | null;
+  readonly onDragEnd: (() => void) | null;
 }
 
 function Row({
@@ -127,8 +141,11 @@ function Row({
   onSelectClick,
   onToggleSelect,
   selectLabel,
+  onDragStart,
+  onDragEnd,
 }: RowProps): JSX.Element {
   const clickable = isDir || onSelectClick !== null;
+  const draggable = onDragStart !== null;
 
   const activate = (modifiers: SelectModifiers): void => {
     if (isDir) {
@@ -142,6 +159,23 @@ function Row({
     <div
       role="button"
       tabIndex={clickable ? 0 : -1}
+      draggable={draggable}
+      onDragStart={
+        draggable
+          ? (event) => {
+              /* A payload is set because some engines will not begin a drag
+                 without one, the same convention `SessionsSidebar`'s own
+                 rows use. What is actually being sent is held in the shell
+                 (`useFanout`'s own state), not in `dataTransfer`, so
+                 nothing dragged in from outside the window can pose as a
+                 file this pane already has. */
+              event.dataTransfer.effectAllowed = 'copy';
+              event.dataTransfer.setData('text/plain', name);
+              onDragStart?.();
+            }
+          : undefined
+      }
+      onDragEnd={draggable ? () => onDragEnd?.() : undefined}
       onClick={
         clickable
           ? (event) => activate({ shift: event.shiftKey, additive: event.ctrlKey || event.metaKey })
@@ -349,6 +383,9 @@ export function SftpPane({
   onClear,
   receiving,
   onToggleReceiving,
+  onUploadFromDialog,
+  onDragEntriesStart,
+  onDragEntriesEnd,
 }: SftpPaneProps): JSX.Element {
   const i18n = useTranslator();
   const pane = usePane(endpoint);
@@ -403,6 +440,18 @@ export function SftpPane({
     setSelectAnchor(entry.path);
   };
 
+  /* Dragging a row that is part of the current selection carries the whole
+     selection, the same "drag any one of the highlighted rows to move all
+     of them" convention every file manager already uses; dragging a row
+     outside it carries only that row, leaving the selection untouched. */
+  const handleDragStart = (entry: PaneEntry): void => {
+    if (onDragEntriesStart === null) return;
+    const entries = selected.has(entry.path)
+      ? pane.entries.filter((candidate) => selected.has(candidate.path))
+      : [entry];
+    onDragEntriesStart(entries);
+  };
+
   return (
     <div className="border-line-subtle bg-surface-terminal flex h-full flex-col overflow-hidden rounded border">
       <div className="border-line-subtle bg-surface-chrome flex h-8 shrink-0 items-center gap-2.5 border-b px-2.5">
@@ -410,6 +459,25 @@ export function SftpPane({
         <span className="text-ink-muted truncate font-mono text-[11px]">{identity}</span>
         <span className="text-ink-disabled truncate font-mono text-[10.5px]">{pane.path ?? ''}</span>
         <div className="flex-1" />
+        {onUploadFromDialog !== null && (
+          <button
+            type="button"
+            onClick={onUploadFromDialog}
+            aria-label={i18n.t('sftp.uploadFromDialog')}
+            title={i18n.t('sftp.uploadFromDialog')}
+            className="text-ink-faint hover:text-ink flex h-4 w-4 shrink-0 items-center justify-center"
+          >
+            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" aria-hidden="true">
+              <path
+                d="M12 16V5M7 10l5-5 5 5M5 19h14"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        )}
         {receiving !== null && onToggleReceiving !== null && (
           <button
             type="button"
@@ -487,6 +555,8 @@ export function SftpPane({
             onSelectClick={null}
             onToggleSelect={null}
             selectLabel=""
+            onDragStart={null}
+            onDragEnd={null}
           />
         )}
         {pane.error === null && !pane.loading && pane.entries.length === 0 && (
@@ -505,6 +575,12 @@ export function SftpPane({
               onSelectClick={onSend === null || entry.isDir ? null : (modifiers) => selectFile(entry, modifiers)}
               onToggleSelect={onSend === null || entry.isDir ? null : () => toggleSelect(entry.path)}
               selectLabel={i18n.t('sftp.selectFile', { name: entry.name })}
+              onDragStart={
+                onSend === null || onDragEntriesStart === null || entry.isDir
+                  ? null
+                  : () => handleDragStart(entry)
+              }
+              onDragEnd={onDragEntriesEnd}
             />
           ))}
       </div>
