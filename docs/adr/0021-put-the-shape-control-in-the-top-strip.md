@@ -132,3 +132,13 @@ way to set up." ADR-0029 later hid the control anyway, on nothing open, as a
 guard against a different bug (a group showing settings). That guard is gone
 (#226); the control is visible and fully enabled on an empty Sessions
 workspace again, which is what this document already decided it should be.
+
+**The shape control moved again on 2026-08-31** (ADR-0046), out of the
+Titlebar itself and into a new toolbar row beneath it, once SFTP needed a
+home for its own split control and the Titlebar turned out to be the wrong
+place to ask a second workspace to share. This document's reasoning is not
+overturned: the new toolbar is a second surface that "belongs to the
+window rather than to something inside it," the same test this document
+applied to the Titlebar. `SyncToggle`'s own placement, settled two
+paragraphs above, is unaffected; ADR-0046 gives the toolbar a *second*,
+global broadcast control alongside it rather than moving it again.

@@ -170,6 +170,13 @@ Architectural means: a new dependency, a change to the IPC contract, a change
 to how credentials are stored or transmitted, or a decision that would be
 expensive to reverse.
 
+Anything that changes what a screen looks like, a new surface or a visible
+adjustment to an existing one, gets drawn or updated in `design/canvas/`
+first, following `design/canvas/README.md`. Present it the way an ADR gets
+presented: for review before Phase 4, not after. A change too small to
+warrant an ADR can still be too visible to skip the canvas; the two checks
+are independent; do not treat "no ADR needed" as "no canvas needed."
+
 ### Phase 3: Resolve
 
 Close the loop before writing code.

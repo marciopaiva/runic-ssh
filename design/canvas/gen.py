@@ -96,6 +96,15 @@ ICON = dict(
     # ADR-0029's own rail icon, path copied verbatim from ActivityRail.tsx
     # rather than invented for the mockup.
     home='<path d="M4 11.5 12 4l8 7.5M6 10v9.5h5V14h2v5.5h5V10"></path>',
+    # Exploratory (`build_sftp_proposal`): a redo-shaped arrow for the
+    # navigation bar's refresh action. `chev` rotated stands in for back and
+    # up, so this is the only new glyph the proposal needed.
+    refresh='<path d="M20 12a8 8 0 1 1-2.6-5.9"></path><path d="M20 4v5h-5"></path>',
+    # Exploratory: the toolbar's own arm/disarm-everyone shortcut
+    # (`broadcast_button`), a cast-style glyph distinct from the warning
+    # triangle `warn_chip`/StatusBar.tsx's own `syncing` indicator already
+    # uses, since one is a control and the other a caution.
+    broadcast='<circle cx="12" cy="19" r="1.6" fill="currentColor" stroke="none"></circle><path d="M8 15.5a5.5 5.5 0 0 1 8 0"></path><path d="M4.5 12a10 10 0 0 1 15 0"></path>',
 )
 
 def ic(name, size=14, color=None, cls="ic", extra=""):
@@ -244,17 +253,19 @@ def sidebar_shell(header, body, width=280):
       </div>
     </div>"""
 
-def sessions_header(badge=None, plus_lit=False):
-    lit = (f'<span style="width: 20px; height: 20px; border-radius: 4px; background: {T["raised"]};'
-           f' display: flex; align-items: center; justify-content: center; color: {T["accent"]};">{ic("newsession")}</span>'
-           ) if plus_lit else ic("newsession")
-    right = badge or (f'<div style="display: flex; align-items: center; gap: 9px; color: {T["muted"]};">'
-                      f'{lit}{ic("newgroup")}{ic("collapse")}{ic("dots")}</div>')
+def sessions_header():
+    """`SessionsSidebar.tsx`'s own header, as it actually reads today: a
+    label and the filter box, nothing else.
+
+    This used to draw a trailing row of new-session/new-group/collapse/dots
+    buttons. They were retired from the real header once the palette took
+    over what they did (`GroupStrip.tsx`'s own comment: "everything it
+    offered is either a drag away or in the palette"), and this helper kept
+    drawing them anyway, which is the exact drift the canvas exists to
+    prevent (README: "Two artboards cannot drift apart by hand"). Fixed
+    2026-08-31 against that finding, made while proposing `SftpProposal.dc.html`."""
     return f"""      <div style="padding: 12px; display: flex; flex-direction: column; gap: 10px; border-bottom: 1px solid {T['line']};">
-        <div style="display: flex; align-items: center; justify-content: space-between;">
-          <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.12em; color: {T['faint']};">SESSIONS</span>
-          {right}
-        </div>
+        <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.12em; color: {T['faint']};">SESSIONS</span>
         <div style="height: 32px; background: {T['input']}; border: 1px solid {T['line']}; border-radius: 6px; display: flex; align-items: center; gap: 8px; padding: 0 10px;">
           {ic('search', 14, T['faint'])}<span style="font-size: 12px; color: {T['faint']};">Filter sessions</span>
         </div>
@@ -761,6 +772,583 @@ def build_sftp_fanout():
 
     st = status(stat_text("3 destinations, 1 source", T['faint'], mono=False), stat_text("copying index.html", T['muted']))
     write("SftpFanout.dc.html", page(body, sidebar, home_rail(workspace="sftp", sftp_badge="3"), st))
+
+# ---------- 7d. exploratory: one toolbar, shared sidebar, a nav bar per pane
+# Drawn 2026-08-31 against the maintainer's own complaint that this session
+# introduced three different homes for a workspace's own controls: the split
+# control on the SFTP destination column's header (this session's own
+# mistake, the same one ADR-0021 already ruled out for Sessions' shape),
+# `HomeNav` inside Home's body, and `ShapeControl` in the Titlebar. Proposes
+# a fourth surface, a toolbar row of its own between the Titlebar and the
+# workspace, so a workspace's global controls (split, and whatever Sessions'
+# own eventual sync affordance turns out to be) all live in one place rather
+# than wherever the control happened to get written. Exploratory: nothing
+# here is accepted yet, `SftpFanout.dc.html` above is still the shipped
+# shape, and this artboard is retired once the maintainer picks a direction
+# (the same way `HostsPhase.dc.html` was).
+#
+# Two more pieces the maintainer asked for while reviewing this, both drawn
+# here rather than argued about in prose:
+#   - the SFTP sidebar becomes the same `sessions_sidebar()` Sessions uses
+#     (kind icon, jump/target mark, chain indent), not the plainer
+#     `sftp_workspace_header()`/`sftp_row()` ADR-0044 drew for a sidebar
+#     that was only ever picking a host to browse, never one to type into.
+#   - each pane gains an actual navigation bar (back, up, a breadcrumb,
+#     refresh), since today's pane only shows the current path as inert text
+#     and expects a click on a row or the `..` entry to move at all.
+
+def plain_titlebar():
+    """The Titlebar with nothing workspace-specific left in it: the mark,
+    the app name, the window buttons. `top_strip()` still draws
+    `ShapeControl` inline for the shipped tree; this is what is left of it
+    once that control moves into `toolbar_row()`, shared by every
+    exploratory proposal so the mark and window buttons are drawn once."""
+    return f"""  <div style="height: 36px; flex: none; display: flex; align-items: stretch; background: {T['chrome']}; border-bottom: 1px solid {T['line']};">
+    <div style="width: 48px; flex: none; display: flex; align-items: center; justify-content: center; border-right: 1px solid {T['line']};">{MARK}</div>
+    <div style="flex: 1; min-width: 0; display: flex; align-items: center; padding-left: 14px;">
+      <span style="font-size: 11.5px; font-weight: 700; letter-spacing: 0.13em; color: {T['faint']};">RUNIC SSH</span>
+    </div>
+    <div style="flex: none; display: flex; align-items: stretch; border-left: 1px solid {T['line']};">
+      <div class="win"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M1.5 5h7"></path></svg></div>
+      <div class="win"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.1"><rect x="1.5" y="1.5" width="7" height="7"></rect></svg></div>
+      <div class="win"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"></path></svg></div>
+    </div>
+  </div>"""
+
+def split_rows_glyph(n, size=16):
+    """`n` horizontal bars in a rounded rectangle: the SFTP split control's
+    own glyph (`SftpSplitControl.tsx`'s `RowsGlyph`), redrawn here rather
+    than invented, since the shape it stands for is already shipped."""
+    bars = "".join(
+        f'<path d="M0.75 {0.75 + (10.5 * i) / n:.2f}h14.5"></path>' for i in range(1, n)
+    )
+    return (f'<svg viewBox="0 0 16 12" style="width: {size}px; height: {round(size * 0.75)}px;" '
+            f'fill="none" stroke="currentColor" stroke-width="1.2">'
+            f'<rect x="0.75" y="0.75" width="14.5" height="10.5" rx="1.5"></rect>{bars}</svg>')
+
+def split_control(active=1, max_n=4):
+    """`SftpSplitControl.tsx`, in the toolbar rather than beside one
+    column's own header: the same four buttons, the same highlighted
+    state, moved to answer ADR-0021's objection instead of repeating it."""
+    out = []
+    for n in range(1, max_n + 1):
+        on = n == active
+        bg = f'background: {T["raised"]};' if on else ''
+        color = T['accent'] if on else T['faint']
+        out.append(f'<div style="width: 26px; height: 22px; border-radius: 4px; {bg}'
+                   f' display: flex; align-items: center; justify-content: center; color: {color};">'
+                   f'{split_rows_glyph(n)}</div>')
+    return '<div style="flex: none; display: flex; align-items: center; gap: 2px;">' + "".join(out) + '</div>'
+
+def toolbar_row(right_html="", left_html=""):
+    """The row this artboard proposes between the Titlebar and the
+    workspace: full width, always present, `left_html` for whatever a
+    workspace wants near the sidebar's edge (a global sync toggle was the
+    maintainer's own example for Sessions), `right_html` for the control
+    that used to be homeless (the shape/split control, always at the
+    trailing edge, matching where `ShapeControl` sits in the Titlebar
+    today)."""
+    return f"""  <div style="height: 34px; flex: none; display: flex; align-items: center; gap: 8px; background: {T['panel']}; border-bottom: 1px solid {T['line']}; padding: 0 10px;">
+    {left_html}
+    <div style="flex: 1;"></div>
+    {right_html}
+  </div>"""
+
+def nav_bar(segments, can_back=False):
+    """Back, up, a breadcrumb, refresh: what `SftpPane.tsx` does not have
+    today, drawing its path as inert text and asking for a click on a row
+    or the `..` entry to move at all. `segments` is the path split on `/`;
+    the last one is the current directory and reads brighter than the rest,
+    the same weight rule a breadcrumb usually gives its own tail."""
+    back_color = T['muted'] if can_back else T['off']
+    crumbs = [
+        f'<span class="mono" style="font-size: 11px; color: {T["ink2"] if i == len(segments) - 1 else T["faint"]};">{seg}</span>'
+        for i, seg in enumerate(segments)
+    ]
+    crumb_html = f'<span style="color: {T["off"]}; font-size: 10px;">/</span>'.join(crumbs)
+    return (f'<div style="height: 24px; flex: none; display: flex; align-items: center; gap: 7px; padding: 0 8px;'
+            f' background: {T["chrome"]}; border-bottom: 1px solid {T["line"]};">'
+            f'<span style="color: {back_color}; display: flex;">{ic("chev", 13, extra=" transform: rotate(180deg);")}</span>'
+            f'<span style="color: {T["muted"]}; display: flex;">{ic("chev", 13, extra=" transform: rotate(-90deg);")}</span>'
+            f'<div style="flex: 1; min-width: 0; display: flex; align-items: center; gap: 3px; overflow: hidden; white-space: nowrap;">{crumb_html}</div>'
+            f'<span style="color: {T["muted"]}; display: flex;">{ic("refresh", 12)}</span></div>')
+
+def build_sftp_proposal():
+    def crow(name, dim=False):
+        i = ic("sftp", 12, T['faint']) if dim else f'<svg class="ic" viewBox="0 0 24 24" style="width: 12px; height: 12px; color: {T["faint"]};"><path d="M6 3h8l4 4v14H6z"></path><path d="M14 3v4h4"></path></svg>'
+        return (f'<div style="display: flex; align-items: center; gap: 7px; padding: 3px 8px;">{i}'
+                f'<span class="mono" style="font-size: 11px; color: {T["ink2"]};">{name}</span></div>')
+
+    def pane_header(label, who, closable=True):
+        close = ic('close', 11, T['faint']) if closable else ''
+        return (f'<div style="height: 24px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 10px;'
+                f' background: {T["chrome"]}; border-bottom: 1px solid {T["line"]};">'
+                f'<span style="font-size: 9px; font-weight: 700; letter-spacing: 0.1em; color: {T["faint"]};">{label}</span>'
+                f'<span class="mono" style="font-size: 10.5px; color: {T["muted"]};">{who}</span>'
+                f'<div style="flex: 1;"></div>{close}</div>')
+
+    def pane(label, who, segments, can_back, rows, border=True):
+        b = f'border: 1px solid {T["line"]}; border-radius: 6px;' if border else f'border: 1.5px dashed {T["line2"]}; border-radius: 6px;'
+        if rows is None:
+            return (f'<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; {b}">'
+                    f'{ic("sftp", 22, T["off"])}<span style="font-size: 11px; color: {T["faint"]};">Drop a host here</span></div>')
+        body = "".join(crow(*r) for r in rows)
+        return (f'<div style="display: flex; flex-direction: column; overflow: hidden; {b}">'
+                f'{pane_header(label, who)}{nav_bar(segments, can_back)}'
+                f'<div style="flex: 1; padding: 4px 0; overflow: hidden;">{body}</div></div>')
+
+    source = pane("SOURCE", "deploy@10.4.1.20", ["/", "var", "www"], True,
+                   [("index.html",), ("assets", True), ("app.2f9c.js",)])
+    d1 = pane("DESTINATION", "deploy@10.4.1.21", ["/", "var", "www"], False,
+              [("index.html",), ("assets", True)])
+    d2 = pane("DESTINATION", "deploy@10.9.0.5", ["/", "srv", "releases"], True,
+              [("current", True), ("2026-08-30", True)])
+    d3 = pane("", "", [], False, None, border=False)
+
+    # No "FANS OUT TO" label (dropped per the maintainer's own read: left is
+    # source and right is destination in essentially every file manager,
+    # so a label naming that convention says nothing a reader doesn't
+    # already assume from the two columns themselves).
+    body = f"""      <div style="flex: 1; min-height: 0; display: flex; gap: 10px; padding: 12px;">
+        <div style="width: 50%;">{source}</div>
+        <div style="width: 50%; display: grid; grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 8px;">{d1}{d2}{d3}</div>
+      </div>"""
+
+    sidebar = sessions_sidebar(active=None, states={"web-01": "ok"})
+    st = status(stat_text("3 destinations, 1 source", T['faint'], mono=False), stat_text("copying index.html", T['muted']))
+
+    page_html = f"""
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{plain_titlebar()}
+{toolbar_row(right_html=split_control(active=3))}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{home_rail(workspace="sftp", sftp_badge="3")}
+{sidebar}
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: {T['base']};">
+{body}
+    </div>
+  </div>
+{st}
+</div>
+"""
+    write("SftpProposal.dc.html", HEAD + page_html + FOOT)
+
+def sync_icon(on):
+    """Confirmed directly: the same glyph `broadcast_button()` uses, at row
+    scale, on/off told apart by colour alone the same way that button
+    already is, replacing what used to be a pill-and-knob switch
+    (`SyncToggle.tsx`'s own shape). One icon for the concept everywhere it
+    appears, toolbar and per-group switch alike, rather than two shapes
+    that both mean "is broadcast reaching this." Stays at the trailing
+    edge of every group's own strip, solo header included: this is still
+    the answer to "does this one rectangle, specifically, receive"
+    (ADR-0021's own reasoning for keeping it per-group). `broadcast_button()`
+    is the maintainer's own confirmed addition on top of this, not instead
+    of it: a toolbar shortcut that starts or stops everyone at once, while
+    this icon keeps deciding one rectangle at a time. `SyncToggle.tsx`
+    itself would need the matching change if this direction is accepted."""
+    color = T['warn'] if on else T['faint']
+    return (f'<span style="display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; color: {color};">'
+            f'{ic("broadcast", 13)}</span>')
+
+def broadcast_button(armed, count=None):
+    """The toolbar's own arm/disarm-everyone shortcut, confirmed directly
+    against this session's earlier read of ADR-0021's history: it sits in
+    the toolbar, before the split/shape control, rather than repeating the
+    top-strip global switch that document tried and reversed. What makes
+    this different from that reversed attempt is that it does not replace
+    `sync_icon()`: pressing this arms or disarms every open, non-empty
+    group at once, exactly what `toggleSync` already does from the command
+    palette, just made visible; pressing one group's own switch afterward
+    still opts just that rectangle out. Two controls, two questions, the
+    same distinction ADR-0021 already drew between the shape control and
+    the sync switch, not a return to conflating them."""
+    color = T['warn'] if armed else T['faint']
+    bg = f'background: {T["warnsoft"]};' if armed else ''
+    badge = ''
+    if armed and count is not None:
+        badge = (f'<span class="mono" style="position: absolute; right: -3px; bottom: -3px; min-width: 13px; height: 13px; border-radius: 7px;'
+                 f' background: {T["warn"]}; color: {T["base"]}; font-size: 8.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; padding: 0 3px;">{count}</span>')
+    return (f'<div style="position: relative; width: 28px; height: 24px; border-radius: 4px; {bg}'
+            f' display: flex; align-items: center; justify-content: center; color: {color};">{ic("broadcast", 15)}{badge}</div>')
+
+def select_all_button(count):
+    """SFTP's own toolbar shortcut, deliberately not `broadcast_button()`
+    with a different label: Sessions' button arms a *mode* (every keystroke
+    goes everywhere until disarmed), and SFTP has no equivalent mode to
+    arm, since sending a file is already a one-shot action per file, not a
+    stream. This is a plain "select every occupied destination" toggle,
+    styled like the neutral `split_control()` icons rather than warn-tinted
+    like an armed broadcast, so it never claims a persistent state that
+    does not exist here."""
+    badge = ''
+    if count is not None:
+        badge = (f'<span class="mono" style="position: absolute; right: -3px; bottom: -3px; min-width: 13px; height: 13px; border-radius: 7px;'
+                 f' background: {T["raised"]}; color: {T["muted"]}; font-size: 8.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; padding: 0 3px;">{count}</span>')
+    return (f'<div style="position: relative; width: 28px; height: 24px; border-radius: 4px;'
+            f' display: flex; align-items: center; justify-content: center; color: {T["faint"]};">{ic("broadcast", 15)}{badge}</div>')
+
+def solo_tab_header(name, who, sync="off"):
+    """Option 1, confirmed directly over `SftpProposal.dc.html`'s own
+    review: a group holding exactly one tab collapses `strip()`/`tab()`'s
+    packed-left layout into a single full-width identity bar, closer to
+    `SftpPane.tsx`'s own header than to a tab strip with one tab in it.
+    Two or more tabs still get today's `strip()` unchanged.
+
+    `sync_icon()` sits here exactly where `SyncToggle` sits on a packed
+    strip: at the trailing edge, before the close action, since nothing
+    about arming broadcast is a property of how many tabs a group has."""
+    return (f'<div style="height: 28px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 12px;'
+            f' background: {T["chrome"]}; border-bottom: 1px solid {T["line"]};">'
+            f'<span class="dot" style="background: {T["ok"]};"></span>'
+            f'<span class="mono" style="font-size: 11.5px; color: {T["ink"]}; font-weight: 600;">{name}</span>'
+            f'<span class="mono" style="font-size: 10.5px; color: {T["faint"]};">{who}</span>'
+            f'<div style="flex: 1;"></div>'
+            f'{sync_icon(sync == "on")}'
+            f'<span style="display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; color: {T["faint"]};">{ic("close", 11)}</span>'
+            f'</div>')
+
+def empty_group_slot():
+    """A group with nothing in it, drawn as SFTP's own empty destination
+    slot already is: a dashed rectangle inviting the same drag, since
+    dropping a host into an empty rectangle is now one gesture shared by
+    both workspaces rather than two."""
+    return (f'<div style="background: {T["terminal"]}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;'
+            f' border: 1.5px dashed {T["line2"]}; border-radius: 6px; min-width: 0; min-height: 0;">'
+            f'{ic("ssh", 22, T["off"])}<span style="font-size: 11px; color: {T["faint"]};">Drop a host here</span></div>')
+
+def transfer_row(name, destination, transferred, total, active=True):
+    """One row of `TransferState` (`browser.ts`), drawn with only the
+    fields that type actually carries: no invented speed column, unlike
+    the pre-fanout `build_sftp()` artboard's "1,4 MB/s", which named a
+    number nothing in `TransferState` tracks. Rule 6 of ADR-0020: the
+    layout may reserve room to think and may not show interface that lies.
+    `destination` is new against that older artboard for a real reason,
+    not a cosmetic one: with one fixed destination there was nothing to
+    name; ADR-0045 made the field exist because a fan-out needs to say
+    which of several a given row is bound for."""
+    pct = round(100 * transferred / total) if total else 0
+    size = f'{round(transferred / 1000)} / {round(total / 1000)} kB' if total else f'{round(transferred / 1000)} kB'
+    action = (
+        f'<span style="display: flex; color: {T["faint"]};">{ic("close", 10)}</span>' if active
+        else f'<svg viewBox="0 0 24 24" style="width: 12px; height: 12px; color: {T["ok"]};" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>'
+    )
+    return f"""<div style="display: flex; align-items: center; gap: 10px; height: 26px;">
+      <svg viewBox="0 0 24 24" style="width: 13px; height: 13px; color: {T['accent']}; flex: none;" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h13M12 7l5 5-5 5"></path></svg>
+      <span class="mono" style="font-size: 11.5px; color: {T['ink']}; width: 130px; flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{name}</span>
+      <span class="mono" style="font-size: 10.5px; color: {T['muted']}; width: 130px; flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{destination}</span>
+      <div style="flex: 1; height: 4px; background: {T['raised']}; border-radius: 2px; overflow: hidden;"><div style="width: {pct}%; height: 100%; background: {T['accent'] if active else T['ok']};"></div></div>
+      <span class="mono" style="font-size: 10.5px; color: {T['faint']}; width: 90px; text-align: right; flex: none;">{size}</span>
+      <span style="width: 14px; flex: none; display: flex; align-items: center; justify-content: center;">{action}</span>
+    </div>"""
+
+def transfers_bar(rows_html, count):
+    """Where a fan-out's own progress lives: full width, below both
+    columns, one shared list rather than one per pane. `TransferState`
+    already names its own destination per row (ADR-0045), so a single list
+    loses nothing a per-pane one would have kept, and it is the one place
+    that can show "4 rows, 4 destinations, 1 file" as a single glance
+    instead of four separate footers agreeing with each other by hand.
+
+    Missing until now: `fanout.transfers`, `cancelTransfer` and
+    `dismissTransfer` are fully wired in `use-fanout.ts` today (the reducer
+    is tested), and nothing in `App.tsx`'s render reads any of them. A
+    fan-out is invisible while it runs in the shipped tree; this is that
+    gap, not only a styling choice."""
+    return f"""      <div style="flex: none; border-top: 1px solid {T['line']}; background: {T['panel']}; padding: 8px 14px;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+          <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: {T['faint']};">TRANSFERS</span>
+          <span class="mono" style="font-size: 9.5px; color: {T['off']}; background: {T['raised']}; border-radius: 4px; padding: 1px 6px;">{count}</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 2px;">{rows_html}</div>
+      </div>"""
+
+def build_sftp_proposal_broadcast():
+    """Exploratory (2026-08-31): whether "broadcast" has a shape in SFTP,
+    asked directly after both proposals landed. It does, but not the
+    Sessions one. There is no keystroke stream to arm, so nothing in the
+    toolbar claims a persistent mode (`select_all_button()`, deliberately
+    not warn-tinted): each destination gets its own `sync_icon()`, off by
+    default meaning "occupied but not part of the next send," and
+    `sendToDestinations` would read it the same way `inputTargets` already
+    reads `muted` for Sessions. The source pane draws no icon at all: it
+    only ever sends, so the question this icon answers does not apply to
+    it.
+
+    Extended the same day with `transfers_bar()`, asked directly: SFTP had
+    no drawn answer for where an in-flight transfer shows. Toggling
+    `deploy@10.9.0.5` off above is why only one row appears below;
+    `sendToDestinations` would only ever start a transfer for a
+    destination this same toggle says is receiving.
+
+    Extended again the same day: `sendToDestinations` today fires from a
+    hover-only icon on one row at a time (`SftpPane.tsx`'s `Row`), which is
+    exactly the two things asked for here that a static screen cannot show
+    at all (nothing to hover) and does not let you start more than one file
+    together. `checkbox()` gives the source pane a selection a screenshot
+    can actually show; `send_bar()` is the explicit place that selection
+    turns into a send, which the hover icon never was. It would replace
+    that icon, not sit beside it: one way to start a send, not two."""
+    def crow(name, dim=False):
+        i = ic("sftp", 12, T['faint']) if dim else f'<svg class="ic" viewBox="0 0 24 24" style="width: 12px; height: 12px; color: {T["faint"]};"><path d="M6 3h8l4 4v14H6z"></path><path d="M14 3v4h4"></path></svg>'
+        return (f'<div style="display: flex; align-items: center; gap: 7px; padding: 3px 8px;">{i}'
+                f'<span class="mono" style="font-size: 11px; color: {T["ink2"]};">{name}</span></div>')
+
+    def checkbox(checked):
+        if checked:
+            return (f'<span style="width: 13px; height: 13px; border-radius: 3px; background: {T["accent"]}; flex: none;'
+                     f' display: flex; align-items: center; justify-content: center;">'
+                     f'<svg viewBox="0 0 24 24" style="width: 9px; height: 9px; color: {T["base"]};" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg></span>')
+        return f'<span style="width: 13px; height: 13px; border-radius: 3px; border: 1.5px solid {T["off"]}; flex: none;"></span>'
+
+    def source_row(name, checked=None):
+        box = checkbox(checked) if checked is not None else '<span style="width: 13px; flex: none;"></span>'
+        dim = checked is None
+        i = ic("sftp", 12, T['faint']) if dim else f'<svg class="ic" viewBox="0 0 24 24" style="width: 12px; height: 12px; color: {T["faint"]};"><path d="M6 3h8l4 4v14H6z"></path><path d="M14 3v4h4"></path></svg>'
+        bg = f'background: {T["accentsoft"]};' if checked else ''
+        return (f'<div style="display: flex; align-items: center; gap: 8px; padding: 3px 8px; {bg}">{box}{i}'
+                f'<span class="mono" style="font-size: 11px; color: {T["ink2"]};">{name}</span></div>')
+
+    def send_bar(count):
+        return (f'<div style="flex: none; display: flex; align-items: center; gap: 12px; padding: 7px 10px;'
+                f' border-top: 1px solid {T["line"]}; background: {T["panel"]};">'
+                f'<span class="mono" style="font-size: 11px; color: {T["muted"]};">{count} selected</span>'
+                f'<div style="flex: 1;"></div>'
+                f'<span style="font-size: 11.5px; color: {T["faint"]};">Clear</span>'
+                f'<span style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: {T["base"]};'
+                f' background: {T["accent"]}; border-radius: 6px; padding: 6px 14px;">Send'
+                f'<svg viewBox="0 0 24 24" style="width: 12px; height: 12px;" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></span></div>')
+
+    def pane_header(label, who, sync=None, closable=True):
+        close = ic('close', 11, T['faint']) if closable else ''
+        icon = sync_icon(sync == "on") if sync is not None else ''
+        return (f'<div style="height: 24px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 10px;'
+                f' background: {T["chrome"]}; border-bottom: 1px solid {T["line"]};">'
+                f'<span style="font-size: 9px; font-weight: 700; letter-spacing: 0.1em; color: {T["faint"]};">{label}</span>'
+                f'<span class="mono" style="font-size: 10.5px; color: {T["muted"]};">{who}</span>'
+                f'<div style="flex: 1;"></div>{icon}{close}</div>')
+
+    def pane(label, who, segments, can_back, rows, sync=None, border=True):
+        b = f'border: 1px solid {T["line"]}; border-radius: 6px;' if border else f'border: 1.5px dashed {T["line2"]}; border-radius: 6px;'
+        if rows is None:
+            return (f'<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; {b}">'
+                    f'{ic("sftp", 22, T["off"])}<span style="font-size: 11px; color: {T["faint"]};">Drop a host here</span></div>')
+        body = "".join(crow(*r) for r in rows)
+        return (f'<div style="display: flex; flex-direction: column; overflow: hidden; {b}">'
+                f'{pane_header(label, who, sync)}{nav_bar(segments, can_back)}'
+                f'<div style="flex: 1; padding: 4px 0; overflow: hidden;">{body}</div></div>')
+
+    source_rows = (
+        source_row("index.html", checked=True)
+        + source_row("assets")
+        + source_row("app.2f9c.js", checked=True)
+    )
+    source = (f'<div style="display: flex; flex-direction: column; overflow: hidden; border: 1px solid {T["line"]}; border-radius: 6px;">'
+              f'{pane_header("SOURCE", "deploy@10.4.1.20")}{nav_bar(["/", "var", "www"], True)}'
+              f'<div style="flex: 1; padding: 4px 0; overflow: hidden;">{source_rows}</div>'
+              f'{send_bar(2)}</div>')
+    d1 = pane("DESTINATION", "deploy@10.4.1.21", ["/", "var", "www"], False,
+              [("index.html",), ("assets", True)], sync="on")
+    d2 = pane("DESTINATION", "deploy@10.9.0.5", ["/", "srv", "releases"], True,
+              [("current", True), ("2026-08-30", True)], sync="off")
+    d3 = pane("", "", [], False, None, border=False)
+
+    panes = f"""      <div style="flex: 1; min-height: 0; display: flex; gap: 10px; padding: 12px;">
+        <div style="width: 50%;">{source}</div>
+        <div style="width: 50%; display: grid; grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 8px;">{d1}{d2}{d3}</div>
+      </div>"""
+
+    transfers = transfers_bar(
+        transfer_row("index.html", "deploy@10.4.1.21", 197_000, 318_000)
+        + transfer_row("app.2f9c.js", "deploy@10.4.1.21", 0, 82_000),
+        2,
+    )
+    body = f'{panes}\n{transfers}'
+
+    sidebar = sessions_sidebar(active=None, states={"web-01": "ok"})
+    st = status(stat_text("1 of 2 destinations receiving", T['faint'], mono=False), stat_text("sending 2 files", T['muted']))
+
+    page_html = f"""
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{plain_titlebar()}
+{toolbar_row(right_html=select_all_button(1) + split_control(active=3))}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{home_rail(workspace="sftp", sftp_badge="3")}
+{sidebar}
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: {T['base']};">
+{body}
+    </div>
+  </div>
+{st}
+</div>
+"""
+    write("SftpProposalBroadcast.dc.html", HEAD + page_html + FOOT)
+
+def build_sessions_proposal():
+    """Exploratory (2026-08-31), the SSH counterpart to
+    `build_sftp_proposal()`: the shape control moves off the Titlebar into
+    the same toolbar row SFTP's split control now uses (`shapes()`,
+    unchanged, just relocated), and the lone open tab gets Option 1's
+    stretched identity bar. Nothing here is accepted; `Main.dc.html` and
+    `Groups.dc.html` are still the shipped shape until this is picked."""
+    occupied = group(
+        solo_tab_header("web-01", "deploy@10.4.1.20"),
+        term(prompt("deploy", "web-01", "systemctl status nginx") + "\n"
+             + f'<span style="color: {T["ok"]};">&#9679;</span> nginx.service - A high performance web server\n'
+             + f'     Active: <span style="color: {T["ok"]};">active (running)</span> since Mon 2026-08-24 09:12:04 UTC\n\n'
+             + prompt("deploy", "web-01") + CURSOR),
+        border=T['accent'],
+    )
+    grid = f"""      <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; padding: 12px;">
+        <div style="flex: 1; min-height: 0;">{occupied}</div>
+        <div style="flex: 1; min-height: 0;">{empty_group_slot()}</div>
+      </div>"""
+
+    sidebar = sessions_sidebar(active="web-01", states={"web-01": "ok"})
+    st = status(stat_session("deploy@10.4.1.20") + "\n" + sep() + "\n" + stat_text("198 x 42"),
+                stat_text("SYNC OFF", T['faint'], mono=False))
+
+    page_html = f"""
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{plain_titlebar()}
+{toolbar_row(right_html=broadcast_button(False) + shapes('rows'))}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{home_rail(workspace="sessions", badge="1")}
+{sidebar}
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: {T['base']};">
+{grid}
+    </div>
+  </div>
+{st}
+</div>
+"""
+    write("SessionsProposal.dc.html", HEAD + page_html + FOOT)
+
+def warn_chip(count):
+    """`StatusBar.tsx`'s own `syncing` chip, redrawn verbatim: the warning
+    triangle, warn-soft background, the count of hosts actually receiving.
+    Answers "is it on, and for how many" without opening anything."""
+    return (f'<div style="display: flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 5px;'
+            f' background: {T["warnsoft"]}; color: {T["warn"]}; border: 1px solid {T["warn"]}66;">'
+            f'<svg viewBox="0 0 16 16" style="width: 12px; height: 12px;" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">'
+            f'<path d="M8 1.8 1.5 13.2h13L8 1.8ZM8 6.2v3.4M8 11.4h.01"></path></svg>'
+            f'<span class="mono" style="font-size: 11px; font-weight: 700;">{count} hosts receiving</span></div>')
+
+def build_sessions_proposal_broadcast():
+    """Exploratory (2026-08-31): the direct answer to "how do I broadcast
+    to 2 active windows" in this same proposed shape.
+
+    First read against ADR-0021's own history: that document tried a
+    global broadcast control in the top strip for a day and reversed it,
+    on the reasoning that "this control means something per rectangle."
+    Confirmed directly anyway, since a toolbar shortcut for "arm/disarm
+    everyone" is not the same claim as "only a global control, no
+    per-rectangle one": `broadcast_button()` now sits in the toolbar
+    (`build_sessions_proposal_broadcast_multi()` draws it), and
+    `sync_icon()` stays exactly where Option 1 already put it. Either path
+    arms every open, non-empty group at once (arming has always started
+    with everyone included, ADR-0019), which for exactly two open groups
+    already means both; muting one afterward is still the per-rectangle
+    switch's own job."""
+    g1 = group(
+        solo_tab_header("web-01", "deploy@10.4.1.20", sync="on"),
+        term(prompt("deploy", "web-01", "tail -f /var/log/nginx/access.log") + "\n"
+             '10.4.1.7 - - [31/Aug/2026:20:41:02] "GET /health HTTP/1.1" 200 2\n'
+             + prompt("deploy", "web-01") + CURSOR),
+        border=T['warn'],
+    )
+    g2 = group(
+        solo_tab_header("db-prod", "postgres@10.4.1.31", sync="on"),
+        term(prompt("postgres", "db-prod") + CURSOR),
+        border=T['warn'],
+    )
+    grid = f"""      <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; padding: 12px;">
+        <div style="flex: 1; min-height: 0;">{g1}</div>
+        <div style="flex: 1; min-height: 0;">{g2}</div>
+      </div>"""
+
+    sidebar = sessions_sidebar(active="web-01", states={"web-01": "ok", "db-prod": "ok"})
+    st = status_warn(stat_session("deploy@10.4.1.20") + "\n" + sep() + "\n" + stat_text("198 x 42"),
+                      warn_chip(2))
+
+    page_html = f"""
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{plain_titlebar()}
+{toolbar_row(right_html=broadcast_button(True, 2) + shapes('rows'))}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{home_rail(workspace="sessions", badge="2")}
+{sidebar}
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: {T['base']};">
+{grid}
+    </div>
+  </div>
+{st}
+</div>
+"""
+    write("SessionsProposalBroadcast.dc.html", HEAD + page_html + FOOT)
+
+def build_sessions_proposal_broadcast_multi():
+    """Exploratory (2026-08-31): the same question for a group holding more
+    than one tab. Two groups, not one: broadcast reaches a group's *active*
+    tab only (`canvas.json`'s own safety-note annotation: "Armed broadcast
+    reaches the active tab of each group, so a session behind another is
+    connected and not receiving"), so a single group with three tabs still
+    contributes exactly one receiver, whichever tab is active. Three tabs
+    in one group is a `strip()` question, not a broadcast-count one; the
+    second group is what actually demonstrates two receivers.
+
+    Confirmed directly: the toolbar's `broadcast_button()` sits before the
+    split/shape control, and `strip()`'s packed tabs keep `sync_icon()` at
+    the trailing edge the same way `GroupStrip.tsx` already puts
+    `SyncToggle` there today. `strip(actions=False, ...)`: the plus/dots
+    pair `strip()` still draws by default is itself stale against the real
+    `GroupStrip.tsx`, which dropped that trailing button once the palette
+    took over what it did, the same drift `sessions_header()` had. Not
+    fixed here, only not repeated: the fuller `strip()`/`sessions_header()`
+    -shaped audit is its own pass, if the maintainer wants it done for
+    every artboard the way this one already was."""
+    s = strip(
+        [tab("web-01", "deploy@10.4.1.20", "on"), tab("web-02"), tab("cache-01", dot="warn")],
+        actions=False,
+        extra=sync_icon(True),
+    )
+    body = term(
+        prompt("deploy", "web-01", "tail -f /var/log/nginx/access.log") + "\n"
+        '10.4.1.7 - - [31/Aug/2026:20:41:02] "GET /health HTTP/1.1" 200 2\n'
+        + prompt("deploy", "web-01") + CURSOR
+    )
+    multi = group(s, body, border=T['warn'])
+
+    solo = group(
+        solo_tab_header("db-prod", "postgres@10.4.1.31", sync="on"),
+        term(prompt("postgres", "db-prod") + CURSOR),
+        border=T['warn'],
+    )
+
+    grid = f"""      <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; padding: 12px;">
+        <div style="flex: 1; min-height: 0;">{multi}</div>
+        <div style="flex: 1; min-height: 0;">{solo}</div>
+      </div>"""
+
+    sidebar = sessions_sidebar(active="web-01", states={"web-01": "ok", "db-prod": "ok"})
+    st = status_warn(stat_session("deploy@10.4.1.20") + "\n" + sep() + "\n" + stat_text("198 x 42"),
+                      warn_chip(2))
+
+    page_html = f"""
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{plain_titlebar()}
+{toolbar_row(right_html=broadcast_button(True, 2) + shapes('rows'))}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{home_rail(workspace="sessions", badge="4")}
+{sidebar}
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: {T['base']};">
+{grid}
+    </div>
+  </div>
+{st}
+</div>
+"""
+    write("SessionsProposalBroadcastMulti.dc.html", HEAD + page_html + FOOT)
 
 # ---------- 10. Home: the rail, the nav, and the wizard's own breadcrumb
 # Drawn 2026-08-30 against the maintainer's own complaint that the wizard
@@ -1428,7 +2016,10 @@ if LIGHT_MODE:
     build_main()
 else:
     for fn in (build_empty, build_main, build_groups, build_collapsed, build_broadcast,
-               build_hostkey, build_sftp, build_sftp_workspace, build_sftp_fanout,
+               build_hostkey, build_sftp, build_sftp_workspace, build_sftp_fanout, build_sftp_proposal,
+               build_sftp_proposal_broadcast,
+               build_sessions_proposal, build_sessions_proposal_broadcast,
+               build_sessions_proposal_broadcast_multi,
                build_hosts_host, build_hosts_access, build_home_dashboard, build_home_hosts,
                build_anatomy, build_tokens,
                build_hostkeychanged, build_failure, build_paste, build_palette):
