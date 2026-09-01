@@ -25,11 +25,13 @@ import { SessionWizard } from './components/SessionWizard';
 import { SessionsSidebar } from './components/SessionsSidebar';
 import { ShapeControl } from './components/ShapeControl';
 import { SftpPane } from './components/SftpPane';
+import { SftpSelectAllButton } from './components/SftpSelectAllButton';
 import { SftpSplitControl } from './components/SftpSplitControl';
 import { StatusBar } from './components/StatusBar';
 import { TerminalView } from './components/TerminalView';
 import { Titlebar } from './components/Titlebar';
 import { Toolbar } from './components/Toolbar';
+import { TransfersBar } from './components/TransfersBar';
 import { actionCommands, sessionCommands, usePalette } from './features/commands';
 import type { CommandContext } from './features/commands';
 import {
@@ -1636,7 +1638,12 @@ export function App(): JSX.Element {
       )}
       {workspace === 'sftp' && (
         <Toolbar
-          trailing={<SftpSplitControl value={destinationSplit} onChange={setDestinationSplit} />}
+          trailing={
+            <>
+              <SftpSelectAllButton onSelectAll={fanout.includeEveryDestination} />
+              <SftpSplitControl value={destinationSplit} onChange={setDestinationSplit} />
+            </>
+          }
         />
       )}
 
@@ -2001,68 +2008,80 @@ export function App(): JSX.Element {
           const visibleRows = visibleDestinationRows(destinationSplit, occupied.length, MAX_DESTINATIONS);
 
           return (
-            <main className="bg-surface-base relative flex min-w-0 flex-1 gap-3 overflow-hidden p-3">
-              <div className="relative w-[32%] min-w-[260px] shrink-0" {...dragOverHandlers({ kind: 'source' })}>
-                {fanout.source === null ? (
-                  <div
-                    className={`text-ink-faint flex h-full flex-col items-center justify-center gap-2 rounded border-2 border-dashed text-[12.5px] transition-colors ${dropTone({ kind: 'source' })}`}
-                  >
-                    {i18n.t('sftp.source.empty')}
+            <main className="bg-surface-base relative flex min-w-0 flex-1 flex-col gap-3 overflow-hidden p-3">
+              <div className="flex min-h-0 flex-1 gap-3">
+                <div className="relative w-[32%] min-w-[260px] shrink-0" {...dragOverHandlers({ kind: 'source' })}>
+                  {fanout.source === null ? (
+                    <div
+                      className={`text-ink-faint flex h-full flex-col items-center justify-center gap-2 rounded border-2 border-dashed text-[12.5px] transition-colors ${dropTone({ kind: 'source' })}`}
+                    >
+                      {i18n.t('sftp.source.empty')}
+                    </div>
+                  ) : (
+                    <SftpPane
+                      key={endpointKey(fanout.source)}
+                      endpoint={fanout.source}
+                      paneId={SOURCE_PANE_ID}
+                      label={i18n.t('sftp.source')}
+                      identity={sftpIdentity(fanout.source)}
+                      onReport={fanout.reportPane}
+                      onSend={fanout.sendToDestinations}
+                      onClear={null}
+                      receiving={null}
+                      onToggleReceiving={null}
+                    />
+                  )}
+                </div>
+
+                <div className="flex min-w-0 flex-1 flex-col gap-3">
+                  <div className="flex shrink-0 items-center gap-2 text-ink-faint text-[10px] font-bold tracking-[0.1em]">
+                    <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" aria-hidden="true">
+                      <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    {i18n.t('sftp.fansOutTo')}
                   </div>
-                ) : (
-                  <SftpPane
-                    key={endpointKey(fanout.source)}
-                    endpoint={fanout.source}
-                    paneId={SOURCE_PANE_ID}
-                    label={i18n.t('sftp.source')}
-                    identity={sftpIdentity(fanout.source)}
-                    onReport={fanout.reportPane}
-                    onSend={fanout.sendToDestinations}
-                    onClear={null}
-                  />
-                )}
-              </div>
 
-              <div className="flex min-w-0 flex-1 flex-col gap-3">
-                <div className="flex shrink-0 items-center gap-2 text-ink-faint text-[10px] font-bold tracking-[0.1em]">
-                  <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" aria-hidden="true">
-                    <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  {i18n.t('sftp.fansOutTo')}
-                </div>
+                  <div
+                    className="grid min-h-0 flex-1 gap-3 overflow-y-auto"
+                    style={{ gridTemplateRows: `repeat(${String(visibleRows)}, minmax(120px, 1fr))` }}
+                  >
+                    {Array.from({ length: visibleRows }, (_, slot) => slot).map((slot) => {
+                      const endpoint = fanout.destinations[slot] ?? null;
 
-                <div
-                  className="grid min-h-0 flex-1 gap-3 overflow-y-auto"
-                  style={{ gridTemplateRows: `repeat(${String(visibleRows)}, minmax(120px, 1fr))` }}
-                >
-                  {Array.from({ length: visibleRows }, (_, slot) => slot).map((slot) => {
-                    const endpoint = fanout.destinations[slot] ?? null;
-
-                    return (
-                      <div key={`destination-${String(slot)}`} className="relative" {...dragOverHandlers({ kind: 'destination', slot })}>
-                        {endpoint === null ? (
-                          <div
-                            className={`text-ink-faint flex h-full flex-col items-center justify-center gap-2 rounded border-2 border-dashed text-[12px] transition-colors ${dropTone({ kind: 'destination', slot })}`}
-                          >
-                            {i18n.t('sftp.destination.empty')}
-                          </div>
-                        ) : (
-                          <SftpPane
-                            key={endpointKey(endpoint)}
-                            endpoint={endpoint}
-                            paneId={destinationPaneId(slot)}
-                            label={i18n.t('sftp.destination')}
-                            identity={sftpIdentity(endpoint)}
-                            onReport={fanout.reportPane}
-                            onSend={null}
-                            onClear={() => fanout.clearDestination(slot)}
-                          />
-                        )}
-                      </div>
-                    );
-                  })}
+                      return (
+                        <div key={`destination-${String(slot)}`} className="relative" {...dragOverHandlers({ kind: 'destination', slot })}>
+                          {endpoint === null ? (
+                            <div
+                              className={`text-ink-faint flex h-full flex-col items-center justify-center gap-2 rounded border-2 border-dashed text-[12px] transition-colors ${dropTone({ kind: 'destination', slot })}`}
+                            >
+                              {i18n.t('sftp.destination.empty')}
+                            </div>
+                          ) : (
+                            <SftpPane
+                              key={endpointKey(endpoint)}
+                              endpoint={endpoint}
+                              paneId={destinationPaneId(slot)}
+                              label={i18n.t('sftp.destination')}
+                              identity={sftpIdentity(endpoint)}
+                              onReport={fanout.reportPane}
+                              onSend={null}
+                              onClear={() => fanout.clearDestination(slot)}
+                              receiving={!fanout.mutedDestinations.has(slot)}
+                              onToggleReceiving={() => fanout.toggleDestinationReceiving(slot)}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
+
+              <TransfersBar
+                transfers={fanout.transfers}
+                onCancel={fanout.cancelTransfer}
+                onDismiss={fanout.dismissTransfer}
+              />
 
               {/* Host-key decisions, the "Reaching <host>…" surface and the
                   rest of `attemptSurface` assume a full pane's worth of

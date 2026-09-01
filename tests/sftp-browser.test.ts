@@ -6,7 +6,14 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { hasActiveTransfer, reduceTransfers, remoteParent, visibleDestinationRows } from '../src/features/sftp/browser';
+import {
+  hasActiveTransfer,
+  pathSegments,
+  reduceTransfers,
+  remoteParent,
+  toggleReceiving,
+  visibleDestinationRows,
+} from '../src/features/sftp/browser';
 import type { TransferAction } from '../src/features/sftp/browser';
 
 const STARTED: TransferAction = {
@@ -176,6 +183,54 @@ describe('how many destination rows the split control renders', () => {
 
   it('caps at the maximum regardless of how high the split is set', () => {
     expect(visibleDestinationRows(4, 0, 4)).toBe(4);
+  });
+});
+
+describe("a pane's own breadcrumb", () => {
+  it('breaks an absolute path into a leading root and one crumb per segment', () => {
+    expect(pathSegments('/home/deploy/logs')).toEqual([
+      { label: '/', path: '/' },
+      { label: 'home', path: '/home' },
+      { label: 'deploy', path: '/home/deploy' },
+      { label: 'logs', path: '/home/deploy/logs' },
+    ]);
+  });
+
+  it('draws nothing for the remote root', () => {
+    expect(pathSegments('.')).toEqual([]);
+  });
+
+  it('draws nothing for an empty path', () => {
+    expect(pathSegments('')).toEqual([]);
+  });
+
+  it('ignores a trailing slash', () => {
+    expect(pathSegments('/var/www/')).toEqual([
+      { label: '/', path: '/' },
+      { label: 'var', path: '/var' },
+      { label: 'www', path: '/var/www' },
+    ]);
+  });
+
+  it('has no root crumb for a relative path', () => {
+    expect(pathSegments('config/sub')).toEqual([
+      { label: 'config', path: 'config' },
+      { label: 'sub', path: 'config/sub' },
+    ]);
+  });
+});
+
+describe("a destination's own receive toggle", () => {
+  it('spares a slot that was receiving', () => {
+    expect(toggleReceiving(new Set(), 1)).toEqual(new Set([1]));
+  });
+
+  it('includes a slot that was spared', () => {
+    expect(toggleReceiving(new Set([1]), 1)).toEqual(new Set());
+  });
+
+  it('leaves every other slot as it was', () => {
+    expect(toggleReceiving(new Set([0, 2]), 1)).toEqual(new Set([0, 1, 2]));
   });
 });
 

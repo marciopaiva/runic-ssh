@@ -2,6 +2,8 @@ import type { JSX } from 'react';
 
 import { useTranslator } from '../features/settings';
 
+import { BroadcastGlyph } from './BroadcastGlyph';
+
 interface BroadcastButtonProps {
   /** Whether typing is currently reaching more than one group. */
   readonly armed: boolean;
@@ -61,21 +63,7 @@ export function BroadcastButton({
             : 'text-ink-muted hover:bg-surface-raised/50 hover:text-ink'
       }`}
     >
-      <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" aria-hidden="true">
-        <circle cx="12" cy="19" r="1.6" fill="currentColor" stroke="none" />
-        <path
-          d="M8 15.5a5.5 5.5 0 0 1 8 0"
-          stroke="currentColor"
-          strokeWidth="1.7"
-          strokeLinecap="round"
-        />
-        <path
-          d="M4.5 12a10 10 0 0 1 15 0"
-          stroke="currentColor"
-          strokeWidth="1.7"
-          strokeLinecap="round"
-        />
-      </svg>
+      <BroadcastGlyph className="h-3.5 w-3.5" />
 
       {armed && count > 0 && (
         <span
