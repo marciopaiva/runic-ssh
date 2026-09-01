@@ -327,9 +327,9 @@ fn backend<'a>(vault: &'a Vault, internal: &'a InternalVault) -> Result<&'a dyn 
     })
 }
 
-/// What [`resolve_credential`], [`forget_credential`] and [`store_credential`]
-/// need from either backend, so the dispatch above is the one place that
-/// branches.
+/// What [`resolve_credential`], [`forget_credential`] and
+/// [`store_credential_async`] need from either backend, so the dispatch
+/// above is the one place that branches.
 trait Backend {
     fn store(&self, id: &CredentialId, secret: &Secret) -> Result<(), Error>;
     fn resolve(&self, id: &CredentialId) -> Result<Secret, Error>;
@@ -364,19 +364,27 @@ impl Backend for InternalVault {
     }
 }
 
-/// Saves a secret to whichever store is this installation's own.
+/// Saves a secret to whichever store is this installation's own, off the
+/// async runtime's own thread for the part that can block it (#271). See
+/// [`off_thread`].
 ///
-/// The counterpart `resolve_credential` and `forget_credential` already had:
-/// `persist_credential` in `commands/sessions.rs` called `vault.store`
-/// directly because there was only one place to store to. ADR-0035 gave it a
-/// second, so this is the dispatch that call site now goes through instead.
-pub fn store_credential(
+/// The counterpart `resolve_credential_async` and `forget_credential_async`
+/// already had: `persist_credential` in `commands/sessions.rs` called
+/// `vault.store` directly because there was only one place to store to.
+/// ADR-0035 gave it a second, so this dispatch is what that call site goes
+/// through instead. No sync version remains: unlike `resolve_credential` and
+/// `forget_credential`, nothing outside this async path ever called it.
+pub async fn store_credential_async(
     vault: &Vault,
     internal: &InternalVault,
     id: &CredentialId,
     secret: &Secret,
 ) -> Result<(), Error> {
-    backend(vault, internal)?.store(id, secret)
+    let vault = vault.clone();
+    let internal = internal.clone();
+    let id = id.clone();
+    let secret = secret.clone();
+    off_thread(move || backend(&vault, &internal)?.store(&id, &secret)).await?
 }
 
 /// A secret for this session, from wherever it is.
@@ -397,20 +405,43 @@ pub fn resolve_credential(
     }
 }
 
+/// Runs a closure that touches `Vault`/`InternalVault` off the async
+/// runtime's own thread.
+///
+/// A real lookup or a real change against either is a synchronous syscall: a
+/// D-Bus round trip on Linux, a read or a rename against the internal
+/// vault's own file. Section 6 of `CLAUDE.md` already states the rule this
+/// is: nothing here is the network or the filesystem in the literal sense,
+/// but it is exactly the class of syscall-shaped wait that rule exists to
+/// keep off the IPC thread. #251 was
+/// this on the connect path: a connect attempt hung on "Reaching <host>..."
+/// for 30s+, non-deterministically, on a fixture a real `ssh` client reached
+/// instantly every time, because `authenticate_with_saved` made this call
+/// directly on whichever worker thread it happened to run on. #271 found the
+/// same gap, unfixed, on every vault-management command reachable from
+/// Settings rather than from a connect attempt: this is the one place that
+/// fix now lives, so a seventh call site cannot make the same mistake again
+/// by not knowing the pattern exists.
+///
+/// The double `?` a caller needs when `f` itself returns a `Result` is the
+/// two failures this can have, unwrapped in order: the task did not finish
+/// (this function's own error), then whatever `f` returned.
+pub(crate) async fn off_thread<T: Send + 'static>(
+    f: impl FnOnce() -> T + Send + 'static,
+) -> Result<T, Error> {
+    tokio::task::spawn_blocking(f)
+        .await
+        .map_err(|_| Error::KeychainUnavailable {
+            reason: String::from("the keychain call did not finish"),
+        })
+}
+
 /// [`resolve_credential`], off the async runtime's own thread for the part
 /// that can block it.
 ///
 /// `SessionSecrets::resolve` never leaves memory, so it still runs on the
 /// caller's own thread; only the fallback, a real read from the OS secret
-/// store, moves to `spawn_blocking`. On Linux that read is a synchronous
-/// D-Bus round trip, and section 6 of `CLAUDE.md` already states the rule
-/// this is: nothing here is the network or the filesystem in the literal
-/// sense, but it is exactly the class of syscall-shaped wait that rule
-/// exists to keep off the IPC thread. #251 was this: a connect attempt hung
-/// on "Reaching <host>..." for 30s+, non-deterministically, on a fixture a
-/// real `ssh` client reached instantly every time. The difference was this
-/// call, blocking whichever worker thread `authenticate_with_saved` happened
-/// to run on.
+/// store, moves to [`off_thread`].
 ///
 /// `Vault` and `InternalVault` are both cheap to clone (a label, and a
 /// `PathBuf` plus an `Arc`), so the clone this needs to hand the closure its
@@ -428,11 +459,7 @@ pub async fn resolve_credential_async(
     let vault = vault.clone();
     let internal = internal.clone();
     let id = id.clone();
-    tokio::task::spawn_blocking(move || backend(&vault, &internal)?.resolve(&id))
-        .await
-        .map_err(|_| Error::KeychainUnavailable {
-            reason: String::from("the keychain lookup did not finish"),
-        })?
+    off_thread(move || backend(&vault, &internal)?.resolve(&id)).await?
 }
 
 /// Forgets a secret wherever it is: the copy this run is holding, and
@@ -454,6 +481,22 @@ pub fn forget_credential(
 ) -> Result<(), Error> {
     secrets.forget(id);
     backend(vault, internal)?.forget(id)
+}
+
+/// [`forget_credential`], off the async runtime's own thread for the part
+/// that can block it. See [`off_thread`].
+pub async fn forget_credential_async(
+    secrets: &SessionSecrets,
+    vault: &Vault,
+    internal: &InternalVault,
+    id: &CredentialId,
+) -> Result<(), Error> {
+    secrets.forget(id);
+
+    let vault = vault.clone();
+    let internal = internal.clone();
+    let id = id.clone();
+    off_thread(move || backend(&vault, &internal)?.forget(&id)).await?
 }
 
 /// Turns a keyring failure into something safe to show.
@@ -619,6 +662,41 @@ mod tests {
 
         let resolved = resolve_credential_async(&secrets, &vault, &internal, &id).await;
         assert!(resolved.is_err(), "nothing is kept and nothing is stored");
+    }
+
+    /* #271: `store_credential_async` and `forget_credential_async` off-thread
+    the same way `resolve_credential_async` already did. Deterministic, unlike
+    the OS-keychain tests above: enabling the internal vault first (see
+    `backend`'s own doc comment) routes store/resolve/forget to a file this
+    process owns outright, so there is no real secret service that can be
+    missing in CI. */
+    #[tokio::test]
+    async fn storing_and_forgetting_asynchronously_round_trip_through_the_internal_vault() {
+        let vault = scratch();
+        let (internal, _dir) = scratch_internal();
+        internal
+            .enable(&Secret::new("vault-password"), &[])
+            .expect("enable");
+
+        let id = CredentialId::for_session("store-async-round-trip");
+        let secret = Secret::new("stored asynchronously");
+
+        store_credential_async(&vault, &internal, &id, &secret)
+            .await
+            .expect("store");
+
+        let secrets = SessionSecrets::new();
+        let resolved = resolve_credential_async(&secrets, &vault, &internal, &id)
+            .await
+            .expect("resolve");
+        assert_eq!(resolved.expose(), "stored asynchronously");
+
+        forget_credential_async(&secrets, &vault, &internal, &id)
+            .await
+            .expect("forget");
+        assert!(resolve_credential_async(&secrets, &vault, &internal, &id)
+            .await
+            .is_err());
     }
 
     #[test]

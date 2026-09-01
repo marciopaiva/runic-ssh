@@ -25,8 +25,8 @@ use crate::ssh::pending::{Carried, CarriedCredentials, PendingHostKeys, PendingI
 use crate::ssh::registry::{Busy, ChainedBastions, Open, Registry, SessionHandle};
 use crate::ssh::trust::Trust;
 use crate::vault::{
-    can_remember, resolve_credential_async, store_credential, Availability, CredentialId,
-    InternalVault, Secret, SessionSecrets, StoredCredential, Vault,
+    can_remember, off_thread, resolve_credential_async, store_credential_async, Availability,
+    CredentialId, InternalVault, Secret, SessionSecrets, StoredCredential, Vault,
 };
 
 pub const KNOWN_HOSTS_FILE: &str = "known_hosts";
@@ -326,11 +326,16 @@ pub async fn credential_store_status(
     vault: State<'_, Vault>,
     internal: State<'_, InternalVault>,
 ) -> Result<Availability, IpcError> {
-    if can_remember(&vault, &internal) {
-        return Ok(Availability::Available);
-    }
-
-    Ok(vault.availability())
+    let vault: Vault = vault.inner().clone();
+    let internal: InternalVault = internal.inner().clone();
+    Ok(off_thread(move || {
+        if can_remember(&vault, &internal) {
+            Availability::Available
+        } else {
+            vault.availability()
+        }
+    })
+    .await?)
 }
 
 /// Whether the internal vault (ADR-0035) is set up, and if so, whether this
@@ -359,18 +364,23 @@ pub async fn enable_internal_vault<R: Runtime>(
 ) -> Result<(), IpcError> {
     let sessions = SessionStore::new(config_dir(&app)?).load()?;
 
-    let mut existing = Vec::new();
-    for session in &sessions.items {
-        if session.credential_id.is_none() {
-            continue;
+    let vault: Vault = vault.inner().clone();
+    let internal: InternalVault = internal.inner().clone();
+    off_thread(move || {
+        let mut existing = Vec::new();
+        for session in &sessions.items {
+            if session.credential_id.is_none() {
+                continue;
+            }
+            let id = CredentialId::for_session(&session.id);
+            if let Ok(secret) = vault.resolve(&id) {
+                existing.push((id, secret));
+            }
         }
-        let id = CredentialId::for_session(&session.id);
-        if let Ok(secret) = vault.resolve(&id) {
-            existing.push((id, secret));
-        }
-    }
 
-    internal.enable(&password, &existing)?;
+        internal.enable(&password, &existing)
+    })
+    .await??;
     Ok(())
 }
 
@@ -380,7 +390,8 @@ pub async fn unlock_internal_vault(
     internal: State<'_, InternalVault>,
     password: Secret,
 ) -> Result<(), IpcError> {
-    internal.unlock(&password)?;
+    let internal: InternalVault = internal.inner().clone();
+    off_thread(move || internal.unlock(&password)).await??;
     Ok(())
 }
 
@@ -398,11 +409,18 @@ pub async fn disable_internal_vault(
     vault: State<'_, Vault>,
     internal: State<'_, InternalVault>,
 ) -> Result<(), IpcError> {
-    let migrated = internal.disable()?;
+    let vault: Vault = vault.inner().clone();
+    let internal: InternalVault = internal.inner().clone();
+    off_thread(move || -> Result<(), Error> {
+        let migrated = internal.disable()?;
 
-    for (id, secret) in &migrated {
-        vault.store(id, secret)?;
-    }
+        for (id, secret) in &migrated {
+            vault.store(id, secret)?;
+        }
+
+        Ok(())
+    })
+    .await??;
 
     Ok(())
 }
@@ -413,7 +431,8 @@ pub async fn disable_internal_vault(
 /// after the fact.
 #[tauri::command]
 pub async fn reset_internal_vault(internal: State<'_, InternalVault>) -> Result<(), IpcError> {
-    internal.reset()?;
+    let internal: InternalVault = internal.inner().clone();
+    off_thread(move || internal.reset()).await??;
     Ok(())
 }
 
@@ -442,7 +461,7 @@ pub async fn remember_credential<R: Runtime>(
     }
 
     let secret = to_stored(password, private_key, passphrase)?.encode()?;
-    persist_credential(&app, &vault, &internal, &session_id, &secret)?;
+    persist_credential(&app, &vault, &internal, &session_id, &secret).await?;
 
     Ok(())
 }
@@ -501,7 +520,12 @@ pub async fn session_credential_kept(
 /// nobody can reach and nobody knows to delete, and a session pointing at an
 /// entry that was never written fails at connect time with a missing
 /// credential the user never chose to remove.
-pub fn persist_credential<R: Runtime>(
+///
+/// `store_credential_async` (#271) moves the real keychain write off the IPC
+/// thread; both callers of this function are already inside an `async fn`,
+/// `remember_credential` and `connect_session`'s bastion-credential branch,
+/// so the same fix reaches a mid-connect save that #271 did not name.
+pub async fn persist_credential<R: Runtime>(
     app: &AppHandle<R>,
     vault: &Vault,
     internal: &InternalVault,
@@ -512,7 +536,7 @@ pub fn persist_credential<R: Runtime>(
     let mut sessions = store.load()?;
 
     let id = CredentialId::for_session(session_id);
-    store_credential(vault, internal, &id, secret)?;
+    store_credential_async(vault, internal, &id, secret).await?;
 
     if let Some(session) = sessions
         .items
@@ -538,13 +562,14 @@ pub async fn forget_credential<R: Runtime>(
     /* Both copies, and the run's first. Clearing only the store would leave
     `resolve_credential` answering exactly as before, so the next connection
     would still not ask and the button would have said something it did not
-    do. See `vault::forget_credential`. */
-    crate::vault::forget_credential(
+    do. See `vault::forget_credential_async`. */
+    crate::vault::forget_credential_async(
         &secrets,
         &vault,
         &internal,
         &CredentialId::for_session(&session_id),
-    )?;
+    )
+    .await?;
 
     let store = SessionStore::new(config_dir(&app)?);
     let mut sessions = store.load()?;
@@ -967,6 +992,7 @@ async fn open_bastion<R: Runtime>(
             This is #167's shape at a hop that cannot report it yet. */
             Keep::Stored => {
                 if persist_credential(chain.app, chain.vault, chain.internal, &bastion.id, &secret)
+                    .await
                     .is_err()
                 {
                     keep_refused = true;
