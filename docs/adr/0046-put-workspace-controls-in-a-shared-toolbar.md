@@ -110,6 +110,17 @@ keystroke stream to arm, since sending a file is already a one-shot action
 per file rather than a continuous broadcast. It is deliberately not
 warn-tinted, and is described fully in ADR-0047.
 
+**A group holding exactly one tab gets a stretched identity bar** ("Option
+1" against `SessionsProposal.dc.html`, confirmed directly during the same
+review and missing from this document's own text until now, which is why
+it went unbuilt through #259): `GroupStrip`'s packed, left-aligned tab
+layout collapses into a single full-width bar (a state dot, the name, the
+address, `SyncToggle` and the close action) once a group has nothing else
+to pack against. Two or more tabs, and a lone host form or settings tab,
+keep the packed strip unchanged: the address this bar makes room for only
+exists for a session, and there is nothing to distinguish among tabs that
+are not there.
+
 ### What this amends
 
 **ADR-0021** said the shape control belongs in the top strip, because that
@@ -154,20 +165,28 @@ the follow-up below lands.
 
 **Follow-up**:
 
-* `SyncToggle.tsx` needs its shape changed from a pill-and-knob switch to
-  the same broadcast glyph the new toolbar control uses, colour-only
-  on/off, to match what the canvas now draws.
-* `sessions_header()` (`design/canvas/gen.py`) was found stale against
-  `SessionsSidebar.tsx` while this ADR's own canvas pass was underway (it
-  drew a new-session/new-group/collapse/dots row the real header retired
-  once the command palette took over what those buttons did) and has been
-  fixed, with every artboard that called it regenerated. `strip()` in the
-  same file has the identical staleness (a plus/dots pair `GroupStrip.tsx`
-  no longer draws) and has not been fixed everywhere; only new artboards
-  written during this pass avoid it (`strip(actions=False, ...)`).
-* `canvas.json` does not list `SftpWorkspace.dc.html` or
-  `SftpFanout.dc.html` on the Surfaces page. Unrelated to this decision,
-  noticed while auditing the same directory.
+* `SyncToggle.tsx` still draws a pill-and-knob switch rather than the
+  broadcast glyph the toolbar control and the per-destination SFTP toggle
+  both settled on (ADR-0047). Left alone on purpose rather than changed to
+  match the canvas on this pass: `SyncToggle.tsx`'s own doc comment argues
+  for the pill shape specifically ("somebody looking for whether this is
+  on wants a shape that says on or off without a second one to compare
+  against"), which is a reasoned decision this ADR did not revisit, not an
+  oversight to silently fix. Revisit deliberately, as its own Phase 2, if
+  this is still wanted.
+* `sessions_header()` and `strip()` (`design/canvas/gen.py`) were both
+  found stale against the real `SessionsSidebar.tsx`/`GroupStrip.tsx` (a
+  chrome row the command palette retired, drawn on regardless).
+  `sessions_header()` was fixed during this pass; `strip()`'s identical
+  staleness and `canvas.json`'s missing `SftpWorkspace.dc.html`/
+  `SftpFanout.dc.html` entries were fixed in #266.
 * The published `runic-ssh-interface.html` is stale (2026-08-22, predates
-  ADR-0044 and ADR-0045 entirely) and could not be regenerated in this
-  session: it depends on a `support.js` this checkout does not have.
+  this document entirely) and still cannot be regenerated: it depends on a
+  `support.js` this checkout does not have. Tracked in #262.
+* This document's own Decision section did not mention the solo-tab
+  identity bar until 2026-09-01, even though it was decided in the same
+  review and drawn in every `SessionsProposal*.dc.html` artboard from the
+  start: a decision made in conversation is not on record until it is
+  written down, and #259 shipped everything else this document said
+  without it. Added above, and implemented the same day it was noticed
+  missing.
