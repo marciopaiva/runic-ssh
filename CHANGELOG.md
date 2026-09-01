@@ -11,6 +11,128 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-09-01
+
+Opens the ground v0.2.1's roadmap named next: SFTP, moving files over the
+connection that is already open. Everything else below shipped in the same
+window and is not held back for a release of its own.
+
+### Added
+
+- **SFTP, as a workspace of its own** (ADR-0041, ADR-0044 through ADR-0049).
+  Reached from the activity rail, third icon, locked shut while synchronised
+  typing is armed the same way Home is.
+
+  - **Source and destination are both free.** Either side is `localhost` or
+    any saved host, dragged in from the same sidebar Sessions uses
+    (ADR-0046). Remote-to-remote is a real path, not local-only with a
+    remote label: two different connections, neither one this machine.
+  - **One source, up to four destinations**, each independently browsable,
+    each filled by its own drag. A drop on an empty slot adds it; a drop on
+    an occupied one replaces it outright, no confirmation (ADR-0045).
+  - **A file sent from the source lands in every occupied, receiving
+    destination at once.** A destination can be spared from a broadcast
+    Send without being removed, and a direct drag onto one specific
+    destination reaches it regardless of that switch (ADR-0047).
+  - **A folder copies recursively**, depth first, one file at a time inside
+    itself, and keeps going past a single file's failure rather than
+    aborting the tree: it finishes and says how many files did not make it,
+    not which ones (ADR-0049).
+  - **Create, rename and delete**, on any pane, source or destination
+    (ADR-0048). A directory deletes with everything inside it; there is no
+    "must be empty" refusal SFTP v3 would have forced otherwise.
+  - **Every name a server sends is checked before it is trusted**, the same
+    instinct host key verification already uses for a different kind of
+    server-supplied value: no path separator, no `.` or `..`, no control
+    character, length capped. A name that fails this is dropped from the
+    listing rather than shown mangled.
+  - **Navigation carries a back stack, no forward**, a breadcrumb, and a
+    shared toolbar with Sessions for the split control and select-all
+    (ADR-0046, ADR-0047).
+
+- **An opt-in internal vault, behind a master password** (ADR-0035). A
+  machine with no OS keychain, a container, a minimal Linux install, WSL,
+  used to mean retyping every password on every restart, with only a
+  for-this-run credential as the alternative. The vault is a second,
+  explicitly chosen store: nothing is written to it until it is turned on,
+  and everything already resolvable through it is checked before it is
+  trusted.
+
+- **Home is a portal of its own**, split out of Sessions (ADR-0029). A card
+  per domain, Sessions and Hosts among them, rather than Sessions carrying
+  the settings and host management screens it never was designed to hold
+  alongside a working terminal.
+
+- **Saved hosts go through one wizard**, for both creating and editing
+  (ADR-0030, ADR-0032 through ADR-0034, ADR-0039). A host's credential is
+  set once, on the wizard's own Access step, and an ordinary Sessions
+  connect that finds none saved is sent to that step directly rather than
+  through a separate recovery screen, closing a path ADR-0034 had
+  deliberately left open when this replaced it.
+
+- **A bastion already open is found and ridden**, closing v0.2.1's own
+  written limitation (#200). A chain opened by Sessions itself is now
+  registered the same way a bastion opened as its own session already was,
+  so a second chain to the same host shares the connection instead of
+  opening another one against the same `MaxSessions`.
+
+### Fixed
+
+- **A shell that exits with no explicit status now shows the closed
+  banner** (#281). `exitStatus: null` meant two different things, never
+  closed and closed with nothing reported, and a plain `exit` on this
+  session's own fixture produces exactly the second. A separate `closed`
+  field replaces the overload.
+- **The vault's remaining commands run off the IPC thread** (#284). Seven
+  command bodies and one shared helper called into the keychain
+  synchronously from async functions; each now goes through the same
+  `spawn_blocking` wrapper `resolve_credential_async` already used.
+- `chacha20` bumped past a version crates.io yanked.
+
+### Security
+
+- **npm dependencies are checked against known advisories** (#92). The
+  Rust tree has been checked daily since v0.2.1; the frontend tree had a
+  committed, frozen lockfile and nothing consulting a vulnerability
+  database against it. `audit.yml` gained a `pnpm audit` job doing what
+  `cargo audit` already does for the other side. Version drift with no
+  advisory attached stays unwatched on purpose: a 16-dependency tree does
+  not yet justify a bot opening one pull request per outdated package.
+- **A credential is no longer collected in a document of its own**
+  (ADR-0039, superseding ADR-0008). The dedicated window this used to open,
+  its own webview, its own script, unreachable from the one rendering a
+  remote host's hostile output, is retired: nothing but an already-obsolete
+  recovery path still opened it. The credential now lives in a plain,
+  uncontrolled field on the wizard's Access step, read once through
+  `FormData` and never bound to application state, which keeps the secret
+  out of the render tree the way `CLAUDE.md` already requires regardless of
+  how many documents there are. What is genuinely narrower: the separate
+  document meant an XSS anywhere else in the frontend could not reach this
+  field even if one existed; that boundary is gone, and nothing since has
+  re-argued the trade. Written into `docs/security-model.md` rather than
+  left implicit.
+
+### Known limitations
+
+- **Two concurrent `sftp_list` calls on one connection were once observed
+  to return a truncated listing** (#252). The frontend site that produced
+  it, a sidebar's own ancestor-tree cache, has since been removed by two
+  unrelated redesigns (ADR-0045, ADR-0046), and the generic mechanism has
+  now been tested two different ways against the real fixture with nothing
+  to show for it. Closed without a confirmed root cause, on the strength of
+  the reachable site being gone; the regression tests stay as a guard if
+  the shape ever resurfaces.
+- **A folder copy that fails partway leaves no cleanup.** A subdirectory
+  already created at the destination, with some or all of its files never
+  sent, stays exactly as far as the walk got when it was cancelled or
+  finished with failures. Disclosed in ADR-0049 rather than found later.
+- **SFTP has no resume.** An interrupted upload or download starts over
+  from nothing the next time, the same as every transfer in this release.
+- Everything v0.2.1 listed that is not named above, or closed by #200
+  above, is still true, including a locked keychain refusing rather than
+  prompting, a credential kept for this run being invisible in the editor,
+  and macOS remaining unopened by anyone.
+
 ## [0.2.1] — 2026-08-26
 
 Finishes what v0.2.0 claimed. Three of the limitations that release wrote down
