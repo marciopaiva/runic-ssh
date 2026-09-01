@@ -168,6 +168,24 @@
       "title": "Access step, the real wizard"
     },
     {
+      "file": "SftpWorkspace.dc.html",
+      "x": 3840,
+      "y": 5400,
+      "w": 1440,
+      "h": 900,
+      "page": "page-2",
+      "title": "SFTP's own workspace, nothing picked yet"
+    },
+    {
+      "file": "SftpFanout.dc.html",
+      "x": 0,
+      "y": 6480,
+      "w": 1440,
+      "h": 900,
+      "page": "page-2",
+      "title": "One source, a grid of destinations"
+    },
+    {
       "file": "MainLight.dc.html",
       "x": 0,
       "y": 0,
