@@ -14,7 +14,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use argon2::Argon2;
 use base64ct::{Base64, Encoding};
@@ -108,16 +108,27 @@ pub enum InternalVaultState {
 /// whichever session has unlocked it, exactly the way [`super::SessionSecrets`]
 /// holds a run's own credentials: in memory, wiped on drop, never written
 /// anywhere but the encrypted file itself.
+///
+/// `unlocked` sits behind its own `Arc` rather than the whole struct sitting
+/// behind Tauri's, so a caller resolving a credential can clone this cheaply
+/// and move the clone into `spawn_blocking`: reading the file and decrypting
+/// an entry are both synchronous, and running them on the async runtime's own
+/// thread is the mistake section 6 already names for the filesystem, applied
+/// here to the same disk read this vault is. Cloning shares the one lock
+/// rather than copying the key underneath it, so nothing about zeroizing it
+/// on drop changes: the key is dropped, and wiped, exactly once, when the
+/// last clone is.
+#[derive(Clone)]
 pub struct InternalVault {
     path: PathBuf,
-    unlocked: Mutex<Option<Zeroizing<[u8; 32]>>>,
+    unlocked: Arc<Mutex<Option<Zeroizing<[u8; 32]>>>>,
 }
 
 impl InternalVault {
     pub fn new(directory: impl Into<PathBuf>) -> Self {
         Self {
             path: directory.into().join(FILE_NAME),
-            unlocked: Mutex::new(None),
+            unlocked: Arc::new(Mutex::new(None)),
         }
     }
 

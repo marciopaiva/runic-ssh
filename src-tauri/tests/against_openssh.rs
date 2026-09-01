@@ -419,3 +419,51 @@ async fn two_hosts_ride_one_real_bastion() {
     first.disconnect().await.expect("the first closes");
     second.disconnect().await.expect("the last closes");
 }
+
+/// #251 reported a direct connection to `runic-test-sshd` sometimes hanging
+/// on "Reaching <host>..." for 30s+, non-deterministically, against a
+/// container confirmed healthy throughout. Forty of these, genuinely
+/// sequential in one process (the report's own shape: "repeated attempts...
+/// same running app process"), all landing well under five seconds, rules
+/// the transport and `Connection::authenticate` themselves out as the
+/// cause: the credential this test hands over never goes near a keychain,
+/// unlike `authenticate_with_saved`, which is where the real cause was
+/// found (`vault::resolve_credential_async`, #251's own fix).
+#[tokio::test]
+#[ignore = "needs the test container; see the module comment"]
+async fn repeated_direct_connections_time_consistently() {
+    let known = trusting(offered_key().await);
+
+    let mut durations = Vec::new();
+    for at in 0..40 {
+        let started = std::time::Instant::now();
+
+        let mut connection = connect(endpoint(), known.clone())
+            .await
+            .unwrap_or_else(|error| panic!("attempt {at} failed to connect: {error:?}"));
+
+        connection
+            .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
+            .await
+            .unwrap_or_else(|error| panic!("attempt {at} failed to authenticate: {error:?}"));
+
+        durations.push(started.elapsed());
+
+        connection
+            .disconnect()
+            .await
+            .unwrap_or_else(|error| panic!("attempt {at} failed to disconnect: {error:?}"));
+    }
+
+    let slowest = durations.iter().max().expect("at least one attempt ran");
+    let median = {
+        let mut sorted = durations.clone();
+        sorted.sort();
+        sorted[sorted.len() / 2]
+    };
+
+    assert!(
+        *slowest < std::time::Duration::from_secs(5),
+        "attempt took {slowest:?} against a median of {median:?}, out of {durations:?}"
+    );
+}
