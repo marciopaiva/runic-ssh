@@ -83,6 +83,12 @@ If the decision is architectural (new dependency, IPC contract change,
 credential handling, capability widening, anything expensive to reverse), write
 an ADR with the `/adr` skill before moving on, and **stop for approval**.
 
+If the decision changes what a screen looks like, a new surface or a visible
+adjustment to an existing one, draw or update it in `design/canvas/` first
+(`design/canvas/README.md`), and present that for review the same way an ADR
+gets presented, before Phase 4. This check is independent of the one above:
+a change too small for an ADR can still need the canvas.
+
 Otherwise state which option you are taking and continue.
 
 ---
