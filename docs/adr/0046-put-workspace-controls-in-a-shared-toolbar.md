@@ -81,6 +81,20 @@ control for SFTP) and may reserve leading content for something specific
 to it; nothing currently occupies that leading slot for either workspace,
 and this document does not commit one to it.
 
+**The split control folds, matching `ShapeControl`.** `SftpSplitControl`
+first moved into the toolbar as the same four always-visible buttons it
+drew inline beside the destination column, since that was what the split
+control had always been. Sitting beside `ShapeControl`, folded to one
+button since ADR-0022, made that a second rule for the same kind of
+question ("how many pieces does this area divide into") in the same bar.
+Confirmed directly: `SftpSplitControl` now folds too, mirroring
+`ShapeControl`'s own structure exactly (a button showing the current
+choice, a popover listing the rest, `Escape` and outside-click both
+close it). ADR-0022 stands as it was reasoned, rather than being
+revisited for the toolbar's own extra width: the fold is now the shared
+answer for "choose one of a small, fixed set of layout options here,"
+independent of whether the bar it sits in happens to be cramped.
+
 **The SFTP sidebar** becomes the same `SessionsSidebar` component Sessions
 already uses. `SftpWorkspaceSidebar`'s own reasoning for a plainer list
 (a host picked to browse "does not mean" a kind icon or a jump mark) is
