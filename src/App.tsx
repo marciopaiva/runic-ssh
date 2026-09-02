@@ -55,7 +55,6 @@ import {
   editorKey,
   findEditor,
   groupNames,
-  invalidFields,
   isInProgress,
   isOverridable,
   markCarried,
@@ -74,11 +73,10 @@ import {
   useSessions,
   withEditor,
   withoutEditor,
-  withStep,
+  wrongHostFields,
 } from './features/sessions';
 import type {
   CarriedOn,
-  DraftField,
   DraftValues,
   EditorAction,
   EditorFailure,
@@ -1239,29 +1237,8 @@ export function App(): JSX.Element {
       /* Named after the host if it was left blank, which is what somebody
          would type if the form insisted. */
       const filled = suggestName(open.values);
-      const problems = invalidFields(filled);
-
-      /* The one field the core refuses that the form cannot check on its own,
-         and the one state it cannot prevent: a host saved before this rule
-         existed, already carrying other sessions and already holding a jump
-         host of its own. The save would be refused, so it is stopped here with
-         the field named rather than sent to be turned down in silence. */
-      const carried =
-        target.kind === 'existing'
-          ? jumpHostChoice(saved, target.sessionId, filled.proxyJump).carried
-          : [];
       const editingId = target.kind === 'existing' ? target.sessionId : null;
-      const port = parsePort(filled.port);
-      /* Same reasoning as `carried`: knowable from the file, not from the
-         draft alone, so `invalidFields` cannot catch it and this stops the
-         save here rather than sending it to be refused in silence. */
-      const duplicate = duplicateOf(saved, editingId, filled.host, port, filled.user, filled.proxyJump);
-
-      const wrong: readonly DraftField[] = [
-        ...problems,
-        ...(carried.length > 0 && filled.proxyJump !== '' ? (['proxyJump'] as const) : []),
-        ...(duplicate !== null ? (['host'] as const) : []),
-      ];
+      const wrong = wrongHostFields(filled, saved, editingId);
 
       if (wrong.length > 0) {
         setEditors((current) =>
@@ -1270,6 +1247,7 @@ export function App(): JSX.Element {
         return;
       }
 
+      const port = parsePort(filled.port);
       if (port === null) return;
 
       const existing = targetSession(target, saved);
@@ -1288,16 +1266,8 @@ export function App(): JSX.Element {
            not exist a moment ago as much as for one that did: `settled` is
            what gives a new host its id, and a caller that wants to act on the
            connection this host now has (ADR-0030) needs that id to exist on
-           the form, not only in the value handed to it.
-
-           `editor.step` travels with it. A wizard's own test is what calls
-           this mid-attempt (`testInWizard` below), and losing the step here
-           would knock the form back to Host the instant the host it is
-           testing gets an id, which is the exact defect this whole component
-           exists to not have. */
-        setEditors((current) =>
-          updateEditor(current, target, (editor) => settled(stored, editor.step)),
-        );
+           the form, not only in the value handed to it. */
+        setEditors((current) => updateEditor(current, target, () => settled(stored)));
 
         /* `homeFocus` still names the old target, and `sameFocus` refuses to
            match a `new` target against an `existing` one on purpose (#96's
@@ -1382,56 +1352,36 @@ export function App(): JSX.Element {
     [forgetHome, connect, editorOpenedFor, testOutcome],
   );
 
-  /* Host to Access is the one transition with something to check: the six
-     fields have to be fillable before there is anything to authenticate.
-     Access itself has nowhere further to advance to. ADR-0034: what
-     follows is a phase `SessionWizard` enters on its own, not a third step,
-     so this is a no-op once already there.
+  /* ADR-0056: the check `wizardNext` used to run before the Host-to-Access
+     step transition existed to gate, now run synchronously from Save
+     itself, on the one screen General, Topology and Access all share. A
+     form that fails this shows its wrong fields instead of `SessionWizard`
+     flipping into an empty proving overlay with nothing to show for it.
 
      `suggestName` runs here too, before the check rather than only at save
      time: an empty name is explicitly allowed ("leave empty to use the
      host"), and checking `open.values` unfilled would refuse a blank name
-     `submitIn` itself would have accepted a moment later. */
-  const wizardNext = useCallback((target: EditorTarget): void => {
+     `submitIn` itself would have accepted a moment later. Returns whether
+     Save may go on to `onTest`/`onSkipTest`. */
+  const hostFieldsValid = useCallback((target: EditorTarget): boolean => {
     const open = findEditor(editorsRef.current, target);
-    if (open === null || open.step !== 1) return;
+    if (open === null) return false;
 
     const filled = suggestName(open.values);
-    const problems = invalidFields(filled);
-    /* Same file-aware check `submitIn` runs before an ordinary save. A
-       duplicate target is knowable the moment host, port and user are all
-       filled in, and the wizard should say so before Access rather than
-       after a test that was always going to be refused underneath it. */
     const editingId = target.kind === 'existing' ? target.sessionId : null;
-    const duplicate = duplicateOf(
-      savedRef.current,
-      editingId,
-      filled.host,
-      parsePort(filled.port),
-      filled.user,
-      filled.proxyJump,
-    );
-    const wrong: readonly DraftField[] = [
-      ...problems,
-      ...(duplicate !== null ? (['host'] as const) : []),
-    ];
+    const wrong = wrongHostFields(filled, savedRef.current, editingId);
 
     if (wrong.length > 0) {
       setEditors((current) =>
         updateEditor(current, target, (editor) => ({ ...editor, values: filled, wrong })),
       );
-      return;
+      return false;
     }
 
     setEditors((current) =>
-      updateEditor(current, target, (editor) => withStep({ ...editor, values: filled }, 2)),
+      updateEditor(current, target, (editor) => ({ ...editor, values: filled })),
     );
-  }, []);
-
-  const wizardBack = useCallback((target: EditorTarget): void => {
-    setEditors((current) =>
-      updateEditor(current, target, (editor) => withStep(editor, (Math.max(1, editor.step - 1) as 1 | 2))),
-    );
+    return true;
   }, []);
 
   const removeIn = useCallback(
@@ -2313,8 +2263,8 @@ export function App(): JSX.Element {
                   detail={
                     open === null || target === null || jump === null ? null : (
                       <SessionWizard
+                        key={editorKey(target)}
                         title={panelTitle}
-                        step={open.step}
                         values={open.values}
                         wrong={open.wrong}
                         discarding={open.discarding}
@@ -2343,8 +2293,7 @@ export function App(): JSX.Element {
                         }}
                         onForget={editingId === null ? null : () => forgetPassword(target)}
                         onDelete={target.kind === 'new' ? null : () => removeIn(target)}
-                        onBack={() => wizardBack(target)}
-                        onNext={() => wizardNext(target)}
+                        onSave={() => hostFieldsValid(target)}
                         onTest={(method) => testInWizard(target, method)}
                         onFinish={() => finishWizard(target)}
                         testSurface={testSurface}

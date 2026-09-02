@@ -42,8 +42,8 @@ escape sequences from a machine the user does not control, so every value
 crossing into the core is validated on the Rust side regardless of what the
 frontend claims to have checked.
 
-A credential is typed into a plain, uncontrolled `<input>` in the wizard's own
-Access step, read once through `FormData` at submit and never bound to a
+A credential is typed into a plain, uncontrolled `<input>` in the host editor's
+own Access column, read once through `FormData` at submit and never bound to a
 React state value, then the form resets. There used to be a second window
 here, a separate document and script a hostile host's output could not reach,
 which is what made typing a password safe when there was nowhere else on
@@ -89,7 +89,8 @@ directory, which is what makes the boundary auditable.
 
 It is two commands, not one, and that is the part worth reading. `connect_session`
 returns **before** authentication, because the credential for the host the user
-clicked is collected on the wizard's own Access step and submitted separately.
+clicked is collected in the host editor's own Access column and submitted
+separately.
 
 1. User picks a saved session in the UI.
 2. `features/sessions` calls `ipc/sessions.connectSession(id)`.
