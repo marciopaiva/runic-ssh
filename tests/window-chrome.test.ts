@@ -119,28 +119,62 @@ describe('window controls', () => {
 
 describe('session tabs', () => {
   it('gives a tab to an open connection', () => {
-    expect(openTabs([live('a', 'connected', 7)], null).map((t) => t.sessionId)).toEqual(['a']);
+    expect(
+      openTabs([live('a', 'connected', 7)], null, new Set(['a'])).map((t) => t.sessionId),
+    ).toEqual(['a']);
   });
 
   it('gives a tab to one still connecting', () => {
     /* The tab is where the failure will be reported. Waiting for the handle
        means a connection that never completes has nowhere to say so. */
-    expect(openTabs([live('a', 'connecting')], null).map((t) => t.sessionId)).toEqual(['a']);
+    expect(
+      openTabs([live('a', 'connecting')], null, new Set(['a'])).map((t) => t.sessionId),
+    ).toEqual(['a']);
   });
 
   it('gives no tab to a host nobody has connected to', () => {
     /* A saved host is a row in the sidebar. A tab that cannot be switched to
        is a lie about what is open. */
-    expect(openTabs([live('a', 'saved'), live('b', 'unreachable')], null)).toEqual([]);
+    expect(openTabs([live('a', 'saved'), live('b', 'unreachable')], null, new Set(['a', 'b']))).toEqual([]);
   });
 
   it('keeps the order the sidebar lists them in', () => {
     const tabs = openTabs(
       [live('a', 'connected', 1), live('b', 'connecting'), live('c', 'connected', 2)],
       null,
+      new Set(['a', 'b', 'c']),
     );
 
     expect(tabs.map((t) => t.sessionId)).toEqual(['a', 'b', 'c']);
+  });
+});
+
+describe('a connection Sessions never asked for (ADR-0053)', () => {
+  /* SFTP shares its handle with Sessions on purpose (one SSH transport,
+     multiplexed channels), but that never meant Sessions should draw a tab
+     for it, or that a shell should open for it at all, since mounting a
+     `TerminalView` for a tab is what actually calls `openTerminal`. */
+
+  it('gives no tab to a connection open only because SFTP is using it', () => {
+    expect(openTabs([live('a', 'connected', 7)], null, new Set())).toEqual([]);
+  });
+
+  it('gives no tab to an SFTP-initiated attempt stopped on a host key either', () => {
+    /* `attentionId` used to bypass every other check. The decision itself
+       renders over the SFTP pane, not a Sessions tab nobody asked for. */
+    expect(openTabs([live('a', 'keyMismatch')], 'a', new Set())).toEqual([]);
+  });
+
+  it('still gives a Sessions-initiated attempt its tab while unresolved', () => {
+    expect(
+      openTabs([live('a', 'keyMismatch')], 'a', new Set(['a'])).map((t) => t.sessionId),
+    ).toEqual(['a']);
+  });
+
+  it('drops the tab once Sessions is done with it, even with the handle still open', () => {
+    /* The other half of the same bug: SFTP is still holding this handle
+       (nothing here closed it), but Sessions no longer wants a tab for it. */
+    expect(openTabs([live('a', 'connected', 7)], null, new Set())).toEqual([]);
   });
 });
 
@@ -152,21 +186,29 @@ describe('the tab a question is waiting in', () => {
      it, and the only place the failure could be shown went with it. */
 
   it('keeps the tab of a session whose attempt failed', () => {
-    expect(openTabs([live('a', 'unreachable')], 'a').map((t) => t.sessionId)).toEqual(['a']);
+    expect(
+      openTabs([live('a', 'unreachable')], 'a', new Set(['a'])).map((t) => t.sessionId),
+    ).toEqual(['a']);
   });
 
   it('keeps the tab of a session waiting on a host key decision', () => {
-    expect(openTabs([live('a', 'keyMismatch')], 'a').map((t) => t.sessionId)).toEqual(['a']);
+    expect(
+      openTabs([live('a', 'keyMismatch')], 'a', new Set(['a'])).map((t) => t.sessionId),
+    ).toEqual(['a']);
   });
 
   it('drops the tab once the attempt is let go', () => {
     /* Dismissing the failure clears the attempt. Without this the tab of a
        host that never connected would stay on the strip for the session. */
-    expect(openTabs([live('a', 'unreachable')], null)).toEqual([]);
+    expect(openTabs([live('a', 'unreachable')], null, new Set(['a']))).toEqual([]);
   });
 
   it('holds the tab of the session under attention and no other', () => {
-    const tabs = openTabs([live('a', 'unreachable'), live('b', 'unreachable')], 'b');
+    const tabs = openTabs(
+      [live('a', 'unreachable'), live('b', 'unreachable')],
+      'b',
+      new Set(['a', 'b']),
+    );
 
     expect(tabs.map((t) => t.sessionId)).toEqual(['b']);
   });
@@ -175,7 +217,7 @@ describe('the tab a question is waiting in', () => {
     /* The attempt names a session that may also be connected — retrying from
        the failure surface is exactly that. Two tabs for one session would
        break every lookup that assumes the id is unique on the strip. */
-    const tabs = openTabs([live('a', 'connected', 3)], 'a');
+    const tabs = openTabs([live('a', 'connected', 3)], 'a', new Set(['a']));
 
     expect(tabs.map((t) => t.sessionId)).toEqual(['a']);
   });
@@ -184,7 +226,7 @@ describe('the tab a question is waiting in', () => {
     /* The marker is what tells a background tab that something is waiting in
        it, now that no backdrop does. A tab held open by an attempt but drawn
        as `connected` would say the opposite of what is true. */
-    expect(openTabs([live('a', 'unreachable')], 'a')[0]?.kind).toBe('unreachable');
+    expect(openTabs([live('a', 'unreachable')], 'a', new Set(['a']))[0]?.kind).toBe('unreachable');
   });
 });
 
