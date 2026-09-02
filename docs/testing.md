@@ -643,36 +643,42 @@ control (`sftp.split.into`), mirroring the shape control Sessions already
 has. Lowering the count never hides a slot that already has a host in it,
 only how many empty drop targets are pre-drawn.
 
-**Navigating a pane**: a row click enters a directory; the `..` row, the Up
-chevron, and a clickable breadcrumb segment all go up, three ways to do the
-one thing, all worth trying at least once. Back is one level of history, no
-forward, so a wrong turn is undone by Back rather than retraced by hand.
+**Navigating a pane** (ADR-0050, 2026-09-03): a *double*-click on a
+directory row enters it, not a plain click, matching every other file
+manager once a plain click's job became selecting instead; the `..` row,
+the Up chevron, and a clickable breadcrumb segment all still go up on a
+single click, three ways to do the one thing, all worth trying at least
+once. Back is one level of history, no forward, so a wrong turn is undone
+by Back rather than retraced by hand. Enter opens a directory outright,
+keyboard-only, since there is no double-press to ask for on a keyboard.
 
 | Do this | Expect |
 | --- | --- |
-| Click a folder row | enters it, breadcrumb grows one segment |
+| Double-click a folder row | enters it, breadcrumb grows one segment |
 | Click a breadcrumb segment | jumps straight there |
 | Click `..`, or the Up chevron | goes to the parent, same destination either way |
 | Click Back after entering three directories | returns one level, not to the root |
 | Navigate into a directory you lack permission for | the whole listing is replaced by one red line, not a blank pane |
+| Select a folder row, press Enter | opens it, same as a double-click |
 
-**Selecting and sending** live only on the source pane; a destination pane
-has no checkbox and cannot be dragged from at all.
+**Selecting** (ADR-0050) works the same way in every pane now, source or
+destination, a file or a directory alike; there is no checkbox anywhere.
+**Sending and dragging out** still live only on the source pane: a
+destination has its own selection, worth something once #292 gives it
+rename/delete icons, but nothing to send it to and nothing here to drag it
+from.
 
 | Do this | Expect |
 | --- | --- |
-| Click a file row | selects only it |
-| `Ctrl`/`Cmd`-click a file | toggles it without touching the rest |
+| Click a row, file or directory, in any pane | selects only it, replacing whatever was selected there |
+| `Ctrl`/`Cmd`-click a row | toggles it without touching the rest |
 | Shift-click | selects the range between the last plain click and this one |
-| Click a directory row, plain | opens it, exactly like before |
-| `Ctrl`/`Cmd`-click or Shift-click a directory | selects it instead of opening it |
-| Tick a directory's own checkbox | selects it without navigating in, the one way to do that with no modifier key |
-| `Ctrl`/`Cmd`-A with focus in the source listing | selects every row currently listed |
-| `Ctrl`/`Cmd`-A with focus in a destination pane | nothing, by design: the shortcut is not wired there |
-| Select two files, press Send | one transfer per file, to every occupied and receiving destination at once |
-| Select a folder, press Send | a recursive copy, sequential inside itself, to every occupied and receiving destination |
+| `Ctrl`/`Cmd`-A with focus in any pane's listing | selects every row currently listed, in that pane |
+| Select two files in the source pane, press Send | one transfer per file, to every occupied and receiving destination at once |
+| Select a folder in the source pane, press Send | a recursive copy, sequential inside itself, to every occupied and receiving destination |
 | Drag a file straight onto one destination pane | reaches only that one, **even if its receive toggle currently spares it from Send** |
-| Navigate away and back in the source pane | the selection from before is gone |
+| Try to drag a row out of a destination pane | nothing to pick up: dragging out is still source-only |
+| Navigate away and back in any pane | the selection from before is gone, in that pane |
 
 That last drag row and the receive toggle disagreeing on purpose is worth
 seeing once rather than taking on faith: spare a destination, then drag a

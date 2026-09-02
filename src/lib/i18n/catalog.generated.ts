@@ -238,7 +238,6 @@ export const SOURCE_CATALOG = {
   "sftp.receiving.off": "Spared. Press to include it again",
   "sftp.receiving.on": "This destination receives what is sent. Press to spare it",
   "sftp.selectAllDestinations": "Select every destination",
-  "sftp.selectFile": "Select {name}",
   "sftp.selected": "{count} selected",
   "sftp.send": "Send",
   "sftp.sendToDestinations": "Send to every destination",
