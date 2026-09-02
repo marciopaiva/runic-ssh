@@ -196,6 +196,16 @@ removed `Never` tier if a real request for a permanently-unstored credential
 surfaces after this ships; this document did not find that need hypothetical
 enough to keep the option for, but it also did not find it impossible.
 
+**Amended by ADR-0056 (2026-09-02).** The clause above, "Host and Access
+remain two real, navigable steps," no longer holds: Host and Access
+render as two columns on one screen, not as steps to navigate between.
+Reaching Access, the trigger this document tied to a step transition, is
+what ADR-0056 restates for a screen with no such transition. Nothing
+else in this document changes: the wizard is still the only path to a
+credential, there is still no separate window, and ADR-0036's
+skip-when-unchanged rule still governs whether reopening a host retests
+it.
+
 ---
 
 Supersedes ADR-0030's split between a wizard for a new host and a plain form
