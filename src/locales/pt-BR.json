@@ -232,7 +232,6 @@
   "sftp.receiving.off": "Poupado. Clique para incluí-lo novamente",
   "sftp.receiving.on": "Este destino recebe o que é enviado. Clique para poupá-lo",
   "sftp.selectAllDestinations": "Selecionar todos os destinos",
-  "sftp.selectFile": "Selecionar {name}",
   "sftp.selected": "{count} selecionado(s)",
   "sftp.send": "Enviar",
   "sftp.sendToDestinations": "Enviar para todos os destinos",

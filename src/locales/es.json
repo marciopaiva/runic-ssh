@@ -232,7 +232,6 @@
   "sftp.receiving.off": "Excluido. Pulse para incluirlo de nuevo",
   "sftp.receiving.on": "Este destino recibe lo que se envía. Pulse para excluirlo",
   "sftp.selectAllDestinations": "Seleccionar todos los destinos",
-  "sftp.selectFile": "Seleccionar {name}",
   "sftp.selected": "{count} seleccionado(s)",
   "sftp.send": "Enviar",
   "sftp.sendToDestinations": "Enviar a todos los destinos",

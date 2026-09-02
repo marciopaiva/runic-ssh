@@ -117,16 +117,12 @@ interface RowProps {
   readonly size: number;
   readonly modifiedUnixSecs: number | null;
   readonly onOpen: () => void;
-  /** `null` on a destination pane, and on a directory: only a source
-   * pane's own files are selectable for sending (ADR-0047). */
+  /** `null` for the `..` row and a row mid-creation, the two that are
+   * never selectable (ADR-0050: every other row, in every pane, is). */
   readonly selected: boolean | null;
-  /** Clicking or activating the row itself, for a selectable file. `null`
-   * wherever `selected` is: a directory still only ever opens. */
+  /** Clicking or activating the row itself. `null` for the `..` row and a
+   * row mid-creation, the two that are never selectable. */
   readonly onSelectClick: ((modifiers: SelectModifiers) => void) | null;
-  /** The checkbox's own plain toggle, independent of the row click above:
-   * a precise tool that never touches the shift-range anchor. */
-  readonly onToggleSelect: (() => void) | null;
-  readonly selectLabel: string;
   /** Picking this row up to drop it on a destination pane. `null` wherever
    * `onSelectClick` is: only a selectable file is draggable at all. */
   readonly onDragStart: (() => void) | null;
@@ -153,8 +149,6 @@ function Row({
   onOpen,
   selected,
   onSelectClick,
-  onToggleSelect,
-  selectLabel,
   onDragStart,
   onDragEnd,
   editing,
@@ -163,13 +157,26 @@ function Row({
   const clickable = editing === null && (isDir || onSelectClick !== null);
   const draggable = editing === null && onDragStart !== null;
 
-  /* A directory is now selectable too (ADR-0049), which a plain click on
-     it must not quietly stop opening: Shift or Ctrl/Cmd means "change the
-     selection," the same as it already does on a file, and a plain click
-     on a directory keeps doing what it has always done, since navigating
-     is the far more common reason to click one. The checkbox stays the
-     precise, modifier-free way to select a directory without leaving it. */
-  const activate = (modifiers: SelectModifiers): void => {
+  /* ADR-0050: a plain click always selects now, the way every other file
+     manager already treats one, a directory included; the `..` row and a
+     row mid-creation have no `onSelectClick` at all and just open, since
+     there is nothing of theirs to select. Opening a directory itself is a
+     double-click's job (below) or, on a keyboard with no double-press
+     convention to lean on, an unmodified Enter. */
+  const selectOrOpen = (modifiers: SelectModifiers): void => {
+    if (onSelectClick === null) {
+      onOpen();
+      return;
+    }
+    onSelectClick(modifiers);
+  };
+
+  /* What Enter/Space did before this ADR, kept for the keyboard alone:
+     an unmodified activation on a directory opens it outright, since a
+     keyboard has no second gesture to ask for that the way a mouse's
+     double-click does. Shift/Ctrl+Enter still changes the selection
+     instead, matching a modified click. */
+  const activateByKeyboard = (modifiers: SelectModifiers): void => {
     if (isDir && (onSelectClick === null || (!modifiers.shift && !modifiers.additive))) {
       onOpen();
       return;
@@ -200,15 +207,16 @@ function Row({
       onDragEnd={draggable ? () => onDragEnd?.() : undefined}
       onClick={
         clickable
-          ? (event) => activate({ shift: event.shiftKey, additive: event.ctrlKey || event.metaKey })
+          ? (event) => selectOrOpen({ shift: event.shiftKey, additive: event.ctrlKey || event.metaKey })
           : undefined
       }
+      onDoubleClick={clickable && isDir ? () => onOpen() : undefined}
       onKeyDown={
         clickable
           ? (event) => {
               if (event.key !== 'Enter' && event.key !== ' ') return;
               event.preventDefault();
-              activate({ shift: event.shiftKey, additive: event.ctrlKey || event.metaKey });
+              activateByKeyboard({ shift: event.shiftKey, additive: event.ctrlKey || event.metaKey });
             }
           : undefined
       }
@@ -271,19 +279,6 @@ function Row({
       </span>
       <span className="text-ink-faint w-[96px] shrink-0 text-right font-mono text-[11px]">
         {formatModified(modifiedUnixSecs)}
-      </span>
-      <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-        {onToggleSelect !== null && (
-          <input
-            type="checkbox"
-            checked={selected === true}
-            onChange={onToggleSelect}
-            onClick={(event) => event.stopPropagation()}
-            aria-label={selectLabel}
-            title={selectLabel}
-            className="accent-accent h-3.5 w-3.5"
-          />
-        )}
       </span>
     </div>
   );
@@ -446,7 +441,6 @@ function Header({ i18n }: { readonly i18n: Translator }): JSX.Element {
       <span className="flex-1">{i18n.t('sftp.column.name')}</span>
       <span className="w-[74px] text-right">{i18n.t('sftp.column.size')}</span>
       <span className="w-[96px] text-right">{i18n.t('sftp.column.modified')}</span>
-      <span className="w-4 shrink-0" />
     </div>
   );
 }
@@ -476,9 +470,10 @@ export function SftpPane({
 }: SftpPaneProps): JSX.Element {
   const i18n = useTranslator();
   const pane = usePane(endpoint);
-  /* Which of this pane's own files are checked, source only (`onSend` is
-     `null` on a destination). Reset on every navigation: a selection made
-     in one directory has nothing to say about the next one. */
+  /* Which of this pane's own rows are selected, every pane alike (ADR-0050:
+     a destination's own selection is real now, not only the source's).
+     Reset on every navigation: a selection made in one directory has
+     nothing to say about the next one. */
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   /* The row a shift-click extends a range from: whichever one was last
      plainly clicked. Cleared alongside `selected`, and never moved by a
@@ -693,23 +688,20 @@ export function SftpPane({
       {/* `pr-2` is dead space, not a column: an overlay scrollbar (WebKit's
           own on Linux) draws on top of the content rather than reserving
           its own width, and with none to spare here it sat directly over
-          the last column's own checkbox, which a click then landed on
+          the last row's own trailing edge, which a click then landed on
           instead of reaching. `SessionSurface.tsx` solves the same failure
           with a cancelled margin, since it wants the scrollbar flush with
           the window's edge; nothing here needs that, only somewhere empty
-          for the thumb to sit that isn't the checkbox underneath it. */}
+          for the thumb to sit. */}
       <div
         className="min-h-0 flex-1 overflow-y-auto py-1 pr-2"
-        onKeyDown={
-          onSend === null
-            ? undefined
-            : (event) => {
-                if ((event.ctrlKey || event.metaKey) && event.key === 'a') {
-                  event.preventDefault();
-                  setSelected(new Set(pane.entries.map((entry) => entry.path)));
-                }
-              }
-        }
+        onKeyDown={(event) => {
+          /* ADR-0050: every pane's own selection now, not only the source's. */
+          if ((event.ctrlKey || event.metaKey) && event.key === 'a') {
+            event.preventDefault();
+            setSelected(new Set(pane.entries.map((entry) => entry.path)));
+          }
+        }}
       >
         <Header i18n={i18n} />
         {pane.error !== null && (
@@ -724,8 +716,6 @@ export function SftpPane({
             onOpen={() => pane.enter(pane.parent)}
             selected={null}
             onSelectClick={null}
-            onToggleSelect={null}
-            selectLabel=""
             onDragStart={null}
             onDragEnd={null}
             editing={null}
@@ -741,8 +731,6 @@ export function SftpPane({
             onOpen={() => undefined}
             selected={null}
             onSelectClick={null}
-            onToggleSelect={null}
-            selectLabel=""
             onDragStart={null}
             onDragEnd={null}
             editing={{
@@ -766,10 +754,8 @@ export function SftpPane({
               size={entry.size}
               modifiedUnixSecs={entry.modifiedUnixSecs}
               onOpen={() => open(entry)}
-              selected={onSend === null ? null : selected.has(entry.path)}
-              onSelectClick={onSend === null ? null : (modifiers) => selectFile(entry, modifiers)}
-              onToggleSelect={onSend === null ? null : () => toggleSelect(entry.path)}
-              selectLabel={i18n.t('sftp.selectFile', { name: entry.name })}
+              selected={selected.has(entry.path)}
+              onSelectClick={(modifiers) => selectFile(entry, modifiers)}
               onDragStart={
                 onSend === null || onDragEntriesStart === null ? null : () => handleDragStart(entry)
               }
