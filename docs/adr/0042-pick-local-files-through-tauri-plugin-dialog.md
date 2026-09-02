@@ -1,6 +1,6 @@
 # ADR-0042: Pick local files through `tauri-plugin-dialog`
 
-* **Status**: Accepted
+* **Status**: Superseded by ADR-0050
 * **Date**: 2026-08-31
 
 ## Context

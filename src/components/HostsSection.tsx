@@ -4,6 +4,8 @@ import { groupSessions } from '../features/sessions/state';
 import type { LiveSession } from '../features/sessions/state';
 import { useTranslator } from '../features/settings';
 
+import { HostKindIcon } from './HostKindIcon';
+
 interface HostsSectionProps {
   readonly sessions: readonly LiveSession[];
   /** The host on the form, or `null` when nothing is open here. */
@@ -96,14 +98,21 @@ export function HostsSection({
                             type="button"
                             onClick={() => onSelect(session.id)}
                             aria-current={selected ? 'true' : undefined}
-                            className={`flex h-7 w-full min-w-0 items-center gap-2.5 rounded px-2 text-left ${
+                            className={`flex w-full min-w-0 flex-col gap-0.5 rounded px-2 py-1 text-left ${
                               selected
                                 ? 'bg-surface-raised text-ink shadow-[inset_2px_0_0_var(--color-accent)]'
                                 : 'text-ink-secondary hover:bg-surface-raised/50'
                             }`}
                           >
-                            <span className="truncate text-[12.5px]">{session.name}</span>
-                            <span className="text-ink-faint ml-auto shrink-0 font-mono text-[10.5px]">
+                            {/* Name and address on their own lines, `HostKindIcon`
+                                (ADR-0031) ahead of the name: the same template
+                                `SessionsSidebar.tsx` already closed, reused rather
+                                than a second, plainer row invented for this list. */}
+                            <span className="flex min-w-0 items-center gap-1.5">
+                              <HostKindIcon kind={session.kind} className="text-ink-faint h-3 w-3 shrink-0" />
+                              <span className="truncate text-[12.5px]">{session.name}</span>
+                            </span>
+                            <span className="text-ink-faint truncate pl-[18px] font-mono text-[10.5px]">
                               {session.host}
                             </span>
                           </button>

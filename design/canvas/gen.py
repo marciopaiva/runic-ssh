@@ -109,6 +109,13 @@ ICON = dict(
     # `FolderIcon`/`ic('sftp', ...)` already draw, with a plus in place of
     # `sftp`'s own receiving-arrow, for the nav bar's "new folder" action.
     newfolder='<path d="M4 6.5h6l1.6 2H20v9.5H4z"></path><path d="M12 12v4M10 14h4"></path>',
+    # Exploratory (`build_sftp_selection_proposal`): the two icon-bar
+    # commands a Windows 11-style selection offers next to the count,
+    # standing in for what today is right-click-only (`menu_item`'s own
+    # "Rename"/"Delete").
+    pencil='<path d="M4 20l1-4.2L15.8 5l3.2 3.2L8.2 19H4z"></path><path d="M13.8 6.7l3.2 3.2"></path>',
+    trash='<path d="M5 7h14"></path><path d="M9.5 7V5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v2"></path>'
+          '<path d="M7 7l1 12.5a1.5 1.5 0 0 0 1.5 1.4h5a1.5 1.5 0 0 0 1.5-1.4L17 7"></path><path d="M10 11v6M14 11v6"></path>',
 )
 
 def ic(name, size=14, color=None, cls="ic", extra=""):
@@ -871,7 +878,7 @@ def toolbar_row(right_html="", left_html=""):
     {right_html}
   </div>"""
 
-def nav_bar(segments, can_back=False, new_folder=False):
+def nav_bar(segments, can_back=False, new_folder=False, selected_count=None):
     """Back, up, a breadcrumb, refresh: what `SftpPane.tsx` does not have
     today, drawing its path as inert text and asking for a click on a row
     or the `..` entry to move at all. `segments` is the path split on `/`;
@@ -884,7 +891,18 @@ def nav_bar(segments, can_back=False, new_folder=False):
     convention and a visible button is the thing somebody finds without
     being told the convention" reasoning `SessionMenu.tsx`'s own doc
     comment already gives for pairing a menu with a button. Off by default
-    so every artboard already drawing a plain `nav_bar()` is unaffected."""
+    so every artboard already drawing a plain `nav_bar()` is unaffected.
+
+    `selected_count`, exploratory (`build_sftp_selection_proposal`): rename
+    and delete drawn next to new folder rather than in a separate bar of
+    their own, confirmed directly against that artboard's first cut, which
+    put them in `selection_bar()` at the bottom instead. `None` (every
+    other caller) omits both, unchanged. Given a count, both stay in the
+    bar rather than appearing and disappearing as the selection changes
+    (`new_folder`/`refresh` never do either): rename lights only at
+    exactly one, delete at one or more, dim otherwise rather than gone,
+    the same "always there, not always able" `canGoBack`/`canGoUp` already
+    draw for the arrows beside them."""
     back_color = T['muted'] if can_back else T['off']
     crumbs = [
         f'<span class="mono" style="font-size: 11px; color: {T["ink2"] if i == len(segments) - 1 else T["faint"]};">{seg}</span>'
@@ -894,13 +912,23 @@ def nav_bar(segments, can_back=False, new_folder=False):
     newfolder_html = (
         f'<span style="color: {T["muted"]}; display: flex;">{ic("newfolder", 13)}</span>' if new_folder else ''
     )
+    edit_html = ''
+    if selected_count is not None:
+        rename_on = selected_count == 1
+        delete_on = selected_count >= 1
+        rename_bg = f'background: {T["raised"]};' if rename_on else ''
+        edit_html = (
+            f'<span style="display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 4px; {rename_bg} color: {T["ink2"] if rename_on else T["off"]};">{ic("pencil", 12)}</span>'
+            f'<span style="display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; color: {T["dangertext"] if delete_on else T["off"]};">{ic("trash", 12)}</span>'
+        )
     return (f'<div style="height: 24px; flex: none; display: flex; align-items: center; gap: 7px; padding: 0 8px;'
             f' background: {T["chrome"]}; border-bottom: 1px solid {T["line"]};">'
             f'<span style="color: {back_color}; display: flex;">{ic("chev", 13, extra=" transform: rotate(180deg);")}</span>'
             f'<span style="color: {T["muted"]}; display: flex;">{ic("chev", 13, extra=" transform: rotate(-90deg);")}</span>'
             f'<div style="flex: 1; min-width: 0; display: flex; align-items: center; gap: 3px; overflow: hidden; white-space: nowrap;">{crumb_html}</div>'
             f'{newfolder_html}'
-            f'<span style="color: {T["muted"]}; display: flex;">{ic("refresh", 12)}</span></div>')
+            f'<span style="color: {T["muted"]}; display: flex;">{ic("refresh", 12)}</span>'
+            f'{edit_html}</div>')
 
 def build_sftp_proposal():
     def crow(name, dim=False):
@@ -1465,6 +1493,217 @@ def build_sftp_folder_copy():
 """
     write("SftpFolderCopy.dc.html", HEAD + page_html + FOOT)
 
+def build_sftp_selection_proposal():
+    """Exploratory (2026-09-01): the maintainer's own read of every SFTP
+    artboard drawn so far is that a row's selection has never looked like a
+    file manager's own. Two changes, proposed together because the second
+    only makes sense once the first is true:
+
+    Today's `Row` (`SftpPane.tsx`) opens a directory on a plain click and
+    only lets Shift/Ctrl change what is selected; a checkbox is the other,
+    separate way in. This proposes what Explorer and Finder both already
+    do: a plain click always selects (replacing the selection), Shift
+    extends a range, Ctrl/Cmd toggles one row without touching the rest,
+    and it is a *double*-click that opens a directory. The checkbox goes
+    away entirely, not because it did anything wrong, but because
+    Ctrl-click already does exactly what its own "toggle without touching
+    the anchor" doc comment describes, once the anchor a checkbox click
+    itself never moved is no longer the thing protecting a plain click's
+    old meaning.
+
+    With that in place, a destination pane gets a selection worth drawing
+    too, not just the source: today `onSelectClick` is `null` there
+    because nothing a destination selects can be sent anywhere. Rename and
+    delete are not about sending, though, and today they are reachable in
+    every pane only by right-clicking one row at a time. The icon pair
+    (pencil, trash) is the visible, hoverable way in `menu_item`'s
+    "Rename"/"Delete" already describe, present in every pane, rename
+    dimmed unless the count is exactly one, the same rule the context menu
+    already enforces by only ever showing "Rename" for a single target.
+    Drawn in `nav_bar()` next to new folder, not in `selection_bar()` at
+    the bottom: confirmed directly against this artboard's first cut,
+    which put them there instead, since new folder, rename and delete are
+    the same kind of thing (a file-management action, always present in
+    the bar, sometimes unable to run) while `selection_bar()` stays what it
+    already was, the answer to "what happens to what I checked."
+
+    Two panes drawn deliberately in different selection states rather than
+    the same one twice: the source has three rows checked, one of them a
+    directory (`logs`, selectable since ADR-0049), which is exactly the
+    state that disables the pencil; the destination has exactly one, which
+    is exactly the state that lights it. Nothing here removes the context
+    menu drawn in `SftpFileOps.dc.html`; this is a second way to the same
+    two actions, not a replacement for the first.
+
+    Revised the same day, against the maintainer's own read of this
+    artboard: a first pass tried folding the identity row and `nav_bar()`
+    into one bar, and lost the round trip. Merged, the breadcrumb had to
+    share its row with back, up, new folder, refresh and whatever slot
+    icons a destination carries, which is exactly the row a long remote
+    path needs the most width in. The three bars `SftpPane.tsx` already
+    draws stay three: `pane_header()` (label, identity, and now the
+    receiving toggle and clear-slot moved onto it) above `nav_bar()` (back,
+    up, breadcrumb, new folder, refresh, and now rename/delete), above
+    `selection_bar()` whenever something is checked. The one real change
+    to the identity row is what leaves it: the upload-from-dialog icon
+    (ADR-0042) is gone, confirmed directly that picking a file through a
+    native dialog stopped pulling its own weight once a source pane's drag
+    and the checkbox-free selection above cover the same ground."""
+    def crow(name, dim=False, is_dir=False, selected=False):
+        if is_dir:
+            i = f'<svg class="ic" viewBox="0 0 24 24" style="width: 12px; height: 12px; color: {T["faint"]};" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M4 6.5h6l1.6 2H20v9.5H4z"></path></svg>'
+        else:
+            i = ic("sftp", 12, T['faint']) if dim else f'<svg class="ic" viewBox="0 0 24 24" style="width: 12px; height: 12px; color: {T["faint"]};"><path d="M6 3h8l4 4v14H6z"></path><path d="M14 3v4h4"></path></svg>'
+        bg = f'background: {T["accentsoft"]};' if selected else ''
+        return (f'<div style="display: flex; align-items: center; gap: 8px; padding: 3px 8px; {bg}">{i}'
+                f'<span class="mono" style="font-size: 11px; color: {T["ink2"]};">{name}</span></div>')
+
+    def selection_bar(count, show_send):
+        """Just the count and what to do with it now: rename and delete
+        moved up into `nav_bar()`, next to new folder, confirmed directly
+        over this bar's first cut, which carried them itself."""
+        send = (
+            f'<span style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: {T["base"]};'
+            f' background: {T["accent"]}; border-radius: 6px; padding: 6px 14px;">Send'
+            f'<svg viewBox="0 0 24 24" style="width: 12px; height: 12px;" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></span>'
+            if show_send else ''
+        )
+        return (f'<div style="flex: none; display: flex; align-items: center; gap: 10px; padding: 7px 10px;'
+                f' border-top: 1px solid {T["line"]}; background: {T["panel"]};">'
+                f'<span class="mono" style="font-size: 11px; color: {T["muted"]};">{count} selected</span>'
+                f'<div style="flex: 1;"></div>'
+                f'<span style="font-size: 11.5px; color: {T["faint"]};">Clear</span>{send}</div>')
+
+    def pane_header(label, who, receiving=None, clearable=False):
+        """Identity and slot management, same bar the shipped tree already
+        draws (`SftpPane.tsx`'s own header) minus the upload-from-dialog
+        icon: confirmed directly that a fourth bar sharing space with the
+        breadcrumb (a `unified_pane_bar()` this session tried first)
+        squeezed the one thing a pane's own path most needs, room. Three
+        bars stays: this one, `nav_bar()` right below it with the
+        breadcrumb to itself, and `selection_bar()` whenever something is
+        checked."""
+        trailing = ''
+        if receiving is not None:
+            color = T['warn'] if receiving else T['faint']
+            trailing += f'<span style="display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; color: {color};">{ic("broadcast", 13)}</span>'
+        if clearable:
+            trailing += f'<span style="display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; color: {T["faint"]};">{ic("close", 11)}</span>'
+        return (f'<div style="height: 24px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 10px;'
+                f' background: {T["chrome"]}; border-bottom: 1px solid {T["line"]};">'
+                f'<span style="font-size: 9px; font-weight: 700; letter-spacing: 0.1em; color: {T["faint"]};">{label}</span>'
+                f'<span class="mono" style="font-size: 10.5px; color: {T["muted"]};">{who}</span>'
+                f'<div style="flex: 1;"></div>{trailing}</div>')
+
+    source_rows = (
+        crow("assets", is_dir=True)
+        + crow("index.html", selected=True)
+        + crow("logs", is_dir=True, selected=True)
+        + crow("app.2f9c.js", selected=True)
+    )
+    source = (f'<div style="display: flex; flex-direction: column; overflow: hidden; border: 1px solid {T["line"]}; border-radius: 6px;">'
+              f'{pane_header("SOURCE", "deploy@10.4.1.20")}{nav_bar(["/", "var", "www"], True, new_folder=True, selected_count=3)}'
+              f'<div style="flex: 1; padding: 4px 0; overflow: hidden;">{source_rows}</div>'
+              f'{selection_bar(3, show_send=True)}</div>')
+
+    d1_rows = crow("index.html", selected=True) + crow("assets", is_dir=True)
+    d1 = (f'<div style="display: flex; flex-direction: column; overflow: hidden; border: 1px solid {T["line"]}; border-radius: 6px;">'
+          f'{pane_header("DESTINATION", "deploy@10.4.1.21", receiving=True, clearable=True)}{nav_bar(["/", "var", "www"], False, new_folder=True, selected_count=1)}'
+          f'<div style="flex: 1; padding: 4px 0; overflow: hidden;">{d1_rows}</div>'
+          f'{selection_bar(1, show_send=False)}</div>')
+    d2 = (f'<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;'
+          f' border: 1.5px dashed {T["line2"]}; border-radius: 6px;">'
+          f'{ic("sftp", 22, T["off"])}<span style="font-size: 11px; color: {T["faint"]};">Drop a host here</span></div>')
+
+    body = f"""      <div style="flex: 1; min-height: 0; display: flex; gap: 10px; padding: 12px;">
+        <div style="width: 50%;">{source}</div>
+        <div style="width: 50%; display: grid; grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 8px;">{d1}{d2}</div>
+      </div>"""
+
+    sidebar = sessions_sidebar(active=None, states={"web-01": "ok"})
+    st = status(stat_text("3 selected, 1 folder", T['faint'], mono=False), stat_text("", T['muted']))
+
+    page_html = f"""
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{plain_titlebar()}
+{toolbar_row(right_html=select_all_button(1) + split_control(active=2))}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{home_rail(workspace="sftp", sftp_badge="2")}
+{sidebar}
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: {T['base']};">
+{body}
+    </div>
+  </div>
+{st}
+</div>
+"""
+    write("SftpSelectionProposal.dc.html", HEAD + page_html + FOOT)
+
+def build_sftp_delete_confirm_proposal():
+    """Exploratory (2026-09-01), the other half of `build_sftp_selection_
+    proposal`'s ask: deleting over SFTP has no trash either end, unlike the
+    Recycle Bin Explorer's own Delete key answers to, so a mistaken multi
+    or folder delete here has no undo at all. Today `menuItemsFor`'s delete
+    calls `pane.removeEntries` the moment it is clicked; this asks a
+    question first, once, no matter which of the three ways (icon, menu,
+    the Delete key this proposal's sibling artboard also adds) triggered
+    it, shaped like `HostKeyChanged.dc.html`'s own danger-tinted card
+    rather than invented fresh.
+
+    The body keeps `menuItemsFor`'s own reasoning for what a detail line
+    says (`GroupMenu.tsx`'s doc comment: the count belongs on the control
+    that does the thing), just moved from a line under a menu row to the
+    body of a screen somebody has to read before confirming, since a
+    destructive action with no undo deserves the heavier of the two
+    treatments `PasteConfirm.dc.html` and this file's own `menu_item`
+    already split between them."""
+    def line(name, is_dir=False):
+        i = (f'<svg class="ic" viewBox="0 0 24 24" style="width: 12px; height: 12px; color: {T["faint"]};" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M4 6.5h6l1.6 2H20v9.5H4z"></path></svg>'
+             if is_dir else
+             f'<svg class="ic" viewBox="0 0 24 24" style="width: 12px; height: 12px; color: {T["faint"]};"><path d="M6 3h8l4 4v14H6z"></path><path d="M14 3v4h4"></path></svg>')
+        suffix = ' <span style="color: ' + T['faint'] + ';">(folder)</span>' if is_dir else ''
+        return (f'<div style="display: flex; align-items: center; gap: 8px; padding: 3px 0;">{i}'
+                f'<span class="mono" style="font-size: 12px; color: {T["ink2"]};">{name}{suffix}</span></div>')
+
+    card = f"""        <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 26px;">
+          <div style="width: 480px; background: {T['overlay']}; border: 1px solid {T['danger']}; border-radius: 10px; overflow: hidden;">
+            <div style="display: flex; align-items: center; gap: 11px; padding: 16px 22px; background: {T['dangersoft']}; border-bottom: 1px solid {T['danger']};">
+              {ic('trash', 17, T['dangertext'])}
+              <span style="font-size: 15px; font-weight: 700; color: {T['dangertext']};">Delete 3 items?</span>
+            </div>
+            <div style="padding: 20px 22px;">
+              <div style="font-size: 12.5px; color: {T['ink2']}; line-height: 1.6;">This can't be undone. One of them is a folder: deleting it removes everything inside it.</div>
+              <div style="margin-top: 14px; background: {T['terminal']}; border: 1px solid {T['line']}; border-radius: 7px; padding: 10px 14px;">
+                {line("index.html")}{line("logs", is_dir=True)}{line("app.2f9c.js")}
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px; padding: 15px 22px; border-top: 1px solid {T['line']}; background: {T['base']};">
+              <div style="flex: 1;"></div>
+              <span style="font-size: 12.5px; color: {T['muted']}; border: 1px solid {T['line']}; border-radius: 6px; padding: 8px 18px;">Cancel</span>
+              <span style="font-size: 12.5px; font-weight: 600; color: {T['dangersoft']}; background: {T['danger']}; border-radius: 6px; padding: 8px 20px;">Delete</span>
+            </div>
+          </div>
+        </div>"""
+
+    sidebar = sessions_sidebar(active=None, states={"web-01": "ok"})
+    st = status(stat_text("3 selected, 1 folder", T['faint'], mono=False), stat_text("", T['muted']))
+
+    page_html = f"""
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{plain_titlebar()}
+{toolbar_row(right_html=select_all_button(1) + split_control(active=2))}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{home_rail(workspace="sftp", sftp_badge="2")}
+{sidebar}
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: {T['base']};">
+{card}
+    </div>
+  </div>
+{st}
+</div>
+"""
+    write("SftpDeleteConfirmProposal.dc.html", HEAD + page_html + FOOT)
+
 def build_sessions_proposal():
     """Exploratory (2026-08-31), the SSH counterpart to
     `build_sftp_proposal()`: the shape control moves off the Titlebar into
@@ -1732,21 +1971,35 @@ def wizard_breadcrumb(step=2, phase=None):
                     f'<span style="font-size: 11px; color: {color}; {weight}">{label}</span></li>')
     return f'<ol style="display: flex; align-items: center; gap: 8px; list-style: none; margin: 0; padding: 0;">{"".join(lis)}</ol>'
 
-def hosts_header(creating_new=False):
+def hosts_header(creating_new=False, show_filter=False):
+    """`show_filter`, exploratory (`build_home_book_proposal`): the same
+    filter box `sessions_header()` already draws, added here rather than
+    invented a second way, once a list with no way to narrow it stopped
+    being fine at book scale. Off by default so the wizard's own two
+    callers (`build_hosts_host`/`build_hosts_access`), mid-creating one
+    host rather than browsing many, are unaffected."""
     plus = (f'<span style="width: 20px; height: 20px; border-radius: 4px; background: {T["raised"]};'
             f' display: flex; align-items: center; justify-content: center; color: {T["accent"]};">{ic("plus")}</span>'
             ) if creating_new else ic('plus', 14, T['muted'])
-    return f"""      <div style="display: flex; align-items: center; gap: 8px; padding: 14px 14px 10px;">
-        <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: {T['faint']};">HOSTS</span>
-        <div style="flex: 1;"></div>
-        {plus}
+    filter_html = ''
+    if show_filter:
+        filter_html = f"""
+        <div style="height: 32px; background: {T['input']}; border: 1px solid {T['line']}; border-radius: 6px; display: flex; align-items: center; gap: 8px; padding: 0 10px; margin-top: 8px;">
+          {ic('search', 14, T['faint'])}<span style="font-size: 12px; color: {T['faint']};">Filter hosts</span>
+        </div>"""
+    return f"""      <div style="padding: 14px 14px 10px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: {T['faint']};">HOSTS</span>
+          <div style="flex: 1;"></div>
+          {plus}
+        </div>{filter_html}
       </div>"""
 
-def hosts_shell(rows_html, panel_html, creating_new=False):
+def hosts_shell(rows_html, panel_html, creating_new=False, show_filter=False):
     """`HostsSection.tsx`: a 280px list beside one form, not a tab per open
     host, because a CRUD screen is exactly that shape."""
     left = f"""    <div style="width: 280px; flex: none; background: {T['panel']}; border-right: 1px solid {T['line']}; display: flex; flex-direction: column;">
-{hosts_header(creating_new)}
+{hosts_header(creating_new, show_filter)}
       <div style="flex: 1; padding: 0 8px 8px; display: flex; flex-direction: column; gap: 2px; overflow: hidden;">
 {rows_html}
       </div>
@@ -1937,17 +2190,18 @@ def build_home_hosts():
     code, that a form capped at its own width left the pair sitting flush
     left with the other half of the window empty, the same thing
     `HomeDashboard`'s own card grid already centres against. Redrawn here
-    to match the fix rather than the shape that prompted it."""
+    to match the fix rather than the shape that prompted it.
+
+    Revised the same day, against the maintainer's own request: each row
+    now carries `HostKindIcon` (ADR-0031), the exact template
+    `SessionsSidebar.tsx`/`host_row()` already closed, rather than a
+    second, plainer row invented for this list alone. No new field, no
+    new component: `kind` already exists on every saved host, and this is
+    the one place in Home that was still drawing a row without it."""
     rows = "\n".join([
-        f'<div style="display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 10px; border-radius: 4px; background: {T["raised"]}; box-shadow: inset 2px 0 0 {T["accent"]};">'
-        f'<span style="font-size: 12.5px; color: {T["ink"]};">runic-target-a</span>'
-        f'<span class="mono" style="margin-left: auto; font-size: 10.5px; color: {T["faint"]};">target.internal</span></div>',
-        f'<div style="display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 10px; border-radius: 4px;">'
-        f'<span style="font-size: 12.5px; color: {T["ink2"]};">runic-bastion</span>'
-        f'<span class="mono" style="margin-left: auto; font-size: 10.5px; color: {T["faint"]};">127.0.0.1</span></div>',
-        f'<div style="display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 10px; border-radius: 4px;">'
-        f'<span style="font-size: 12.5px; color: {T["ink2"]};">dev-web</span>'
-        f'<span class="mono" style="margin-left: auto; font-size: 10.5px; color: {T["faint"]};">10.0.1.5</span></div>',
+        host_row("runic-target-a", "target.internal", active=True, kind="target"),
+        host_row("runic-bastion", "127.0.0.1", kind="jumpServer"),
+        host_row("dev-web", "10.0.1.5", kind="direct"),
     ])
     list_card = dashboard_card("Hosts", f"""
       <div style="display: flex; flex-direction: column; gap: 2px; margin: -4px 0;">
@@ -1969,6 +2223,244 @@ def build_home_hosts():
       </div>"""
     st = status(stat_text("runic-target-a", T['muted'], mono=False), stat_text("11 hosts", T['faint']))
     write("HomeHosts.dc.html", page(home_nav("hosts") + body, None, home_rail(workspace="home"), st, show_shapes=False))
+
+def theme_language_toolbar_controls():
+    """Revised against the maintainer's own read of `settings_popover()`'s
+    first cut: theme and language do not need a click to reveal at all,
+    the way `split_control()`/`select_all_button()` already sit directly
+    in SFTP's own toolbar rather than behind a menu. Two chip groups,
+    inline, separated by a hairline; `build_home_dashboard`'s own three
+    theme paths reused verbatim, at the same smaller scale this bar's own
+    26px height calls for. The vault status this replaced is not drawn
+    here: it was never a per-visit control the way theme and language
+    are, and where it belongs now is a separate question, not assumed."""
+    system_ic = '<path d="M4 5h16v11H4z"></path><path d="M9 20h6M12 16v4" stroke-linecap="round"></path>'
+    light_ic = ('<circle cx="12" cy="12" r="4.2"></circle>'
+                '<path d="M12 2.5v2.4M12 19.1v2.4M21.5 12h-2.4M4.9 12H2.5M18.4 5.6l-1.7 1.7M7.3 16.7l-1.7 1.7M18.4 18.4l-1.7-1.7M7.3 7.3L5.6 5.6" stroke-linecap="round"></path>')
+    dark_ic = '<path d="M20 13.8A8.5 8.5 0 1110.2 4a6.8 6.8 0 009.8 9.8z" stroke-linejoin="round"></path>'
+
+    def chip(svg_paths, checked, size=13):
+        border = T['accent'] if checked else T['line']
+        bg = f'background: {T["accentsoft"]};' if checked else ''
+        color = T['ink'] if checked else T['ink2']
+        return (f'<span style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid {border}; {bg}'
+                f' display: flex; align-items: center; justify-content: center; color: {color};">'
+                f'<svg viewBox="0 0 24 24" style="width: {size}px; height: {size}px;" fill="none" stroke="currentColor" stroke-width="1.6">{svg_paths}</svg></span>')
+
+    def flag_chip(emoji, checked):
+        border = T['accent'] if checked else T['line']
+        bg = f'background: {T["accentsoft"]};' if checked else ''
+        return (f'<span style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid {border}; {bg}'
+                f' display: flex; align-items: center; justify-content: center; font-size: 12px;">{emoji}</span>')
+
+    theme = f'<div style="display: flex; gap: 4px;">{chip(system_ic, False)}{chip(light_ic, False)}{chip(dark_ic, True)}</div>'
+    lang = (f'<div style="display: flex; gap: 4px;">{flag_chip("&#127760;", False)}{flag_chip("&#127482;&#127480;", False)}'
+            f'{flag_chip("&#127463;&#127479;", True)}{flag_chip("&#127466;&#127480;", False)}</div>')
+    sep = f'<div style="width: 1px; height: 20px; background: {T["line"]};"></div>'
+    return f'<div style="display: flex; align-items: center; gap: 10px;">{theme}{sep}{lang}</div>'
+
+def build_home_book_proposal():
+    """Exploratory (2026-09-02): the maintainer's own read of Home, once
+    Sessions and SFTP both had a real design pass and Home never did:
+    "SSH and SFTP are perfect, Home isn't." #222 named the gap
+    (`HostsSection` not carrying the dashboard's own visual language) and
+    closed it the shallow way, matching Hosts to the cards rather than
+    asking whether the cards themselves were the right shape. They were
+    not: a grid of bordered, padded, centred tiles is the one layout every
+    generic settings screen already looks like, and it reads as a
+    different, less considered product sitting next to Sessions' and
+    SFTP's own dense, chrome-minimal language (ADR-0020's seven rules).
+
+    This proposes convergence over polish: Home stops being a landing
+    page with a Hosts card among others, and becomes the host book
+    directly, at the same density Sessions' own sidebar and SFTP's own
+    panes already prove out. Concretely:
+
+    - No more `home_nav()` Dashboard/Hosts breadcrumb: there is only one
+      screen now, so nothing to switch between.
+    - The list-beside-one-form shape stays (`hosts_shell()`, the wizard's
+      own dense shell, `HostsHost.dc.html`/`HostsAccess.dc.html`'s
+      template, not `HomeHosts.dc.html`'s card-wrapped one): flush panels,
+      thin borders, no rounded tiles.
+    - Theme and language stop being a card with the host list's own
+      visual weight, and move into a slim toolbar (`toolbar_row()`, the
+      same shared strip ADR-0046 already gave SFTP) as two inline chip
+      groups (`theme_language_toolbar_controls()`), not behind a menu:
+      a first cut put them behind a gear icon, reverted directly once
+      the maintainer pointed out `split_control()`/`select_all_button()`
+      already sit in a toolbar undisguised, the same convention this
+      should follow rather than invent a click a real settings-style
+      screen does not need. The vault status this replaced is left
+      undrawn here, on purpose: where it belongs is a separate question.
+    - The detail panel splits into named sections (General, Topology)
+      beside a second column (Access) rather than one flat stack
+      (`HostFields.tsx` today): the maintainer's own ask for "controles e
+      gestão de configurações," built from fields that already exist.
+
+    Revised the same day, against the maintainer's own read: the panel is
+    wide enough now, unlike the wizard's own 440px-capped single column,
+    that Access does not need to be a section stacked below the others,
+    or a second step behind a "Next" click. It becomes a second column,
+    the credential picker `HostsAccess.dc.html` already draws (Password /
+    Private key, and the stored-credential note in place of a field once
+    one exists) sitting beside General/Topology rather than behind them.
+    Confirmed directly: this retires the two-step Host/Access wizard
+    breadcrumb for good, not only for this screen's own layout. That is a
+    bigger decision than the rest of this redesign, since ADR-0030,
+    ADR-0032 and ADR-0034 are what gave the wizard its two steps in the
+    first place; implementing this for real reopens those, it does not
+    just restyle `HostsSection.tsx`. Two things that decision still owes
+    an answer, named rather than assumed here: where the missing-credential
+    notice (ADR-0039/ADR-0040) renders once there is no second step for it
+    to open on, and whether a create-time draft (no `id` yet) needs
+    anything about this layout to differ from editing a saved host.
+
+    Nothing here is accepted. `HomeDashboard.dc.html` and `HomeHosts.dc.html`
+    are still the shipped shape until the maintainer picks this direction,
+    the same standing every other `*Proposal*.dc.html` artboard has."""
+    rows = "\n".join([
+        host_row("runic-target-a", "target.internal", active=True, kind="target"),
+        host_row("runic-bastion", "127.0.0.1", kind="jumpServer"),
+        host_row("dev-web", "10.0.1.5", kind="direct"),
+    ])
+
+    def section(title, content):
+        """Revised against the maintainer's own read: four topics with
+        nothing but a small caption between them read as one loose,
+        undifferentiated form. A thin border and a little padding around
+        each, `T['line']` and a 6px radius rather than the heavier
+        `dashboard_card` rounding #237 already moved this screen away
+        from, gives each its own quiet boundary without bringing the
+        padded, centred card language back."""
+        return f"""<div style="display: flex; flex-direction: column; gap: 12px; border: 1px solid {T['line']};
+          border-radius: 6px; padding: 14px 16px;">
+          <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.09em; color: {T['faint']};">{title.upper()}</span>
+{content}
+        </div>"""
+
+    general = section("General", f"""
+          <div>{wizard_label('Host')}{wizard_field('target.internal')}</div>
+          <div style="display: flex; gap: 12px; margin-top: 14px;">
+            <div style="flex: 1;">{wizard_label('User')}{wizard_field('deploy')}</div>
+            <div style="width: 90px;">{wizard_label('Port')}{wizard_field('2222')}</div>
+          </div>
+          <div style="margin-top: 14px;">{wizard_label('Name')}{wizard_field('runic-target-a', mono=False)}</div>
+          <div style="margin-top: 14px;">{wizard_label('Group')}{wizard_field('REAL-CHAIN', mono=False, chev=True)}</div>""")
+    topology = section("Topology", f"""
+          <div>{wizard_label('Kind')}{kind_picker('target')}</div>
+          <div style="margin-top: 14px;">{wizard_label('Reached through')}{wizard_field('runic-bastion', mono=False, chev=True)}</div>""")
+
+    # The exact picker `HostsAccess.dc.html` already draws, moved from
+    # behind a wizard step into its own column here.
+    access = section("Access", f"""
+          <div role="radiogroup" style="display: flex; gap: 3px; background: {T['input']}; border: 1px solid {T['line']}; border-radius: 8px; padding: 3px;">
+            <span style="flex: 1; text-align: center; font-size: 11.5px; font-weight: 600; color: {T['ink']}; background: {T['raised']}; border-radius: 6px; padding: 6px 0;">Password</span>
+            <span style="flex: 1; text-align: center; font-size: 11.5px; color: {T['muted']}; padding: 6px 0;">Private key</span>
+          </div>
+          <div style="margin-top: 12px; display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: {T['raised']}; border-radius: 6px;">
+            <svg viewBox="0 0 24 24" style="width: 14px; height: 14px; color: {T['ok']}; flex: none;" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 11V7a7 7 0 0114 0v4M5 11h14v9H5z"></path></svg>
+            <span style="font-size: 11.5px; color: {T['ink2']}; flex: 1; line-height: 1.4;">One is stored in the system keychain. Never shown here, never sent to this window.</span>
+          </div>
+          <div style="margin-top: 8px;"><span style="font-size: 12px; color: {T['danger']};">Forget it</span></div>""")
+
+    def forward_kind_pills(active):
+        """The same three-pill control `kind_picker()` already draws for
+        Topology, relabelled: ADR-0054 confirmed one shape for all three
+        forward kinds rather than a picker invented per kind."""
+        out = []
+        for k in ("Local", "Remote", "Dynamic"):
+            on = k == active
+            border = T['accent'] if on else T['line']
+            bg = f'background: {T["accentsoft"]};' if on else ''
+            color = T['ink'] if on else T['ink2']
+            out.append(f'<span style="padding: 4px 9px; border: 1px solid {border}; {bg} border-radius: 5px;'
+                       f' font-size: 11px; color: {color};">{k}</span>')
+        return f'<div style="display: flex; gap: 4px; flex: none;">{"".join(out)}</div>'
+
+    def forward_row(kind, bind_port, target=None, name=None):
+        """Revised against the maintainer's own read: this column is
+        narrower than the panel's full width, so a forward's summary
+        wraps to a second line (pills and port on the first, target and
+        name on the second) rather than trying to fit `kind`, `bind_port`,
+        `target` and `name` on one. `target` is `None` for Dynamic, whose
+        destination is read from the SOCKS handshake at connect time
+        rather than fixed here."""
+        detail = (
+            f'<span class="mono" style="color: {T["ink2"]};">&#8594; {target}</span>'
+        ) if target is not None else (
+            f'<span style="color: {T["faint"]};">a local SOCKS proxy</span>'
+        )
+        name_html = f'<span style="color: {T["faint"]}; margin-left: auto;">{name}</span>' if name else ''
+        return f"""<div style="display: flex; flex-direction: column; gap: 5px; padding: 9px 10px; background: {T['raised']}; border-radius: 6px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            {forward_kind_pills(kind)}
+            <span class="mono" style="font-size: 12px; color: {T['ink']};">{bind_port}</span>
+            <span style="color: {T['faint']}; margin-left: auto;">{ic('close', 11)}</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; font-size: 11px; padding-left: 2px;">
+            {detail}{name_html}
+          </div>
+        </div>"""
+
+    forwarding = section("Forwarding", f"""
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            {forward_row('Local', '8080', 'target.internal:80', 'web')}
+            {forward_row('Remote', '9000', 'localhost:3000', 'dev server')}
+            {forward_row('Dynamic', '1080', None, 'SOCKS')}
+          </div>
+          <div style="margin-top: 8px;"><span style="font-size: 12px; color: {T['accent']};">+ Add forward</span></div>""")
+
+    # Two columns above a stated minimum width, ADR-0052/ADR-0054: below
+    # it the same four sections stack in one column rather than staying
+    # side by side and forcing a horizontal scroll a form should never
+    # need. `HostsSection.tsx`'s own real fields already grow and shrink
+    # inside a `max-width` rather than a fixed one; the columns below
+    # follow the same instinct, drawn here as two fixed-width artboards
+    # (wide, narrow) standing in for the two sides of that one breakpoint,
+    # since a static artboard cannot itself be resized.
+    wide_panel = f"""      <div style="height: 100%; padding: 24px 28px; overflow-y: auto;">
+        <span style="font-size: 15px; font-weight: 600;">runic-target-a</span>
+        <div style="display: flex; gap: 40px; margin-top: 22px;">
+          <div style="width: 440px; flex: none; display: flex; flex-direction: column; gap: 22px;">
+            {general}
+            {topology}
+          </div>
+          <div style="width: 340px; flex: none; display: flex; flex-direction: column; gap: 22px;">
+            {access}
+            {forwarding}
+          </div>
+        </div>
+        <div style="margin-top: 26px;">{wizard_actions(('Delete', False), ('Cancel', False), ('Save', True))}</div>
+      </div>"""
+
+    narrow_panel = f"""      <div style="height: 100%; padding: 24px 28px; overflow-y: auto;">
+        <span style="font-size: 15px; font-weight: 600;">runic-target-a</span>
+        <div style="max-width: 440px; display: flex; flex-direction: column; gap: 22px; margin-top: 22px;">
+          {general}
+          {topology}
+          {access}
+          {forwarding}
+        </div>
+        <div style="margin-top: 26px; max-width: 440px;">{wizard_actions(('Delete', False), ('Cancel', False), ('Save', True))}</div>
+      </div>"""
+
+    def page_for(panel, width):
+        body = hosts_shell(rows, panel, show_filter=True)
+        st = status(stat_text("runic-target-a", T['muted'], mono=False), stat_text("11 hosts", T['faint']))
+        return f"""
+<div style="width: {width}px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{plain_titlebar()}
+{toolbar_row(right_html=theme_language_toolbar_controls())}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{home_rail(workspace="home")}
+{body}
+  </div>
+{st}
+</div>
+"""
+
+    write("HomeBookProposal.dc.html", HEAD + page_for(wide_panel, 1440) + FOOT)
+    write("HomeBookProposalNarrow.dc.html", HEAD + page_for(narrow_panel, 900) + FOOT)
 
 # ============================================================ SYSTEM SHEETS
 
@@ -2291,6 +2783,134 @@ def build_palette():
     write("Palette.dc.html", page(f'      <div style="flex: 1; min-height: 0; display: flex;">{g}</div>',
                                   sessions_sidebar(active="web-01", states={"web-01": "ok", "db-prod": "ok"}), home_rail(workspace="sessions", badge="2"), st))
 
+# ---------- the terminal's own MOTD, printed once when a shell connects
+MOTD_ART = [
+    '              ≈≈≈≈≈≈≈≈≈≈≈≈   ≈≈≈≈≈≈≈≈≈≈≈≈',
+    '           ≈≈≈≈≈        ≈≈≈≈≈≈≈  ≈≈≈   ≠≈≈≈≈',
+    '         ≈≈≈≈           ≈≈≈≈≈≈≈≈≈≈  ≈≈≈   ≈≈≈≈',
+    '        ≈≈≈           ≈≈≈≈   ≈≈≈≈ ≈≈≈≈      ≈≈≈',
+    '       ≈≈≈          ≈≈≈≈≈  ≈≈≈≈≈≈≈≈≈         ≈≈≈',
+    '       ≈≈≈        ≈≈≈≈≈≈≈≈≈≈≈≈ ≈≈ ≈≈≈≈        ≈≈≈',
+    '       ≈≈       ≈≈≈≈  ≈≈≈≈≈ ≈≈∞≈≈  ≈≈≈≈       ≈≈≈',
+    '       ≈≈≈        ≈≈≈≈≈≈≈≈≈≈≈≈ ≈≈ ≈≈≈≈        ≈≈≈',
+    '       ≈≈≈         ≈≈≈≈≈≈≈ ≈≈≈≈≈≈≈≈≈         ≈≠≠',
+    '        ≈≈≈       ≈≈≈≈≈≈≈≈   ≈≈≈≈≈          ≈≈≈',
+    '         ≠≈≈≈    ≈≈≈ ≈≈≈≈≈≈≈≈≈≈           ≈≈≈≈',
+    '           ≈≈≈≈≈   ≈≈≈≈  ≈≈≈≈∞≈         ≈≈≠≈',
+    '              ≈≈≈≈≈≈≈≈≈≈≈≈    ≈≈≈≈≈≈≈≈≈≠≠',
+]
+# The maintainer's own conversion, via asciiart.eu/image-to-ascii, of the
+# brand mark. Kept verbatim (not re-traced from the SVG paths the way
+# `MARK`/`KIND_ICON` above are) since the shading technique, density of `≈`
+# standing in for the two circles' overlap, is not something the path data
+# gives for free; recorded here so a future resize starts from the same
+# source image and tool rather than guessing at a second conversion.
+
+MOTD_WIDTH = max(len(line) for line in MOTD_ART)
+
+def motd_art_lines_html():
+    """Colours `MOTD_ART` by column rather than by circle: there is no
+    per-character record of which of the two source circles a given `≈`
+    belonged to, only the finished raster. Left of centre reads as circle
+    A (`bstart`, the same cyan `MARK`'s left ring already strokes), right
+    of centre as circle B (`bend`, the same purple), and every `∞`/`≠`,
+    the asciiart.eu conversion's own way of marking a brighter crossing
+    point, in `brune`, the rune line's own colour in `MARK` and
+    `KIND_ICON` alike. A per-character split is cruder than the real
+    stroke boundary, but the source has no sharper line to cut along.
+    Returns one HTML string per row, not one joined block: `motd_row()`
+    below pairs each against its own line of the info column."""
+    center = MOTD_WIDTH / 2
+    rows = []
+    for line in MOTD_ART:
+        segments = []
+        color = None
+        text = ''
+        for i, ch in enumerate(line):
+            this_color = T['brune'] if ch in '∞≠' else (T['bstart'] if i < center else T['bend'])
+            if this_color != color:
+                if text:
+                    segments.append((color, text))
+                color, text = this_color, ch
+            else:
+                text += ch
+        if text:
+            segments.append((color, text))
+        rows.append(''.join(f'<span style="color: {c};">{t}</span>' for c, t in segments))
+    return rows
+
+def motd_field(label, value):
+    return (f'<span style="color: {T["faint"]};">{label:<9}</span>'
+            f'<span style="color: {T["ink2"]};">{value}</span>')
+
+def motd_row(art_html, info_html=''):
+    """One printed line: the art column at a fixed character width so the
+    info column lines up whatever a given row of `MOTD_ART` actually
+    contains, then whatever that row of the info block says, or nothing.
+    A real write does the same alignment with spaces rather than a fixed
+    `<span>` width; the visible result is the same, monospace either way."""
+    return (f'<div style="display: flex;">'
+            f'<span style="display: inline-block; width: {MOTD_WIDTH + 2}ch; flex: none;">{art_html}</span>'
+            f'<span>{info_html}</span></div>')
+
+def build_terminal_motd_proposal():
+    """Exploratory (2026-09-01): the maintainer's own want, printed
+    directly into `xterm.js` rather than drawn as chrome around it. The
+    injection point already exists cleanly: `use-terminal.ts` opens the
+    terminal (`terminal.open(container)`), then only later starts
+    `watchTerminal`/`openTerminal`, the calls that let a remote byte
+    arrive at all. A write between those two lines always lands first, so
+    this can never race a server's own real `/etc/motd`, which some hosts
+    already send down the same channel.
+
+    Revised the same day, against the maintainer's own read: side by side,
+    `neofetch`'s own logo-left, text-right layout, rather than the
+    stacked-only version this artboard first drew. The 49-column-wide art
+    only fits this way in a wide enough window; `use-terminal.ts` already
+    knows the pty's own column count at the point this would be written
+    (`terminal.cols`, read a few lines below the injection point above),
+    so a real implementation should fall back to stacking them, this
+    artboard's first cut, once a terminal is too narrow for both side by
+    side. Not drawn here: this artboard is the wide case.
+
+    The info column now also names a jump host, when there is one:
+    `bastionName(session, sessions)` (`src/features/sessions/jump.ts`)
+    already answers exactly this, by id, for `SessionsSidebar`'s own "via"
+    row (`sessions.viaBastion`); the MOTD's `Via` field reads the same
+    function rather than a second way of asking whether a host rides one.
+    Omitted entirely for a direct connection, the same "say nothing rather
+    than say none" rule `bastionName` already returns `null` for.
+
+    Colour: `motd_art_lines_html()`'s `bstart`/`bend`/`brune` are the exact
+    three colours `MARK` already strokes the real mark with, so the banner
+    reads as the same brand identity already drawn everywhere else, not a
+    fourth palette invented for the terminal alone."""
+    art_rows = motd_art_lines_html()
+    info_rows = [
+        f'<span style="color: {T["ink"]}; font-weight: 700;">Runic SSH</span>',
+        '',
+        motd_field('Host', 'web-01.internal'),
+        motd_field('Address', '10.4.1.20:22'),
+        motd_field('Via', 'bastion-01'),
+        motd_field('User', 'deploy'),
+    ]
+    rows = [
+        motd_row(art_rows[i], info_rows[i] if i < len(info_rows) else '')
+        for i in range(len(art_rows))
+    ]
+    # Joined with nothing, not '\n': each row is already its own <div>, a
+    # block element that breaks its own line, and .term's white-space: pre
+    # renders a literal '\n' between them as one more line break on top of
+    # that, exactly the doubled gap spotted live in this artboard's first render.
+    motd = ''.join(rows) + '\n\n'
+    g = group(strip([tab("web-01", state="on")]),
+              term(motd + prompt("deploy", "web-01") + CURSOR))
+    rows_sidebar = "\n".join([group_row("PRODUCTION", 3), host_row("web-01", "deploy@10.4.1.20", "ok", True, via="bastion-01")])
+    st = status(stat_session("deploy@10.4.1.20"), stat_text("198 x 48"))
+    write("TerminalMotdProposal.dc.html",
+          page(f'      <div style="flex: 1; min-height: 0; display: flex;">{g}</div>',
+               sidebar_shell(sessions_header(), rows_sidebar), home_rail(workspace="sessions", badge="1"), st))
+
 if LIGHT_MODE:
     _w = write
     write = lambda name, content: _w("MainLight.dc.html", content)
@@ -2299,9 +2919,12 @@ else:
     for fn in (build_empty, build_main, build_groups, build_collapsed, build_broadcast,
                build_hostkey, build_sftp, build_sftp_workspace, build_sftp_fanout, build_sftp_proposal,
                build_sftp_proposal_broadcast, build_sftp_file_ops, build_sftp_folder_copy,
+               build_sftp_selection_proposal, build_sftp_delete_confirm_proposal,
+               build_terminal_motd_proposal,
                build_sessions_proposal, build_sessions_proposal_broadcast,
                build_sessions_proposal_broadcast_multi,
                build_hosts_host, build_hosts_access, build_home_dashboard, build_home_hosts,
+               build_home_book_proposal,
                build_anatomy, build_tokens,
                build_hostkeychanged, build_failure, build_paste, build_palette):
         fn()

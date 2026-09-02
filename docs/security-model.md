@@ -57,8 +57,18 @@ folded credential collection entirely into the main webview. The isolation
 this rule used to lean on is gone with it: an XSS anywhere else in this
 document, if one existed, would sit in the same page as this field. Nothing
 in ADR-0032, ADR-0034 or ADR-0039 re-argues that trade, because none of them
-frames the change as a security decision, and this document is where that
-gap gets written down rather than left implicit.
+frames the change as a security decision.
+
+**ADR-0055 is that decision.** The gap above is accepted, not merely
+observed: the frontend's own hardening elsewhere (a strict CSP, no
+`dangerouslySetInnerHTML` anywhere in the tree, `xterm.js` treating a
+remote host's output as data rather than markup) is what makes reaching
+this field require a script-execution vulnerability the rest of the
+frontend already works to prevent at the source. Isolating the field
+further, short of reviving the window ADR-0039 removed for good reason,
+was judged to be defending the second step of an attack whose first step
+is already refused elsewhere. Revisit this if that other hardening ever
+weakens, not before.
 
 There are two places a resolved credential can come from, and both are inside
 the core. The OS keychain is one. The other is a store that lives for the length
