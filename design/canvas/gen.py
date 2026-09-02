@@ -109,6 +109,13 @@ ICON = dict(
     # `FolderIcon`/`ic('sftp', ...)` already draw, with a plus in place of
     # `sftp`'s own receiving-arrow, for the nav bar's "new folder" action.
     newfolder='<path d="M4 6.5h6l1.6 2H20v9.5H4z"></path><path d="M12 12v4M10 14h4"></path>',
+    # Exploratory (`build_sftp_selection_proposal`): the two icon-bar
+    # commands a Windows 11-style selection offers next to the count,
+    # standing in for what today is right-click-only (`menu_item`'s own
+    # "Rename"/"Delete").
+    pencil='<path d="M4 20l1-4.2L15.8 5l3.2 3.2L8.2 19H4z"></path><path d="M13.8 6.7l3.2 3.2"></path>',
+    trash='<path d="M5 7h14"></path><path d="M9.5 7V5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v2"></path>'
+          '<path d="M7 7l1 12.5a1.5 1.5 0 0 0 1.5 1.4h5a1.5 1.5 0 0 0 1.5-1.4L17 7"></path><path d="M10 11v6M14 11v6"></path>',
 )
 
 def ic(name, size=14, color=None, cls="ic", extra=""):
@@ -871,7 +878,7 @@ def toolbar_row(right_html="", left_html=""):
     {right_html}
   </div>"""
 
-def nav_bar(segments, can_back=False, new_folder=False):
+def nav_bar(segments, can_back=False, new_folder=False, selected_count=None):
     """Back, up, a breadcrumb, refresh: what `SftpPane.tsx` does not have
     today, drawing its path as inert text and asking for a click on a row
     or the `..` entry to move at all. `segments` is the path split on `/`;
@@ -884,7 +891,18 @@ def nav_bar(segments, can_back=False, new_folder=False):
     convention and a visible button is the thing somebody finds without
     being told the convention" reasoning `SessionMenu.tsx`'s own doc
     comment already gives for pairing a menu with a button. Off by default
-    so every artboard already drawing a plain `nav_bar()` is unaffected."""
+    so every artboard already drawing a plain `nav_bar()` is unaffected.
+
+    `selected_count`, exploratory (`build_sftp_selection_proposal`): rename
+    and delete drawn next to new folder rather than in a separate bar of
+    their own, confirmed directly against that artboard's first cut, which
+    put them in `selection_bar()` at the bottom instead. `None` (every
+    other caller) omits both, unchanged. Given a count, both stay in the
+    bar rather than appearing and disappearing as the selection changes
+    (`new_folder`/`refresh` never do either): rename lights only at
+    exactly one, delete at one or more, dim otherwise rather than gone,
+    the same "always there, not always able" `canGoBack`/`canGoUp` already
+    draw for the arrows beside them."""
     back_color = T['muted'] if can_back else T['off']
     crumbs = [
         f'<span class="mono" style="font-size: 11px; color: {T["ink2"] if i == len(segments) - 1 else T["faint"]};">{seg}</span>'
@@ -894,13 +912,23 @@ def nav_bar(segments, can_back=False, new_folder=False):
     newfolder_html = (
         f'<span style="color: {T["muted"]}; display: flex;">{ic("newfolder", 13)}</span>' if new_folder else ''
     )
+    edit_html = ''
+    if selected_count is not None:
+        rename_on = selected_count == 1
+        delete_on = selected_count >= 1
+        rename_bg = f'background: {T["raised"]};' if rename_on else ''
+        edit_html = (
+            f'<span style="display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 4px; {rename_bg} color: {T["ink2"] if rename_on else T["off"]};">{ic("pencil", 12)}</span>'
+            f'<span style="display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; color: {T["dangertext"] if delete_on else T["off"]};">{ic("trash", 12)}</span>'
+        )
     return (f'<div style="height: 24px; flex: none; display: flex; align-items: center; gap: 7px; padding: 0 8px;'
             f' background: {T["chrome"]}; border-bottom: 1px solid {T["line"]};">'
             f'<span style="color: {back_color}; display: flex;">{ic("chev", 13, extra=" transform: rotate(180deg);")}</span>'
             f'<span style="color: {T["muted"]}; display: flex;">{ic("chev", 13, extra=" transform: rotate(-90deg);")}</span>'
             f'<div style="flex: 1; min-width: 0; display: flex; align-items: center; gap: 3px; overflow: hidden; white-space: nowrap;">{crumb_html}</div>'
             f'{newfolder_html}'
-            f'<span style="color: {T["muted"]}; display: flex;">{ic("refresh", 12)}</span></div>')
+            f'<span style="color: {T["muted"]}; display: flex;">{ic("refresh", 12)}</span>'
+            f'{edit_html}</div>')
 
 def build_sftp_proposal():
     def crow(name, dim=False):
@@ -1464,6 +1492,217 @@ def build_sftp_folder_copy():
 </div>
 """
     write("SftpFolderCopy.dc.html", HEAD + page_html + FOOT)
+
+def build_sftp_selection_proposal():
+    """Exploratory (2026-09-01): the maintainer's own read of every SFTP
+    artboard drawn so far is that a row's selection has never looked like a
+    file manager's own. Two changes, proposed together because the second
+    only makes sense once the first is true:
+
+    Today's `Row` (`SftpPane.tsx`) opens a directory on a plain click and
+    only lets Shift/Ctrl change what is selected; a checkbox is the other,
+    separate way in. This proposes what Explorer and Finder both already
+    do: a plain click always selects (replacing the selection), Shift
+    extends a range, Ctrl/Cmd toggles one row without touching the rest,
+    and it is a *double*-click that opens a directory. The checkbox goes
+    away entirely, not because it did anything wrong, but because
+    Ctrl-click already does exactly what its own "toggle without touching
+    the anchor" doc comment describes, once the anchor a checkbox click
+    itself never moved is no longer the thing protecting a plain click's
+    old meaning.
+
+    With that in place, a destination pane gets a selection worth drawing
+    too, not just the source: today `onSelectClick` is `null` there
+    because nothing a destination selects can be sent anywhere. Rename and
+    delete are not about sending, though, and today they are reachable in
+    every pane only by right-clicking one row at a time. The icon pair
+    (pencil, trash) is the visible, hoverable way in `menu_item`'s
+    "Rename"/"Delete" already describe, present in every pane, rename
+    dimmed unless the count is exactly one, the same rule the context menu
+    already enforces by only ever showing "Rename" for a single target.
+    Drawn in `nav_bar()` next to new folder, not in `selection_bar()` at
+    the bottom: confirmed directly against this artboard's first cut,
+    which put them there instead, since new folder, rename and delete are
+    the same kind of thing (a file-management action, always present in
+    the bar, sometimes unable to run) while `selection_bar()` stays what it
+    already was, the answer to "what happens to what I checked."
+
+    Two panes drawn deliberately in different selection states rather than
+    the same one twice: the source has three rows checked, one of them a
+    directory (`logs`, selectable since ADR-0049), which is exactly the
+    state that disables the pencil; the destination has exactly one, which
+    is exactly the state that lights it. Nothing here removes the context
+    menu drawn in `SftpFileOps.dc.html`; this is a second way to the same
+    two actions, not a replacement for the first.
+
+    Revised the same day, against the maintainer's own read of this
+    artboard: a first pass tried folding the identity row and `nav_bar()`
+    into one bar, and lost the round trip. Merged, the breadcrumb had to
+    share its row with back, up, new folder, refresh and whatever slot
+    icons a destination carries, which is exactly the row a long remote
+    path needs the most width in. The three bars `SftpPane.tsx` already
+    draws stay three: `pane_header()` (label, identity, and now the
+    receiving toggle and clear-slot moved onto it) above `nav_bar()` (back,
+    up, breadcrumb, new folder, refresh, and now rename/delete), above
+    `selection_bar()` whenever something is checked. The one real change
+    to the identity row is what leaves it: the upload-from-dialog icon
+    (ADR-0042) is gone, confirmed directly that picking a file through a
+    native dialog stopped pulling its own weight once a source pane's drag
+    and the checkbox-free selection above cover the same ground."""
+    def crow(name, dim=False, is_dir=False, selected=False):
+        if is_dir:
+            i = f'<svg class="ic" viewBox="0 0 24 24" style="width: 12px; height: 12px; color: {T["faint"]};" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M4 6.5h6l1.6 2H20v9.5H4z"></path></svg>'
+        else:
+            i = ic("sftp", 12, T['faint']) if dim else f'<svg class="ic" viewBox="0 0 24 24" style="width: 12px; height: 12px; color: {T["faint"]};"><path d="M6 3h8l4 4v14H6z"></path><path d="M14 3v4h4"></path></svg>'
+        bg = f'background: {T["accentsoft"]};' if selected else ''
+        return (f'<div style="display: flex; align-items: center; gap: 8px; padding: 3px 8px; {bg}">{i}'
+                f'<span class="mono" style="font-size: 11px; color: {T["ink2"]};">{name}</span></div>')
+
+    def selection_bar(count, show_send):
+        """Just the count and what to do with it now: rename and delete
+        moved up into `nav_bar()`, next to new folder, confirmed directly
+        over this bar's first cut, which carried them itself."""
+        send = (
+            f'<span style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: {T["base"]};'
+            f' background: {T["accent"]}; border-radius: 6px; padding: 6px 14px;">Send'
+            f'<svg viewBox="0 0 24 24" style="width: 12px; height: 12px;" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></span>'
+            if show_send else ''
+        )
+        return (f'<div style="flex: none; display: flex; align-items: center; gap: 10px; padding: 7px 10px;'
+                f' border-top: 1px solid {T["line"]}; background: {T["panel"]};">'
+                f'<span class="mono" style="font-size: 11px; color: {T["muted"]};">{count} selected</span>'
+                f'<div style="flex: 1;"></div>'
+                f'<span style="font-size: 11.5px; color: {T["faint"]};">Clear</span>{send}</div>')
+
+    def pane_header(label, who, receiving=None, clearable=False):
+        """Identity and slot management, same bar the shipped tree already
+        draws (`SftpPane.tsx`'s own header) minus the upload-from-dialog
+        icon: confirmed directly that a fourth bar sharing space with the
+        breadcrumb (a `unified_pane_bar()` this session tried first)
+        squeezed the one thing a pane's own path most needs, room. Three
+        bars stays: this one, `nav_bar()` right below it with the
+        breadcrumb to itself, and `selection_bar()` whenever something is
+        checked."""
+        trailing = ''
+        if receiving is not None:
+            color = T['warn'] if receiving else T['faint']
+            trailing += f'<span style="display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; color: {color};">{ic("broadcast", 13)}</span>'
+        if clearable:
+            trailing += f'<span style="display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; color: {T["faint"]};">{ic("close", 11)}</span>'
+        return (f'<div style="height: 24px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 10px;'
+                f' background: {T["chrome"]}; border-bottom: 1px solid {T["line"]};">'
+                f'<span style="font-size: 9px; font-weight: 700; letter-spacing: 0.1em; color: {T["faint"]};">{label}</span>'
+                f'<span class="mono" style="font-size: 10.5px; color: {T["muted"]};">{who}</span>'
+                f'<div style="flex: 1;"></div>{trailing}</div>')
+
+    source_rows = (
+        crow("assets", is_dir=True)
+        + crow("index.html", selected=True)
+        + crow("logs", is_dir=True, selected=True)
+        + crow("app.2f9c.js", selected=True)
+    )
+    source = (f'<div style="display: flex; flex-direction: column; overflow: hidden; border: 1px solid {T["line"]}; border-radius: 6px;">'
+              f'{pane_header("SOURCE", "deploy@10.4.1.20")}{nav_bar(["/", "var", "www"], True, new_folder=True, selected_count=3)}'
+              f'<div style="flex: 1; padding: 4px 0; overflow: hidden;">{source_rows}</div>'
+              f'{selection_bar(3, show_send=True)}</div>')
+
+    d1_rows = crow("index.html", selected=True) + crow("assets", is_dir=True)
+    d1 = (f'<div style="display: flex; flex-direction: column; overflow: hidden; border: 1px solid {T["line"]}; border-radius: 6px;">'
+          f'{pane_header("DESTINATION", "deploy@10.4.1.21", receiving=True, clearable=True)}{nav_bar(["/", "var", "www"], False, new_folder=True, selected_count=1)}'
+          f'<div style="flex: 1; padding: 4px 0; overflow: hidden;">{d1_rows}</div>'
+          f'{selection_bar(1, show_send=False)}</div>')
+    d2 = (f'<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;'
+          f' border: 1.5px dashed {T["line2"]}; border-radius: 6px;">'
+          f'{ic("sftp", 22, T["off"])}<span style="font-size: 11px; color: {T["faint"]};">Drop a host here</span></div>')
+
+    body = f"""      <div style="flex: 1; min-height: 0; display: flex; gap: 10px; padding: 12px;">
+        <div style="width: 50%;">{source}</div>
+        <div style="width: 50%; display: grid; grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 8px;">{d1}{d2}</div>
+      </div>"""
+
+    sidebar = sessions_sidebar(active=None, states={"web-01": "ok"})
+    st = status(stat_text("3 selected, 1 folder", T['faint'], mono=False), stat_text("", T['muted']))
+
+    page_html = f"""
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{plain_titlebar()}
+{toolbar_row(right_html=select_all_button(1) + split_control(active=2))}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{home_rail(workspace="sftp", sftp_badge="2")}
+{sidebar}
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: {T['base']};">
+{body}
+    </div>
+  </div>
+{st}
+</div>
+"""
+    write("SftpSelectionProposal.dc.html", HEAD + page_html + FOOT)
+
+def build_sftp_delete_confirm_proposal():
+    """Exploratory (2026-09-01), the other half of `build_sftp_selection_
+    proposal`'s ask: deleting over SFTP has no trash either end, unlike the
+    Recycle Bin Explorer's own Delete key answers to, so a mistaken multi
+    or folder delete here has no undo at all. Today `menuItemsFor`'s delete
+    calls `pane.removeEntries` the moment it is clicked; this asks a
+    question first, once, no matter which of the three ways (icon, menu,
+    the Delete key this proposal's sibling artboard also adds) triggered
+    it, shaped like `HostKeyChanged.dc.html`'s own danger-tinted card
+    rather than invented fresh.
+
+    The body keeps `menuItemsFor`'s own reasoning for what a detail line
+    says (`GroupMenu.tsx`'s doc comment: the count belongs on the control
+    that does the thing), just moved from a line under a menu row to the
+    body of a screen somebody has to read before confirming, since a
+    destructive action with no undo deserves the heavier of the two
+    treatments `PasteConfirm.dc.html` and this file's own `menu_item`
+    already split between them."""
+    def line(name, is_dir=False):
+        i = (f'<svg class="ic" viewBox="0 0 24 24" style="width: 12px; height: 12px; color: {T["faint"]};" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M4 6.5h6l1.6 2H20v9.5H4z"></path></svg>'
+             if is_dir else
+             f'<svg class="ic" viewBox="0 0 24 24" style="width: 12px; height: 12px; color: {T["faint"]};"><path d="M6 3h8l4 4v14H6z"></path><path d="M14 3v4h4"></path></svg>')
+        suffix = ' <span style="color: ' + T['faint'] + ';">(folder)</span>' if is_dir else ''
+        return (f'<div style="display: flex; align-items: center; gap: 8px; padding: 3px 0;">{i}'
+                f'<span class="mono" style="font-size: 12px; color: {T["ink2"]};">{name}{suffix}</span></div>')
+
+    card = f"""        <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 26px;">
+          <div style="width: 480px; background: {T['overlay']}; border: 1px solid {T['danger']}; border-radius: 10px; overflow: hidden;">
+            <div style="display: flex; align-items: center; gap: 11px; padding: 16px 22px; background: {T['dangersoft']}; border-bottom: 1px solid {T['danger']};">
+              {ic('trash', 17, T['dangertext'])}
+              <span style="font-size: 15px; font-weight: 700; color: {T['dangertext']};">Delete 3 items?</span>
+            </div>
+            <div style="padding: 20px 22px;">
+              <div style="font-size: 12.5px; color: {T['ink2']}; line-height: 1.6;">This can't be undone. One of them is a folder: deleting it removes everything inside it.</div>
+              <div style="margin-top: 14px; background: {T['terminal']}; border: 1px solid {T['line']}; border-radius: 7px; padding: 10px 14px;">
+                {line("index.html")}{line("logs", is_dir=True)}{line("app.2f9c.js")}
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px; padding: 15px 22px; border-top: 1px solid {T['line']}; background: {T['base']};">
+              <div style="flex: 1;"></div>
+              <span style="font-size: 12.5px; color: {T['muted']}; border: 1px solid {T['line']}; border-radius: 6px; padding: 8px 18px;">Cancel</span>
+              <span style="font-size: 12.5px; font-weight: 600; color: {T['dangersoft']}; background: {T['danger']}; border-radius: 6px; padding: 8px 20px;">Delete</span>
+            </div>
+          </div>
+        </div>"""
+
+    sidebar = sessions_sidebar(active=None, states={"web-01": "ok"})
+    st = status(stat_text("3 selected, 1 folder", T['faint'], mono=False), stat_text("", T['muted']))
+
+    page_html = f"""
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{plain_titlebar()}
+{toolbar_row(right_html=select_all_button(1) + split_control(active=2))}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{home_rail(workspace="sftp", sftp_badge="2")}
+{sidebar}
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: {T['base']};">
+{card}
+    </div>
+  </div>
+{st}
+</div>
+"""
+    write("SftpDeleteConfirmProposal.dc.html", HEAD + page_html + FOOT)
 
 def build_sessions_proposal():
     """Exploratory (2026-08-31), the SSH counterpart to
