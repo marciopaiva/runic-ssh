@@ -274,7 +274,7 @@ only one such a machine can give.
 
 A host's form says whether a password is stored for it, saves one, and forgets
 one, and none of that puts a password field on the form. The credential is
-collected by connecting once, in the wizard's own Access step, and the
+collected by connecting once, in the host editor's own Access column, and the
 connection closes as soon as the server accepts it (#189). What that leaves to
 check is mostly whether the form tells the truth afterwards.
 
@@ -333,14 +333,14 @@ save the core refused would take the draft with it and leave the host unsaved.
 Revert the patch. A forced failure left in the tree passes every test in this
 repository, because nothing here connects to a keychain.
 
-### The credential fields, inline in the wizard's Access step
+### The credential fields, inline in the host editor's Access column
 
 This used to be its own window (ADR-0008), positioned over the main one,
 closable four ways because ADR-0028 spent the title bar on the fourth, and
 offering a three-way choice of where to keep what it collected. ADR-0034
 retired that choice (the wizard states what will happen rather than asking),
 and ADR-0039 retired the window itself: the fields are `InlineCredentialForm`,
-a panel in the wizard's own Access step, in the main window, with nothing left
+a panel in the host editor's own Access column, in the main window, with nothing left
 to position, alt-tab to, or close a fourth way. The positioning, title-bar and
 keep-option checks that used to live here no longer have a subject; #242
 tracked re-driving what still applies against the inline shape.
@@ -355,8 +355,8 @@ shows a hop mid-flow, and `credential.hop.bastion` is the string that says so.
 
 | Do this | Expect |
 | --- | --- |
-| Save a jump host with nothing stored for it, then a target through it with nothing stored either, and test the target from its own Access step | the hop sentence, the method picker and the password field all render for the jump host first, nothing scrolls |
-| Authenticate the jump host | the breadcrumb's third segment changes from the jump host's name to *Entrar*, and the target's own field appears with no hop sentence above it |
+| Save a jump host with nothing stored for it, then a target through it with nothing stored either, and test the target from its own Access column | the hop sentence, the method picker and the password field all render for the jump host first, nothing scrolls |
+| Authenticate the jump host | the small label above the field changes from *Bastion* to *Entrar*, and the target's own field appears with no hop sentence above it |
 | Authenticate the target | the same *the password is saved* surface `docs/testing.md` already describes for a direct host |
 
 Confirmed on Linux on 2026-08-30, driving the real `runic-test-bastion` /
@@ -500,7 +500,7 @@ none either, and no session open on either.
 | Do this | Expect |
 | --- | --- |
 | Connect to the target from Sessions | the whole attempt fails at once, no window, nothing waiting, and the bastion's own entry opens in Hosts with `session.editor.missingCredential` showing |
-| Authenticate there, in the wizard's Access step, choose *in the system keychain* | the result surface says the password is saved; the target still has not been reached |
+| Authenticate there, in the host editor's Access column, choose *in the system keychain* | the result surface says the password is saved; the target still has not been reached |
 | Go back to Sessions, connect to the target again | the bastion's key and credential are silently reused, and now it is the **target's own** entry that opens in Hosts, with the same notice |
 | Authenticate there too | the result surface says the password is saved |
 | Go back to Sessions, connect to the target a third time | both credentials are reused silently, the target's key is checked, and the terminal opens |

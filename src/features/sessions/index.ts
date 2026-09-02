@@ -55,7 +55,7 @@ export {
   updateEditor,
   withEditor,
   withoutEditor,
-  withStep,
+  wrongHostFields,
 } from './editors';
 export type { OpenEditor } from './editors';
 export type { EditorTarget } from './editor';

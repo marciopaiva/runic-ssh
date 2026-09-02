@@ -42,8 +42,9 @@ The webview renders content from untrusted hosts. Any secret that reaches it is
 one XSS or one malicious escape sequence away from exfiltration. The frontend
 holds an opaque id; the core resolves it at the moment of use.
 
-A credential is typed into a plain, **uncontrolled** `<input>` on the wizard's
-own Access step (ADR-0032, ADR-0034): read once through `FormData` at submit,
+A credential is typed into a plain, **uncontrolled** `<input>` in the host
+editor's own Access column (ADR-0032, ADR-0034, reshaped from a step to a
+column by ADR-0056): read once through `FormData` at submit,
 never bound to a React state value, and the form resets once it is sent. That
 keeps the secret out of the render tree the way section 6 of `CLAUDE.md`
 requires, whatever else is true of the page around it.

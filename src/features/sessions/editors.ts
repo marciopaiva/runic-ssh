@@ -15,8 +15,11 @@
  */
 
 import type { DraftField, DraftValues } from './draft';
+import { invalidFields, parsePort } from './draft';
+import { duplicateOf } from './duplicate';
 import { differs, editorValues, targetSession } from './editor';
 import type { EditorTarget } from './editor';
+import { jumpHostChoice } from './jump';
 import type { Session } from '../../ipc';
 
 /** One open form. `baseline` is what it was last loaded *or saved* with. */
@@ -28,15 +31,6 @@ export interface OpenEditor {
   readonly wrong: readonly DraftField[];
   /** Whether this form is waiting on an answer about throwing work away. */
   readonly discarding: boolean;
-  /**
-   * Which of the wizard's two steps is showing. ADR-0034: every host, new or
-   * already saved, is drawn by the same two steps now, so there is nothing
-   * left for a second mode to distinguish. Kept here rather than in
-   * component state so that looking away to another host and back does not
-   * reset it. Home has one rectangle, and switching what it shows unmounts
-   * whichever form was drawing it.
-   */
-  readonly step: 1 | 2;
 }
 
 /**
@@ -95,7 +89,6 @@ export function withEditor(
       baseline: loaded,
       wrong: [],
       discarding: false,
-      step: 1,
     },
   ];
 }
@@ -120,6 +113,44 @@ export function updateEditor(
   return editors.map((editor) => (editorKey(editor.target) === key ? change(editor) : editor));
 }
 
+/**
+ * Every field Save has to refuse: everything `invalidFields` already checks
+ * on the values alone, plus the two the form cannot see without the file:
+ * a duplicate connection target, and a jump host already carrying other
+ * saved sessions that a proxy change here would silently orphan.
+ * `jumpHostChoice` already returns `carried: []` for a host being created,
+ * so `editing` needs no branch of its own here.
+ *
+ * ADR-0056: also what Save's own pre-flight check runs before handing off
+ * to Access's proof phase, now that reaching Access is a click on Save
+ * rather than a step transition with its own, narrower gate
+ * (`wizardNext`'s old check, which never looked at `carried`). Skipping
+ * this before flipping into the proving overlay is what stops a save the
+ * core would refuse from landing on a settled-looking row offering
+ * *Finish* for nothing that actually saved.
+ */
+export function wrongHostFields(
+  values: DraftValues,
+  saved: readonly Session[],
+  editing: string | null,
+): readonly DraftField[] {
+  const carried = jumpHostChoice(saved, editing, values.proxyJump).carried;
+  const duplicate = duplicateOf(
+    saved,
+    editing,
+    values.host,
+    parsePort(values.port),
+    values.user,
+    values.proxyJump,
+  );
+
+  return [
+    ...invalidFields(values),
+    ...(carried.length > 0 && values.proxyJump !== '' ? (['proxyJump'] as const) : []),
+    ...(duplicate !== null ? (['host'] as const) : []),
+  ];
+}
+
 /** A field was typed into. */
 export function typedInto(
   editor: OpenEditor,
@@ -136,23 +167,14 @@ export function typedInto(
   };
 }
 
-/** Moves the wizard to a given step. */
-export function withStep(editor: OpenEditor, step: OpenEditor['step']): OpenEditor {
-  return { ...editor, step };
-}
-
 /**
  * A form that has just been saved, re-aimed at what was stored.
  *
  * For a host that did not exist this is the first time the form learns its id.
  * Without it the form stays on "new session" after saving one, and the tab goes
  * on claiming unsaved work for a host that is already on disk.
- *
- * `step` is the caller's to carry through, not recomputed here: this function
- * has no way to tell a wizard's own save-and-test from an ordinary edit.
- * Callers that do not care pass `1`, the wizard's own opening step.
  */
-export function settled(stored: Session, step: OpenEditor['step'] = 1): OpenEditor {
+export function settled(stored: Session): OpenEditor {
   const values = editorValues(stored);
 
   return {
@@ -161,6 +183,5 @@ export function settled(stored: Session, step: OpenEditor['step'] = 1): OpenEdit
     baseline: values,
     wrong: [],
     discarding: false,
-    step,
   };
 }

@@ -13,6 +13,7 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { EMPTY_DRAFT } from '../src/features/sessions';
 import {
   anyDirty,
   editorDirty,
@@ -23,6 +24,7 @@ import {
   updateEditor,
   withEditor,
   withoutEditor,
+  wrongHostFields,
 } from '../src/features/sessions/editors';
 import type { OpenEditor } from '../src/features/sessions/editors';
 import type { Session } from '../src/ipc';
@@ -165,5 +167,46 @@ describe('closing a form', () => {
 
   it('is a no-op for a form that is not open', () => {
     expect(withoutEditor([], A)).toEqual([]);
+  });
+});
+
+describe('what Save has to refuse (ADR-0056)', () => {
+  /* A host that would pass `invalidFields` on its own: everything else in
+     this describe block breaks one further, file-aware check on top of it. */
+  const VALID = { ...EMPTY_DRAFT, name: 'web-02', host: 'web-02.example', user: 'deploy' };
+
+  it('accepts a draft nothing else conflicts with', () => {
+    expect(wrongHostFields(VALID, SESSIONS, null)).toEqual([]);
+  });
+
+  it('carries every field-level problem `invalidFields` finds on its own', () => {
+    expect(wrongHostFields(EMPTY_DRAFT, SESSIONS, null)).toEqual(
+      expect.arrayContaining(['name', 'host', 'user']),
+    );
+  });
+
+  it('flags a host that already reaches the same host, port and user', () => {
+    const draft = { ...VALID, host: 'web-01.example' };
+
+    expect(wrongHostFields(draft, SESSIONS, null)).toEqual(['host']);
+  });
+
+  it('does not call a host a duplicate of itself while editing it', () => {
+    const draft = { ...VALID, host: 'web-01.example' };
+
+    expect(wrongHostFields(draft, SESSIONS, 'a1')).toEqual([]);
+  });
+
+  it('refuses a jump host already carrying another saved session', () => {
+    const rider = { ...session('c3', 'db-02'), proxyJump: 'a1' };
+    const draft = { ...VALID, proxyJump: 'b2' };
+
+    expect(wrongHostFields(draft, [...SESSIONS, rider], 'a1')).toEqual(['proxyJump']);
+  });
+
+  it('leaves a carried host alone if its own proxy field is untouched', () => {
+    const rider = { ...session('c3', 'db-02'), proxyJump: 'a1' };
+
+    expect(wrongHostFields(VALID, [...SESSIONS, rider], 'a1')).toEqual([]);
   });
 });
