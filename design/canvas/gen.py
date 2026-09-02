@@ -1937,17 +1937,18 @@ def build_home_hosts():
     code, that a form capped at its own width left the pair sitting flush
     left with the other half of the window empty, the same thing
     `HomeDashboard`'s own card grid already centres against. Redrawn here
-    to match the fix rather than the shape that prompted it."""
+    to match the fix rather than the shape that prompted it.
+
+    Revised the same day, against the maintainer's own request: each row
+    now carries `HostKindIcon` (ADR-0031), the exact template
+    `SessionsSidebar.tsx`/`host_row()` already closed, rather than a
+    second, plainer row invented for this list alone. No new field, no
+    new component: `kind` already exists on every saved host, and this is
+    the one place in Home that was still drawing a row without it."""
     rows = "\n".join([
-        f'<div style="display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 10px; border-radius: 4px; background: {T["raised"]}; box-shadow: inset 2px 0 0 {T["accent"]};">'
-        f'<span style="font-size: 12.5px; color: {T["ink"]};">runic-target-a</span>'
-        f'<span class="mono" style="margin-left: auto; font-size: 10.5px; color: {T["faint"]};">target.internal</span></div>',
-        f'<div style="display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 10px; border-radius: 4px;">'
-        f'<span style="font-size: 12.5px; color: {T["ink2"]};">runic-bastion</span>'
-        f'<span class="mono" style="margin-left: auto; font-size: 10.5px; color: {T["faint"]};">127.0.0.1</span></div>',
-        f'<div style="display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 10px; border-radius: 4px;">'
-        f'<span style="font-size: 12.5px; color: {T["ink2"]};">dev-web</span>'
-        f'<span class="mono" style="margin-left: auto; font-size: 10.5px; color: {T["faint"]};">10.0.1.5</span></div>',
+        host_row("runic-target-a", "target.internal", active=True, kind="target"),
+        host_row("runic-bastion", "127.0.0.1", kind="jumpServer"),
+        host_row("dev-web", "10.0.1.5", kind="direct"),
     ])
     list_card = dashboard_card("Hosts", f"""
       <div style="display: flex; flex-direction: column; gap: 2px; margin: -4px 0;">
