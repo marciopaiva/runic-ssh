@@ -281,6 +281,27 @@ export function App(): JSX.Element {
      renders from this, `onOpened` only needs whatever it was most recently
      told. */
   const sftpConnectTargets = useRef<Map<string, SftpTarget>>(new Map());
+  /* Which sessions Sessions itself has actually asked a shell for, ADR-0053.
+     A connection opened for SFTP shares its handle with Sessions (one SSH
+     transport, multiplexed channels), which used to be read as "Sessions
+     wants a tab for this" and "it is safe to disconnect this on Sessions'
+     say-so", neither of which SFTP-only use means. Set wherever Sessions
+     asks for a session (`activate`, `openHere`, and `onOpened`'s own
+     Sessions branch as a safety net), cleared in `disconnect` and once an
+     attempt is abandoned. Left alone on a failed attempt: the failure
+     surface still needs the tab it renders in. */
+  const [terminalWanted, setTerminalWanted] = useState<ReadonlySet<string>>(new Set());
+  const wantTerminal = useCallback((sessionId: string): void => {
+    setTerminalWanted((current) => (current.has(sessionId) ? current : new Set(current).add(sessionId)));
+  }, []);
+  const unwantTerminal = useCallback((sessionId: string): void => {
+    setTerminalWanted((current) => {
+      if (!current.has(sessionId)) return current;
+      const next = new Set(current);
+      next.delete(sessionId);
+      return next;
+    });
+  }, []);
   /* What Home's own strip is pointing at: the host editor or settings, never
      a session. Home has no groups to place an entry into, so this is the
      whole of its focus model, unlike `focus` above. */
@@ -427,6 +448,11 @@ export function App(): JSX.Element {
         if (sftpTarget.kind === 'source') fanout.setSource(endpoint);
         else fanout.replaceDestination(sftpTarget.slot, endpoint);
       } else {
+        /* A safety net, not the primary path: `activate`/`openHere` already
+           call `wantTerminal` before this ever fires, for the same reason
+           `sftpConnectTargets` is checked above rather than assumed.
+           ADR-0053. */
+        wantTerminal(sessionId);
         setFocus({ kind: 'session', sessionId });
       }
       setCarriedOn((current) => {
@@ -456,6 +482,10 @@ export function App(): JSX.Element {
        *previous* attempt's result showing on this one. */
     onAbandoned: (sessionId, settled) => {
       sftpConnectTargets.current.delete(sessionId);
+      /* Nothing is left to show a tab for once an attempt is walked away
+         from, ADR-0053: no handle, no attempt, and (for one Sessions itself
+         started) no failure surface left to keep a panel open for either. */
+      unwantTerminal(sessionId);
       setState(sessionId, 'saved');
       if (settled) return;
       setTestOutcome((current) => {
@@ -510,7 +540,10 @@ export function App(): JSX.Element {
      surface asking about it has a panel to render in — ADR-0015. Dismissing
      the failure clears the attempt, and the tab goes with it. */
   const attentionId = attempt?.sessionId ?? null;
-  const tabs = useMemo(() => openTabs(sessions, attentionId), [sessions, attentionId]);
+  const tabs = useMemo(
+    () => openTabs(sessions, attentionId, terminalWanted),
+    [sessions, attentionId, terminalWanted],
+  );
   /* A tab disappears when its host drops the connection, which nobody
      clicked. Resolving on render is what keeps the active tab pointing at
      something that is still there. */
@@ -709,18 +742,32 @@ export function App(): JSX.Element {
   }, []);
 
   /* Closing a connection, wherever it is asked for. The tab's X and the row
-     menu both land here rather than each doing their own half of it. */
+     menu both land here rather than each doing their own half of it.
+     ADR-0053: this is Sessions saying it is done, not the whole app saying
+     it is. If SFTP still holds this same handle as its source or one of its
+     destinations, the tab and `terminalWanted` go away but the connection
+     itself does not, since closing a Sessions tab must not take an SFTP
+     browse session down with it. */
   const disconnect = useCallback(
     (sessionId: string): void => {
       const live = sessions.find((entry) => entry.session.id === sessionId);
       if (live?.handle == null) return;
+
+      unwantTerminal(sessionId);
+
+      const stillUsedBySftp =
+        (fanout.source?.kind === 'remote' && fanout.source.sessionId === sessionId) ||
+        fanout.destinations.some(
+          (destination) => destination?.kind === 'remote' && destination.sessionId === sessionId,
+        );
+      if (stillUsedBySftp) return;
 
       void disconnectSession(live.handle).finally(() => {
         attach(sessionId, null);
         setState(sessionId, 'saved');
       });
     },
-    [sessions, attach, setState],
+    [sessions, attach, setState, unwantTerminal, fanout],
   );
 
   /* Taking a tab off the strip also takes it out of the group that held it.
@@ -896,6 +943,9 @@ export function App(): JSX.Element {
       setHeld((current) => moveEntry(current, mine, group));
       setSelected(sessionId);
       setFocus(mine);
+      /* This rectangle is asking for a tab now, ADR-0053, whether or not a
+         handle already exists for it (SFTP may hold one already). */
+      wantTerminal(sessionId);
 
       /* Already open, or already on its way. Both only move; a second connect
          to the same host is two sockets with the first orphaned. */
@@ -906,7 +956,7 @@ export function App(): JSX.Element {
 
       void connect(sessionId);
     },
-    [sessions, attempt, connect],
+    [sessions, attempt, connect, wantTerminal],
   );
 
   /* The palette's "open settings" lands here. Appearance is a card on Home's
@@ -943,6 +993,11 @@ export function App(): JSX.Element {
       const live = sessions.find((entry) => entry.session.id === sessionId);
       if (live === undefined) return;
 
+      /* Sessions is asking for this one now, ADR-0053, whether or not a
+         handle already exists (SFTP may have opened it): clicking it here
+         is exactly the moment it also becomes Sessions' to show a tab for. */
+      wantTerminal(sessionId);
+
       if (live.handle !== null) {
         focusOn({ kind: 'session', sessionId });
         return;
@@ -961,7 +1016,7 @@ export function App(): JSX.Element {
 
       void connect(sessionId);
     },
-    [connect, sessions, attempt, focusOn],
+    [connect, sessions, attempt, focusOn, wantTerminal],
   );
 
   /* What the attempt has to say, as one branch instead of four nested ones at
