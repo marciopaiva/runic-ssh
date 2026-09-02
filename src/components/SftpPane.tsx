@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { JSX } from 'react';
 
 import { pathSegments, selectionRange } from '../features/sftp/browser';
@@ -11,6 +11,7 @@ import type { Translator } from '../lib/i18n';
 import { BroadcastGlyph } from './BroadcastGlyph';
 import { GroupMenu } from './GroupMenu';
 import type { GroupMenuItem } from './GroupMenu';
+import { SftpDeleteConfirm } from './SftpDeleteConfirm';
 
 interface SftpPaneProps {
   readonly endpoint: Endpoint;
@@ -299,14 +300,38 @@ interface NavBarProps {
    * somebody finds without being told the convention" reasoning
    * `SessionMenu.tsx`'s own doc comment already gives. */
   readonly onNewFolder: () => void;
+  /** How many rows this pane currently has selected. Drives whether rename
+   * and delete, drawn here regardless (ADR-0050: "always there, not always
+   * able," the same convention `canGoBack`/`canGoUp` already draw for the
+   * arrows beside them), can actually be clicked. */
+  readonly selectedCount: number;
+  /** Renames the sole selected row. Never called at any other count: the
+   * button is disabled and F2 is a no-op otherwise. */
+  readonly onRename: () => void;
+  /** Opens the delete confirmation for every selected row. */
+  readonly onDelete: () => void;
 }
 
 /**
- * Back, up, a clickable breadcrumb, new folder and refresh, below a pane's
- * identity header (ADR-0047, ADR-0048). No forward: `usePane`'s own
- * history is back-only, which is the one direction this draws.
+ * Back, up, a clickable breadcrumb, new folder, refresh, rename and delete,
+ * below a pane's identity header (ADR-0047, ADR-0048, ADR-0050). No
+ * forward: `usePane`'s own history is back-only, which is the one
+ * direction this draws.
  */
-function NavBar({ i18n, path, canGoBack, canGoUp, onBack, onUp, onEnter, onRefresh, onNewFolder }: NavBarProps): JSX.Element {
+function NavBar({
+  i18n,
+  path,
+  canGoBack,
+  canGoUp,
+  onBack,
+  onUp,
+  onEnter,
+  onRefresh,
+  onNewFolder,
+  selectedCount,
+  onRename,
+  onDelete,
+}: NavBarProps): JSX.Element {
   const segments = pathSegments(path ?? '');
 
   return (
@@ -387,6 +412,43 @@ function NavBar({ i18n, path, canGoBack, canGoUp, onBack, onUp, onEnter, onRefre
         <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" aria-hidden="true">
           <path d="M20 12a8 8 0 1 1-2.6-5.9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
           <path d="M20 4v5h-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        disabled={selectedCount !== 1}
+        onClick={onRename}
+        aria-label={i18n.t('sftp.menu.rename')}
+        title={i18n.t('sftp.menu.rename')}
+        className="text-ink-muted enabled:hover:text-ink disabled:text-ink-disabled flex h-5 w-5 shrink-0 items-center justify-center"
+      >
+        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" aria-hidden="true">
+          <path
+            d="M4 20l1-4.2L15.8 5l3.2 3.2L8.2 19H4z"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path d="M13.8 6.7l3.2 3.2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        disabled={selectedCount < 1}
+        onClick={onDelete}
+        aria-label={i18n.t('sftp.menu.delete')}
+        title={i18n.t('sftp.menu.delete')}
+        className="enabled:text-danger-text enabled:hover:opacity-80 disabled:text-ink-disabled flex h-5 w-5 shrink-0 items-center justify-center"
+      >
+        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" aria-hidden="true">
+          <path
+            d="M5 7h14M9.5 7V5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v2M7 7l1 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-13"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
       </button>
     </div>
@@ -470,6 +532,9 @@ export function SftpPane({
 }: SftpPaneProps): JSX.Element {
   const i18n = useTranslator();
   const pane = usePane(endpoint);
+  /* The listing's own scrollable container, focused back after an inline
+     edit ends: see `refocusList` below. */
+  const listRef = useRef<HTMLDivElement>(null);
   /* Which of this pane's own rows are selected, every pane alike (ADR-0050:
      a destination's own selection is real now, not only the source's).
      Reset on every navigation: a selection made in one directory has
@@ -544,12 +609,59 @@ export function SftpPane({
     readonly at: { readonly x: number; readonly y: number };
     readonly entry: PaneEntry;
   } | null>(null);
+  /* The targets a delete was asked for, waiting on the one question
+   * `requestDelete` always asks first, regardless of which of the three
+   * triggers (the nav bar's own icon, the context menu, or the Delete key)
+   * asked it: neither SFTP nor a local filesystem offers a Recycle Bin on
+   * either end, so nothing here calls `pane.removeEntries` directly
+   * anymore. `null` the rest of the time. ADR-0050. */
+  const [confirmingDelete, setConfirmingDelete] = useState<readonly PaneEntry[] | null>(null);
 
   useEffect(() => {
     setCreating(null);
     setRenaming(null);
     setMenu(null);
+    setConfirmingDelete(null);
   }, [pane.path]);
+
+  const selectedEntries = (): readonly PaneEntry[] =>
+    pane.entries.filter((entry) => selected.has(entry.path));
+
+  /* The nav bar's own pencil and F2 alike: a no-op at any count but
+   * exactly one, the same guard the button's own `disabled` already
+   * enforces for a mouse. */
+  const renameSoleSelected = (): void => {
+    const entries = selectedEntries();
+    if (entries.length === 1) startRenaming(entries[0] as PaneEntry);
+  };
+
+  const requestDelete = (targets: readonly PaneEntry[]): void => {
+    if (targets.length === 0) return;
+    setConfirmingDelete(targets);
+  };
+
+  const confirmDelete = (): void => {
+    if (confirmingDelete === null) return;
+    const deleted = new Set(confirmingDelete.map((target) => target.path));
+    pane.removeEntries(confirmingDelete.map((target) => ({ name: target.name, isDir: target.isDir })));
+    setConfirmingDelete(null);
+    /* Otherwise the selection bar keeps counting rows that are no longer
+       there: `removeEntries` drops them from the listing, not from
+       `selected`, which nothing else here would think to do on its own. */
+    setSelected((current) => new Set([...current].filter((path) => !deleted.has(path))));
+    refocusList();
+  };
+
+  /* Refocuses the listing itself once an inline edit ends, whichever way
+     it ended. The `<input>` an edit reads holds focus while it exists;
+     losing it to Escape or Enter unmounting that input moves focus
+     nowhere in particular, and Delete/Ctrl+A/F2 (ADR-0050) all depend on
+     this container, not the row, holding it. Without this a cancelled
+     rename left every one of them unreachable until the next plain
+     click. */
+  const refocusList = (): void => {
+    listRef.current?.focus();
+  };
 
   const startCreating = (): void => {
     if (creating !== null) return;
@@ -560,6 +672,7 @@ export function SftpPane({
     const value = creating?.value.trim() ?? '';
     if (value !== '') pane.createDirectory(value);
     setCreating(null);
+    refocusList();
   };
 
   const startRenaming = (entry: PaneEntry): void => {
@@ -570,6 +683,7 @@ export function SftpPane({
     const value = renaming?.value.trim() ?? '';
     if (value !== '' && value !== entry.name) pane.renameEntry(entry.name, value);
     setRenaming(null);
+    refocusList();
   };
 
   /* What the right-click menu offers for `entry`: renaming (never for more
@@ -605,14 +719,14 @@ export function SftpPane({
       destructive: true,
       run: () => {
         setMenu(null);
-        pane.removeEntries(targets.map((target) => ({ name: target.name, isDir: target.isDir })));
+        requestDelete(targets);
       },
     });
     return items;
   };
 
   return (
-    <div className="border-line-subtle bg-surface-terminal flex h-full flex-col overflow-hidden rounded border">
+    <div className="border-line-subtle bg-surface-terminal relative flex h-full flex-col overflow-hidden rounded border">
       <div className="border-line-subtle bg-surface-chrome flex h-8 shrink-0 items-center gap-2.5 border-b px-2.5">
         <span className="text-ink-faint text-[9.5px] font-bold tracking-[0.1em]">{label}</span>
         <span className="text-ink-muted truncate font-mono text-[11px]">{identity}</span>
@@ -677,6 +791,9 @@ export function SftpPane({
         onEnter={pane.enter}
         onRefresh={() => pane.enter(pane.path)}
         onNewFolder={startCreating}
+        selectedCount={selected.size}
+        onRename={renameSoleSelected}
+        onDelete={() => requestDelete(selectedEntries())}
       />
 
       {pane.actionError !== null && (
@@ -694,12 +811,25 @@ export function SftpPane({
           the window's edge; nothing here needs that, only somewhere empty
           for the thumb to sit. */}
       <div
-        className="min-h-0 flex-1 overflow-y-auto py-1 pr-2"
+        ref={listRef}
+        tabIndex={-1}
+        className="min-h-0 flex-1 overflow-y-auto py-1 pr-2 outline-none"
         onKeyDown={(event) => {
           /* ADR-0050: every pane's own selection now, not only the source's. */
           if ((event.ctrlKey || event.metaKey) && event.key === 'a') {
             event.preventDefault();
             setSelected(new Set(pane.entries.map((entry) => entry.path)));
+            return;
+          }
+          /* F2 renames the sole selected row, a no-op at any other count:
+             the row-level `<input>`'s own `onKeyDown` already stops
+             propagation, so this never fires while one is already open. */
+          if (event.key === 'F2') {
+            renameSoleSelected();
+            return;
+          }
+          if (event.key === 'Delete' || event.key === 'Backspace') {
+            requestDelete(selectedEntries());
           }
         }}
       >
@@ -737,7 +867,10 @@ export function SftpPane({
               value: creating.value,
               onChange: (value) => setCreating({ value }),
               onCommit: commitCreating,
-              onCancel: () => setCreating(null),
+              onCancel: () => {
+                setCreating(null);
+                refocusList();
+              },
             }}
             onContextMenu={null}
           />
@@ -766,7 +899,10 @@ export function SftpPane({
                       value: renaming.value,
                       onChange: (value) => setRenaming({ path: entry.path, value }),
                       onCommit: () => commitRenaming(entry),
-                      onCancel: () => setRenaming(null),
+                      onCancel: () => {
+                        setRenaming(null);
+                        refocusList();
+                      },
                     }
                   : null
               }
@@ -796,6 +932,19 @@ export function SftpPane({
             setSelected(new Set());
           }}
         />
+      )}
+
+      {confirmingDelete !== null && (
+        <div className="absolute inset-0 z-20">
+          <SftpDeleteConfirm
+            targets={confirmingDelete}
+            onConfirm={confirmDelete}
+            onCancel={() => {
+              setConfirmingDelete(null);
+              refocusList();
+            }}
+          />
+        </div>
       )}
     </div>
   );

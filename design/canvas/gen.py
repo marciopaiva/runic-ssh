@@ -109,10 +109,10 @@ ICON = dict(
     # `FolderIcon`/`ic('sftp', ...)` already draw, with a plus in place of
     # `sftp`'s own receiving-arrow, for the nav bar's "new folder" action.
     newfolder='<path d="M4 6.5h6l1.6 2H20v9.5H4z"></path><path d="M12 12v4M10 14h4"></path>',
-    # Exploratory (`build_sftp_selection_proposal`): the two icon-bar
-    # commands a Windows 11-style selection offers next to the count,
-    # standing in for what today is right-click-only (`menu_item`'s own
-    # "Rename"/"Delete").
+    # ADR-0050, #292: the two icon-bar commands a Windows 11-style
+    # selection offers next to the count, in `nav_bar()`'s own
+    # `selected_count` now for real, beside the right-click menu
+    # (`menu_item`'s own "Rename"/"Delete") rather than instead of it.
     pencil='<path d="M4 20l1-4.2L15.8 5l3.2 3.2L8.2 19H4z"></path><path d="M13.8 6.7l3.2 3.2"></path>',
     trash='<path d="M5 7h14"></path><path d="M9.5 7V5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v2"></path>'
           '<path d="M7 7l1 12.5a1.5 1.5 0 0 0 1.5 1.4h5a1.5 1.5 0 0 0 1.5-1.4L17 7"></path><path d="M10 11v6M14 11v6"></path>',
@@ -893,11 +893,11 @@ def nav_bar(segments, can_back=False, new_folder=False, selected_count=None):
     comment already gives for pairing a menu with a button. Off by default
     so every artboard already drawing a plain `nav_bar()` is unaffected.
 
-    `selected_count`, exploratory (`build_sftp_selection_proposal`): rename
-    and delete drawn next to new folder rather than in a separate bar of
-    their own, confirmed directly against that artboard's first cut, which
-    put them in `selection_bar()` at the bottom instead. `None` (every
-    other caller) omits both, unchanged. Given a count, both stay in the
+    `selected_count` (ADR-0050, #292): rename and delete drawn next to new
+    folder rather than in a separate bar of their own, confirmed directly
+    against `build_sftp_selection_proposal`'s own first cut, which put
+    them in `selection_bar()` at the bottom instead. `None` (every other
+    caller) omits both, unchanged. Given a count, both stay in the
     bar rather than appearing and disappearing as the selection changes
     (`new_folder`/`refresh` never do either): rename lights only at
     exactly one, delete at one or more, dim otherwise rather than gone,
@@ -1494,10 +1494,18 @@ def build_sftp_folder_copy():
     write("SftpFolderCopy.dc.html", HEAD + page_html + FOOT)
 
 def build_sftp_selection_proposal():
-    """Exploratory (2026-09-01): the maintainer's own read of every SFTP
-    artboard drawn so far is that a row's selection has never looked like a
-    file manager's own. Two changes, proposed together because the second
-    only makes sense once the first is true:
+    """Both changes below shipped for real (ADR-0050, #291 the click model,
+    #292 rename/delete), and this artboard stays exploratory a little
+    longer anyway: the one real change it also draws, the upload-from-
+    dialog icon (ADR-0042) leaving the identity row, is #293's own work,
+    not yet done. Promoting this into `canvas.json` before then would
+    have the canvas showing an icon the shipped tree still has, which is
+    exactly the drift the canvas exists to prevent. `build_sftp_delete_
+    confirm()`, this file's own sibling, has no such dependency and is
+    promoted already.
+
+    Two changes, proposed together because the second only makes sense
+    once the first is true:
 
     Today's `Row` (`SftpPane.tsx`) opens a directory on a plain click and
     only lets Shift/Ctrl change what is selected; a checkbox is the other,
@@ -1639,24 +1647,30 @@ def build_sftp_selection_proposal():
 """
     write("SftpSelectionProposal.dc.html", HEAD + page_html + FOOT)
 
-def build_sftp_delete_confirm_proposal():
-    """Exploratory (2026-09-01), the other half of `build_sftp_selection_
-    proposal`'s ask: deleting over SFTP has no trash either end, unlike the
-    Recycle Bin Explorer's own Delete key answers to, so a mistaken multi
-    or folder delete here has no undo at all. Today `menuItemsFor`'s delete
-    calls `pane.removeEntries` the moment it is clicked; this asks a
-    question first, once, no matter which of the three ways (icon, menu,
-    the Delete key this proposal's sibling artboard also adds) triggered
-    it, shaped like `HostKeyChanged.dc.html`'s own danger-tinted card
-    rather than invented fresh.
+def build_sftp_delete_confirm():
+    """Accepted (ADR-0050, #292): the one question `requestDelete` always
+    asks first, reached identically from the nav bar's own trash icon, the
+    right-click menu, and the Delete key. Deleting over SFTP has no trash
+    either end, unlike the Recycle Bin Explorer's own Delete key answers
+    to, so a mistaken multi- or folder-delete had no way back before this.
+    Shaped like `HostKeyChanged.dc.html`'s own danger-tinted card rather
+    than invented fresh, with one difference from that card's own reason
+    for existing: deleting is an ordinary, deliberate action once asked
+    for, not an unexpected one to resist, so *Delete* is the filled
+    button here, only tinted danger rather than accent.
+
+    Revised from the exploratory pass against the shape the implementation
+    actually took: the card overlays the one pane that asked
+    (`SftpDeleteConfirm.tsx`, `position: absolute inset-0` over that
+    `SftpPane`'s own rectangle), not the whole workspace. A destination
+    pane keeps browsing while the source asks its own question, the same
+    as any dual-pane file manager already lets one side interrupt without
+    freezing the other.
 
     The body keeps `menuItemsFor`'s own reasoning for what a detail line
     says (`GroupMenu.tsx`'s doc comment: the count belongs on the control
-    that does the thing), just moved from a line under a menu row to the
-    body of a screen somebody has to read before confirming, since a
-    destructive action with no undo deserves the heavier of the two
-    treatments `PasteConfirm.dc.html` and this file's own `menu_item`
-    already split between them."""
+    that does the thing), moved from a line under a menu row to the body
+    of a screen somebody has to read before confirming."""
     def line(name, is_dir=False):
         i = (f'<svg class="ic" viewBox="0 0 24 24" style="width: 12px; height: 12px; color: {T["faint"]};" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M4 6.5h6l1.6 2H20v9.5H4z"></path></svg>'
              if is_dir else
@@ -1665,8 +1679,23 @@ def build_sftp_delete_confirm_proposal():
         return (f'<div style="display: flex; align-items: center; gap: 8px; padding: 3px 0;">{i}'
                 f'<span class="mono" style="font-size: 12px; color: {T["ink2"]};">{name}{suffix}</span></div>')
 
-    card = f"""        <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 26px;">
-          <div style="width: 480px; background: {T['overlay']}; border: 1px solid {T['danger']}; border-radius: 10px; overflow: hidden;">
+    def crow(name, dim=False, is_dir=False, selected=False):
+        if is_dir:
+            i = f'<svg class="ic" viewBox="0 0 24 24" style="width: 12px; height: 12px; color: {T["faint"]};" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M4 6.5h6l1.6 2H20v9.5H4z"></path></svg>'
+        else:
+            i = ic("sftp", 12, T['faint']) if dim else f'<svg class="ic" viewBox="0 0 24 24" style="width: 12px; height: 12px; color: {T["faint"]};"><path d="M6 3h8l4 4v14H6z"></path><path d="M14 3v4h4"></path></svg>'
+        bg = f'background: {T["accentsoft"]};' if selected else ''
+        return (f'<div style="display: flex; align-items: center; gap: 8px; padding: 3px 8px; {bg}">{i}'
+                f'<span class="mono" style="font-size: 11px; color: {T["ink2"]};">{name}</span></div>')
+
+    def pane_header(label, who):
+        return (f'<div style="height: 24px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 10px;'
+                f' background: {T["chrome"]}; border-bottom: 1px solid {T["line"]};">'
+                f'<span style="font-size: 9px; font-weight: 700; letter-spacing: 0.1em; color: {T["faint"]};">{label}</span>'
+                f'<span class="mono" style="font-size: 10.5px; color: {T["muted"]};">{who}</span></div>')
+
+    card = f"""        <div style="position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(4, 9, 15, 0.55);">
+          <div style="width: 100%; max-width: 400px; background: {T['overlay']}; border: 1px solid {T['danger']}; border-radius: 10px; overflow: hidden;">
             <div style="display: flex; align-items: center; gap: 11px; padding: 16px 22px; background: {T['dangersoft']}; border-bottom: 1px solid {T['danger']};">
               {ic('trash', 17, T['dangertext'])}
               <span style="font-size: 15px; font-weight: 700; color: {T['dangertext']};">Delete 3 items?</span>
@@ -1685,6 +1714,28 @@ def build_sftp_delete_confirm_proposal():
           </div>
         </div>"""
 
+    source_rows = (
+        crow("assets", is_dir=True)
+        + crow("index.html", selected=True)
+        + crow("logs", is_dir=True, selected=True)
+        + crow("app.2f9c.js", selected=True)
+    )
+    source = (f'<div style="position: relative; display: flex; flex-direction: column; overflow: hidden; border: 1px solid {T["line"]}; border-radius: 6px;">'
+              f'{pane_header("SOURCE", "deploy@10.4.1.20")}{nav_bar(["/", "var", "www"], True, new_folder=True, selected_count=3)}'
+              f'<div style="flex: 1; padding: 4px 0; overflow: hidden;">{source_rows}</div>'
+              f'{card}</div>')
+
+    dest_rows = crow("index.html") + crow("assets", is_dir=True) + crow("app.2f9c.js")
+    dest = (f'<div style="display: flex; flex-direction: column; overflow: hidden; border: 1px solid {T["line"]}; border-radius: 6px;">'
+            f'{pane_header("DESTINATION", "deploy@10.4.1.21")}{nav_bar(["/", "var", "www"], False, new_folder=True, selected_count=0)}'
+            f'<div style="flex: 1; padding: 4px 0; overflow: hidden;">{dest_rows}</div>'
+            f'</div>')
+
+    body = f"""      <div style="flex: 1; min-height: 0; display: flex; gap: 10px; padding: 12px;">
+        <div style="width: 50%;">{source}</div>
+        <div style="width: 50%;">{dest}</div>
+      </div>"""
+
     sidebar = sessions_sidebar(active=None, states={"web-01": "ok"})
     st = status(stat_text("3 selected, 1 folder", T['faint'], mono=False), stat_text("", T['muted']))
 
@@ -1696,13 +1747,13 @@ def build_sftp_delete_confirm_proposal():
 {home_rail(workspace="sftp", sftp_badge="2")}
 {sidebar}
     <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: {T['base']};">
-{card}
+{body}
     </div>
   </div>
 {st}
 </div>
 """
-    write("SftpDeleteConfirmProposal.dc.html", HEAD + page_html + FOOT)
+    write("SftpDeleteConfirm.dc.html", HEAD + page_html + FOOT)
 
 def build_sessions_proposal():
     """Exploratory (2026-08-31), the SSH counterpart to
@@ -2770,7 +2821,7 @@ else:
     for fn in (build_empty, build_main, build_groups, build_collapsed, build_broadcast,
                build_hostkey, build_sftp, build_sftp_workspace, build_sftp_fanout, build_sftp_proposal,
                build_sftp_proposal_broadcast, build_sftp_file_ops, build_sftp_folder_copy,
-               build_sftp_selection_proposal, build_sftp_delete_confirm_proposal,
+               build_sftp_selection_proposal, build_sftp_delete_confirm,
                build_terminal_motd_proposal,
                build_sessions_proposal, build_sessions_proposal_broadcast,
                build_sessions_proposal_broadcast_multi,
