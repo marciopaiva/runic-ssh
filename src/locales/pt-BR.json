@@ -97,7 +97,7 @@
   "home.hosts": "Hosts",
   "home.hosts.empty.body": "Escolha um host à esquerda para alterar, ou adicione um.",
   "home.hosts.empty.title": "Nenhum host selecionado",
-  "home.hosts.open": "Abrir Hosts",
+  "home.hosts.filter": "Filtrar hosts",
   "home.title": "Início",
   "hostKey.action.cancel": "Cancelar",
   "hostKey.action.trust": "Confiar e conectar",

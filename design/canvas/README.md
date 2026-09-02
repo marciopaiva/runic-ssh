@@ -60,8 +60,7 @@ ADR-0020 exists to stop.
 | `Sftp.dc.html` | SFTP as a tab beside the terminals |
 | `PasteConfirm.dc.html` | A paste going to three hosts at once |
 | `Palette.dc.html` | The command palette |
-| `HomeDashboard.dc.html` | Home's own landing: a card per domain |
-| `HomeHosts.dc.html` | Hosts, chosen from Home's own nav |
+| `HomeHosts.dc.html` | Home, the host book: one screen, no dashboard to switch away from (ADR-0052) |
 | `HostsHost.dc.html` | The wizard's Host step, opened from Hosts |
 | `HostsAccess.dc.html` | The wizard's Access step, credential and all |
 | `SftpWorkspace.dc.html` | SFTP's own workspace, nothing picked yet (ADR-0044) |
@@ -77,13 +76,15 @@ drifted into five different shapes before ADR-0015 pulled them back together.
 The credential window itself is gone since ADR-0039, and its artboard went
 with it rather than staying as a drawing of a screen nobody can open.
 `Settings.dc.html` went the same way (#236): ADR-0029 folded it into a card on
-Home's own dashboard, already drawn in `HomeDashboard.dc.html`, so the
+Home's own dashboard, drawn at the time in `HomeDashboard.dc.html`, so the
 artboard was retired rather than redrawn against a premise, a rail gear
 opening a tab, that no longer exists. `NewSession.dc.html` went the same way
 again (#233): its pre-wizard, pre-Home-split premise, a single form saved
 with no credential asked for, was gone once ADR-0030 through ADR-0034 landed,
 and `HostsHost.dc.html`/`HostsAccess.dc.html` already drew the two-step
-wizard that replaced it.
+wizard that replaced it. `HomeDashboard.dc.html` itself went the same way
+once more (ADR-0052): the dashboard-and-cards premise it drew is gone, Home
+is one screen now, and `HomeHosts.dc.html` is that screen.
 
 Screens that live inside the main window are drawn **inside it**, and now
 inside the group that owns them. The host key artboards used to be standalone

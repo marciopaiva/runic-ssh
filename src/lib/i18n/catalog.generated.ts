@@ -103,7 +103,7 @@ export const SOURCE_CATALOG = {
   "home.hosts": "Hosts",
   "home.hosts.empty.body": "Pick a host on the left to change it, or add one.",
   "home.hosts.empty.title": "No host selected",
-  "home.hosts.open": "Open Hosts",
+  "home.hosts.filter": "Filter hosts",
   "home.title": "Home",
   "hostKey.action.cancel": "Cancel",
   "hostKey.action.trust": "Trust and connect",
