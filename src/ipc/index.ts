@@ -58,8 +58,6 @@ export {
 export type { SessionStats } from './terminal';
 export type { SettingsView, Theme } from './settings';
 export {
-  chooseDownloadDestination,
-  chooseUploadSource,
   FINISHED_EVENT as SFTP_FINISHED_EVENT,
   localListDirectory,
   localMkdir,

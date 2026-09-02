@@ -2,16 +2,12 @@
 //!
 //! Listing answers directly; a transfer returns a handle immediately and
 //! reports its own progress and outcome as events keyed by that handle,
-//! the same shape `commands::terminal` already uses for output. Choosing
-//! the local half of a transfer is its own pair of commands, backed by the
-//! native picker (ADR-0042), since a cancelled dialog is not a failed
-//! transfer and has no reason to share a command with one.
+//! the same shape `commands::terminal` already uses for output.
 
 use std::path::PathBuf;
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, Runtime, State};
-use tauri_plugin_dialog::DialogExt;
 
 use crate::error::{Error, IpcError};
 use crate::sftp::session::{self, SftpSession};
@@ -176,39 +172,6 @@ pub async fn local_list_directory<R: Runtime>(
         parent: listing.parent.map(|p| p.display().to_string()),
         entries: listing.entries.into_iter().map(LocalEntry::from).collect(),
     })
-}
-
-/// Shows the native "choose a folder" dialog for a download's destination.
-///
-/// `None` on cancellation, which is not a failure: the user changed their
-/// mind, and nothing was asked for that a retry would answer differently.
-#[tauri::command]
-pub async fn sftp_choose_download_destination<R: Runtime>(app: AppHandle<R>) -> Option<String> {
-    pick_folder(&app)
-        .await
-        .map(|path| path.display().to_string())
-}
-
-/// Shows the native "choose a file" dialog for an upload's source.
-#[tauri::command]
-pub async fn sftp_choose_upload_source<R: Runtime>(app: AppHandle<R>) -> Option<String> {
-    pick_file(&app).await.map(|path| path.display().to_string())
-}
-
-async fn pick_folder<R: Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
-    let (sender, receiver) = tokio::sync::oneshot::channel();
-    app.dialog().file().pick_folder(move |picked| {
-        let _ = sender.send(picked);
-    });
-    receiver.await.ok().flatten()?.into_path().ok()
-}
-
-async fn pick_file<R: Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
-    let (sender, receiver) = tokio::sync::oneshot::channel();
-    app.dialog().file().pick_file(move |picked| {
-        let _ = sender.send(picked);
-    });
-    receiver.await.ok().flatten()?.into_path().ok()
 }
 
 /// Starts a download, and returns immediately with a handle for its

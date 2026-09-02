@@ -3,9 +3,8 @@
  *
  * Listing answers directly; a transfer returns a handle immediately and its
  * progress and outcome arrive as events keyed by that handle, the same shape
- * `ipc/terminal.ts` already uses for output. The local half of a transfer is
- * its own pair of commands backed by the native picker (ADR-0042), and
- * browsing the local side at all is `local_list_directory` (ADR-0043).
+ * `ipc/terminal.ts` already uses for output. Browsing the local side is
+ * `local_list_directory` (ADR-0043).
  */
 
 import { invoke } from '@tauri-apps/api/core';
@@ -60,16 +59,6 @@ export async function sftpList(handle: SessionHandle, path: string): Promise<rea
  */
 export async function localListDirectory(path: string | null): Promise<LocalListing> {
   return invoke<LocalListing>('local_list_directory', { path: path ?? undefined });
-}
-
-/** Shows the native "choose a folder" dialog. `null` on cancellation. */
-export async function chooseDownloadDestination(): Promise<string | null> {
-  return invoke<string | null>('sftp_choose_download_destination');
-}
-
-/** Shows the native "choose a file" dialog. `null` on cancellation. */
-export async function chooseUploadSource(): Promise<string | null> {
-  return invoke<string | null>('sftp_choose_upload_source');
 }
 
 /** Starts a download. Progress and outcome arrive as events on the handle returned. */

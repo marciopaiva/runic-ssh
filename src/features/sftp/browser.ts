@@ -177,20 +177,6 @@ export function pathSegments(path: string): readonly PathSegment[] {
 }
 
 /**
- * The name a local path's own last segment names, for a file picked through
- * the native dialog (ADR-0042) rather than listed: that path is whatever
- * shape the OS's own picker returns, `/` on every platform this ships on
- * except Windows, which answers in `\` instead. `sftp::session::last_segment`
- * is the same split on the Rust side, for a remote path, which is always
- * POSIX on the wire regardless of either end's own platform and so never
- * needs the second separator this does.
- */
-export function localFileName(path: string): string {
-  const segments = path.split(/[/\\]/).filter((segment) => segment.length > 0);
-  return segments.at(-1) ?? path;
-}
-
-/**
  * Which files a shift-click range covers, between `anchor` and `target`
  * inclusive, in `entries`' own displayed order.
  *

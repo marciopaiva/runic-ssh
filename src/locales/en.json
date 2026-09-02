@@ -247,7 +247,6 @@
   "sftp.transferSucceeded": "Done",
   "sftp.transfers": "TRANSFERS",
   "sftp.upload": "Upload",
-  "sftp.uploadFromDialog": "Upload a file from your computer",
   "sftp.workspace.empty.body": "Add a host to connect to, in Sessions. Nothing is sent anywhere until you do.",
   "sftp.workspace.empty.title": "No sessions yet",
   "sftp.workspace.title": "SFTP",

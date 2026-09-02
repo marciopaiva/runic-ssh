@@ -895,7 +895,7 @@ def nav_bar(segments, can_back=False, new_folder=False, selected_count=None):
 
     `selected_count` (ADR-0050, #292): rename and delete drawn next to new
     folder rather than in a separate bar of their own, confirmed directly
-    against `build_sftp_selection_proposal`'s own first cut, which put
+    against `build_sftp_selection`'s own first cut, which put
     them in `selection_bar()` at the bottom instead. `None` (every other
     caller) omits both, unchanged. Given a count, both stay in the
     bar rather than appearing and disappearing as the selection changes
@@ -1493,18 +1493,14 @@ def build_sftp_folder_copy():
 """
     write("SftpFolderCopy.dc.html", HEAD + page_html + FOOT)
 
-def build_sftp_selection_proposal():
-    """Both changes below shipped for real (ADR-0050, #291 the click model,
-    #292 rename/delete), and this artboard stays exploratory a little
-    longer anyway: the one real change it also draws, the upload-from-
-    dialog icon (ADR-0042) leaving the identity row, is #293's own work,
-    not yet done. Promoting this into `canvas.json` before then would
-    have the canvas showing an icon the shipped tree still has, which is
-    exactly the drift the canvas exists to prevent. `build_sftp_delete_
-    confirm()`, this file's own sibling, has no such dependency and is
-    promoted already.
+def build_sftp_selection():
+    """Accepted (ADR-0050): #291 shipped the click model, #292 shipped
+    rename/delete, #293 shipped the upload-from-dialog icon (ADR-0042)
+    leaving the identity row. All three are now the shipped tree, and
+    this artboard is promoted alongside `build_sftp_delete_confirm()`,
+    its own sibling.
 
-    Two changes, proposed together because the second only makes sense
+    Two changes, described together because the second only makes sense
     once the first is true:
 
     Today's `Row` (`SftpPane.tsx`) opens a directory on a plain click and
@@ -1645,7 +1641,7 @@ def build_sftp_selection_proposal():
 {st}
 </div>
 """
-    write("SftpSelectionProposal.dc.html", HEAD + page_html + FOOT)
+    write("SftpSelection.dc.html", HEAD + page_html + FOOT)
 
 def build_sftp_delete_confirm():
     """Accepted (ADR-0050, #292): the one question `requestDelete` always
@@ -2821,7 +2817,7 @@ else:
     for fn in (build_empty, build_main, build_groups, build_collapsed, build_broadcast,
                build_hostkey, build_sftp, build_sftp_workspace, build_sftp_fanout, build_sftp_proposal,
                build_sftp_proposal_broadcast, build_sftp_file_ops, build_sftp_folder_copy,
-               build_sftp_selection_proposal, build_sftp_delete_confirm,
+               build_sftp_selection, build_sftp_delete_confirm,
                build_terminal_motd_proposal,
                build_sessions_proposal, build_sessions_proposal_broadcast,
                build_sessions_proposal_broadcast_multi,

@@ -2066,7 +2066,6 @@ export function App(): JSX.Element {
                       onClear={null}
                       receiving={null}
                       onToggleReceiving={null}
-                      onUploadFromDialog={null}
                       onDragEntriesStart={setDraggedEntries}
                       onDragEntriesEnd={() => setDraggedEntries(null)}
                     />
@@ -2106,7 +2105,6 @@ export function App(): JSX.Element {
                               onClear={() => fanout.clearDestination(slot)}
                               receiving={!fanout.mutedDestinations.has(slot)}
                               onToggleReceiving={() => fanout.toggleDestinationReceiving(slot)}
-                              onUploadFromDialog={endpoint.kind === 'remote' ? () => fanout.uploadFromDialogTo(slot) : null}
                               onDragEntriesStart={null}
                               onDragEntriesEnd={null}
                             />
