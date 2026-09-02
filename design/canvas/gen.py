@@ -2531,6 +2531,134 @@ def build_palette():
     write("Palette.dc.html", page(f'      <div style="flex: 1; min-height: 0; display: flex;">{g}</div>',
                                   sessions_sidebar(active="web-01", states={"web-01": "ok", "db-prod": "ok"}), home_rail(workspace="sessions", badge="2"), st))
 
+# ---------- the terminal's own MOTD, printed once when a shell connects
+MOTD_ART = [
+    '              ≈≈≈≈≈≈≈≈≈≈≈≈   ≈≈≈≈≈≈≈≈≈≈≈≈',
+    '           ≈≈≈≈≈        ≈≈≈≈≈≈≈  ≈≈≈   ≠≈≈≈≈',
+    '         ≈≈≈≈           ≈≈≈≈≈≈≈≈≈≈  ≈≈≈   ≈≈≈≈',
+    '        ≈≈≈           ≈≈≈≈   ≈≈≈≈ ≈≈≈≈      ≈≈≈',
+    '       ≈≈≈          ≈≈≈≈≈  ≈≈≈≈≈≈≈≈≈         ≈≈≈',
+    '       ≈≈≈        ≈≈≈≈≈≈≈≈≈≈≈≈ ≈≈ ≈≈≈≈        ≈≈≈',
+    '       ≈≈       ≈≈≈≈  ≈≈≈≈≈ ≈≈∞≈≈  ≈≈≈≈       ≈≈≈',
+    '       ≈≈≈        ≈≈≈≈≈≈≈≈≈≈≈≈ ≈≈ ≈≈≈≈        ≈≈≈',
+    '       ≈≈≈         ≈≈≈≈≈≈≈ ≈≈≈≈≈≈≈≈≈         ≈≠≠',
+    '        ≈≈≈       ≈≈≈≈≈≈≈≈   ≈≈≈≈≈          ≈≈≈',
+    '         ≠≈≈≈    ≈≈≈ ≈≈≈≈≈≈≈≈≈≈           ≈≈≈≈',
+    '           ≈≈≈≈≈   ≈≈≈≈  ≈≈≈≈∞≈         ≈≈≠≈',
+    '              ≈≈≈≈≈≈≈≈≈≈≈≈    ≈≈≈≈≈≈≈≈≈≠≠',
+]
+# The maintainer's own conversion, via asciiart.eu/image-to-ascii, of the
+# brand mark. Kept verbatim (not re-traced from the SVG paths the way
+# `MARK`/`KIND_ICON` above are) since the shading technique, density of `≈`
+# standing in for the two circles' overlap, is not something the path data
+# gives for free; recorded here so a future resize starts from the same
+# source image and tool rather than guessing at a second conversion.
+
+MOTD_WIDTH = max(len(line) for line in MOTD_ART)
+
+def motd_art_lines_html():
+    """Colours `MOTD_ART` by column rather than by circle: there is no
+    per-character record of which of the two source circles a given `≈`
+    belonged to, only the finished raster. Left of centre reads as circle
+    A (`bstart`, the same cyan `MARK`'s left ring already strokes), right
+    of centre as circle B (`bend`, the same purple), and every `∞`/`≠`,
+    the asciiart.eu conversion's own way of marking a brighter crossing
+    point, in `brune`, the rune line's own colour in `MARK` and
+    `KIND_ICON` alike. A per-character split is cruder than the real
+    stroke boundary, but the source has no sharper line to cut along.
+    Returns one HTML string per row, not one joined block: `motd_row()`
+    below pairs each against its own line of the info column."""
+    center = MOTD_WIDTH / 2
+    rows = []
+    for line in MOTD_ART:
+        segments = []
+        color = None
+        text = ''
+        for i, ch in enumerate(line):
+            this_color = T['brune'] if ch in '∞≠' else (T['bstart'] if i < center else T['bend'])
+            if this_color != color:
+                if text:
+                    segments.append((color, text))
+                color, text = this_color, ch
+            else:
+                text += ch
+        if text:
+            segments.append((color, text))
+        rows.append(''.join(f'<span style="color: {c};">{t}</span>' for c, t in segments))
+    return rows
+
+def motd_field(label, value):
+    return (f'<span style="color: {T["faint"]};">{label:<9}</span>'
+            f'<span style="color: {T["ink2"]};">{value}</span>')
+
+def motd_row(art_html, info_html=''):
+    """One printed line: the art column at a fixed character width so the
+    info column lines up whatever a given row of `MOTD_ART` actually
+    contains, then whatever that row of the info block says, or nothing.
+    A real write does the same alignment with spaces rather than a fixed
+    `<span>` width; the visible result is the same, monospace either way."""
+    return (f'<div style="display: flex;">'
+            f'<span style="display: inline-block; width: {MOTD_WIDTH + 2}ch; flex: none;">{art_html}</span>'
+            f'<span>{info_html}</span></div>')
+
+def build_terminal_motd_proposal():
+    """Exploratory (2026-09-01): the maintainer's own want, printed
+    directly into `xterm.js` rather than drawn as chrome around it. The
+    injection point already exists cleanly: `use-terminal.ts` opens the
+    terminal (`terminal.open(container)`), then only later starts
+    `watchTerminal`/`openTerminal`, the calls that let a remote byte
+    arrive at all. A write between those two lines always lands first, so
+    this can never race a server's own real `/etc/motd`, which some hosts
+    already send down the same channel.
+
+    Revised the same day, against the maintainer's own read: side by side,
+    `neofetch`'s own logo-left, text-right layout, rather than the
+    stacked-only version this artboard first drew. The 49-column-wide art
+    only fits this way in a wide enough window; `use-terminal.ts` already
+    knows the pty's own column count at the point this would be written
+    (`terminal.cols`, read a few lines below the injection point above),
+    so a real implementation should fall back to stacking them, this
+    artboard's first cut, once a terminal is too narrow for both side by
+    side. Not drawn here: this artboard is the wide case.
+
+    The info column now also names a jump host, when there is one:
+    `bastionName(session, sessions)` (`src/features/sessions/jump.ts`)
+    already answers exactly this, by id, for `SessionsSidebar`'s own "via"
+    row (`sessions.viaBastion`); the MOTD's `Via` field reads the same
+    function rather than a second way of asking whether a host rides one.
+    Omitted entirely for a direct connection, the same "say nothing rather
+    than say none" rule `bastionName` already returns `null` for.
+
+    Colour: `motd_art_lines_html()`'s `bstart`/`bend`/`brune` are the exact
+    three colours `MARK` already strokes the real mark with, so the banner
+    reads as the same brand identity already drawn everywhere else, not a
+    fourth palette invented for the terminal alone."""
+    art_rows = motd_art_lines_html()
+    info_rows = [
+        f'<span style="color: {T["ink"]}; font-weight: 700;">Runic SSH</span>',
+        '',
+        motd_field('Host', 'web-01.internal'),
+        motd_field('Address', '10.4.1.20:22'),
+        motd_field('Via', 'bastion-01'),
+        motd_field('User', 'deploy'),
+    ]
+    rows = [
+        motd_row(art_rows[i], info_rows[i] if i < len(info_rows) else '')
+        for i in range(len(art_rows))
+    ]
+    # Joined with nothing, not '\n': each row is already its own <div>, a
+    # block element that breaks its own line, and .term's white-space: pre
+    # renders a literal '\n' between them as one more line break on top of
+    # that, exactly the doubled gap spotted live in this artboard's first render.
+    motd = ''.join(rows) + '\n\n'
+    g = group(strip([tab("web-01", state="on")]),
+              term(motd + prompt("deploy", "web-01") + CURSOR))
+    rows_sidebar = "\n".join([group_row("PRODUCTION", 3), host_row("web-01", "deploy@10.4.1.20", "ok", True, via="bastion-01")])
+    st = status(stat_session("deploy@10.4.1.20"), stat_text("198 x 48"))
+    write("TerminalMotdProposal.dc.html",
+          page(f'      <div style="flex: 1; min-height: 0; display: flex;">{g}</div>',
+               sidebar_shell(sessions_header(), rows_sidebar), home_rail(workspace="sessions", badge="1"), st))
+
 if LIGHT_MODE:
     _w = write
     write = lambda name, content: _w("MainLight.dc.html", content)
@@ -2540,6 +2668,7 @@ else:
                build_hostkey, build_sftp, build_sftp_workspace, build_sftp_fanout, build_sftp_proposal,
                build_sftp_proposal_broadcast, build_sftp_file_ops, build_sftp_folder_copy,
                build_sftp_selection_proposal, build_sftp_delete_confirm_proposal,
+               build_terminal_motd_proposal,
                build_sessions_proposal, build_sessions_proposal_broadcast,
                build_sessions_proposal_broadcast_multi,
                build_hosts_host, build_hosts_access, build_home_dashboard, build_home_hosts,
