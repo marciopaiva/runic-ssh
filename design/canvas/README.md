@@ -65,6 +65,7 @@ ADR-0020 exists to stop.
 | `SftpFanout.dc.html` | One source, a grid of up to four destinations (ADR-0045) |
 | `SftpFileOps.dc.html` | Creating, renaming and deleting a file or folder in place (ADR-0048) |
 | `SftpFolderCopy.dc.html` | Copying a folder: one still in progress, one finished with failures (ADR-0049) |
+| `SftpDeleteConfirm.dc.html` | The one question a delete always asks first, scoped to the pane that asked (ADR-0050) |
 | `Main{Light,PtBr,Es}.dc.html` | The same window, generated |
 
 Every screen a user can meet is drawn here. That is the point of the set rather

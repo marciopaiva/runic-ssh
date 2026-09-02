@@ -147,7 +147,15 @@ export function SessionSurface({
 interface SurfaceActionProps {
   /** Absent for a submit, where the form the button sits in is what runs. */
   readonly onClick?: () => void;
-  readonly variant: 'primary' | 'secondary';
+  /**
+   * `danger` is filled like `primary` but tinted for a destructive action
+   * that is nonetheless the ordinary, expected next step once asked for
+   * (`SftpDeleteConfirm`): unlike `HostKeyBlocked`'s inverted pair, where
+   * the safe action is deliberately the only filled button to resist a
+   * reflexive click, a delete confirmation reads as though nothing here
+   * needed resisting, just weighing.
+   */
+  readonly variant: 'primary' | 'secondary' | 'danger';
   readonly disabled?: boolean;
   /** `submit` only for a surface wrapped in a form, which is the prompt. */
   readonly type?: 'button' | 'submit';
@@ -176,7 +184,9 @@ export function SurfaceAction({
       className={`h-[34px] rounded-md px-4 text-[12.5px] font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
         variant === 'primary'
           ? 'bg-accent text-surface-base'
-          : 'border-line-strong text-ink-secondary hover:text-ink border'
+          : variant === 'danger'
+            ? 'bg-danger text-surface-base'
+            : 'border-line-strong text-ink-secondary hover:text-ink border'
       }`}
     >
       {children}
