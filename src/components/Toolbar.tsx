@@ -18,9 +18,12 @@ interface ToolbarProps {
  * different control ("a button sitting on one group's strip reads as split
  * this rectangle"). This row is the shared answer instead, present for
  * Sessions and SFTP alike so a workspace's own controls have one place to
- * live rather than each workspace inventing its own. Home keeps `HomeNav`,
- * unchanged: it switches sections inside Home's own body, not a control over
- * the workspace itself, and ADR-0029 already gave it that shape on purpose.
+ * live rather than each workspace inventing its own.
+ *
+ * ADR-0052 gives Home this same row, for `ThemeLanguageControls`: a "set
+ * once and forget" choice that used to live on a dashboard card `HomeNav`
+ * switched to, before Home became one screen with no dashboard to switch
+ * away from.
  */
 export function Toolbar({ leading, trailing }: ToolbarProps): JSX.Element {
   return (

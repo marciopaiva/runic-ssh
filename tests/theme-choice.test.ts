@@ -80,17 +80,21 @@ describe('the light theme is reachable at all', () => {
     expect(context).toContain('applyTheme(document.documentElement');
   });
 
-  it('offers all three choices on the dashboard card', () => {
+  it('offers all three choices on Home\'s own toolbar', () => {
     /* A control that offers two of them is the boolean this deliberately is
        not: "follow the system" has to stay reachable after a user has picked
-       something else, or the choice is one way. Moved here from a settings
-       tab of its own (ADR-0029's follow-up): three icons in a `radiogroup`
-       now, not three radios in a `fieldset`, but the same three choices. */
-    const card = source('components/HomeDashboard.tsx');
+       something else, or the choice is one way. Moved here from a dashboard
+       card (ADR-0052, once the card itself went with Home's own Dashboard
+       section): three icons in a `radiogroup`, not three radios in a
+       `fieldset`, but the same three choices. `value="${theme}"` never
+       literally appears in JSX here (the chip's own `checked` prop compares
+       `theme === '${theme}'` instead), so this greps for the choice each
+       chip's `onChoose` names. */
+    const controls = source('components/ThemeLanguageControls.tsx');
 
     for (const theme of ['system', 'light', 'dark'] satisfies Theme[]) {
-      expect(card).toContain(`value="${theme}"`);
+      expect(controls).toContain(`onChooseTheme('${theme}')`);
     }
-    expect(card).toContain('role="radiogroup"');
+    expect(controls).toContain('role="radiogroup"');
   });
 });

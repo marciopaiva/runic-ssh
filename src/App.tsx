@@ -7,9 +7,6 @@ import { BroadcastButton } from './components/BroadcastButton';
 import { CommandPalette } from './components/CommandPalette';
 import { ConnectingSurface } from './components/ConnectingSurface';
 import { EmptyPanel } from './components/EmptyPanel';
-import { HomeDashboard } from './components/HomeDashboard';
-import { HomeNav } from './components/HomeNav';
-import type { HomeSection } from './components/HomeNav';
 import { HostsSection } from './components/HostsSection';
 import { GroupMenu } from './components/GroupMenu';
 import { GroupStrip, entryTitle } from './components/GroupStrip';
@@ -29,6 +26,7 @@ import { SftpSelectAllButton } from './components/SftpSelectAllButton';
 import { SftpSplitControl } from './components/SftpSplitControl';
 import { StatusBar } from './components/StatusBar';
 import { TerminalView } from './components/TerminalView';
+import { ThemeLanguageControls } from './components/ThemeLanguageControls';
 import { Titlebar } from './components/Titlebar';
 import { Toolbar } from './components/Toolbar';
 import { TransfersBar } from './components/TransfersBar';
@@ -57,7 +55,6 @@ import {
   editorKey,
   findEditor,
   groupNames,
-  groupSessions,
   invalidFields,
   isInProgress,
   isOverridable,
@@ -320,10 +317,6 @@ export function App(): JSX.Element {
      nothing here is drawn, only consulted at the moment a tab actually
      closes. */
   const provisional = useRef<Set<string>>(new Set());
-  /* Which section of Home is showing. Settings has no draft and nothing to
-     discard, unlike a host form, so it needs no more state than this: it is
-     not open or closed, only the section or not the section. */
-  const [homeSection, setHomeSection] = useState<HomeSection>('dashboard');
   /* Every host form that is open, in the order they were opened. One per host
      rather than one slot: the unsaved question then belongs to a host and not
      to a shared form, which is the shape #96 recorded and parked. The strip
@@ -572,13 +565,14 @@ export function App(): JSX.Element {
     () => resolveGroups(layout, held, entries, resolvedFocus),
     [layout, held, entries, resolvedFocus],
   );
-  /* Home's own ring: the host editor and settings, never a session, and never
-     placed in a group. Home has exactly one rectangle, so there is nothing
-     here shaped like `held` or `boxOf`: whichever of these is focused is what
-     Home shows, full size. */
-  /* Editors only, since the Hosts/Settings split (ADR-0029's own follow-up):
-     settings is a section of Home, chosen from `HomeNav`, not a tab that can
-     be open or closed, so it is never one of these entries. */
+  /* Home's own ring: the host editor tabs, never a session, and never placed
+     in a group. Home has exactly one rectangle, so there is nothing here
+     shaped like `held` or `boxOf`: whichever editor is focused is what Home
+     shows, full size, or the empty state when none is.
+     ADR-0052 retired the Dashboard/Hosts split this used to carry (settings
+     used to be its own section, chosen from `HomeNav`): theme and language
+     are toolbar controls now, always visible rather than a place to focus,
+     so an editor target is the only thing `homeEntries` ever holds. */
   const homeEntries = useMemo(() => stripEntries([], editing, false), [editing]);
   const resolvedHomeFocus = resolveFocus(homeEntries, homeFocus);
   /* The host the editor is open on, or `null` for a new one or none. Read
@@ -959,12 +953,12 @@ export function App(): JSX.Element {
     [sessions, attempt, connect, wantTerminal],
   );
 
-  /* The palette's "open settings" lands here. Appearance is a card on Home's
-     dashboard now rather than its own section, so opening it means going to
-     Home and showing that section, the same place the gear used to point at
-     before ADR-0029 and the maintainer's own follow-up to it. */
+  /* The palette's "open settings" lands here. Theme and language sit in
+     Home's own toolbar now (ADR-0052), visible the moment Home is showing
+     rather than behind a section to switch to, so this only has to change
+     the workspace, the same place the gear used to point at before
+     ADR-0029 and the maintainer's own follow-up to it. */
   const openSettings = useCallback((): void => {
-    setHomeSection('dashboard');
     setWorkspace('home');
   }, []);
 
@@ -1481,7 +1475,6 @@ export function App(): JSX.Element {
     setEditors((current) => withEditor(current, target, savedRef.current));
     setHomeFocus({ kind: 'editor', target });
     setWorkspace('home');
-    setHomeSection('hosts');
   }, []);
 
   const chooseFromMenu = useCallback(
@@ -1558,14 +1551,6 @@ export function App(): JSX.Element {
      the kind of thing that reads as fine and is not. */
   const paneLabels = useMemo(
     () => new Map(sessions.map((live) => [live.session.id, groupLabel(live.session)])),
-    [sessions],
-  );
-
-  /* Home's dashboard counts. A named group only, not the ungrouped bucket
-     `groupSessions` returns for hosts with none: that bucket is not a group
-     anybody made. */
-  const namedGroupCount = useMemo(
-    () => groupSessions(sessions).filter((group) => group.name !== null).length,
     [sessions],
   );
 
@@ -1692,9 +1677,10 @@ export function App(): JSX.Element {
       />
 
       {/* ADR-0046: a shared row for a workspace's own controls, between the
-          Titlebar and the rail/sidebar/body below. Home keeps `HomeNav`
-          inside its own body instead; it switches sections, not the
-          workspace's shape, and ADR-0029 already gave it that on purpose. */}
+          Titlebar and the rail/sidebar/body below. ADR-0052 gives Home this
+          same row for theme and language, a "set once and forget" choice
+          rather than a per-rectangle one, which is why it stays out of
+          Sessions' and SFTP's own trailing content below. */}
       {workspace === 'sessions' && (
         <Toolbar
           trailing={
@@ -1723,6 +1709,18 @@ export function App(): JSX.Element {
               />
               <SftpSplitControl value={destinationSplit} onChange={setDestinationSplit} />
             </>
+          }
+        />
+      )}
+      {workspace === 'home' && (
+        <Toolbar
+          trailing={
+            <ThemeLanguageControls
+              theme={theme}
+              onChooseTheme={(next) => void chooseTheme(next)}
+              chosenLocale={chosen}
+              onChooseLocale={(locale) => void choose(locale)}
+            />
           }
         />
       )}
@@ -2197,185 +2195,171 @@ export function App(): JSX.Element {
 
         {workspace === 'home' && (
         /* One rectangle, always: nothing here is a session, so there is
-           nothing to split and no `boxOf` to ask. ADR-0029. */
+           nothing to split and no `boxOf` to ask. ADR-0029. ADR-0052 retired
+           `HomeNav`'s Dashboard/Hosts breadcrumb along with it: there is one
+           screen now, so nothing left to switch between. */
         <main className="bg-surface-base relative flex min-w-0 flex-1 flex-col overflow-hidden">
-          <HomeNav section={homeSection} onChoose={setHomeSection} />
-
           <div className="min-h-0 flex-1 overflow-hidden">
-            {homeSection === 'dashboard' && (
-              <HomeDashboard
-                hostCount={sessions.length}
-                groupCount={namedGroupCount}
-                onAddHost={() => openEditor({ kind: 'new' })}
-                onOpenHosts={() => setHomeSection('hosts')}
-                theme={theme}
-                onChooseTheme={(next) => void chooseTheme(next)}
-                chosenLocale={chosen}
-                onChooseLocale={(locale) => void choose(locale)}
-              />
-            )}
-
-            {homeSection === 'hosts' &&
-              (() => {
-                const target =
-                  resolvedHomeFocus?.kind === 'editor' ? resolvedHomeFocus.target : null;
-                const open = target === null ? null : findEditor(editors, target);
-                const editingId = target?.kind === 'existing' ? target.sessionId : null;
-                const jump =
-                  open === null ? null : jumpHostChoice(saved, editingId, open.values.proxyJump);
-                const duplicate =
-                  open === null
-                    ? null
-                    : duplicateOf(
-                        saved,
-                        editingId,
-                        open.values.host,
-                        parsePort(open.values.port),
-                        open.values.user,
-                        open.values.proxyJump,
-                      );
-                const storedCredential =
-                  target === null ? false : (() => {
-                    const session = targetSession(target, saved);
-                    return session !== null && hasStoredCredential(session);
-                  })();
-                /* ADR-0036: nothing that could invalidate the stored
-                   credential changed, so Access has nothing left to prove.
-                   `open` rather than `target` for the values themselves:
-                   `target` only names which session, `open` is the draft
-                   actually on screen. */
-                const skipTest =
-                  target === null || open === null ? false : (() => {
-                    const session = targetSession(target, saved);
-                    return (
-                      session !== null &&
-                      hasStoredCredential(session) &&
-                      accessUnchanged(
-                        session,
-                        open.values.host,
-                        parsePort(open.values.port),
-                        open.values.user,
-                      )
+            {(() => {
+              const target =
+                resolvedHomeFocus?.kind === 'editor' ? resolvedHomeFocus.target : null;
+              const open = target === null ? null : findEditor(editors, target);
+              const editingId = target?.kind === 'existing' ? target.sessionId : null;
+              const jump =
+                open === null ? null : jumpHostChoice(saved, editingId, open.values.proxyJump);
+              const duplicate =
+                open === null
+                  ? null
+                  : duplicateOf(
+                      saved,
+                      editingId,
+                      open.values.host,
+                      parsePort(open.values.port),
+                      open.values.user,
+                      open.values.proxyJump,
                     );
-                  })();
-                /* ADR-0030: the same host key and credential screens Sessions
-                   shows over a group's terminal, found here when the attempt
-                   in flight is this host's own. The surface that makes
-                   staying in Home possible to watch, for the wizard's own
-                   proof phase. */
-                const testSurface =
-                  attempt !== null && editingId !== null && attempt.sessionId === editingId
-                    ? attemptSurface
-                    : null;
-                /* ADR-0032: the wizard's own inline field, once the host key
-                   is settled and `submitInlineCredential` is waiting to be
-                   called. `null` for every other caller. */
-                const inlineCredential =
-                  attempt !== null &&
-                  editingId !== null &&
-                  attempt.sessionId === editingId &&
-                  attempt.stage.stage === 'awaitingInline'
-                    ? {
-                        onSubmit: (secret: Secret, keep: Keep) =>
-                          void submitInlineCredential(secret, keep),
-                        onCancel: abandon,
-                      }
-                    : null;
-                /* ADR-0033: the bastion's own field, asked for before
-                   `inlineCredential` above is ever reached. A session behind
-                   a jump host authenticates it first. `submitCredential` is
-                   the same command the separate window already answers
-                   through; nothing about answering a request was ever
-                   window-specific, only opening one was. */
-                const bastionStage =
-                  attempt !== null &&
-                  editingId !== null &&
-                  attempt.sessionId === editingId &&
-                  attempt.stage.stage === 'awaitingBastionCredential'
-                    ? attempt.stage
-                    : null;
-                const bastionCredential =
-                  bastionStage === null
-                    ? null
-                    : {
-                        prompt: bastionStage.prompt,
-                        onSubmit: (secret: Secret, keep: Keep) => {
-                          const wire =
-                            'password' in secret
-                              ? { password: secret.password }
-                              : { privateKey: secret.privateKey, passphrase: secret.passphrase ?? null };
-                          void submitCredential(bastionStage.request, wire, keep);
-                        },
-                        onCancel: abandon,
-                      };
-                const panelTitle =
-                  target === null
-                    ? ''
-                    : (editorTabs.find((candidate) =>
-                        sameFocus({ kind: 'editor', target: candidate.target }, {
-                          kind: 'editor',
-                          target,
-                        }),
-                      )?.title ?? '');
-                const availableGroups = groupNames(sessions);
-
-                return (
-                  <HostsSection
-                    sessions={sessions}
-                    selectedId={editingId}
-                    creatingNew={target?.kind === 'new'}
-                    onSelect={(sessionId) => openEditor({ kind: 'existing', sessionId })}
-                    onNew={() => openEditor({ kind: 'new' })}
-                    detail={
-                      open === null || target === null || jump === null ? null : (
-                        <SessionWizard
-                          title={panelTitle}
-                          step={open.step}
-                          values={open.values}
-                          wrong={open.wrong}
-                          discarding={open.discarding}
-                          failure={editorFailed.get(editorKey(target)) ?? null}
-                          onDismissFailure={() => clearFailure(target)}
-                          missingCredential={editorOpenedFor.has(editorKey(target))}
-                          onDismissMissingCredential={() => dismissOpenedFor(target)}
-                          onChange={(field, value) => changeIn(target, field, value)}
-                          jumpHosts={jump.offered}
-                          carried={jump.carried}
-                          duplicate={duplicate}
-                          groupNames={availableGroups}
-                          storedCredential={storedCredential}
-                          keptCredential={editingId !== null && (keptCredentials.get(editingId) ?? false)}
-                          skipTest={skipTest}
-                          onSkipTest={() => {
-                            submitIn(target);
-                            /* ADR-0036's own path never opens `testSurface`, so
-                               nothing else marks this settled: the same map
-                               `onCredentialSettled` writes, written here for
-                               the same reason, since a save with nothing
-                               invalidated is exactly what "saved" means. */
-                            if (editingId !== null) {
-                              setTestOutcome((current) => new Map(current).set(editingId, 'saved'));
-                            }
-                          }}
-                          onForget={editingId === null ? null : () => forgetPassword(target)}
-                          onDelete={target.kind === 'new' ? null : () => removeIn(target)}
-                          onBack={() => wizardBack(target)}
-                          onNext={() => wizardNext(target)}
-                          onTest={(method) => testInWizard(target, method)}
-                          onFinish={() => finishWizard(target)}
-                          testSurface={testSurface}
-                          lastOutcome={editingId !== null ? (testOutcome.get(editingId) ?? null) : null}
-                          inlineCredential={inlineCredential}
-                          bastionCredential={bastionCredential}
-                          onConfirmDiscard={() => discardIn(target, true)}
-                          onCancelDiscard={() => discardIn(target, false)}
-                          onCancel={() => cancelEditing(target)}
-                        />
-                      )
+              const storedCredential =
+                target === null ? false : (() => {
+                  const session = targetSession(target, saved);
+                  return session !== null && hasStoredCredential(session);
+                })();
+              /* ADR-0036: nothing that could invalidate the stored
+                 credential changed, so Access has nothing left to prove.
+                 `open` rather than `target` for the values themselves:
+                 `target` only names which session, `open` is the draft
+                 actually on screen. */
+              const skipTest =
+                target === null || open === null ? false : (() => {
+                  const session = targetSession(target, saved);
+                  return (
+                    session !== null &&
+                    hasStoredCredential(session) &&
+                    accessUnchanged(
+                      session,
+                      open.values.host,
+                      parsePort(open.values.port),
+                      open.values.user,
+                    )
+                  );
+                })();
+              /* ADR-0030: the same host key and credential screens Sessions
+                 shows over a group's terminal, found here when the attempt
+                 in flight is this host's own. The surface that makes
+                 staying in Home possible to watch, for the wizard's own
+                 proof phase. */
+              const testSurface =
+                attempt !== null && editingId !== null && attempt.sessionId === editingId
+                  ? attemptSurface
+                  : null;
+              /* ADR-0032: the wizard's own inline field, once the host key
+                 is settled and `submitInlineCredential` is waiting to be
+                 called. `null` for every other caller. */
+              const inlineCredential =
+                attempt !== null &&
+                editingId !== null &&
+                attempt.sessionId === editingId &&
+                attempt.stage.stage === 'awaitingInline'
+                  ? {
+                      onSubmit: (secret: Secret, keep: Keep) =>
+                        void submitInlineCredential(secret, keep),
+                      onCancel: abandon,
                     }
-                  />
-                );
-              })()}
+                  : null;
+              /* ADR-0033: the bastion's own field, asked for before
+                 `inlineCredential` above is ever reached. A session behind
+                 a jump host authenticates it first. `submitCredential` is
+                 the same command the separate window already answers
+                 through; nothing about answering a request was ever
+                 window-specific, only opening one was. */
+              const bastionStage =
+                attempt !== null &&
+                editingId !== null &&
+                attempt.sessionId === editingId &&
+                attempt.stage.stage === 'awaitingBastionCredential'
+                  ? attempt.stage
+                  : null;
+              const bastionCredential =
+                bastionStage === null
+                  ? null
+                  : {
+                      prompt: bastionStage.prompt,
+                      onSubmit: (secret: Secret, keep: Keep) => {
+                        const wire =
+                          'password' in secret
+                            ? { password: secret.password }
+                            : { privateKey: secret.privateKey, passphrase: secret.passphrase ?? null };
+                        void submitCredential(bastionStage.request, wire, keep);
+                      },
+                      onCancel: abandon,
+                    };
+              const panelTitle =
+                target === null
+                  ? ''
+                  : (editorTabs.find((candidate) =>
+                      sameFocus({ kind: 'editor', target: candidate.target }, {
+                        kind: 'editor',
+                        target,
+                      }),
+                    )?.title ?? '');
+              const availableGroups = groupNames(sessions);
+
+              return (
+                <HostsSection
+                  sessions={sessions}
+                  selectedId={editingId}
+                  creatingNew={target?.kind === 'new'}
+                  onSelect={(sessionId) => openEditor({ kind: 'existing', sessionId })}
+                  onNew={() => openEditor({ kind: 'new' })}
+                  detail={
+                    open === null || target === null || jump === null ? null : (
+                      <SessionWizard
+                        title={panelTitle}
+                        step={open.step}
+                        values={open.values}
+                        wrong={open.wrong}
+                        discarding={open.discarding}
+                        failure={editorFailed.get(editorKey(target)) ?? null}
+                        onDismissFailure={() => clearFailure(target)}
+                        missingCredential={editorOpenedFor.has(editorKey(target))}
+                        onDismissMissingCredential={() => dismissOpenedFor(target)}
+                        onChange={(field, value) => changeIn(target, field, value)}
+                        jumpHosts={jump.offered}
+                        carried={jump.carried}
+                        duplicate={duplicate}
+                        groupNames={availableGroups}
+                        storedCredential={storedCredential}
+                        keptCredential={editingId !== null && (keptCredentials.get(editingId) ?? false)}
+                        skipTest={skipTest}
+                        onSkipTest={() => {
+                          submitIn(target);
+                          /* ADR-0036's own path never opens `testSurface`, so
+                             nothing else marks this settled: the same map
+                             `onCredentialSettled` writes, written here for
+                             the same reason, since a save with nothing
+                             invalidated is exactly what "saved" means. */
+                          if (editingId !== null) {
+                            setTestOutcome((current) => new Map(current).set(editingId, 'saved'));
+                          }
+                        }}
+                        onForget={editingId === null ? null : () => forgetPassword(target)}
+                        onDelete={target.kind === 'new' ? null : () => removeIn(target)}
+                        onBack={() => wizardBack(target)}
+                        onNext={() => wizardNext(target)}
+                        onTest={(method) => testInWizard(target, method)}
+                        onFinish={() => finishWizard(target)}
+                        testSurface={testSurface}
+                        lastOutcome={editingId !== null ? (testOutcome.get(editingId) ?? null) : null}
+                        inlineCredential={inlineCredential}
+                        bastionCredential={bastionCredential}
+                        onConfirmDiscard={() => discardIn(target, true)}
+                        onCancelDiscard={() => discardIn(target, false)}
+                        onCancel={() => cancelEditing(target)}
+                      />
+                    )
+                  }
+                />
+              );
+            })()}
           </div>
         </main>
         )}

@@ -32,7 +32,13 @@ describe('nothing renders remote output while Home is showing (ADR-0032)', () =>
 
   it('mounts it only inside the Sessions workspace branch, before Home\'s own', () => {
     const sessionsGate = source.indexOf("{workspace === 'sessions' && (\n");
-    const homeGate = source.indexOf("{workspace === 'home' && (");
+    /* ADR-0052 gave Home a second `workspace === 'home'` gate, for its own
+       toolbar row, ahead of the one around Home's `<main>` in the document.
+       The 8-space indent is what picks out the `<main>` gate specifically:
+       the toolbar's own gate sits one level shallower, matched literally so
+       a future reindent is caught here rather than this test silently
+       finding the wrong one. */
+    const homeGate = source.indexOf("        {workspace === 'home' && (");
     const terminalView = source.indexOf('<TerminalView');
 
     expect(sessionsGate, 'the Sessions workspace gate').toBeGreaterThan(-1);
