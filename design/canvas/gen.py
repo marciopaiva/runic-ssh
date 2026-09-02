@@ -2539,6 +2539,7 @@ else:
     for fn in (build_empty, build_main, build_groups, build_collapsed, build_broadcast,
                build_hostkey, build_sftp, build_sftp_workspace, build_sftp_fanout, build_sftp_proposal,
                build_sftp_proposal_broadcast, build_sftp_file_ops, build_sftp_folder_copy,
+               build_sftp_selection_proposal, build_sftp_delete_confirm_proposal,
                build_sessions_proposal, build_sessions_proposal_broadcast,
                build_sessions_proposal_broadcast_multi,
                build_hosts_host, build_hosts_access, build_home_dashboard, build_home_hosts,
