@@ -46,12 +46,25 @@ workflow produced, and it is the answer to "is this usable yet".
 
 | Platform | Installed and driven | Version | Where the file came from |
 | --- | --- | --- | --- |
-| Linux, `.deb` | **yes**, 2026-08-26 | 0.2.1 | **downloaded from the release** |
+| Linux, `.deb` | **yes**, 2026-09-01 | 0.3.0 | **downloaded from the release** |
 | Linux, `.rpm` | no | | no RPM distribution to hand |
 | Linux, `.AppImage` | no | | discouraged anyway, see below |
 | Windows, `.exe` (NSIS) | **yes**, 2026-08-26 | 0.1.1 | **a workflow artifact, copied in through WSL** |
 | Windows, `.msi` (WiX) | built, not installed | | the NSIS package was the one exercised |
 | macOS, `.dmg` | **no** | | needs an Apple Silicon Mac |
+
+**The 0.3.0 `.deb` was downloaded from the release**, checked against
+`SHA256SUMS`, and installed over the 0.2.1 package already on this machine
+with `apt install ./Runic-SSH_0.3.0_amd64.deb`, an upgrade rather than a
+fresh install. Driven against `runic-test-sshd` on an isolated display, on a
+fresh `XDG_CONFIG_HOME` (no saved sessions carried over from the machine's
+own): a host added through the wizard, an unknown host key on a port never
+connected to before, its fingerprint checked by eye against `ssh-keyscan`,
+the credential typed on the wizard's own inline field rather than the window
+ADR-0039 retired, saved to the system keychain, a shell opened and a command
+run in it with the output checked, and SFTP opened and the same host's home
+directory browsed. This is the first time this table records SFTP being
+driven on a packaged build at all.
 
 The 0.2.1 `.deb` was downloaded from the release, checked against
 `SHA256SUMS`, and installed over the 0.2.0 package already on this machine
