@@ -1971,21 +1971,35 @@ def wizard_breadcrumb(step=2, phase=None):
                     f'<span style="font-size: 11px; color: {color}; {weight}">{label}</span></li>')
     return f'<ol style="display: flex; align-items: center; gap: 8px; list-style: none; margin: 0; padding: 0;">{"".join(lis)}</ol>'
 
-def hosts_header(creating_new=False):
+def hosts_header(creating_new=False, show_filter=False):
+    """`show_filter`, exploratory (`build_home_book_proposal`): the same
+    filter box `sessions_header()` already draws, added here rather than
+    invented a second way, once a list with no way to narrow it stopped
+    being fine at book scale. Off by default so the wizard's own two
+    callers (`build_hosts_host`/`build_hosts_access`), mid-creating one
+    host rather than browsing many, are unaffected."""
     plus = (f'<span style="width: 20px; height: 20px; border-radius: 4px; background: {T["raised"]};'
             f' display: flex; align-items: center; justify-content: center; color: {T["accent"]};">{ic("plus")}</span>'
             ) if creating_new else ic('plus', 14, T['muted'])
-    return f"""      <div style="display: flex; align-items: center; gap: 8px; padding: 14px 14px 10px;">
-        <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: {T['faint']};">HOSTS</span>
-        <div style="flex: 1;"></div>
-        {plus}
+    filter_html = ''
+    if show_filter:
+        filter_html = f"""
+        <div style="height: 32px; background: {T['input']}; border: 1px solid {T['line']}; border-radius: 6px; display: flex; align-items: center; gap: 8px; padding: 0 10px; margin-top: 8px;">
+          {ic('search', 14, T['faint'])}<span style="font-size: 12px; color: {T['faint']};">Filter hosts</span>
+        </div>"""
+    return f"""      <div style="padding: 14px 14px 10px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: {T['faint']};">HOSTS</span>
+          <div style="flex: 1;"></div>
+          {plus}
+        </div>{filter_html}
       </div>"""
 
-def hosts_shell(rows_html, panel_html, creating_new=False):
+def hosts_shell(rows_html, panel_html, creating_new=False, show_filter=False):
     """`HostsSection.tsx`: a 280px list beside one form, not a tab per open
     host, because a CRUD screen is exactly that shape."""
     left = f"""    <div style="width: 280px; flex: none; background: {T['panel']}; border-right: 1px solid {T['line']}; display: flex; flex-direction: column;">
-{hosts_header(creating_new)}
+{hosts_header(creating_new, show_filter)}
       <div style="flex: 1; padding: 0 8px 8px; display: flex; flex-direction: column; gap: 2px; overflow: hidden;">
 {rows_html}
       </div>
@@ -2209,6 +2223,244 @@ def build_home_hosts():
       </div>"""
     st = status(stat_text("runic-target-a", T['muted'], mono=False), stat_text("11 hosts", T['faint']))
     write("HomeHosts.dc.html", page(home_nav("hosts") + body, None, home_rail(workspace="home"), st, show_shapes=False))
+
+def theme_language_toolbar_controls():
+    """Revised against the maintainer's own read of `settings_popover()`'s
+    first cut: theme and language do not need a click to reveal at all,
+    the way `split_control()`/`select_all_button()` already sit directly
+    in SFTP's own toolbar rather than behind a menu. Two chip groups,
+    inline, separated by a hairline; `build_home_dashboard`'s own three
+    theme paths reused verbatim, at the same smaller scale this bar's own
+    26px height calls for. The vault status this replaced is not drawn
+    here: it was never a per-visit control the way theme and language
+    are, and where it belongs now is a separate question, not assumed."""
+    system_ic = '<path d="M4 5h16v11H4z"></path><path d="M9 20h6M12 16v4" stroke-linecap="round"></path>'
+    light_ic = ('<circle cx="12" cy="12" r="4.2"></circle>'
+                '<path d="M12 2.5v2.4M12 19.1v2.4M21.5 12h-2.4M4.9 12H2.5M18.4 5.6l-1.7 1.7M7.3 16.7l-1.7 1.7M18.4 18.4l-1.7-1.7M7.3 7.3L5.6 5.6" stroke-linecap="round"></path>')
+    dark_ic = '<path d="M20 13.8A8.5 8.5 0 1110.2 4a6.8 6.8 0 009.8 9.8z" stroke-linejoin="round"></path>'
+
+    def chip(svg_paths, checked, size=13):
+        border = T['accent'] if checked else T['line']
+        bg = f'background: {T["accentsoft"]};' if checked else ''
+        color = T['ink'] if checked else T['ink2']
+        return (f'<span style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid {border}; {bg}'
+                f' display: flex; align-items: center; justify-content: center; color: {color};">'
+                f'<svg viewBox="0 0 24 24" style="width: {size}px; height: {size}px;" fill="none" stroke="currentColor" stroke-width="1.6">{svg_paths}</svg></span>')
+
+    def flag_chip(emoji, checked):
+        border = T['accent'] if checked else T['line']
+        bg = f'background: {T["accentsoft"]};' if checked else ''
+        return (f'<span style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid {border}; {bg}'
+                f' display: flex; align-items: center; justify-content: center; font-size: 12px;">{emoji}</span>')
+
+    theme = f'<div style="display: flex; gap: 4px;">{chip(system_ic, False)}{chip(light_ic, False)}{chip(dark_ic, True)}</div>'
+    lang = (f'<div style="display: flex; gap: 4px;">{flag_chip("&#127760;", False)}{flag_chip("&#127482;&#127480;", False)}'
+            f'{flag_chip("&#127463;&#127479;", True)}{flag_chip("&#127466;&#127480;", False)}</div>')
+    sep = f'<div style="width: 1px; height: 20px; background: {T["line"]};"></div>'
+    return f'<div style="display: flex; align-items: center; gap: 10px;">{theme}{sep}{lang}</div>'
+
+def build_home_book_proposal():
+    """Exploratory (2026-09-02): the maintainer's own read of Home, once
+    Sessions and SFTP both had a real design pass and Home never did:
+    "SSH and SFTP are perfect, Home isn't." #222 named the gap
+    (`HostsSection` not carrying the dashboard's own visual language) and
+    closed it the shallow way, matching Hosts to the cards rather than
+    asking whether the cards themselves were the right shape. They were
+    not: a grid of bordered, padded, centred tiles is the one layout every
+    generic settings screen already looks like, and it reads as a
+    different, less considered product sitting next to Sessions' and
+    SFTP's own dense, chrome-minimal language (ADR-0020's seven rules).
+
+    This proposes convergence over polish: Home stops being a landing
+    page with a Hosts card among others, and becomes the host book
+    directly, at the same density Sessions' own sidebar and SFTP's own
+    panes already prove out. Concretely:
+
+    - No more `home_nav()` Dashboard/Hosts breadcrumb: there is only one
+      screen now, so nothing to switch between.
+    - The list-beside-one-form shape stays (`hosts_shell()`, the wizard's
+      own dense shell, `HostsHost.dc.html`/`HostsAccess.dc.html`'s
+      template, not `HomeHosts.dc.html`'s card-wrapped one): flush panels,
+      thin borders, no rounded tiles.
+    - Theme and language stop being a card with the host list's own
+      visual weight, and move into a slim toolbar (`toolbar_row()`, the
+      same shared strip ADR-0046 already gave SFTP) as two inline chip
+      groups (`theme_language_toolbar_controls()`), not behind a menu:
+      a first cut put them behind a gear icon, reverted directly once
+      the maintainer pointed out `split_control()`/`select_all_button()`
+      already sit in a toolbar undisguised, the same convention this
+      should follow rather than invent a click a real settings-style
+      screen does not need. The vault status this replaced is left
+      undrawn here, on purpose: where it belongs is a separate question.
+    - The detail panel splits into named sections (General, Topology)
+      beside a second column (Access) rather than one flat stack
+      (`HostFields.tsx` today): the maintainer's own ask for "controles e
+      gestão de configurações," built from fields that already exist.
+
+    Revised the same day, against the maintainer's own read: the panel is
+    wide enough now, unlike the wizard's own 440px-capped single column,
+    that Access does not need to be a section stacked below the others,
+    or a second step behind a "Next" click. It becomes a second column,
+    the credential picker `HostsAccess.dc.html` already draws (Password /
+    Private key, and the stored-credential note in place of a field once
+    one exists) sitting beside General/Topology rather than behind them.
+    Confirmed directly: this retires the two-step Host/Access wizard
+    breadcrumb for good, not only for this screen's own layout. That is a
+    bigger decision than the rest of this redesign, since ADR-0030,
+    ADR-0032 and ADR-0034 are what gave the wizard its two steps in the
+    first place; implementing this for real reopens those, it does not
+    just restyle `HostsSection.tsx`. Two things that decision still owes
+    an answer, named rather than assumed here: where the missing-credential
+    notice (ADR-0039/ADR-0040) renders once there is no second step for it
+    to open on, and whether a create-time draft (no `id` yet) needs
+    anything about this layout to differ from editing a saved host.
+
+    Nothing here is accepted. `HomeDashboard.dc.html` and `HomeHosts.dc.html`
+    are still the shipped shape until the maintainer picks this direction,
+    the same standing every other `*Proposal*.dc.html` artboard has."""
+    rows = "\n".join([
+        host_row("runic-target-a", "target.internal", active=True, kind="target"),
+        host_row("runic-bastion", "127.0.0.1", kind="jumpServer"),
+        host_row("dev-web", "10.0.1.5", kind="direct"),
+    ])
+
+    def section(title, content):
+        """Revised against the maintainer's own read: four topics with
+        nothing but a small caption between them read as one loose,
+        undifferentiated form. A thin border and a little padding around
+        each, `T['line']` and a 6px radius rather than the heavier
+        `dashboard_card` rounding #237 already moved this screen away
+        from, gives each its own quiet boundary without bringing the
+        padded, centred card language back."""
+        return f"""<div style="display: flex; flex-direction: column; gap: 12px; border: 1px solid {T['line']};
+          border-radius: 6px; padding: 14px 16px;">
+          <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.09em; color: {T['faint']};">{title.upper()}</span>
+{content}
+        </div>"""
+
+    general = section("General", f"""
+          <div>{wizard_label('Host')}{wizard_field('target.internal')}</div>
+          <div style="display: flex; gap: 12px; margin-top: 14px;">
+            <div style="flex: 1;">{wizard_label('User')}{wizard_field('deploy')}</div>
+            <div style="width: 90px;">{wizard_label('Port')}{wizard_field('2222')}</div>
+          </div>
+          <div style="margin-top: 14px;">{wizard_label('Name')}{wizard_field('runic-target-a', mono=False)}</div>
+          <div style="margin-top: 14px;">{wizard_label('Group')}{wizard_field('REAL-CHAIN', mono=False, chev=True)}</div>""")
+    topology = section("Topology", f"""
+          <div>{wizard_label('Kind')}{kind_picker('target')}</div>
+          <div style="margin-top: 14px;">{wizard_label('Reached through')}{wizard_field('runic-bastion', mono=False, chev=True)}</div>""")
+
+    # The exact picker `HostsAccess.dc.html` already draws, moved from
+    # behind a wizard step into its own column here.
+    access = section("Access", f"""
+          <div role="radiogroup" style="display: flex; gap: 3px; background: {T['input']}; border: 1px solid {T['line']}; border-radius: 8px; padding: 3px;">
+            <span style="flex: 1; text-align: center; font-size: 11.5px; font-weight: 600; color: {T['ink']}; background: {T['raised']}; border-radius: 6px; padding: 6px 0;">Password</span>
+            <span style="flex: 1; text-align: center; font-size: 11.5px; color: {T['muted']}; padding: 6px 0;">Private key</span>
+          </div>
+          <div style="margin-top: 12px; display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: {T['raised']}; border-radius: 6px;">
+            <svg viewBox="0 0 24 24" style="width: 14px; height: 14px; color: {T['ok']}; flex: none;" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 11V7a7 7 0 0114 0v4M5 11h14v9H5z"></path></svg>
+            <span style="font-size: 11.5px; color: {T['ink2']}; flex: 1; line-height: 1.4;">One is stored in the system keychain. Never shown here, never sent to this window.</span>
+          </div>
+          <div style="margin-top: 8px;"><span style="font-size: 12px; color: {T['danger']};">Forget it</span></div>""")
+
+    def forward_kind_pills(active):
+        """The same three-pill control `kind_picker()` already draws for
+        Topology, relabelled: ADR-0054 confirmed one shape for all three
+        forward kinds rather than a picker invented per kind."""
+        out = []
+        for k in ("Local", "Remote", "Dynamic"):
+            on = k == active
+            border = T['accent'] if on else T['line']
+            bg = f'background: {T["accentsoft"]};' if on else ''
+            color = T['ink'] if on else T['ink2']
+            out.append(f'<span style="padding: 4px 9px; border: 1px solid {border}; {bg} border-radius: 5px;'
+                       f' font-size: 11px; color: {color};">{k}</span>')
+        return f'<div style="display: flex; gap: 4px; flex: none;">{"".join(out)}</div>'
+
+    def forward_row(kind, bind_port, target=None, name=None):
+        """Revised against the maintainer's own read: this column is
+        narrower than the panel's full width, so a forward's summary
+        wraps to a second line (pills and port on the first, target and
+        name on the second) rather than trying to fit `kind`, `bind_port`,
+        `target` and `name` on one. `target` is `None` for Dynamic, whose
+        destination is read from the SOCKS handshake at connect time
+        rather than fixed here."""
+        detail = (
+            f'<span class="mono" style="color: {T["ink2"]};">&#8594; {target}</span>'
+        ) if target is not None else (
+            f'<span style="color: {T["faint"]};">a local SOCKS proxy</span>'
+        )
+        name_html = f'<span style="color: {T["faint"]}; margin-left: auto;">{name}</span>' if name else ''
+        return f"""<div style="display: flex; flex-direction: column; gap: 5px; padding: 9px 10px; background: {T['raised']}; border-radius: 6px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            {forward_kind_pills(kind)}
+            <span class="mono" style="font-size: 12px; color: {T['ink']};">{bind_port}</span>
+            <span style="color: {T['faint']}; margin-left: auto;">{ic('close', 11)}</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; font-size: 11px; padding-left: 2px;">
+            {detail}{name_html}
+          </div>
+        </div>"""
+
+    forwarding = section("Forwarding", f"""
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            {forward_row('Local', '8080', 'target.internal:80', 'web')}
+            {forward_row('Remote', '9000', 'localhost:3000', 'dev server')}
+            {forward_row('Dynamic', '1080', None, 'SOCKS')}
+          </div>
+          <div style="margin-top: 8px;"><span style="font-size: 12px; color: {T['accent']};">+ Add forward</span></div>""")
+
+    # Two columns above a stated minimum width, ADR-0052/ADR-0054: below
+    # it the same four sections stack in one column rather than staying
+    # side by side and forcing a horizontal scroll a form should never
+    # need. `HostsSection.tsx`'s own real fields already grow and shrink
+    # inside a `max-width` rather than a fixed one; the columns below
+    # follow the same instinct, drawn here as two fixed-width artboards
+    # (wide, narrow) standing in for the two sides of that one breakpoint,
+    # since a static artboard cannot itself be resized.
+    wide_panel = f"""      <div style="height: 100%; padding: 24px 28px; overflow-y: auto;">
+        <span style="font-size: 15px; font-weight: 600;">runic-target-a</span>
+        <div style="display: flex; gap: 40px; margin-top: 22px;">
+          <div style="width: 440px; flex: none; display: flex; flex-direction: column; gap: 22px;">
+            {general}
+            {topology}
+          </div>
+          <div style="width: 340px; flex: none; display: flex; flex-direction: column; gap: 22px;">
+            {access}
+            {forwarding}
+          </div>
+        </div>
+        <div style="margin-top: 26px;">{wizard_actions(('Delete', False), ('Cancel', False), ('Save', True))}</div>
+      </div>"""
+
+    narrow_panel = f"""      <div style="height: 100%; padding: 24px 28px; overflow-y: auto;">
+        <span style="font-size: 15px; font-weight: 600;">runic-target-a</span>
+        <div style="max-width: 440px; display: flex; flex-direction: column; gap: 22px; margin-top: 22px;">
+          {general}
+          {topology}
+          {access}
+          {forwarding}
+        </div>
+        <div style="margin-top: 26px; max-width: 440px;">{wizard_actions(('Delete', False), ('Cancel', False), ('Save', True))}</div>
+      </div>"""
+
+    def page_for(panel, width):
+        body = hosts_shell(rows, panel, show_filter=True)
+        st = status(stat_text("runic-target-a", T['muted'], mono=False), stat_text("11 hosts", T['faint']))
+        return f"""
+<div style="width: {width}px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{plain_titlebar()}
+{toolbar_row(right_html=theme_language_toolbar_controls())}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{home_rail(workspace="home")}
+{body}
+  </div>
+{st}
+</div>
+"""
+
+    write("HomeBookProposal.dc.html", HEAD + page_for(wide_panel, 1440) + FOOT)
+    write("HomeBookProposalNarrow.dc.html", HEAD + page_for(narrow_panel, 900) + FOOT)
 
 # ============================================================ SYSTEM SHEETS
 
@@ -2672,6 +2924,7 @@ else:
                build_sessions_proposal, build_sessions_proposal_broadcast,
                build_sessions_proposal_broadcast_multi,
                build_hosts_host, build_hosts_access, build_home_dashboard, build_home_hosts,
+               build_home_book_proposal,
                build_anatomy, build_tokens,
                build_hostkeychanged, build_failure, build_paste, build_palette):
         fn()
