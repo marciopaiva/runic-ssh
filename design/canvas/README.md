@@ -40,7 +40,7 @@ ADR-0020 exists to stop.
 | Page | What is on it |
 | --- | --- |
 | `System` | The anatomy and its seven rules, and the token, type, density and marker sheet |
-| `Surfaces` | Twenty-two screens |
+| `Surfaces` | Twenty-three screens |
 | `Variants` | Light, and the same window in pt-BR and neutral es |
 
 ## Files
@@ -64,6 +64,7 @@ ADR-0020 exists to stop.
 | `HomeHostsEmpty.dc.html` | Home, nothing picked yet, with the same brand mark Sessions' own empty state carries |
 | `HomeCollapsed.dc.html` | Home, its own host list hidden, the rail's Home icon toggling it the same way Sessions' and SFTP's already do |
 | `HomeDeleteConfirm.dc.html` | Home, the one question Delete now always asks first |
+| `HomeHostsCredential.dc.html` | Home, the credential field itself, in Access, before Save (ADR-0057) |
 | `TerminalMotd.dc.html` | The brand banner, printed into the terminal on connect (ADR-0051) |
 | `SftpWorkspace.dc.html` | SFTP's own workspace, nothing picked yet (ADR-0044) |
 | `SftpFanout.dc.html` | One source, a grid of up to four destinations (ADR-0045) |

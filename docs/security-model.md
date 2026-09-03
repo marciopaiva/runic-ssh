@@ -44,10 +44,12 @@ holds an opaque id; the core resolves it at the moment of use.
 
 A credential is typed into a plain, **uncontrolled** `<input>` in the host
 editor's own Access column (ADR-0032, ADR-0034, reshaped from a step to a
-column by ADR-0056): read once through `FormData` at submit,
-never bound to a React state value, and the form resets once it is sent. That
-keeps the secret out of the render tree the way section 6 of `CLAUDE.md`
-requires, whatever else is true of the page around it.
+column by ADR-0056, and moved by ADR-0057 into the column itself rather than
+a screen that follows it): read once through `FormData` at the moment Save
+is clicked, never bound to a React state value, and the field unmounts, gone
+along with whatever was in it, the instant that happens. That keeps the
+secret out of the render tree the way section 6 of `CLAUDE.md` requires,
+whatever else is true of the page around it.
 
 What is no longer true: this field used to sit in a **window of its own**, a
 second webview with its own document and its own script (ADR-0008), so a
@@ -57,8 +59,8 @@ once nothing but an already-obsolete recovery path still opened it, and
 folded credential collection entirely into the main webview. The isolation
 this rule used to lean on is gone with it: an XSS anywhere else in this
 document, if one existed, would sit in the same page as this field. Nothing
-in ADR-0032, ADR-0034 or ADR-0039 re-argues that trade, because none of them
-frames the change as a security decision.
+in ADR-0032, ADR-0034, ADR-0039 or ADR-0057 re-argues that trade, because
+none of them frames the change as a security decision.
 
 **ADR-0055 is that decision.** The gap above is accepted, not merely
 observed: the frontend's own hardening elsewhere (a strict CSP, no

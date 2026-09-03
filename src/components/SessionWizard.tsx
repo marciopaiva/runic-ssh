@@ -4,8 +4,10 @@ import type { JSX, ReactNode } from 'react';
 import { describeEditorFailure } from '../features/sessions';
 import type { DraftField, DraftValues, EditorFailure, ForwardDraft } from '../features/sessions';
 import { useTranslator } from '../features/settings';
+import { credentialStoreStatus, internalVaultStatus } from '../ipc';
 import type { CredentialPrompt, Keep, Secret, Session, SuggestedMethod } from '../ipc';
 
+import { CredentialAccessFields } from './CredentialAccessFields';
 import { FormSection } from './FormSection';
 import { ForwardsFields } from './ForwardsFields';
 import { HostGeneralFields } from './HostGeneralFields';
@@ -79,9 +81,19 @@ interface SessionWizardProps {
    * action, so the check runs on that action instead of on a transition.
    */
   readonly onSave: () => boolean;
-  /** Runs the proof-and-store phase: saves (the first time) or re-saves,
-   * then connects, then renders `testSurface` while it runs. */
-  readonly onTest: (method: SuggestedMethod) => void;
+  /**
+   * Runs the proof-and-store phase: saves (the first time) or re-saves,
+   * then connects, then renders `testSurface` while it runs.
+   *
+   * `credential` is whatever `startProving` read off the Access section's
+   * own fields, ADR-0057, or `null` when there was nothing to read (a
+   * stored or kept credential already covers this host). Travels as a
+   * plain argument, never `useState`.
+   */
+  readonly onTest: (
+    method: SuggestedMethod,
+    credential: { readonly secret: Secret; readonly keep: Keep } | null,
+  ) => void;
   /** Closes the wizard once an attempt has run at least once. */
   readonly onFinish: () => void;
   /**
@@ -102,18 +114,10 @@ interface SessionWizardProps {
    */
   readonly testSurface: ReactNode | null;
   /**
-   * The wizard's own field for the secret, ADR-0032, or `null` when the
-   * attempt has not reached that point (or is not this host's).
-   */
-  readonly inlineCredential: {
-    readonly onSubmit: (secret: Secret, keep: Keep) => void;
-    readonly onCancel: () => void;
-  } | null;
-  /**
    * A bastion's own field, ADR-0033, or `null` when nothing is waiting on
-   * one. Checked before `inlineCredential`: a session behind a jump host
-   * asks for this one first, and the target's own field is never reached
-   * until it is answered.
+   * one. The target's own credential is no longer a separate field here at
+   * all, ADR-0057: it is read out of the Access section's own fields,
+   * below, at the moment Save is clicked.
    */
   readonly bastionCredential: {
     readonly prompt: CredentialPrompt;
@@ -166,7 +170,6 @@ export function SessionWizard({
   onFinish,
   lastOutcome,
   testSurface,
-  inlineCredential,
   bastionCredential,
   onConfirmDiscard,
   onCancelDiscard,
@@ -176,6 +179,39 @@ export function SessionWizard({
   const first = useRef<HTMLInputElement>(null);
   const [method, setMethod] = useState<SuggestedMethod>('password');
   const problem = failure === null ? null : describeEditorFailure(failure);
+
+  /* Probed once the Access section has a field to show for it: whether the
+     target's own credential, once typed, has anywhere to be kept. ADR-0057
+     moved this probe up from `InlineCredentialForm`'s own effect, since
+     `startProving` below needs the answer synchronously, at the moment Save
+     is clicked, and the field that used to own this probe no longer exists
+     for the target's own case. */
+  const [canRemember, setCanRemember] = useState<boolean | undefined>(undefined);
+  /* ADR-0035: which store `canRemember` actually means. Read independently
+     for the same reason `InlineCredentialForm` always has. */
+  const [usesVault, setUsesVault] = useState(false);
+  const needsCredential = !storedCredential && !keptCredential;
+
+  useEffect(() => {
+    if (!needsCredential) return;
+    void credentialStoreStatus()
+      .then((status) => setCanRemember(status.kind === 'available'))
+      .catch(() => setCanRemember(false));
+    void internalVaultStatus()
+      .then((status) => setUsesVault(status !== 'notConfigured'))
+      .catch(() => setUsesVault(false));
+  }, [needsCredential]);
+
+  /* Where the Access section's own fields live, read once at the moment
+     Save is clicked, `startProving` below. Never `useState`: the same
+     discipline `InlineCredentialForm.tsx` already keeps for the bastion's
+     own field. */
+  const credentialForm = useRef<HTMLFormElement>(null);
+  /* What `startProving` read, waiting for the effect a tick below to hand
+     it to `onTest`. A ref rather than state for the same reason the form
+     itself is uncontrolled: this is never part of a render. Cleared the
+     instant it is read back out. */
+  const pendingCredential = useRef<{ readonly secret: Secret; readonly keep: Keep } | null>(null);
 
   /* Whether Access has handed off to the proof phase. ADR-0056: reset by a
      remount (the caller keys this component per host) rather than by an
@@ -194,18 +230,17 @@ export function SessionWizard({
      re-render while the attempt is in flight. Setting `attempted`
      synchronously, in the same tick as the call, is what a dependency array
      cannot do and a ref alone cannot drive the render off. See the field
-     doc comment above for why one flag serves both. */
+     doc comment above for why one flag serves both.
+
+     What `startProving` read off the Access section, before the fields it
+     read from unmounted underneath this same state flip, is in
+     `pendingCredential`, not in a dependency here, for the same reason. */
   useEffect(() => {
-    if (
-      proving &&
-      !attempted &&
-      failure === null &&
-      testSurface === null &&
-      bastionCredential === null &&
-      inlineCredential === null
-    ) {
+    if (proving && !attempted && failure === null && testSurface === null && bastionCredential === null) {
       setAttempted(true);
-      onTest(method);
+      const credential = pendingCredential.current;
+      pendingCredential.current = null;
+      onTest(method, credential);
     }
   });
 
@@ -215,22 +250,47 @@ export function SessionWizard({
   };
 
   /* Which of the proof phase's own sub-states is showing, purely for the
-     label: the host key decision, the bastion's own field, the target's own
-     field, and the settled row all count as "proving" alike. Not gated on
-     `attempted`, which turns true the instant the attempt starts and stays
-     true through all of them: it is `testSurface`/`bastionCredential`/
-     `inlineCredential` all going back to `null` after a dismissal that hands
-     the settled row its plain label back. */
-  const phase: 'wizard.phase.bastion' | 'wizard.phase.signIn' | 'wizard.phase.proving' | null =
+     label: the host key decision, the bastion's own field, and the settled
+     row all count as "proving" alike. Not gated on `attempted`, which turns
+     true the instant the attempt starts and stays true through all of them:
+     it is `testSurface`/`bastionCredential` going back to `null` after a
+     dismissal that hands the settled row its plain label back. There is no
+     `'wizard.phase.signIn'` any more, ADR-0057: the target's own field is
+     answered before this phase starts, not during it. */
+  const phase: 'wizard.phase.bastion' | 'wizard.phase.proving' | null =
     !proving
       ? null
       : testSurface !== null
         ? 'wizard.phase.proving'
         : bastionCredential !== null
           ? 'wizard.phase.bastion'
-          : inlineCredential !== null
-            ? 'wizard.phase.signIn'
-            : null;
+          : null;
+
+  /**
+   * Reads the Access section's own credential fields, ADR-0057, the same way
+   * `InlineCredentialForm`'s own `submit` handler already does: `FormData`
+   * off the form at the moment of the read, `Secret` built from it, never
+   * `useState`. `null` when there is nothing to read, a stored or kept
+   * credential already covering this host, matching `needsCredential`
+   * above, which is the same condition the fields themselves render behind.
+   */
+  const readCredential = (): { readonly secret: Secret; readonly keep: Keep } | null => {
+    if (!needsCredential) return null;
+    const form = credentialForm.current;
+    if (form === null) return null;
+
+    const keep: Keep = canRemember === true ? 'stored' : 'forThisRun';
+    const fields = new FormData(form);
+    const passphrase = String(fields.get('passphrase') ?? '');
+    const secret: Secret =
+      method === 'password'
+        ? { password: String(fields.get('password') ?? '') }
+        : passphrase === ''
+          ? { privateKey: String(fields.get('privateKey') ?? '') }
+          : { privateKey: String(fields.get('privateKey') ?? ''), passphrase };
+
+    return { secret, keep };
+  };
 
   const startProving = (): void => {
     if (!onSave()) return;
@@ -244,6 +304,10 @@ export function SessionWizard({
       setAttempted(true);
       return;
     }
+
+    /* Read before the flip below unmounts the fields this came from: the
+       Access section only renders while `!proving`. ADR-0057. */
+    pendingCredential.current = readCredential();
     setProving(true);
   };
 
@@ -384,11 +448,6 @@ export function SessionWizard({
                       {i18n.t('kept.run.body')}
                     </span>
                   )}
-                  {!storedCredential && !keptCredential && (
-                    <span className="text-ink-faint text-[11px] leading-snug">
-                      {i18n.t('session.editor.credential.none')}
-                    </span>
-                  )}
                   {onForget !== null && (storedCredential || keptCredential) && (
                     <button
                       type="button"
@@ -399,6 +458,17 @@ export function SessionWizard({
                     </button>
                   )}
                 </div>
+
+                {/* ADR-0057: the field itself, in place, rather than a
+                    notice that one is coming after Save. */}
+                {needsCredential && (
+                  <CredentialAccessFields
+                    method={method}
+                    formRef={credentialForm}
+                    canRemember={canRemember}
+                    usesVault={usesVault}
+                  />
+                )}
               </FormSection>
               <FormSection title={i18n.t('session.editor.section.forwarding')}>
                 <ForwardsFields value={values.forwards} wrong={wrong} onChange={onChangeForwards} />
@@ -428,7 +498,8 @@ export function SessionWizard({
             <button
               type="button"
               onClick={startProving}
-              className="bg-accent text-surface-base rounded px-3 py-1.5 text-[12px] font-semibold"
+              disabled={needsCredential && canRemember === undefined}
+              className="bg-accent text-surface-base rounded px-3 py-1.5 text-[12px] font-semibold disabled:opacity-50"
             >
               {i18n.t('session.editor.save')}
             </button>
@@ -452,16 +523,9 @@ export function SessionWizard({
              Access answered a question about the target, and the bastion is
              a host nothing has asked about yet. */
           <InlineCredentialForm
-            method={null}
             carrying={bastionCredential.prompt.carrying}
             onSubmit={bastionCredential.onSubmit}
             onCancel={bastionCredential.onCancel}
-          />
-        ) : inlineCredential !== null ? (
-          <InlineCredentialForm
-            method={method}
-            onSubmit={inlineCredential.onSubmit}
-            onCancel={inlineCredential.onCancel}
           />
         ) : attempted ? (
           /* The attempt has already settled once, refused or cancelled
@@ -483,19 +547,16 @@ export function SessionWizard({
               </div>
             )}
             <div className="flex items-center gap-2">
+              {/* ADR-0057: Back and Test again are the same action now that
+                  there is no credential-only step left to redo blank; both
+                  named "Back" and both returning to the form, which is
+                  where retyping and re-testing already happen together. */}
               <button
                 type="button"
                 onClick={() => setProving(false)}
                 className="text-ink-secondary hover:bg-surface-raised mr-auto rounded px-2.5 py-1.5 text-[12px]"
               >
                 {i18n.t('wizard.back')}
-              </button>
-              <button
-                type="button"
-                onClick={() => onTest(method)}
-                className="text-ink-secondary border-line-subtle hover:text-ink rounded border px-2.5 py-1.5 text-[12px]"
-              >
-                {i18n.t('wizard.test.now')}
               </button>
               <button
                 type="button"

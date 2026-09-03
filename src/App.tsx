@@ -442,7 +442,7 @@ export function App(): JSX.Element {
     new Map(),
   );
 
-  const { attempt, connect, trust, abandon, submitInlineCredential } = useConnect({
+  const { attempt, connect, trust, abandon } = useConnect({
     onConnecting: (sessionId) => setState(sessionId, 'connecting'),
     onOpened: (sessionId, handle, via) => {
       attach(sessionId, handle);
@@ -1369,17 +1369,29 @@ export function App(): JSX.Element {
     [saved, save, clearFailure, failIn],
   );
 
-  /* The wizard's own test, ADR-0032 and consolidated by ADR-0034: `'inline'`
-     collects the secret on the wizard's own step instead of the separate
-     window, the method chosen on Access is what this asks for and the only
-     thing it asks for, and it is now the only way any host, new or already
-     saved, gets a credential set. `connect` with this intent closes the
-     connection as soon as the server has accepted, so nothing is left open
-     and no terminal opens for a host nobody asked to work on. `submitIn` has
-     already re-aimed the form at the host's id by the time this runs, which
-     is what lets the attempt surface below find it there. */
+  /* The wizard's own test, ADR-0032 and consolidated by ADR-0034; ADR-0057
+     moved where the secret is collected but not what happens with it.
+     `'inline'` collects the secret on the wizard's own Access section
+     instead of a step after Save, the method chosen there is what this asks
+     for and the only thing it asks for, and it is now the only way any
+     host, new or already saved, gets a credential set. `connect` with this
+     intent closes the connection as soon as the server has accepted, so
+     nothing is left open and no terminal opens for a host nobody asked to
+     work on. `submitIn` has already re-aimed the form at the host's id by
+     the time this runs, which is what lets the attempt surface below find
+     it there.
+
+     `credential` is `null` exactly when `SessionWizard` had nothing to read
+     off the Access section, a stored or kept credential already covering
+     this host; it travels through `connect`/`attemptConnect`/`authenticate`
+     as a plain argument, never `useState`, the same discipline
+     `InlineCredentialForm` already keeps for the bastion's own case. */
   const testInWizard = useCallback(
-    (target: EditorTarget, method: SuggestedMethod): void => {
+    (
+      target: EditorTarget,
+      method: SuggestedMethod,
+      credential: { readonly secret: Secret; readonly keep: Keep } | null,
+    ): void => {
       submitIn(target, (stored, wasNew) => {
         /* Provisional until `finishWizard` says otherwise: a host this save
            just invented has nothing behind it yet but this one attempt, and
@@ -1387,7 +1399,7 @@ export function App(): JSX.Element {
            before that changes. A host that already existed keeps whatever
            it already had regardless of how this test goes. */
         if (wasNew) provisional.current.add(stored.id);
-        void connect(stored.id, 'inline', method);
+        void connect(stored.id, 'inline', method, credential);
       });
     },
     [submitIn, connect],
@@ -2297,22 +2309,7 @@ export function App(): JSX.Element {
                 attempt !== null && editingId !== null && attempt.sessionId === editingId
                   ? attemptSurface
                   : null;
-              /* ADR-0032: the wizard's own inline field, once the host key
-                 is settled and `submitInlineCredential` is waiting to be
-                 called. `null` for every other caller. */
-              const inlineCredential =
-                attempt !== null &&
-                editingId !== null &&
-                attempt.sessionId === editingId &&
-                attempt.stage.stage === 'awaitingInline'
-                  ? {
-                      onSubmit: (secret: Secret, keep: Keep) =>
-                        void submitInlineCredential(secret, keep),
-                      onCancel: abandon,
-                    }
-                  : null;
-              /* ADR-0033: the bastion's own field, asked for before
-                 `inlineCredential` above is ever reached. A session behind
+              /* ADR-0033: the bastion's own field. A session behind
                  a jump host authenticates it first. `submitCredential` is
                  the same command the separate window already answers
                  through; nothing about answering a request was ever
@@ -2401,11 +2398,10 @@ export function App(): JSX.Element {
                         onConfirmDelete={() => removeIn(target)}
                         onCancelDelete={() => cancelDelete(target)}
                         onSave={() => hostFieldsValid(target)}
-                        onTest={(method) => testInWizard(target, method)}
+                        onTest={(method, credential) => testInWizard(target, method, credential)}
                         onFinish={() => finishWizard(target)}
                         testSurface={testSurface}
                         lastOutcome={editingId !== null ? (testOutcome.get(editingId) ?? null) : null}
-                        inlineCredential={inlineCredential}
                         bastionCredential={bastionCredential}
                         onConfirmDiscard={() => discardIn(target, true)}
                         onCancelDiscard={() => discardIn(target, false)}

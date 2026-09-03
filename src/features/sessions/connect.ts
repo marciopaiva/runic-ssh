@@ -8,15 +8,7 @@
  * password given to whoever answered.
  */
 
-import type {
-  CredentialPrompt,
-  Hop,
-  IpcError,
-  IpcErrorCode,
-  Keeping,
-  Session,
-  SessionHandle,
-} from '../../ipc';
+import type { CredentialPrompt, Hop, IpcError, IpcErrorCode, Keeping, Session } from '../../ipc';
 
 /**
  * What an attempt is being made for.
@@ -53,12 +45,6 @@ export type ConnectStage =
   | { readonly stage: 'connecting' }
   /** Waiting on the user to decide about a host key. */
   | { readonly stage: 'deciding'; readonly decision: HeldDecision }
-  /**
-   * The host key is settled and the connection is open, unauthenticated,
-   * waiting on the wizard's own inline form rather than a window. Only ever
-   * reached by the `'inline'` intent, ADR-0032.
-   */
-  | { readonly stage: 'awaitingInline'; readonly handle: SessionHandle }
   /**
    * A bastion needs a credential nobody has saved, mid-chain, before the
    * target is even reached. ADR-0033: also only the `'inline'` intent's own
