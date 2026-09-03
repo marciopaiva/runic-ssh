@@ -1,9 +1,10 @@
-//! Local port forwarding commands.
+//! Port forwarding commands, local and remote.
 //!
 //! A forward returns a handle immediately, the same shape `commands::sftp`
-//! already uses for a transfer: starting one is a bind and a spawn, not
-//! something worth blocking the caller on, and stopping one is a lookup by
-//! handle with no reason to fail when the handle already names nothing.
+//! already uses for a transfer: starting one is a bind (or a request to the
+//! server) and nothing more, not something worth blocking the caller on, and
+//! stopping one is a lookup by handle with no reason to fail when the handle
+//! already names nothing.
 
 use tauri::State;
 
@@ -50,13 +51,54 @@ pub async fn start_local_forward(
         .map_err(Error::Forward)?;
 
     let forward = forwards.reserve();
-    forwards.attach(forward, tokio::spawn(accept_loop)).await;
+    forwards
+        .attach_local(forward, tokio::spawn(accept_loop))
+        .await;
 
     Ok(forward)
 }
 
-/// Stops a forward in flight. Not an error when the handle already names
-/// nothing: the caller's goal, that forward not running, is already true.
+/// Starts a remote forward: asks `handle`'s connection's own far end to
+/// listen on `bind_port`, and forwards what it accepts to
+/// `target_host:target_port` as reachable from this machine.
+///
+/// Returns as soon as the server answers. A refusal (no `AllowTcpForwarding`,
+/// or a port it will not grant) is returned here, before anything is
+/// tracked, the same shape a local forward's own bind failure takes.
+#[tauri::command]
+pub async fn start_remote_forward(
+    registry: State<'_, Registry>,
+    forwards: State<'_, Forwards>,
+    handle: SessionHandle,
+    bind_port: u16,
+    target_host: String,
+    target_port: u16,
+) -> Result<ForwardHandle, IpcError> {
+    let connection = open_connection(&registry, handle).await?;
+
+    let target = Endpoint {
+        host: target_host,
+        port: target_port,
+    };
+    let granted = {
+        let held = connection.lock().await;
+        let session = held.as_ref().ok_or(Error::UnknownHandle)?;
+        session
+            .start_remote_forward(bind_port, target)
+            .await
+            .map_err(Box::new)
+            .map_err(Error::Ssh)?
+    };
+
+    let forward = forwards.reserve();
+    forwards.attach_remote(forward, connection, granted).await;
+
+    Ok(forward)
+}
+
+/// Stops a forward in flight, local or remote. Not an error when the handle
+/// already names nothing: the caller's goal, that forward not running, is
+/// already true.
 #[tauri::command]
 pub async fn stop_forward(
     forwards: State<'_, Forwards>,

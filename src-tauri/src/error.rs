@@ -342,6 +342,13 @@ pub enum IpcError {
     ForwardBindFailed {
         port: u16,
     },
+    /// ADR-0054. The server refused to `tcpip-forward` a remote forward's
+    /// own port: no `AllowTcpForwarding`, or a port it will not grant. The
+    /// two are indistinguishable from here, the same reason `ForwardBindFailed`
+    /// and this both carry only the port, not a server-written reason.
+    RemoteForwardRefused {
+        port: u16,
+    },
 }
 
 /// Paths are shown to the user so they can find the file; the rest of the
@@ -441,6 +448,7 @@ impl From<crate::ssh::connection::ConnectionError> for IpcError {
             Ssh::RsaKeyRefused => Self::RsaKeyRefused,
             Ssh::AuthenticationFailed => Self::AuthenticationFailed,
             Ssh::Transport => Self::SshTransport,
+            Ssh::RemoteForwardRefused { port } => Self::RemoteForwardRefused { port },
             Ssh::HostKeyRejected(verdict) => match *verdict {
                 Trust::Matched => Self::SshTransport,
                 Trust::Unknown { fingerprint, .. } => Self::HostKeyRejected {

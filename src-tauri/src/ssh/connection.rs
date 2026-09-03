@@ -15,13 +15,17 @@
 //! lifetime belongs to `russh`; what we can guarantee is that our copy does not
 //! outlive the call.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use tokio::sync::Mutex as AsyncMutex;
+use tokio::task::JoinSet;
+
 use crate::vault::Secret;
-use russh::client::{self, Handle};
+use russh::client::{self, ChannelOpenHandle, Handle};
 use russh::keys::{decode_secret_key, PrivateKeyWithHashAlg};
-use russh::{ChannelId, Disconnect};
+use russh::{Channel, ChannelId, Disconnect};
 
 use crate::ssh::known_hosts::KnownHosts;
 use crate::ssh::trust::{decide, Trust};
@@ -123,6 +127,14 @@ pub enum ConnectionError {
 
     #[error("the SSH transport failed")]
     Transport,
+
+    /// The server refused `tcpip-forward`: no `AllowTcpForwarding`, or a port
+    /// it will not grant. ADR-0054. `port` is the one that was asked for, so
+    /// the caller can say plainly which one, the same reasoning
+    /// `ForwardError::BindFailed` already carries `port` for on the local
+    /// side.
+    #[error("the server refused to forward the port")]
+    RemoteForwardRefused { port: u16 },
 }
 
 /// What a server offered, kept so a refusal can be acted on.
@@ -139,17 +151,46 @@ pub struct OfferedKey {
     pub hop: Hop,
 }
 
-/// Checks the host key, and nothing else.
-struct HostKeyCheck {
+/// Where a remote forward (ADR-0054, `-R`) sends what the server accepts, and
+/// the still-running pumps for connections already riding it.
+///
+/// The pumps live here, keyed with the forward itself, rather than as bare
+/// [`tokio::spawn`] calls with nothing tracking them: section 6 of
+/// `CLAUDE.md` asks that anything outliving the call which started it get a
+/// teardown path, and dropping this (which removing the map entry does) aborts
+/// every task still in [`JoinSet`], the same property
+/// [`crate::ssh::forward::listen`] gives a local forward's own connections.
+struct RemoteForwardState {
+    target: Endpoint,
+    pumps: JoinSet<()>,
+}
+
+/// Every remote forward a connection currently has running, keyed by the port
+/// asked of the server. Shared between [`Connection`] (which starts and stops
+/// one) and [`ConnectionHandler`] (which routes an incoming channel to one),
+/// two clones of the same map rather than one owner handing the other a
+/// borrow, since the two live for as long as the connection does but neither
+/// outlives the other in a way that would let one hold a reference.
+type RemoteForwards = Arc<AsyncMutex<HashMap<u16, RemoteForwardState>>>;
+
+/// Checks the host key, and routes an incoming remote-forward channel to
+/// whichever local forward asked the server to listen for it.
+///
+/// Two jobs on one type because `russh` dispatches both through the same
+/// [`client::Handler`] instance for a connection's whole lifetime, the same
+/// reason `data` below (a no-op; nothing here runs a shell over this handle
+/// directly) lives next to `check_server_key` rather than elsewhere.
+struct ConnectionHandler {
     endpoint: Endpoint,
     known: KnownHosts,
     hop: Hop,
     /// What was offered and what we made of it, kept so the caller can see
     /// *why* a connection was refused and can act on it afterwards.
     offered: Arc<std::sync::Mutex<Option<OfferedKey>>>,
+    remote_forwards: RemoteForwards,
 }
 
-impl HostKeyCheck {
+impl ConnectionHandler {
     fn remember(&self, offered: OfferedKey) {
         if let Ok(mut slot) = self.offered.lock() {
             *slot = Some(offered);
@@ -157,7 +198,7 @@ impl HostKeyCheck {
     }
 }
 
-impl client::Handler for HostKeyCheck {
+impl client::Handler for ConnectionHandler {
     type Error = russh::Error;
 
     async fn check_server_key(
@@ -214,6 +255,71 @@ impl client::Handler for HostKeyCheck {
     ) -> Result<(), Self::Error> {
         Ok(())
     }
+
+    /// The server opened a channel for a connection accepted on a port a
+    /// remote forward (ADR-0054, `-R`) asked it to listen on.
+    ///
+    /// `connected_port` is what routes this to the right forward: looked up
+    /// against `remote_forwards` rather than trusted as a destination on its
+    /// own, so a port this connection never asked to forward, or one already
+    /// stopped, is rejected rather than pumped somewhere nobody configured.
+    /// `connected_address` and the originator fields are the server's own
+    /// account of the connection it accepted; rule 2 of
+    /// `docs/security-model.md` is why neither is logged, and this reads
+    /// neither for anything else either, since routing depends only on the
+    /// port this connection itself chose to forward.
+    async fn server_channel_open_forwarded_tcpip(
+        &mut self,
+        channel: Channel<client::Msg>,
+        _connected_address: &str,
+        connected_port: u32,
+        _originator_address: &str,
+        _originator_port: u32,
+        reply: ChannelOpenHandle,
+        _session: &mut client::Session,
+    ) -> Result<(), Self::Error> {
+        let Ok(port) = u16::try_from(connected_port) else {
+            reply
+                .reject(russh::ChannelOpenFailure::AdministrativelyProhibited)
+                .await;
+            return Ok(());
+        };
+
+        let target = {
+            let forwards = self.remote_forwards.lock().await;
+            forwards.get(&port).map(|state| state.target.clone())
+        };
+        let Some(target) = target else {
+            reply
+                .reject(russh::ChannelOpenFailure::AdministrativelyProhibited)
+                .await;
+            return Ok(());
+        };
+
+        let Ok(mut upstream) =
+            tokio::net::TcpStream::connect((target.host.as_str(), target.port)).await
+        else {
+            reply.reject(russh::ChannelOpenFailure::ConnectFailed).await;
+            return Ok(());
+        };
+
+        reply.accept().await;
+
+        let mut forwards = self.remote_forwards.lock().await;
+        let Some(state) = forwards.get_mut(&port) else {
+            /* Stopped while the upstream connection was being made. The
+            channel is already accepted; dropping it and `upstream` here,
+            rather than pumping between them, is the correct outcome for a
+            forward that no longer exists by the time this got here. */
+            return Ok(());
+        };
+        state.pumps.spawn(async move {
+            let mut downstream = channel.into_stream();
+            let _ = tokio::io::copy_bidirectional(&mut downstream, &mut upstream).await;
+        });
+
+        Ok(())
+    }
 }
 
 /// A connection several sessions may ride at once.
@@ -243,7 +349,7 @@ pub fn share(connection: Connection) -> Shared {
 
 /// A connection whose host key was trusted, before authentication.
 pub struct Connection {
-    handle: Handle<HostKeyCheck>,
+    handle: Handle<ConnectionHandler>,
     /// The bastion this session is carried on, when there is one.
     ///
     /// A share rather than sole ownership, since ADR-0024. The argument of
@@ -252,6 +358,11 @@ pub struct Connection {
     /// guarantees that. What changed is that several sessions may hold one, and
     /// the count rather than a single holder decides when it closes.
     via: Option<Shared>,
+    /// This connection's own remote forwards (ADR-0054), shared with the
+    /// [`ConnectionHandler`] instance `russh` is dispatching incoming
+    /// channels to. Empty for a connection with no remote forwards, which is
+    /// most of them.
+    remote_forwards: RemoteForwards,
 }
 
 /// A chain that could not be completed, handing the bastion back.
@@ -313,18 +424,24 @@ pub async fn connect_reporting_within(
     let config = Arc::new(client::Config::default());
     let address = (endpoint.host.clone(), endpoint.port);
     let offered = Arc::new(std::sync::Mutex::new(None));
+    let remote_forwards: RemoteForwards = Arc::new(AsyncMutex::new(HashMap::new()));
 
-    let checker = HostKeyCheck {
+    let checker = ConnectionHandler {
         endpoint,
         known,
         hop: Hop::Target,
         offered: Arc::clone(&offered),
+        remote_forwards: Arc::clone(&remote_forwards),
     };
 
     let attempt = tokio::time::timeout(timeout, client::connect(config, address, checker));
 
     settle(attempt.await, &offered)
-        .map(|handle| Connection { handle, via: None })
+        .map(|handle| Connection {
+            handle,
+            via: None,
+            remote_forwards,
+        })
         .map_err(|refusal| *refusal)
 }
 
@@ -334,9 +451,9 @@ pub async fn connect_reporting_within(
 /// unknown host key becomes a refusal the caller can act on, and rule 3 having
 /// two implementations is rule 3 having two chances to drift.
 fn settle(
-    outcome: Result<Result<Handle<HostKeyCheck>, russh::Error>, tokio::time::error::Elapsed>,
+    outcome: Result<Result<Handle<ConnectionHandler>, russh::Error>, tokio::time::error::Elapsed>,
     offered: &Arc<std::sync::Mutex<Option<OfferedKey>>>,
-) -> Result<Handle<HostKeyCheck>, Box<(ConnectionError, Option<OfferedKey>)>> {
+) -> Result<Handle<ConnectionHandler>, Box<(ConnectionError, Option<OfferedKey>)>> {
     let taken = || offered.lock().ok().and_then(|mut slot| slot.take());
 
     let refused = |error, seen| Err(Box::new((error, seen)));
@@ -419,12 +536,14 @@ pub async fn connect_via_within(
 
     let config = Arc::new(client::Config::default());
     let offered = Arc::new(std::sync::Mutex::new(None));
+    let remote_forwards: RemoteForwards = Arc::new(AsyncMutex::new(HashMap::new()));
 
-    let checker = HostKeyCheck {
+    let checker = ConnectionHandler {
         endpoint,
         known,
         hop: Hop::Target,
         offered: Arc::clone(&offered),
+        remote_forwards: Arc::clone(&remote_forwards),
     };
 
     let attempt = tokio::time::timeout(
@@ -436,6 +555,7 @@ pub async fn connect_via_within(
         Ok(handle) => Ok(Connection {
             handle,
             via: Some(bastion),
+            remote_forwards,
         }),
         Err(refusal) => {
             let (error, offered) = *refusal;
@@ -580,6 +700,67 @@ impl Connection {
             .map_err(|_| ConnectionError::Unreachable)
     }
 
+    /// Starts a remote forward (ADR-0054, `-R`): asks the server to listen on
+    /// `bind_port` and, for each connection it accepts there, open a channel
+    /// back to us so it can be pumped to `target`, which is reachable from
+    /// this machine rather than from the server.
+    ///
+    /// Returns the port the server actually granted. Equal to `bind_port`
+    /// unless the server chose a different one, which only happens by asking
+    /// with `bind_port: 0` in the first place; RFC 4254 7.1 has the server
+    /// answer a specific port asked for with no port field at all, which
+    /// `russh`'s own client reports back as `0`; that is not a real port
+    /// number here, it is "the one already asked for," so it is treated as
+    /// `bind_port` rather than trusted literally.
+    ///
+    /// `RemoteForwardRefused` either means no `AllowTcpForwarding`, or a port
+    /// the server will not grant; the two are indistinguishable from here,
+    /// the same reasoning [`open_forward`](Self::open_forward) already gives
+    /// for `Unreachable`.
+    pub async fn start_remote_forward(
+        &self,
+        bind_port: u16,
+        target: Endpoint,
+    ) -> Result<u16, ConnectionError> {
+        let granted = self
+            .handle
+            .tcpip_forward("localhost", u32::from(bind_port))
+            .await
+            .map_err(|_| ConnectionError::RemoteForwardRefused { port: bind_port })?;
+        let granted = match u16::try_from(granted) {
+            Ok(0) | Err(_) => bind_port,
+            Ok(port) => port,
+        };
+
+        self.remote_forwards.lock().await.insert(
+            granted,
+            RemoteForwardState {
+                target,
+                pumps: JoinSet::new(),
+            },
+        );
+
+        Ok(granted)
+    }
+
+    /// Stops a remote forward, tearing down every connection currently riding
+    /// it: see [`RemoteForwardState`]'s own doc comment for why removing its
+    /// entry is enough for that.
+    ///
+    /// Not an error when the port names no running forward: the caller's
+    /// goal, that forward not running, is already true. The server-side
+    /// `cancel-tcpip-forward` is best-effort for the same reason
+    /// `sftp::transfer::Transfers::cancel` does not fail on an already-gone
+    /// handle: our own routing is already gone the moment the map entry is,
+    /// regardless of whether the server's own bookkeeping call succeeds.
+    pub async fn stop_remote_forward(&self, bind_port: u16) {
+        self.remote_forwards.lock().await.remove(&bind_port);
+        let _ = self
+            .handle
+            .cancel_tcpip_forward("localhost", u32::from(bind_port))
+            .await;
+    }
+
     /// Measures the round trip to the host.
     ///
     /// Sends `keepalive@openssh.com` with `want_reply` set and times the
@@ -613,7 +794,14 @@ impl Connection {
     /// nothing else is riding it. That is [`close_shared`], and it is where
     /// ADR-0024's count does the remembering.
     pub async fn disconnect(self) -> Result<(), ConnectionError> {
-        let Self { handle, via } = self;
+        /* `remote_forwards` drops here too, taking every remote forward's own
+        `JoinSet` with it and aborting any connection still riding one: a
+        closed connection has nowhere left to pump bytes to or from. */
+        let Self {
+            handle,
+            via,
+            remote_forwards: _,
+        } = self;
 
         let closed = handle
             .disconnect(Disconnect::ByApplication, "", "en")
