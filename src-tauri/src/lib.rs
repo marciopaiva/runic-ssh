@@ -71,6 +71,7 @@ pub fn run() -> tauri::Result<()> {
         /* Never persisted, and gone when the process is. ADR-0025. */
         .manage(vault::SessionSecrets::new())
         .manage(sftp::transfer::Transfers::new())
+        .manage(ssh::forward::Forwards::new())
         .invoke_handler(tauri::generate_handler![
             commands::app::app_version,
             commands::chrome::window_chrome,
@@ -118,6 +119,8 @@ pub fn run() -> tauri::Result<()> {
             commands::sftp::local_mkdir,
             commands::sftp::local_rename,
             commands::sftp::local_remove,
+            commands::forward::start_local_forward,
+            commands::forward::stop_forward,
         ])
         .run(tauri::generate_context!())
 }

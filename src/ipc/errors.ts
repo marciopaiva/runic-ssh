@@ -185,7 +185,12 @@ export type IpcError =
   | {
       readonly code: 'localNameRefused';
       readonly check: 'empty' | 'tooLong' | 'notASingleSegment' | 'dotEntry' | 'controlCharacter';
-    };
+    }
+  /**
+   * A local port forward's own local half could not bind. `port` names it,
+   * so the message can say plainly which one. ADR-0054.
+   */
+  | { readonly code: 'forwardBindFailed'; readonly port: number };
 
 export type IpcErrorCode = IpcError['code'];
 
@@ -249,6 +254,7 @@ export const CODES: ReadonlySet<IpcErrorCode> = new Set<IpcErrorCode>([
   'localPermissionDenied',
   'localIoFailed',
   'localNameRefused',
+  'forwardBindFailed',
 ]);
 
 /**

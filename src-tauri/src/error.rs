@@ -53,6 +53,10 @@ pub enum Error {
     #[error("the SFTP operation failed")]
     Sftp(#[from] Box<crate::sftp::error::SftpError>),
 
+    /// ADR-0054. Starting a local port forward.
+    #[error("the local forward could not be started")]
+    Forward(#[from] crate::ssh::forward::ForwardError),
+
     /// ADR-0043. Listing a local directory for the SFTP panel's own side.
     #[error("the local directory could not be listed")]
     LocalDirectory(crate::sftp::local::LocalError),
@@ -333,6 +337,11 @@ pub enum IpcError {
     LocalNameRefused {
         check: &'static str,
     },
+    /// ADR-0054. The local half of a port forward could not bind. `port`
+    /// names it, so the frontend can say plainly which one.
+    ForwardBindFailed {
+        port: u16,
+    },
 }
 
 /// Paths are shown to the user so they can find the file; the rest of the
@@ -361,6 +370,9 @@ impl From<Error> for IpcError {
             Error::InvalidLocale { requested } => Self::InvalidLocale { requested },
             Error::Ssh(ssh) => Self::from(*ssh),
             Error::Sftp(sftp) => Self::from(*sftp),
+            Error::Forward(crate::ssh::forward::ForwardError::BindFailed { port, .. }) => {
+                Self::ForwardBindFailed { port }
+            }
             Error::LocalDirectory(local) => Self::from(local),
             Error::LocalFilesystem(local) => Self::from(local),
             Error::UnknownSession { id } => Self::UnknownSession { id },
