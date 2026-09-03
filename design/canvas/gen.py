@@ -93,9 +93,13 @@ ICON = dict(
     shape_rows='<rect x="3.5" y="5.5" width="17" height="13" rx="2"></rect><path d="M3.5 12h17"></path>',
     shape_grid='<rect x="3.5" y="5.5" width="17" height="13" rx="2"></rect><path d="M12 5.5v13M3.5 12h17"></path>',
     shield='<path d="M12 3.5l7 3v5.5c0 4.2-2.9 7.3-7 8.5-4.1-1.2-7-4.3-7-8.5V6.5z"></path>',
-    # ADR-0029's own rail icon, path copied verbatim from ActivityRail.tsx
-    # rather than invented for the mockup.
-    home='<path d="M4 11.5 12 4l8 7.5M6 10v9.5h5V14h2v5.5h5V10"></path>',
+    # The rail's Home icon, an open book: ADR-0052/ADR-0056 already call the
+    # dense, searchable Home screen the "host book", and the rail's own
+    # glyph was still a plain house until the maintainer asked for it to
+    # match. Path copied verbatim from ActivityRail.tsx rather than invented
+    # for the mockup.
+    home='<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>'
+         '<path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>',
     # Exploratory (`build_sftp_proposal`): a redo-shaped arrow for the
     # navigation bar's refresh action. `chev` rotated stands in for back and
     # up, so this is the only new glyph the proposal needed.
