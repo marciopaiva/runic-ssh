@@ -1236,6 +1236,96 @@ async fn stopping_a_forward_closes_a_connection_already_riding_it() {
 }
 
 /* ------------------------------------------------------------------------ *
+ * Dynamic port forwarding (SOCKS). ADR-0054.
+ * ------------------------------------------------------------------------ */
+
+#[tokio::test]
+async fn a_dynamic_forward_reaches_whatever_a_socks5_request_names() {
+    let chain = a_chain(true).await;
+    let bastion = open_bastion(&chain).await;
+    let target_port = echo_server().await;
+    let bind_port = free_port().await;
+
+    let accept_loop = forward::listen_dynamic(Arc::clone(&bastion), bind_port)
+        .await
+        .expect("the local port binds");
+    let task = tokio::spawn(accept_loop);
+
+    let mut client = TcpStream::connect(("127.0.0.1", bind_port))
+        .await
+        .expect("the forwarded port accepts a connection");
+
+    let mut request = vec![5, 1, 0x00];
+    request.extend_from_slice(&[5, 1, 0, 0x01]);
+    request.extend_from_slice(&[127, 0, 0, 1]);
+    request.extend_from_slice(&target_port.to_be_bytes());
+    client
+        .write_all(&request)
+        .await
+        .expect("the SOCKS5 request reaches the listener");
+
+    let mut reply = [0u8; 12];
+    client
+        .read_exact(&mut reply)
+        .await
+        .expect("the listener answers both the method and the request");
+    assert_eq!(&reply[..2], [0x05, 0x00], "no-auth is granted");
+    assert_eq!(&reply[2..4], [0x05, 0x00], "the request succeeds");
+
+    client
+        .write_all(b"through a dynamic forward")
+        .await
+        .expect("the write reaches the channel the handshake opened");
+    let mut echoed = [0u8; "through a dynamic forward".len()];
+    client
+        .read_exact(&mut echoed)
+        .await
+        .expect("the echo comes back through the tunnel the handshake named");
+    assert_eq!(&echoed, b"through a dynamic forward");
+
+    task.abort();
+    close_shared(bastion).await.expect("it closes");
+}
+
+#[tokio::test]
+async fn a_request_the_handshake_cannot_answer_closes_the_connection() {
+    /* Not a hang: a malformed or unsupported request has to end the same
+    way a refused channel does on a local forward (`pump`'s own doc
+    comment), a real signal rather than the connection sitting open with
+    nothing arriving on it. */
+    let chain = a_chain(true).await;
+    let bastion = open_bastion(&chain).await;
+    let bind_port = free_port().await;
+
+    let accept_loop = forward::listen_dynamic(Arc::clone(&bastion), bind_port)
+        .await
+        .expect("the local port binds");
+    let task = tokio::spawn(accept_loop);
+
+    let mut client = TcpStream::connect(("127.0.0.1", bind_port))
+        .await
+        .expect("the forwarded port accepts a connection");
+    /* Exactly the one byte `handshake` reads before giving up on an
+    unsupported version: a byte left unread in the socket when it closes
+    would have the kernel answer with a reset rather than a clean end, which
+    would prove nothing about the property this test is actually after. */
+    client
+        .write_all(&[9]) // no SOCKS version speaks 9
+        .await
+        .expect("the write reaches the listener");
+    client.shutdown().await.expect("the write half shuts down");
+
+    let mut buffer = [0u8; 1];
+    let read = tokio::time::timeout(std::time::Duration::from_secs(5), client.read(&mut buffer))
+        .await
+        .expect("an unsupported version closes the connection rather than hanging");
+    assert_eq!(read.expect("a close is not a read error"), 0);
+
+    task.abort();
+    close_shared(bastion).await.expect("it closes");
+}
+
+/* ------------------------------------------------------------------------ *
  * Remote port forwarding. ADR-0054.
  *
  * The one direction this project had never driven data through before this

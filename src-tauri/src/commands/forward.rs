@@ -1,4 +1,4 @@
-//! Port forwarding commands, local and remote.
+//! Port forwarding commands: local, remote, and dynamic.
 //!
 //! A forward returns a handle immediately, the same shape `commands::sftp`
 //! already uses for a transfer: starting one is a bind (or a request to the
@@ -52,7 +52,7 @@ pub async fn start_local_forward(
 
     let forward = forwards.reserve();
     forwards
-        .attach_local(forward, tokio::spawn(accept_loop))
+        .attach_task(forward, tokio::spawn(accept_loop))
         .await;
 
     Ok(forward)
@@ -96,9 +96,46 @@ pub async fn start_remote_forward(
     Ok(forward)
 }
 
-/// Stops a forward in flight, local or remote. Not an error when the handle
-/// already names nothing: the caller's goal, that forward not running, is
-/// already true.
+/// Starts a dynamic forward (a SOCKS proxy): `127.0.0.1:bind_port` on this
+/// machine, through `handle`'s connection, to wherever each connection's own
+/// SOCKS4/SOCKS4a/SOCKS5 handshake names, one destination at a time rather
+/// than one fixed in advance.
+///
+/// Returns as soon as the local port is bound, the same shape a local
+/// forward's own start takes; a handshake this cannot answer, or a channel
+/// the far end refuses, both happen later, per connection, and end that one
+/// connection rather than the whole forward. See
+/// `ssh::socks::handshake` and `ssh::forward::pump`'s own doc comments.
+///
+/// A SOCKS proxy changes how much other traffic can reach through this
+/// connection, more than a fixed single-destination forward does: whatever
+/// runs against `handle` from this point on answers not just what this
+/// application itself asks of it, but what anything the caller configures
+/// to use `127.0.0.1:bind_port` as a proxy asks of it too.
+#[tauri::command]
+pub async fn start_dynamic_forward(
+    registry: State<'_, Registry>,
+    forwards: State<'_, Forwards>,
+    handle: SessionHandle,
+    bind_port: u16,
+) -> Result<ForwardHandle, IpcError> {
+    let connection = open_connection(&registry, handle).await?;
+
+    let accept_loop = forward::listen_dynamic(connection, bind_port)
+        .await
+        .map_err(Error::Forward)?;
+
+    let forward = forwards.reserve();
+    forwards
+        .attach_task(forward, tokio::spawn(accept_loop))
+        .await;
+
+    Ok(forward)
+}
+
+/// Stops a forward in flight, of any of the three kinds. Not an error when
+/// the handle already names nothing: the caller's goal, that forward not
+/// running, is already true.
 #[tauri::command]
 pub async fn stop_forward(
     forwards: State<'_, Forwards>,
