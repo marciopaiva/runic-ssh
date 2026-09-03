@@ -85,16 +85,20 @@ describe('the light theme is reachable at all', () => {
        not: "follow the system" has to stay reachable after a user has picked
        something else, or the choice is one way. Moved here from a dashboard
        card (ADR-0052, once the card itself went with Home's own Dashboard
-       section): three icons in a `radiogroup`, not three radios in a
-       `fieldset`, but the same three choices. `value="${theme}"` never
-       literally appears in JSX here (the chip's own `checked` prop compares
-       `theme === '${theme}'` instead), so this greps for the choice each
-       chip's `onChoose` names. */
+       section). Folded behind one button since (found comparing directly
+       against `ShapeControl`/`SftpSplitControl`, the toolbar's own answer
+       for "which one of several is this" elsewhere): a `menu` of
+       `menuitemradio` options, the same roles those two already use, not
+       three chips in a `radiogroup`. `THEMES` is where all three actually
+       live; `onChoose(kind)` is one call site iterating it, not three
+       literal calls naming each theme, so this checks the array has all
+       three rather than grepping for a call that no longer exists. */
     const controls = source('components/ThemeLanguageControls.tsx');
 
     for (const theme of ['system', 'light', 'dark'] satisfies Theme[]) {
-      expect(controls).toContain(`onChooseTheme('${theme}')`);
+      expect(controls).toContain(`'${theme}'`);
     }
-    expect(controls).toContain('role="radiogroup"');
+    expect(controls).toContain('role="menu"');
+    expect(controls).toContain('role="menuitemradio"');
   });
 });
