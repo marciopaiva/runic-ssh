@@ -19,10 +19,13 @@ use runic_ssh::ssh::connection::{
     close_shared, connect, connect_via, connect_within, share, ConnectionError, Credential,
     Endpoint, Hop, Shared,
 };
+use runic_ssh::ssh::forward;
 use runic_ssh::ssh::known_hosts::KnownHosts;
 use runic_ssh::ssh::registry::ChainedBastions;
 use runic_ssh::ssh::trust::Trust;
 use runic_ssh::vault::Secret;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::{TcpListener, TcpStream};
 
 const USER: &str = "deploy";
 const PASSWORD: &str = "correct horse battery staple";
@@ -1059,4 +1062,175 @@ async fn a_bastion_nobody_rides_is_not_left_open() {
         0,
         "nothing was left holding it"
     );
+}
+
+/* ------------------------------------------------------------------------ *
+ * Local port forwarding. ADR-0054.
+ * ------------------------------------------------------------------------ */
+
+/// A plain TCP server that echoes back whatever it is sent, standing in for
+/// the real destination a `-L` forward reaches through the far host.
+/// `TestServer::channel_open_direct_tcpip` makes a genuine
+/// `TcpStream::connect` to whatever endpoint the client asked for, so an
+/// echo server here proves bytes travel the whole path, not just the SSH
+/// half of it.
+async fn echo_server() -> u16 {
+    let listener = TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .expect("a loopback port");
+    let port = listener.local_addr().expect("an address").port();
+
+    tokio::spawn(async move {
+        loop {
+            let Ok((mut stream, _)) = listener.accept().await else {
+                break;
+            };
+            tokio::spawn(async move {
+                let mut buffer = [0u8; 4096];
+                loop {
+                    match stream.read(&mut buffer).await {
+                        Ok(0) | Err(_) => break,
+                        Ok(read) => {
+                            if stream.write_all(&buffer[..read]).await.is_err() {
+                                break;
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    });
+
+    port
+}
+
+/// A free loopback port, released immediately: the standard "ask the OS,
+/// then reuse the number" trick for a test that needs a port picked
+/// deterministically before the thing that actually binds it runs.
+async fn free_port() -> u16 {
+    let listener = TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .expect("a loopback port");
+    listener.local_addr().expect("an address").port()
+}
+
+#[tokio::test]
+async fn a_local_forward_pumps_bytes_to_a_real_target() {
+    let chain = a_chain(true).await;
+    let bastion = open_bastion(&chain).await;
+    let target_port = echo_server().await;
+    let bind_port = free_port().await;
+
+    let accept_loop = forward::listen(
+        Arc::clone(&bastion),
+        bind_port,
+        Endpoint {
+            host: "127.0.0.1".to_owned(),
+            port: target_port,
+        },
+    )
+    .await
+    .expect("the local port binds");
+    let task = tokio::spawn(accept_loop);
+
+    let mut client = TcpStream::connect(("127.0.0.1", bind_port))
+        .await
+        .expect("the forwarded port accepts a connection");
+    client
+        .write_all(b"through the tunnel")
+        .await
+        .expect("the write reaches the channel");
+
+    let mut reply = [0u8; "through the tunnel".len()];
+    client
+        .read_exact(&mut reply)
+        .await
+        .expect("the echo comes back through the same tunnel");
+    assert_eq!(&reply, b"through the tunnel");
+
+    task.abort();
+    close_shared(bastion).await.expect("it closes");
+}
+
+#[tokio::test]
+async fn a_bastion_that_refuses_forwarding_closes_the_local_connection() {
+    /* Not a hang, and not the whole forward staying up while quietly
+    accepting nothing: `pump`'s own doc comment says a refused channel fails
+    the one local connection that asked. A client left dangling with no
+    signal at all would be indistinguishable from `ssh::forward` never
+    having noticed the refusal. */
+    let chain = a_chain(false).await;
+    let bastion = open_bastion(&chain).await;
+    let bind_port = free_port().await;
+
+    let accept_loop = forward::listen(Arc::clone(&bastion), bind_port, endpoint(chain.target_port))
+        .await
+        .expect("the local port binds");
+    let task = tokio::spawn(accept_loop);
+
+    let mut client = TcpStream::connect(("127.0.0.1", bind_port))
+        .await
+        .expect("the forwarded port still accepts the local connection");
+
+    let mut buffer = [0u8; 1];
+    let read = tokio::time::timeout(std::time::Duration::from_secs(5), client.read(&mut buffer))
+        .await
+        .expect("the refusal closes the socket rather than leaving it hanging");
+    assert_eq!(read.expect("a close is not a read error"), 0);
+
+    task.abort();
+    close_shared(bastion).await.expect("it closes");
+}
+
+#[tokio::test]
+async fn stopping_a_forward_closes_a_connection_already_riding_it() {
+    /* The property section 6 of CLAUDE.md asks for: a spawned task outliving
+    the call that started it needs a teardown path, and this is the test
+    that proves the one `ssh::forward::listen` uses actually runs. Aborting
+    the one task `Forwards::stop` would abort has to take the in-flight
+    pump with it, not just stop the accept loop and leave this connection
+    running forever. */
+    let chain = a_chain(true).await;
+    let bastion = open_bastion(&chain).await;
+    let target_port = echo_server().await;
+    let bind_port = free_port().await;
+
+    let accept_loop = forward::listen(
+        Arc::clone(&bastion),
+        bind_port,
+        Endpoint {
+            host: "127.0.0.1".to_owned(),
+            port: target_port,
+        },
+    )
+    .await
+    .expect("the local port binds");
+    let task = tokio::spawn(accept_loop);
+
+    let mut client = TcpStream::connect(("127.0.0.1", bind_port))
+        .await
+        .expect("the forwarded port accepts a connection");
+    client
+        .write_all(b"still open")
+        .await
+        .expect("the write reaches the channel");
+    let mut reply = [0u8; "still open".len()];
+    client
+        .read_exact(&mut reply)
+        .await
+        .expect("the echo proves the pump is running");
+
+    task.abort();
+
+    let mut buffer = [0u8; 1];
+    let read = tokio::time::timeout(std::time::Duration::from_secs(5), client.read(&mut buffer))
+        .await
+        .expect("stopping the forward closes every connection riding it, not just new ones");
+    assert_eq!(
+        read.expect("a close is not a read error"),
+        0,
+        "the connection is still open after the forward it rode was stopped"
+    );
+
+    close_shared(bastion).await.expect("it closes");
 }
