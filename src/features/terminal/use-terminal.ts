@@ -8,9 +8,11 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { openTerminal, resizeTerminal, watchTerminal } from '../../ipc';
-import type { SessionHandle } from '../../ipc';
+import type { Session, SessionHandle } from '../../ipc';
+import { useTranslator } from '../settings';
 
 import { keyIntent, pasteNeedsConfirming } from './clipboard';
+import { motdBanner } from './motd';
 import { terminalTheme } from './theme';
 
 /** The grid the remote pty is drawing on. */
@@ -59,7 +61,13 @@ export function useTerminal(
   onPasteNeedsConfirming: (text: string) => void,
   onInput: (bytes: Uint8Array) => void,
   broadcasting: boolean,
+  /** `null` only if the session vanished from the saved list between
+      connecting and this terminal mounting; the banner is skipped rather
+      than printed with nothing to say. */
+  session: Session | null,
+  sessions: readonly Session[],
 ): TerminalState {
+  const i18n = useTranslator();
   const [state, setState] = useState<TerminalState>({
     closed: false,
     exitStatus: null,
@@ -133,6 +141,15 @@ export function useTerminal(
       }));
 
       writeRef.current = (bytes) => terminal.write(bytes);
+
+      /* ADR-0051: written before `watchTerminal` starts below, which is what
+         a real remote MOTD would arrive through, so this can never race one.
+         Read once, at connect: a MOTD already on screen keeps whatever
+         language it was printed in, the same way a real server's own banner
+         would not retroactively translate itself after the fact. */
+      if (session !== null) {
+        terminal.write(motdBanner(session, sessions, terminal.cols, i18n));
+      }
 
       /* The palette follows the theme while the session is open. Reading it
          once at construction would leave the terminal — the surface a user

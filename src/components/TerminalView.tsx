@@ -1,13 +1,18 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties, JSX } from 'react';
 
-import type { SessionHandle } from '../ipc';
+import type { Session, SessionHandle } from '../ipc';
 import { useTerminal } from '../features/terminal/use-terminal';
 import type { TerminalSize } from '../features/terminal/use-terminal';
 import { useTranslator } from '../features/settings';
 
 interface TerminalViewProps {
   readonly handle: SessionHandle | null;
+  /** For the ADR-0051 MOTD banner: the session this terminal belongs to
+      (`null` if it no longer exists in the saved list), and the full saved
+      list, for naming a jump host it rides. */
+  readonly session: Session | null;
+  readonly sessions: readonly Session[];
   /** Whether this session is the active tab of a group. */
   readonly visible: boolean;
   /** Whether this is the pane the keyboard and the status bar belong to. */
@@ -64,6 +69,8 @@ interface TerminalViewProps {
  */
 export function TerminalView({
   handle,
+  session,
+  sessions,
   visible,
   focused,
   frame,
@@ -85,6 +92,8 @@ export function TerminalView({
     onPasteNeedsConfirming,
     onInput,
     broadcasting,
+    session,
+    sessions,
   );
 
   /* Reported upward rather than read downward: the status bar is a sibling,
