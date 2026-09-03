@@ -1142,6 +1142,13 @@ export function App(): JSX.Element {
        this card anyway. */
     if (attempt.stage.stage === 'settled') return null;
 
+    /* A completed wizard test that failed. The wizard shows this inline,
+       next to the credential field it is about, rather than as a card here:
+       `testFailure` below, computed the same way this surface's own `failed`
+       is, is what feeds that. Only ever reached by the `'inline'` intent,
+       for the same reason `'settled'` above is. */
+    if (attempt.stage.stage === 'failed' && attempt.intent === 'inline') return null;
+
     if (failed !== null) {
       return (
         <ConnectionFailure
@@ -2302,6 +2309,18 @@ export function App(): JSX.Element {
                 attempt !== null && editingId !== null && attempt.sessionId === editingId
                   ? attemptSurface
                   : null;
+              /* The same failed attempt `attemptSurface` itself refuses to
+                 show a card for, `intent === 'inline'` and reached here.
+                 Handed to the wizard as data rather than a `ReactNode`: it
+                 renders this next to the credential field it is about, not
+                 as a card of its own. */
+              const testFailure =
+                attempt !== null &&
+                editingId !== null &&
+                attempt.sessionId === editingId &&
+                attempt.stage.stage === 'failed'
+                  ? { code: attempt.stage.code, hop: attempt.stage.hop }
+                  : null;
               /* ADR-0033: the bastion's own field. A session behind
                  a jump host authenticates it first. `submitCredential` is
                  the same command the separate window already answers
@@ -2392,12 +2411,12 @@ export function App(): JSX.Element {
                         onCancelDelete={() => cancelDelete(target)}
                         onSave={() => hostFieldsValid(target)}
                         onTest={(method, credential) => testInWizard(target, method, credential)}
-                        onFinish={() => finishWizard(target)}
                         onAutoFinish={() => {
                           abandon();
                           finishWizard(target);
                         }}
                         testSurface={testSurface}
+                        testFailure={testFailure}
                         lastOutcome={editingId !== null ? (testOutcome.get(editingId) ?? null) : null}
                         bastionCredential={bastionCredential}
                         onConfirmDiscard={() => discardIn(target, true)}

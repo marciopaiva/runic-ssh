@@ -11,6 +11,15 @@ interface CredentialAccessFieldsProps {
   /** `undefined` while `SessionWizard`'s own probe is in flight. */
   readonly canRemember: boolean | undefined;
   readonly usesVault: boolean;
+  /** While a test this field's own value started is still running. ADR-0058:
+   * editing it mid-flight would leave the wrong value on screen once the
+   * test that is actually running finishes. */
+  readonly disabled: boolean;
+  /** The host just refused whatever this field held, ADR-0058: the same
+   * red border a duplicate host or an empty required field already gets,
+   * on the field this failure is actually about. Retyping and clicking
+   * Save again is the retry; there is no separate one. */
+  readonly invalid: boolean;
 }
 
 /**
@@ -31,6 +40,8 @@ export function CredentialAccessFields({
   formRef,
   canRemember,
   usesVault,
+  disabled,
+  invalid,
 }: CredentialAccessFieldsProps): JSX.Element {
   const i18n = useTranslator();
   const first = useRef<HTMLElement | null>(null);
@@ -41,6 +52,20 @@ export function CredentialAccessFields({
   useEffect(() => {
     first.current?.focus();
   }, [method]);
+
+  /* Refocuses and reselects the field a refusal is actually about the
+     instant it is reported, the same way a browser's own "wrong password"
+     already does: retyping is the very next thing anyone does with it. */
+  useEffect(() => {
+    if (!invalid) return;
+    const node = first.current;
+    if (node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement) {
+      node.focus();
+      node.select();
+    }
+  }, [invalid]);
+
+  const fieldClass = `${INPUT} ${invalid ? 'border-danger' : ''}`;
 
   return (
     <form
@@ -59,7 +84,9 @@ export function CredentialAccessFields({
             type="password"
             autoComplete="off"
             spellCheck={false}
-            className={INPUT}
+            disabled={disabled}
+            aria-invalid={invalid}
+            className={fieldClass}
           />
         </label>
       ) : (
@@ -73,7 +100,9 @@ export function CredentialAccessFields({
               name="privateKey"
               autoComplete="off"
               spellCheck={false}
-              className={`${INPUT} h-[124px] resize-none text-[11px] leading-snug`}
+              disabled={disabled}
+              aria-invalid={invalid}
+              className={`${fieldClass} h-[124px] resize-none text-[11px] leading-snug`}
             />
           </label>
           <label className="flex flex-col gap-1.5">
@@ -85,6 +114,7 @@ export function CredentialAccessFields({
               type="password"
               autoComplete="off"
               spellCheck={false}
+              disabled={disabled}
               className={INPUT}
             />
           </label>

@@ -280,17 +280,11 @@ check is mostly whether the form tells the truth afterwards.
 
 | Do this | Expect |
 | --- | --- |
-| Open a host with no saved password | the block says none is stored, and offers *Connect once and save a password* |
-| Press it | the tab you are taken to is **the session's**, not the form's, and the host key screen appears there |
-| Authenticate in the wizard, in the system keychain | a result surface saying the password is saved, and no terminal opens |
-| Go back to the form | the block now says one is stored, and offers to replace or to forget it |
+| Open a host with no saved password | the block says none is stored, and the password field itself is already on the form, in the Access column (ADR-0057) |
+| Type it and press Save | the form stays on screen, no terminal opens, and once the host accepts it the wizard closes itself, ADR-0058, with no result surface to dismiss first |
+| Reopen the host | the block now says one is stored, and offers to replace or to forget it |
 | Press *Forget it* | the block goes back to saying none is stored |
 | Connect normally | it asks again |
-
-The second row is the one worth reading twice. It was wrong when built: focus
-stayed on the form, so the whole sequence ran in a tab nobody was looking at
-and the button appeared to do nothing, with the host key screen among the
-things nobody saw.
 
 **A password kept for this run does not show in the block** (#197). The block
 reads what is on disk, and a credential held in memory until the application
@@ -355,9 +349,9 @@ shows a hop mid-flow, and `credential.hop.bastion` is the string that says so.
 
 | Do this | Expect |
 | --- | --- |
-| Save a jump host with nothing stored for it, then a target through it with nothing stored either, and test the target from its own Access column | the hop sentence, the method picker and the password field all render for the jump host first, nothing scrolls |
-| Authenticate the jump host | the small label above the field changes from *Bastion* to *Entrar*, and the target's own field appears with no hop sentence above it |
-| Authenticate the target | the same *the password is saved* surface `docs/testing.md` already describes for a direct host |
+| Save a jump host with nothing stored for it, then a target through it with nothing stored either, type the target's own password into its Access column (ADR-0057) and press Save | the bastion's own field, hop sentence, method picker and password field all render above the form, ADR-0058, nothing scrolls |
+| Authenticate the jump host | the bastion's field goes away; nothing else appears to fill in, since the target's own password was already read at Save |
+| Authenticate the target | the wizard closes itself, ADR-0058, the same ending a direct host's own successful test reaches |
 
 Confirmed on Linux on 2026-08-30, driving the real `runic-test-bastion` /
 `runic-test-target` chain from #133 through the actual `InlineCredentialForm`,
@@ -500,9 +494,9 @@ none either, and no session open on either.
 | Do this | Expect |
 | --- | --- |
 | Connect to the target from Sessions | the whole attempt fails at once, no window, nothing waiting, and the bastion's own entry opens in Hosts with `session.editor.missingCredential` showing |
-| Authenticate there, in the host editor's Access column, choose *in the system keychain* | the result surface says the password is saved; the target still has not been reached |
+| Authenticate there, in the host editor's Access column | the wizard closes itself, ADR-0058, with nothing to dismiss first; the target still has not been reached |
 | Go back to Sessions, connect to the target again | the bastion's key and credential are silently reused, and now it is the **target's own** entry that opens in Hosts, with the same notice |
-| Authenticate there too | the result surface says the password is saved |
+| Authenticate there too | the wizard closes itself the same way |
 | Go back to Sessions, connect to the target a third time | both credentials are reused silently, the target's key is checked, and the terminal opens |
 | Connect to a second host behind the same bastion | the bastion is not asked about again |
 | Close the application, reopen, connect | asks again only for whichever answer was *until Runic SSH closes* rather than *in the system keychain*; `podman exec runic-test-bastion ps` shows no leftover session from any attempt above |

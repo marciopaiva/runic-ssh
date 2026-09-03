@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import type { JSX, ReactNode } from 'react';
 
-import { describeEditorFailure } from '../features/sessions';
-import type { DraftField, DraftValues, EditorFailure, ForwardDraft } from '../features/sessions';
+import { describeEditorFailure, describeFailure } from '../features/sessions';
+import type { DraftField, DraftValues, EditorFailure, FailureCode, ForwardDraft } from '../features/sessions';
 import { useTranslator } from '../features/settings';
 import { credentialStoreStatus, internalVaultStatus } from '../ipc';
-import type { CredentialPrompt, Keep, Secret, Session, SuggestedMethod } from '../ipc';
+import type { CredentialPrompt, Hop, Keep, Secret, Session, SuggestedMethod } from '../ipc';
 
 import { CredentialAccessFields } from './CredentialAccessFields';
 import { FormSection } from './FormSection';
@@ -83,7 +83,9 @@ interface SessionWizardProps {
   readonly onSave: () => boolean;
   /**
    * Runs the proof-and-store phase: saves (the first time) or re-saves,
-   * then connects, then renders `testSurface` while it runs.
+   * then connects. ADR-0058: the form stays on screen while this runs, so
+   * there is nothing here to render for it beyond `testSurface`/
+   * `testFailure` below.
    *
    * `credential` is whatever `startProving` read off the Access section's
    * own fields, ADR-0057, or `null` when there was nothing to read (a
@@ -94,41 +96,48 @@ interface SessionWizardProps {
     method: SuggestedMethod,
     credential: { readonly secret: Secret; readonly keep: Keep } | null,
   ) => void;
-  /** Closes the wizard once an attempt has run at least once. */
-  readonly onFinish: () => void;
   /**
    * Closes the wizard the instant a test succeeds, with nothing on screen
    * to dismiss first: a save that worked has nothing left to ask about.
    * Reported strange live ("não precisamos dessa tela ao salvar... e
-   * fechando a tela se tudo estiver ok"): the wizard used to wait on
-   * `CredentialSaved` being dismissed and then on Finish being clicked, two
-   * screens for an ending that needed neither. `abandon` and `finishWizard`
+   * fechando a tela se tudo estiver ok"): the wizard used to wait on a
+   * card being dismissed and then on Finish being clicked, two screens
+   * for an ending that needed neither. `abandon` and `finishWizard`
    * together, called once by the effect that watches `lastOutcome`.
    */
   readonly onAutoFinish: () => void;
   /**
-   * What the settled row should say happened, or `null` before anything has.
-   *
-   * `ConnectionFailure` already states a failure once, inside `testSurface`;
-   * this is what is left once it is dismissed and the generic Back/Finish
-   * row is all that remains on screen. A success never reaches that row:
-   * `onAutoFinish` above closes the wizard before it would render. `App.tsx`
-   * owns this because it is the one place both endings, and the ADR-0036
-   * path that skips testing altogether, are already visible.
+   * Whether the last attempt this session made saved, or `null` before one
+   * has. Drives `onAutoFinish` above; a failure is read from `testFailure`,
+   * not from this, since this alone cannot say what to tell the user.
    */
   readonly lastOutcome: 'saved' | 'failed' | null;
   /**
-   * The host key and credential screens, exactly as Sessions renders them,
-   * or `null` when nothing is attempting a connection for this host right
-   * now. Owned by `App.tsx`, which already reads the shared `ConnectStage`
-   * machine ADR-0030 built; this component only decides where to put it.
+   * The host key decision and the connecting spinner, exactly as Sessions
+   * renders them, or `null` when nothing is attempting a connection for
+   * this host right now. Owned by `App.tsx`, which already reads the shared
+   * `ConnectStage` machine ADR-0030 built. Shown inline, above the form
+   * rather than in place of it: this is still the same page, only waiting
+   * on the host key or the network, not a different screen. `'failed'`
+   * never reaches here, `testFailure` below is that ending instead.
    */
   readonly testSurface: ReactNode | null;
+  /**
+   * Why the target's own credential test failed, or `null` before one has
+   * or once it has not. Reported live: a wrong password used to open a
+   * whole different card ("O host recusou a credencial") rather than
+   * behaving like an ordinary form whose password field is wrong. Data
+   * instead of a `ReactNode` so this component can put it next to the
+   * field it is actually about and let Save, not a separate button, be
+   * the retry.
+   */
+  readonly testFailure: { readonly code: FailureCode; readonly hop: Hop | null } | null;
   /**
    * A bastion's own field, ADR-0033, or `null` when nothing is waiting on
    * one. The target's own credential is no longer a separate field here at
    * all, ADR-0057: it is read out of the Access section's own fields,
-   * below, at the moment Save is clicked.
+   * below, at the moment Save is clicked. Shown inline for the same reason
+   * `testSurface` is.
    */
   readonly bastionCredential: {
     readonly prompt: CredentialPrompt;
@@ -146,11 +155,16 @@ interface SessionWizardProps {
  * ADR-0030 gave this the first time. A new host and one already saved are
  * drawn by the same layout, pre-filled for the second.
  *
- * Saving hands off to the proof-and-store phase the instant there is nothing
- * left to decide, whether that is a host's first save or its fiftieth
- * reopen; the caller renders `<SessionWizard key={editorKey(target)} .../>`
- * so switching hosts remounts this component instead of leaking one host's
- * `proving`/`method` state into another's render.
+ * Saving starts the proof the instant there is nothing left to decide,
+ * whether that is a host's first save or its fiftieth reopen, ADR-0058: the
+ * form itself never leaves the screen for it, the way an ordinary form's
+ * fields do not disappear while it submits. A host key decision or a
+ * bastion's own field shows inline, above the form; a failed credential
+ * shows inline, next to the field it is about, and Save is the retry. Only
+ * success ends this component's own part in it, closing the wizard outright
+ * (`onAutoFinish`). The caller renders `<SessionWizard key={editorKey(target)}
+ * .../>` so switching hosts remounts this component instead of leaking one
+ * host's `proving`/`method` state into another's render.
  */
 export function SessionWizard({
   title,
@@ -178,10 +192,10 @@ export function SessionWizard({
   onCancelDelete,
   onSave,
   onTest,
-  onFinish,
   onAutoFinish,
   lastOutcome,
   testSurface,
+  testFailure,
   bastionCredential,
   onConfirmDiscard,
   onCancelDiscard,
@@ -225,15 +239,18 @@ export function SessionWizard({
      instant it is read back out. */
   const pendingCredential = useRef<{ readonly secret: Secret; readonly keep: Keep } | null>(null);
 
-  /* Whether Access has handed off to the proof phase. ADR-0056: reset by a
-     remount (the caller keys this component per host) rather than by an
-     effect watching a step that no longer exists. */
+  /* Whether Save has been clicked at least once since this component
+     mounted. Exists only to keep the firing effect below from running on
+     mount, before anyone has clicked anything: `attempted` alone would
+     start `false` there too. Reset by a remount (the caller keys this
+     component per host) rather than by an effect watching a step that no
+     longer exists, ADR-0056. */
   const [proving, setProving] = useState(false);
-  /* Whether an attempt has run at least once since `proving` last became
-     true. Doubles as the effect's own fire-once guard and as the flag the
-     render below uses to switch from "nothing to show yet, the attempt is
-     starting" to "Back / Test again / Finish": one piece of state answers
-     both questions because they are the same question asked twice. */
+  /* Whether the current `proving` attempt has actually been started yet.
+     The firing effect's own fire-once guard: `startProving` sets this back
+     to `false` on a retry, so a second Save click fires a second attempt
+     instead of the effect seeing an attempt already running and doing
+     nothing. */
   const [attempted, setAttempted] = useState(false);
 
   /* Fires the one attempt Save started. Guarded by `attempted` rather than a
@@ -241,11 +258,9 @@ export function SessionWizard({
      `App.tsx`, so naming them here would refire this on every unrelated
      re-render while the attempt is in flight. Setting `attempted`
      synchronously, in the same tick as the call, is what a dependency array
-     cannot do and a ref alone cannot drive the render off. See the field
-     doc comment above for why one flag serves both.
+     cannot do and a ref alone cannot drive the render off.
 
-     What `startProving` read off the Access section, before the fields it
-     read from unmounted underneath this same state flip, is in
+     What `startProving` read off the Access section is in
      `pendingCredential`, not in a dependency here, for the same reason. */
   useEffect(() => {
     if (proving && !attempted && failure === null && testSurface === null && bastionCredential === null) {
@@ -275,22 +290,18 @@ export function SessionWizard({
     onDismissFailure();
   };
 
-  /* Which of the proof phase's own sub-states is showing, purely for the
-     label: the host key decision, the bastion's own field, and the settled
-     row all count as "proving" alike. Not gated on `attempted`, which turns
-     true the instant the attempt starts and stays true through all of them:
-     it is `testSurface`/`bastionCredential` going back to `null` after a
-     dismissal that hands the settled row its plain label back. There is no
-     `'wizard.phase.signIn'` any more, ADR-0057: the target's own field is
-     answered before this phase starts, not during it. */
-  const phase: 'wizard.phase.bastion' | 'wizard.phase.proving' | null =
-    !proving
-      ? null
-      : testSurface !== null
-        ? 'wizard.phase.proving'
-        : bastionCredential !== null
-          ? 'wizard.phase.bastion'
-          : null;
+  /* Whether to hold Save (and Cancel/Delete, so nobody backs out of the
+     editor while it is mid-flight): a host key decision, a bastion's own
+     field, or the connecting spinner are all a live attempt, freshly read
+     off `attempt` each render, so there is no staleness to guard against
+     the way there would be reading `lastOutcome`/`testFailure` back from
+     the same round trip. The gap this misses is the moment between
+     clicking Save and `submitIn`'s own save resolving, before
+     `attemptConnect` has set anything yet; a second click landing in it is
+     superseded cleanly by `useConnect`'s own generation counter, the same
+     protection a slow double click anywhere else in this app already
+     relies on. */
+  const busy = testSurface !== null || bastionCredential !== null;
 
   /**
    * Reads the Access section's own credential fields, ADR-0057, the same way
@@ -331,9 +342,15 @@ export function SessionWizard({
       return;
     }
 
-    /* Read before the flip below unmounts the fields this came from: the
-       Access section only renders while `!proving`. ADR-0057. */
+    /* Read at the moment of the click, ADR-0057, same as always: the Access
+       section stays mounted through a retry now, but the field is still
+       uncontrolled and this is still the one moment its value is read. */
     pendingCredential.current = readCredential();
+    /* Re-arms the firing effect for a retry. `proving` alone would not: it
+       is already `true` from the failed attempt, and only `attempted`
+       going back to `false` tells that effect there is a new one to
+       start. */
+    setAttempted(false);
     setProving(true);
   };
 
@@ -427,177 +444,154 @@ export function SessionWizard({
         </div>
       )}
 
-      {!proving && (
-        <>
-          <div className="flex flex-col gap-6 lg:flex-row lg:gap-10">
-            <div className="flex flex-col gap-4 lg:w-[440px] lg:flex-none">
-              <FormSection title={i18n.t('session.editor.section.general')}>
-                <HostGeneralFields
-                  values={values}
-                  wrong={wrong}
-                  onChange={onChange}
-                  duplicate={duplicate}
-                  groupNames={groupNames}
-                  firstRef={first}
-                />
-              </FormSection>
-              <FormSection title={i18n.t('session.editor.section.topology')}>
-                <HostTopologyFields
-                  values={values}
-                  wrong={wrong}
-                  onChange={onChange}
-                  jumpHosts={jumpHosts}
-                  carried={carried}
-                />
-              </FormSection>
+      {/* A host key decision or a bastion's own field, inline above the form
+          rather than in place of it: reported live ("tinhamos combinado de
+          nao usar o componente wizard, era para o processo de form comum"),
+          this is still the same page a wrong password stays on below, only
+          waiting on one of these two genuine decisions first. `testSurface`
+          never carries the ending any more, ADR-0058: `'settled'` and
+          `'failed'` are both handled without it, above in `App.tsx` and
+          below via `testFailure`. */}
+      {testSurface !== null && (
+        <div className="relative min-h-[220px] max-w-[560px]">{testSurface}</div>
+      )}
+      {bastionCredential !== null && (
+        /* ADR-0033. Asked about before the target's own field: a session
+           behind a jump host authenticates it first, and this is that order
+           rendered rather than only enforced. No fixed `method`: Access
+           answered a question about the target, and the bastion is a host
+           nothing has asked about yet. */
+        <InlineCredentialForm
+          carrying={bastionCredential.prompt.carrying}
+          onSubmit={bastionCredential.onSubmit}
+          onCancel={bastionCredential.onCancel}
+        />
+      )}
+
+      <div className="flex flex-col gap-6 lg:flex-row lg:gap-10">
+        <div className="flex flex-col gap-4 lg:w-[440px] lg:flex-none">
+          <FormSection title={i18n.t('session.editor.section.general')}>
+            <HostGeneralFields
+              values={values}
+              wrong={wrong}
+              onChange={onChange}
+              duplicate={duplicate}
+              groupNames={groupNames}
+              firstRef={first}
+            />
+          </FormSection>
+          <FormSection title={i18n.t('session.editor.section.topology')}>
+            <HostTopologyFields
+              values={values}
+              wrong={wrong}
+              onChange={onChange}
+              jumpHosts={jumpHosts}
+              carried={carried}
+            />
+          </FormSection>
+        </div>
+
+        <div className="flex flex-col gap-4 lg:w-[340px] lg:flex-none">
+          <FormSection title={i18n.t('session.editor.section.access')}>
+            <MethodPicker value={method} onChange={setMethod} />
+
+            {/* What the host already has, rather than a field for it: the
+                same fact `SessionForm` used to state, moved here since this
+                is the only screen left that asks about access at all.
+                ADR-0038: the keychain and the run are two different stores,
+                so both sentences render when both answer yes, reusing
+                `kept.ts`'s own vocabulary for the run half rather than
+                inventing a second way to say it. */}
+            <div className="flex flex-col items-start gap-1">
+              {storedCredential && (
+                <span className="text-ink-faint text-[11px] leading-snug">
+                  {i18n.t('session.editor.credential.stored')}
+                </span>
+              )}
+              {keptCredential && (
+                <span className="text-ink-faint text-[11px] leading-snug">
+                  {i18n.t('kept.run.body')}
+                </span>
+              )}
+              {onForget !== null && (storedCredential || keptCredential) && (
+                <button
+                  type="button"
+                  onClick={onForget}
+                  className="text-danger-text hover:bg-danger-soft rounded px-2 py-1 text-[11.5px]"
+                >
+                  {i18n.t('session.editor.credential.forget')}
+                </button>
+              )}
             </div>
 
-            <div className="flex flex-col gap-4 lg:w-[340px] lg:flex-none">
-              <FormSection title={i18n.t('session.editor.section.access')}>
-                <MethodPicker value={method} onChange={setMethod} />
-
-                {/* What the host already has, rather than a field for it: the
-                    same fact `SessionForm` used to state, moved here since this
-                    is the only screen left that asks about access at all.
-                    ADR-0038: the keychain and the run are two different stores,
-                    so both sentences render when both answer yes, reusing
-                    `kept.ts`'s own vocabulary for the run half rather than
-                    inventing a second way to say it. */}
-                <div className="flex flex-col items-start gap-1">
-                  {storedCredential && (
-                    <span className="text-ink-faint text-[11px] leading-snug">
-                      {i18n.t('session.editor.credential.stored')}
-                    </span>
-                  )}
-                  {keptCredential && (
-                    <span className="text-ink-faint text-[11px] leading-snug">
-                      {i18n.t('kept.run.body')}
-                    </span>
-                  )}
-                  {onForget !== null && (storedCredential || keptCredential) && (
-                    <button
-                      type="button"
-                      onClick={onForget}
-                      className="text-danger-text hover:bg-danger-soft rounded px-2 py-1 text-[11.5px]"
-                    >
-                      {i18n.t('session.editor.credential.forget')}
-                    </button>
-                  )}
-                </div>
-
-                {/* ADR-0057: the field itself, in place, rather than a
-                    notice that one is coming after Save. */}
-                {needsCredential && (
-                  <CredentialAccessFields
-                    method={method}
-                    formRef={credentialForm}
-                    canRemember={canRemember}
-                    usesVault={usesVault}
-                  />
-                )}
-              </FormSection>
-              <FormSection title={i18n.t('session.editor.section.forwarding')}>
-                <ForwardsFields value={values.forwards} wrong={wrong} onChange={onChangeForwards} />
-              </FormSection>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {onDelete !== null && (
-              <button
-                type="button"
-                onClick={onDelete}
-                className="text-danger-text hover:bg-danger-soft mr-auto rounded px-2 py-1.5 text-[12px]"
-              >
-                {i18n.t('session.editor.delete')}
-              </button>
+            {/* ADR-0057: the field itself, in place, rather than a notice
+                that one is coming after Save. Stays mounted through a
+                failed attempt, ADR-0058: this is the field Save just
+                proved wrong, and retyping it is the retry. */}
+            {needsCredential && (
+              <CredentialAccessFields
+                method={method}
+                formRef={credentialForm}
+                canRemember={canRemember}
+                usesVault={usesVault}
+                disabled={busy}
+                invalid={testFailure !== null}
+              />
             )}
-            <button
-              type="button"
-              onClick={onCancel}
-              className={`text-ink-secondary hover:bg-surface-raised rounded px-2.5 py-1.5 text-[12px] ${
-                onDelete === null ? 'mr-auto' : ''
-              }`}
-            >
-              {i18n.t('session.editor.cancel')}
-            </button>
-            <button
-              type="button"
-              onClick={startProving}
-              disabled={needsCredential && canRemember === undefined}
-              className="bg-accent text-surface-base rounded px-3 py-1.5 text-[12px] font-semibold disabled:opacity-50"
-            >
-              {i18n.t('session.editor.save')}
-            </button>
-          </div>
-        </>
-      )}
 
-      {proving && phase !== null && (
-        <span className="text-ink-faint text-[11px] font-semibold tracking-[0.06em] uppercase">
-          {i18n.t(phase)}
-        </span>
-      )}
-
-      {proving &&
-        (testSurface !== null ? (
-          <div className="relative min-h-[220px] max-w-[560px] flex-1">{testSurface}</div>
-        ) : bastionCredential !== null ? (
-          /* ADR-0033. Asked about before the target's own field: a session
-             behind a jump host authenticates it first, and this is that
-             order rendered rather than only enforced. No fixed `method`:
-             Access answered a question about the target, and the bastion is
-             a host nothing has asked about yet. */
-          <InlineCredentialForm
-            carrying={bastionCredential.prompt.carrying}
-            onSubmit={bastionCredential.onSubmit}
-            onCancel={bastionCredential.onCancel}
-          />
-        ) : attempted && lastOutcome !== 'saved' ? (
-          /* The attempt has already failed once, refused or cancelled
-             attempts included: the host is on disk either way, `wizard.
-             result.failed` says only that this attempt did not reach it.
-             `ConnectionFailure` already said so once, inside `testSurface`;
-             dismissing it is what leaves this row on screen with nothing
-             else saying it. A success never reaches here: `onAutoFinish`
-             closes the wizard the instant `lastOutcome` becomes `'saved'`,
-             below the render, so there is nothing for this row to say and
-             nothing for it to wait on. */
-          <div className="flex max-w-[440px] flex-col gap-2">
-            {lastOutcome !== null && (
-              <div className="border-danger bg-danger-soft text-danger-text rounded border-l-2 px-3 py-2 text-[12.5px]">
-                {i18n.t('wizard.result.failed')}
+            {/* ADR-0058: a wrong password reported live as a form that
+                "não valida e continua na mesma página, mostrando que o
+                campo de senha está errado" rather than as a card of its
+                own. Reached with no field above it, too: a stored
+                credential the host now refuses (its own password changed
+                on the far end) has nothing to attach to but this section,
+                which is still the right place for a credential's own
+                failure to be said. */}
+            {testFailure !== null && (
+              <div className="border-danger bg-danger-soft text-danger-text rounded border-l-2 px-3 py-2 text-[12.5px] leading-relaxed">
+                <p className="font-semibold">
+                  {i18n.t(describeFailure(testFailure.code, testFailure.hop).title)}
+                </p>
+                <p>{i18n.t(describeFailure(testFailure.code, testFailure.hop).body)}</p>
               </div>
             )}
-            <div className="flex items-center gap-2">
-              {/* ADR-0057: Back and Test again are the same action now that
-                  there is no credential-only step left to redo blank; both
-                  named "Back" and both returning to the form, which is
-                  where retyping and re-testing already happen together. */}
-              <button
-                type="button"
-                onClick={() => setProving(false)}
-                className="text-ink-secondary hover:bg-surface-raised mr-auto rounded px-2.5 py-1.5 text-[12px]"
-              >
-                {i18n.t('wizard.back')}
-              </button>
-              <button
-                type="button"
-                onClick={onFinish}
-                className="bg-accent text-surface-base rounded px-3 py-1.5 text-[12px] font-semibold"
-              >
-                {i18n.t('wizard.finish')}
-              </button>
-            </div>
-          </div>
-        ) : (
-          /* Nothing to show yet: the effect above has already started the
-             save that puts the host on disk and, from there, the attempt
-             that proves it. This is only ever on screen for the width of
-             that round trip. The status bar already reads "connecting"
-             underneath it, so nothing here repeats that. */
-          <div className="max-w-[440px]" />
-        ))}
+          </FormSection>
+          <FormSection title={i18n.t('session.editor.section.forwarding')}>
+            <ForwardsFields value={values.forwards} wrong={wrong} onChange={onChangeForwards} />
+          </FormSection>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        {onDelete !== null && (
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={busy}
+            className="text-danger-text hover:bg-danger-soft mr-auto rounded px-2 py-1.5 text-[12px] disabled:opacity-40"
+          >
+            {i18n.t('session.editor.delete')}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={busy}
+          className={`text-ink-secondary hover:bg-surface-raised rounded px-2.5 py-1.5 text-[12px] disabled:opacity-40 ${
+            onDelete === null ? 'mr-auto' : ''
+          }`}
+        >
+          {i18n.t('session.editor.cancel')}
+        </button>
+        <button
+          type="button"
+          onClick={startProving}
+          disabled={busy || (needsCredential && canRemember === undefined)}
+          className="bg-accent text-surface-base rounded px-3 py-1.5 text-[12px] font-semibold disabled:opacity-50"
+        >
+          {i18n.t(busy && testSurface !== null ? 'wizard.phase.proving' : 'session.editor.save')}
+        </button>
+      </div>
     </div>
   );
 }
