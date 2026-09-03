@@ -60,7 +60,7 @@ ADR-0020 exists to stop.
 | `Sftp.dc.html` | SFTP as a tab beside the terminals |
 | `PasteConfirm.dc.html` | A paste going to three hosts at once |
 | `Palette.dc.html` | The command palette |
-| `HomeHosts.dc.html` | Home, the host book: General, Topology and Access on one screen (ADR-0052, ADR-0056) |
+| `HomeHosts.dc.html` | Home, the host book: General, Topology, Access and Forwarding on one screen (ADR-0052, ADR-0056, ADR-0054) |
 | `SftpWorkspace.dc.html` | SFTP's own workspace, nothing picked yet (ADR-0044) |
 | `SftpFanout.dc.html` | One source, a grid of up to four destinations (ADR-0045) |
 | `SftpFileOps.dc.html` | Creating, renaming and deleting a file or folder in place (ADR-0048) |

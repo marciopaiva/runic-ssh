@@ -2057,34 +2057,73 @@ def bordered_section(title, content):
     undifferentiated form. A thin border and a little padding gives each
     its own quiet boundary, `T['line']` and a 6px radius rather than the
     heavier `dashboard_card` rounding #237 already moved this screen away
-    from. Shared between `build_home_hosts()` and the still-exploratory
-    `build_home_book_proposal()` (Forwarding, ADR-0054) rather than defined
-    twice: both draw the same three sections, one of them draws a fourth."""
+    from."""
     return f"""<div style="display: flex; flex-direction: column; gap: 12px; border: 1px solid {T['line']};
       border-radius: 6px; padding: 14px 16px;">
       <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.09em; color: {T['faint']};">{title.upper()}</span>
 {content}
     </div>"""
 
+def forward_kind_pills(active):
+    """The same three-pill control `kind_picker()` already draws for
+    Topology, relabelled: ADR-0054 confirmed one shape for all three
+    forward kinds rather than a picker invented per kind."""
+    out = []
+    for k in ("Local", "Remote", "Dynamic"):
+        on = k == active
+        border = T['accent'] if on else T['line']
+        bg = f'background: {T["accentsoft"]};' if on else ''
+        color = T['ink'] if on else T['ink2']
+        out.append(f'<span style="padding: 4px 9px; border: 1px solid {border}; {bg} border-radius: 5px;'
+                   f' font-size: 11px; color: {color};">{k}</span>')
+    return f'<div style="display: flex; gap: 4px; flex: none;">{"".join(out)}</div>'
+
+def forward_row(kind, bind_port, target=None, name=None):
+    """One row of the Forwarding section (ADR-0054, #305): pills and bind
+    port on the first line, target and name on the second, since the
+    column this sits in is narrower than the panel's full width and
+    `kind`, `bind_port`, `target` and `name` do not fit one line together.
+    `target` is `None` for Dynamic, whose destination is read from the
+    SOCKS handshake at connect time rather than fixed here."""
+    detail = (
+        f'<span class="mono" style="color: {T["ink2"]};">&#8594; {target}</span>'
+    ) if target is not None else (
+        f'<span style="color: {T["faint"]};">a local SOCKS proxy</span>'
+    )
+    name_html = f'<span style="color: {T["faint"]}; margin-left: auto;">{name}</span>' if name else ''
+    return f"""<div style="display: flex; flex-direction: column; gap: 5px; padding: 9px 10px; background: {T['raised']}; border-radius: 6px;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        {forward_kind_pills(kind)}
+        <span class="mono" style="font-size: 12px; color: {T['ink']};">{bind_port}</span>
+        <span style="color: {T['faint']}; margin-left: auto;">{ic('close', 11)}</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px; font-size: 11px; padding-left: 2px;">
+        {detail}{name_html}
+      </div>
+    </div>"""
+
 def build_home_hosts():
-    """Home, the host book: General, Topology and Access all on one screen,
-    ADR-0056's answer to what ADR-0052 deferred. Replaces the wizard's old
-    two navigable steps entirely: `HostsHost.dc.html` and
+    """Home, the host book: General, Topology, Access and Forwarding all on
+    one screen, ADR-0056's answer to what ADR-0052 deferred. Replaces the
+    wizard's old two navigable steps entirely: `HostsHost.dc.html` and
     `HostsAccess.dc.html`, both retired the same day this landed, since
     reaching Access is no longer a step transition anything can screenshot
     on its own.
 
-    General and Topology sit in a left column exactly as `HomeBookProposal
-    .dc.html` first drew them; Access sits beside them in a second column,
-    the credential picker `HostsAccess.dc.html` used to draw behind a
-    click, now always visible. One Save button, not a per-step Next: ADR-
-    0056 folded the wizard's old Host-to-Access validation into it, since
-    there is no longer a transition to gate.
+    General and Topology sit in a left column; Access and Forwarding sit
+    beside them in a second column, the credential picker
+    `HostsAccess.dc.html` used to draw behind a click, now always visible.
+    One Save button, not a per-step Next: ADR-0056 folded the wizard's old
+    Host-to-Access validation into it, since there is no longer a
+    transition to gate.
 
-    Forwarding is not drawn here. It is ADR-0054/#301-305's own work, not
-    yet implemented; `HomeBookProposal.dc.html` is where it is still
-    explored, beside this same General/Topology/Access shape rather than
-    inside it."""
+    Forwarding (ADR-0054, #301-305) is accepted now, drawn where the
+    formerly-exploratory `HomeBookProposal.dc.html` first tried it: below
+    Access, in the same column, at the same width. That artboard's own
+    question, whether a fourth section reads correctly there once local/
+    remote/dynamic forwards are a real thing a saved host can hold, is
+    answered by this being the shipped screen; it is retired rather than
+    kept alongside a now-identical General/Topology/Access shape."""
     rows = "\n".join([
         host_row("runic-target-a", "target.internal", active=True, kind="target"),
         host_row("runic-bastion", "127.0.0.1", kind="jumpServer"),
@@ -2112,6 +2151,13 @@ def build_home_hosts():
         <span style="font-size: 11.5px; color: {T['ink2']}; flex: 1; line-height: 1.4;">One is stored in the system keychain. Never shown here, never sent to this window.</span>
       </div>
       <div style="margin-top: 8px;"><span style="font-size: 12px; color: {T['danger']};">Forget it</span></div>""")
+    forwarding = bordered_section("Forwarding", f"""
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        {forward_row('Local', '8080', 'target.internal:80', 'web')}
+        {forward_row('Remote', '9000', 'localhost:3000', 'dev server')}
+        {forward_row('Dynamic', '1080', None, 'SOCKS')}
+      </div>
+      <div style="margin-top: 8px;"><span style="font-size: 12px; color: {T['accent']};">+ Add forward</span></div>""")
 
     panel = f"""      <div style="height: 100%; padding: 24px 28px; overflow-y: auto;">
         <span style="font-size: 15px; font-weight: 600;">runic-target-a</span>
@@ -2122,6 +2168,7 @@ def build_home_hosts():
           </div>
           <div style="width: 340px; flex: none; display: flex; flex-direction: column; gap: 22px;">
             {access}
+            {forwarding}
           </div>
         </div>
         <div style="margin-top: 26px;">{wizard_actions(('Delete', False), ('Cancel', False), ('Save', True))}</div>
@@ -2215,150 +2262,6 @@ def theme_language_toolbar_controls():
             f'{flag_chip("&#127463;&#127479;", True)}{flag_chip("&#127466;&#127480;", False)}</div>')
     sep = f'<div style="width: 1px; height: 20px; background: {T["line"]};"></div>'
     return f'<div style="display: flex; align-items: center; gap: 10px;">{theme}{sep}{lang}</div>'
-
-def build_home_book_proposal():
-    """Exploratory (2026-09-02), narrowed to Forwarding only (2026-09-03):
-    General, Topology and Access, drawn identically here via the shared
-    `bordered_section()`, are no longer this artboard's own proposal. ADR-
-    0056 decided them for real and `build_home_hosts()` is where they now
-    ship (`HomeHosts.dc.html`, in `canvas.json`). What this artboard still
-    explores is the fourth section, Forwarding (ADR-0054, #301-305, not yet
-    implemented): whether it reads correctly sitting under Access in the
-    same column, at the same width, once local/remote/dynamic forwards are
-    a real thing a saved host can hold.
-
-    The two-column, four-section layout below is otherwise the same one
-    `build_home_hosts()` ships without its fourth section: two fixed-width
-    artboards (wide, narrow) standing in for the two sides of the stated
-    minimum-width breakpoint, since a static artboard cannot itself be
-    resized."""
-    rows = "\n".join([
-        host_row("runic-target-a", "target.internal", active=True, kind="target"),
-        host_row("runic-bastion", "127.0.0.1", kind="jumpServer"),
-        host_row("dev-web", "10.0.1.5", kind="direct"),
-    ])
-
-    general = bordered_section("General", f"""
-          <div>{wizard_label('Host')}{wizard_field('target.internal')}</div>
-          <div style="display: flex; gap: 12px; margin-top: 14px;">
-            <div style="flex: 1;">{wizard_label('User')}{wizard_field('deploy')}</div>
-            <div style="width: 90px;">{wizard_label('Port')}{wizard_field('2222')}</div>
-          </div>
-          <div style="margin-top: 14px;">{wizard_label('Name')}{wizard_field('runic-target-a', mono=False)}</div>
-          <div style="margin-top: 14px;">{wizard_label('Group')}{wizard_field('REAL-CHAIN', mono=False, chev=True)}</div>""")
-    topology = bordered_section("Topology", f"""
-          <div>{wizard_label('Kind')}{kind_picker('target')}</div>
-          <div style="margin-top: 14px;">{wizard_label('Reached through')}{wizard_field('runic-bastion', mono=False, chev=True)}</div>""")
-
-    access = bordered_section("Access", f"""
-          <div role="radiogroup" style="display: flex; gap: 3px; background: {T['input']}; border: 1px solid {T['line']}; border-radius: 8px; padding: 3px;">
-            <span style="flex: 1; text-align: center; font-size: 11.5px; font-weight: 600; color: {T['ink']}; background: {T['raised']}; border-radius: 6px; padding: 6px 0;">Password</span>
-            <span style="flex: 1; text-align: center; font-size: 11.5px; color: {T['muted']}; padding: 6px 0;">Private key</span>
-          </div>
-          <div style="margin-top: 12px; display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: {T['raised']}; border-radius: 6px;">
-            <svg viewBox="0 0 24 24" style="width: 14px; height: 14px; color: {T['ok']}; flex: none;" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 11V7a7 7 0 0114 0v4M5 11h14v9H5z"></path></svg>
-            <span style="font-size: 11.5px; color: {T['ink2']}; flex: 1; line-height: 1.4;">One is stored in the system keychain. Never shown here, never sent to this window.</span>
-          </div>
-          <div style="margin-top: 8px;"><span style="font-size: 12px; color: {T['danger']};">Forget it</span></div>""")
-
-    def forward_kind_pills(active):
-        """The same three-pill control `kind_picker()` already draws for
-        Topology, relabelled: ADR-0054 confirmed one shape for all three
-        forward kinds rather than a picker invented per kind."""
-        out = []
-        for k in ("Local", "Remote", "Dynamic"):
-            on = k == active
-            border = T['accent'] if on else T['line']
-            bg = f'background: {T["accentsoft"]};' if on else ''
-            color = T['ink'] if on else T['ink2']
-            out.append(f'<span style="padding: 4px 9px; border: 1px solid {border}; {bg} border-radius: 5px;'
-                       f' font-size: 11px; color: {color};">{k}</span>')
-        return f'<div style="display: flex; gap: 4px; flex: none;">{"".join(out)}</div>'
-
-    def forward_row(kind, bind_port, target=None, name=None):
-        """Revised against the maintainer's own read: this column is
-        narrower than the panel's full width, so a forward's summary
-        wraps to a second line (pills and port on the first, target and
-        name on the second) rather than trying to fit `kind`, `bind_port`,
-        `target` and `name` on one. `target` is `None` for Dynamic, whose
-        destination is read from the SOCKS handshake at connect time
-        rather than fixed here."""
-        detail = (
-            f'<span class="mono" style="color: {T["ink2"]};">&#8594; {target}</span>'
-        ) if target is not None else (
-            f'<span style="color: {T["faint"]};">a local SOCKS proxy</span>'
-        )
-        name_html = f'<span style="color: {T["faint"]}; margin-left: auto;">{name}</span>' if name else ''
-        return f"""<div style="display: flex; flex-direction: column; gap: 5px; padding: 9px 10px; background: {T['raised']}; border-radius: 6px;">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            {forward_kind_pills(kind)}
-            <span class="mono" style="font-size: 12px; color: {T['ink']};">{bind_port}</span>
-            <span style="color: {T['faint']}; margin-left: auto;">{ic('close', 11)}</span>
-          </div>
-          <div style="display: flex; align-items: center; gap: 8px; font-size: 11px; padding-left: 2px;">
-            {detail}{name_html}
-          </div>
-        </div>"""
-
-    forwarding = bordered_section("Forwarding", f"""
-          <div style="display: flex; flex-direction: column; gap: 8px;">
-            {forward_row('Local', '8080', 'target.internal:80', 'web')}
-            {forward_row('Remote', '9000', 'localhost:3000', 'dev server')}
-            {forward_row('Dynamic', '1080', None, 'SOCKS')}
-          </div>
-          <div style="margin-top: 8px;"><span style="font-size: 12px; color: {T['accent']};">+ Add forward</span></div>""")
-
-    # Two columns above a stated minimum width, ADR-0052/ADR-0054: below
-    # it the same four sections stack in one column rather than staying
-    # side by side and forcing a horizontal scroll a form should never
-    # need. `HostsSection.tsx`'s own real fields already grow and shrink
-    # inside a `max-width` rather than a fixed one; the columns below
-    # follow the same instinct, drawn here as two fixed-width artboards
-    # (wide, narrow) standing in for the two sides of that one breakpoint,
-    # since a static artboard cannot itself be resized.
-    wide_panel = f"""      <div style="height: 100%; padding: 24px 28px; overflow-y: auto;">
-        <span style="font-size: 15px; font-weight: 600;">runic-target-a</span>
-        <div style="display: flex; gap: 40px; margin-top: 22px;">
-          <div style="width: 440px; flex: none; display: flex; flex-direction: column; gap: 22px;">
-            {general}
-            {topology}
-          </div>
-          <div style="width: 340px; flex: none; display: flex; flex-direction: column; gap: 22px;">
-            {access}
-            {forwarding}
-          </div>
-        </div>
-        <div style="margin-top: 26px;">{wizard_actions(('Delete', False), ('Cancel', False), ('Save', True))}</div>
-      </div>"""
-
-    narrow_panel = f"""      <div style="height: 100%; padding: 24px 28px; overflow-y: auto;">
-        <span style="font-size: 15px; font-weight: 600;">runic-target-a</span>
-        <div style="max-width: 440px; display: flex; flex-direction: column; gap: 22px; margin-top: 22px;">
-          {general}
-          {topology}
-          {access}
-          {forwarding}
-        </div>
-        <div style="margin-top: 26px; max-width: 440px;">{wizard_actions(('Delete', False), ('Cancel', False), ('Save', True))}</div>
-      </div>"""
-
-    def page_for(panel, width):
-        body = hosts_shell(rows, panel, show_filter=True)
-        st = status(stat_text("runic-target-a", T['muted'], mono=False), stat_text("11 hosts", T['faint']))
-        return f"""
-<div style="width: {width}px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
-{plain_titlebar()}
-{toolbar_row(right_html=theme_language_toolbar_controls())}
-  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
-{home_rail(workspace="home")}
-{body}
-  </div>
-{st}
-</div>
-"""
-
-    write("HomeBookProposal.dc.html", HEAD + page_for(wide_panel, 1440) + FOOT)
-    write("HomeBookProposalNarrow.dc.html", HEAD + page_for(narrow_panel, 900) + FOOT)
 
 # ============================================================ SYSTEM SHEETS
 
@@ -2822,7 +2725,6 @@ else:
                build_sessions_proposal, build_sessions_proposal_broadcast,
                build_sessions_proposal_broadcast_multi,
                build_home_hosts,
-               build_home_book_proposal,
                build_anatomy, build_tokens,
                build_hostkeychanged, build_failure, build_paste, build_palette):
         fn()

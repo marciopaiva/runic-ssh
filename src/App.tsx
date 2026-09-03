@@ -54,6 +54,7 @@ import {
   editorDirty,
   editorKey,
   findEditor,
+  forwardsChangedIn,
   groupNames,
   isInProgress,
   isOverridable,
@@ -67,6 +68,7 @@ import {
   stateAfterFailure,
   suggestName,
   targetSession,
+  toForwards,
   typedInto,
   updateEditor,
   useConnect,
@@ -81,6 +83,7 @@ import type {
   EditorAction,
   EditorFailure,
   EditorTarget,
+  ForwardDraft,
   OpenEditor,
   SessionAction,
 } from './features/sessions';
@@ -1223,6 +1226,15 @@ export function App(): JSX.Element {
     setEditors((current) => updateEditor(current, target, (editor) => typedInto(editor, field, value)));
   }, []);
 
+  const changeForwardsIn = useCallback(
+    (target: EditorTarget, forwards: readonly ForwardDraft[]): void => {
+      setEditors((current) =>
+        updateEditor(current, target, (editor) => forwardsChangedIn(editor, forwards)),
+      );
+    },
+    [],
+  );
+
   const submitIn = useCallback(
     /* `after` runs on what was stored, once the form has been re-aimed at it.
        `wasNew` is how a caller tells a host that did not exist a moment ago
@@ -1261,11 +1273,7 @@ export function App(): JSX.Element {
         group: filled.group.trim() === '' ? null : filled.group.trim(),
         proxyJump: filled.proxyJump === '' ? null : filled.proxyJump,
         kind: filled.kind,
-        /* No editor for this list exists yet (ADR-0054, #305); carried over
-           rather than hard-coded empty so an unrelated edit through this
-           same form cannot silently wipe out forwards a later session
-           already saved. */
-        forwards: existing?.forwards ?? [],
+        forwards: toForwards(filled.forwards),
       }).then((stored) => {
         /* Re-aimed at what was stored before `after` runs, for a host that did
            not exist a moment ago as much as for one that did: `settled` is
@@ -2276,6 +2284,7 @@ export function App(): JSX.Element {
                         missingCredential={editorOpenedFor.has(editorKey(target))}
                         onDismissMissingCredential={() => dismissOpenedFor(target)}
                         onChange={(field, value) => changeIn(target, field, value)}
+                        onChangeForwards={(forwards) => changeForwardsIn(target, forwards)}
                         jumpHosts={jump.offered}
                         carried={jump.carried}
                         duplicate={duplicate}

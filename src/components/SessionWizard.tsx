@@ -2,11 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import type { JSX, ReactNode } from 'react';
 
 import { describeEditorFailure } from '../features/sessions';
-import type { DraftField, DraftValues, EditorFailure } from '../features/sessions';
+import type { DraftField, DraftValues, EditorFailure, ForwardDraft } from '../features/sessions';
 import { useTranslator } from '../features/settings';
 import type { CredentialPrompt, Keep, Secret, Session, SuggestedMethod } from '../ipc';
 
 import { FormSection } from './FormSection';
+import { ForwardsFields } from './ForwardsFields';
 import { HostGeneralFields } from './HostGeneralFields';
 import { HostTopologyFields } from './HostTopologyFields';
 import { InlineCredentialForm } from './InlineCredentialForm';
@@ -20,6 +21,9 @@ interface SessionWizardProps {
   readonly failure: EditorFailure | null;
   readonly onDismissFailure: () => void;
   readonly onChange: (field: keyof DraftValues, value: string) => void;
+  /** ADR-0054: the one field that is a list rather than a string, so it
+   * replaces itself wholesale instead of going through `onChange`. */
+  readonly onChangeForwards: (forwards: readonly ForwardDraft[]) => void;
   readonly jumpHosts: readonly Session[];
   readonly carried: readonly Session[];
   /** The saved session already reaching this exact host, port and user, if
@@ -135,6 +139,7 @@ export function SessionWizard({
   failure,
   onDismissFailure,
   onChange,
+  onChangeForwards,
   jumpHosts,
   carried,
   duplicate,
@@ -356,6 +361,9 @@ export function SessionWizard({
                     )}
                   </div>
                 )}
+              </FormSection>
+              <FormSection title={i18n.t('session.editor.section.forwarding')}>
+                <ForwardsFields value={values.forwards} wrong={wrong} onChange={onChangeForwards} />
               </FormSection>
             </div>
           </div>

@@ -40,6 +40,7 @@ describe('what the form starts with', () => {
       group: 'prod',
       proxyJump: '',
       kind: 'direct',
+      forwards: [],
     });
   });
 
