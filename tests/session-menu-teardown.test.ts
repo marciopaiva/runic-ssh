@@ -44,6 +44,7 @@ function live(): LiveSession {
       credentialId: null,
       proxyJump: null,
       kind: 'direct',
+      forwards: [],
     },
     handle: null,
     kind: 'saved',

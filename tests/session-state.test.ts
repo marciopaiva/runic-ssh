@@ -38,6 +38,7 @@ function session(id: string, group: string | null = null): Session {
     credentialId: null,
     proxyJump: null,
     kind: 'direct',
+    forwards: [],
   };
 }
 

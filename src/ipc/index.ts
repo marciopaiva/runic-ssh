@@ -38,6 +38,8 @@ export {
 } from './sessions';
 export type {
   CredentialStoreStatus,
+  Forward,
+  ForwardKind,
   HostKeyDecisionView,
   HostKind,
   OpenSession,

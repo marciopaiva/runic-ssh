@@ -440,6 +440,30 @@ describe('what a host is (ADR-0031)', () => {
   });
 });
 
+describe('which direction a port forward runs (ADR-0054)', () => {
+  it('is spelled the same on both sides', () => {
+    const rust = readFileSync(
+      fileURLToPath(new URL('../src-tauri/src/config/sessions.rs', import.meta.url)),
+      'utf8',
+    );
+
+    for (const wire of [
+      String.raw`r#""local""#`,
+      String.raw`r#""remote""#`,
+      String.raw`r#""dynamic""#`,
+    ]) {
+      expect(rust).toContain(wire);
+    }
+
+    const wrapper = readFileSync(
+      fileURLToPath(new URL('../src/ipc/sessions.ts', import.meta.url)),
+      'utf8',
+    );
+
+    expect(wrapper).toContain("export type ForwardKind = 'local' | 'remote' | 'dynamic';");
+  });
+});
+
 describe('every command the frontend calls exists in the core', () => {
   /* A wrapper for a command nobody registered compiles, typechecks, and fails
      only when somebody clicks the thing. The two lists live in two languages

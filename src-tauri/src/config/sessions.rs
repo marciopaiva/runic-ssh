@@ -48,6 +48,43 @@ pub enum HostKind {
     Direct,
 }
 
+/// Which direction a [`Forward`] runs.
+///
+/// ADR-0054. `Local` and `Remote` are opposite directions through the same
+/// `direct-tcpip`/`tcpip-forward` primitives; `Dynamic` opens no fixed
+/// destination at all, reading one from a SOCKS handshake per connection
+/// instead.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ForwardKind {
+    Local,
+    Remote,
+    Dynamic,
+}
+
+/// A port forward saved against a host, started when the session connects.
+///
+/// ADR-0054: the same weight `proxy_jump` or `kind` already carry with no
+/// second confirmation of their own. Nothing here opens anything by itself;
+/// this is only the saved shape.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Forward {
+    pub kind: ForwardKind,
+    /// Local: the port this machine listens on.
+    /// Remote: the port asked of the server.
+    /// Dynamic: the local SOCKS listener's port.
+    pub bind_port: u16,
+    /// Absent for `Dynamic`, whose destination is read from the SOCKS
+    /// handshake at connect time rather than fixed here.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_host: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_port: Option<u16>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+}
+
 /// A host the user has saved.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -77,6 +114,10 @@ pub struct Session {
     /// ADR-0031.
     #[serde(default)]
     pub kind: HostKind,
+    /// Ports forwarded over this session's transport, started when it
+    /// connects. ADR-0054.
+    #[serde(default)]
+    pub forwards: Vec<Forward>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -118,6 +159,8 @@ pub struct SessionDraft {
     pub proxy_jump: Option<String>,
     #[serde(default)]
     pub kind: HostKind,
+    #[serde(default)]
+    pub forwards: Vec<Forward>,
 }
 
 /// Why a jump host reference cannot be used.
@@ -463,6 +506,7 @@ pub fn save_session(store: &SessionStore, draft: SessionDraft) -> Result<Session
                 credential_id: existing.credential_id.clone(),
                 proxy_jump,
                 kind: draft.kind,
+                forwards: draft.forwards,
             };
             sessions.items[index] = session.clone();
             session
@@ -478,6 +522,7 @@ pub fn save_session(store: &SessionStore, draft: SessionDraft) -> Result<Session
                 credential_id: None,
                 proxy_jump,
                 kind: draft.kind,
+                forwards: draft.forwards,
             };
             sessions.items.push(session.clone());
             session
@@ -519,12 +564,102 @@ mod tests {
             credential_id: Some("keychain-4f21".to_owned()),
             proxy_jump: None,
             kind: HostKind::Direct,
+            forwards: Vec::new(),
         }
     }
 
     fn store() -> (SessionStore, tempfile::TempDir) {
         let dir = tempfile::tempdir().expect("a temporary directory");
         (SessionStore::new(dir.path()), dir)
+    }
+
+    /* ---------------------------------------------------------------- *
+     * Forwards. ADR-0054.
+     * ---------------------------------------------------------------- */
+
+    #[test]
+    fn a_forward_kind_is_spelled_the_same_on_both_sides() {
+        /* Pinned as a literal, the same reason `a_kind_is_spelled_the_same_
+        on_both_sides` is: a renamed variant compiles here and leaves the
+        editor's own picker silently matching nothing. The matching
+        assertion lives in tests/ipc-contract.test.ts. */
+        for (kind, wire) in [
+            (ForwardKind::Local, r#""local""#),
+            (ForwardKind::Remote, r#""remote""#),
+            (ForwardKind::Dynamic, r#""dynamic""#),
+        ] {
+            assert_eq!(serde_json::to_string(&kind).expect("serializes"), wire);
+        }
+    }
+
+    #[test]
+    fn a_forward_writes_camel_case_field_names() {
+        let forward = Forward {
+            kind: ForwardKind::Local,
+            bind_port: 8080,
+            target_host: Some("target.internal".to_owned()),
+            target_port: Some(80),
+            name: Some("app".to_owned()),
+        };
+
+        let json = serde_json::to_string(&forward).expect("serializes");
+        for field in ["bindPort", "targetHost", "targetPort"] {
+            assert!(json.contains(field), "missing {field} in {json}");
+        }
+    }
+
+    #[test]
+    fn a_dynamic_forward_writes_no_target_at_all() {
+        /* Nothing here is unset by accident: a dynamic forward has no fixed
+        destination, ever, so `target_host`/`target_port` are absent rather
+        than null. */
+        let forward = Forward {
+            kind: ForwardKind::Dynamic,
+            bind_port: 1080,
+            target_host: None,
+            target_port: None,
+            name: None,
+        };
+
+        let json = serde_json::to_string(&forward).expect("serializes");
+        assert!(!json.contains("targetHost"), "wrote: {json}");
+        assert!(!json.contains("targetPort"), "wrote: {json}");
+    }
+
+    #[test]
+    fn a_file_written_before_forwards_existed_still_loads() {
+        let (store, _dir) = store();
+        std::fs::write(
+            store.path(),
+            r#"[{"id":"a1","name":"web-01","host":"10.0.4.12","port":22,"user":"deploy"}]"#,
+        )
+        .expect("the file writes");
+
+        let sessions = store.load().expect("an older file still loads");
+        assert_eq!(sessions.items[0].forwards, Vec::new());
+    }
+
+    #[test]
+    fn forwards_are_stored_and_survive_an_edit() {
+        let (store, _dir) = store();
+        let forward = Forward {
+            kind: ForwardKind::Local,
+            bind_port: 8080,
+            target_host: Some("target.internal".to_owned()),
+            target_port: Some(80),
+            name: None,
+        };
+
+        let mut new_draft = draft("web-01");
+        new_draft.forwards = vec![forward.clone()];
+        let saved = save_session(&store, new_draft).expect("it saves");
+        assert_eq!(saved.forwards, vec![forward.clone()]);
+
+        let mut edit = self::draft("web-01 renamed");
+        edit.id = Some(saved.id.clone());
+        edit.forwards = vec![forward.clone()];
+        let edited = save_session(&store, edit).expect("the edit saves");
+        assert_eq!(edited.forwards, vec![forward]);
     }
 
     /* ---------------------------------------------------------------- *
@@ -1009,6 +1144,7 @@ mod tests {
             group: Some("Production".to_owned()),
             proxy_jump: None,
             kind: HostKind::Direct,
+            forwards: Vec::new(),
         }
     }
 

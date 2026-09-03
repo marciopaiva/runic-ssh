@@ -1261,6 +1261,11 @@ export function App(): JSX.Element {
         group: filled.group.trim() === '' ? null : filled.group.trim(),
         proxyJump: filled.proxyJump === '' ? null : filled.proxyJump,
         kind: filled.kind,
+        /* No editor for this list exists yet (ADR-0054, #305); carried over
+           rather than hard-coded empty so an unrelated edit through this
+           same form cannot silently wipe out forwards a later session
+           already saved. */
+        forwards: existing?.forwards ?? [],
       }).then((stored) => {
         /* Re-aimed at what was stored before `after` runs, for a host that did
            not exist a moment ago as much as for one that did: `settled` is

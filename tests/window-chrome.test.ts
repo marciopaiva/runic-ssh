@@ -50,6 +50,7 @@ function session(id: string, name: string): Session {
     credentialId: null,
     proxyJump: null,
     kind: 'direct',
+    forwards: [],
   };
 }
 
