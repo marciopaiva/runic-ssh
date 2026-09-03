@@ -81,6 +81,12 @@ describe('opening a form', () => {
     expect(open?.values.host).toBe('');
   });
 
+  it('gives every tab its own formId', () => {
+    const editors = withEditor(withEditor([], A, SESSIONS), B, SESSIONS);
+
+    expect(findEditor(editors, A)?.formId).not.toBe(findEditor(editors, B)?.formId);
+  });
+
   it('leaves an already open form alone', () => {
     /* Somebody with half a hostname typed who clicks the same row again means
        "show me that again", not "throw that away". */
@@ -143,17 +149,28 @@ describe('after a save', () => {
        afterwards, because the form was compared against a lookup that lags the
        reload over IPC. The baseline is what it was last loaded *or saved*
        with. */
-    expect(editorDirty(settled(SESSIONS[0] as Session))).toBe(false);
+    expect(editorDirty(settled(SESSIONS[0] as Session, 'form-1'))).toBe(false);
   });
 
   it('is aimed at the host that was stored', () => {
     /* For a host that did not exist this is the first time the form learns its
        id. Without it the form stays on "new session" after saving one. */
-    expect(settled(SESSIONS[0] as Session).target).toEqual(A);
+    expect(settled(SESSIONS[0] as Session, 'form-1').target).toEqual(A);
   });
 
   it('clears the fields an earlier submit marked wrong', () => {
-    expect(settled(SESSIONS[0] as Session).wrong).toEqual([]);
+    expect(settled(SESSIONS[0] as Session, 'form-1').wrong).toEqual([]);
+  });
+
+  it('keeps the tab its own formId, not a fresh one', () => {
+    /* The whole reason `settled` takes a `formId` rather than minting one:
+       `SessionWizard` is keyed by it, and a new value here would remount
+       the component mid-save, wiping the local state its own credential
+       prompt depends on (found live, saving a brand-new host). */
+    const [open] = withEditor([], NEW, SESSIONS);
+    expect(settled(SESSIONS[0] as Session, (open as OpenEditor).formId).formId).toBe(
+      (open as OpenEditor).formId,
+    );
   });
 });
 

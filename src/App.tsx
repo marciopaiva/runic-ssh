@@ -1344,7 +1344,9 @@ export function App(): JSX.Element {
            what gives a new host its id, and a caller that wants to act on the
            connection this host now has (ADR-0030) needs that id to exist on
            the form, not only in the value handed to it. */
-        setEditors((current) => updateEditor(current, target, () => settled(stored)));
+        setEditors((current) =>
+          updateEditor(current, target, (editor) => settled(stored, editor.formId)),
+        );
 
         /* `homeFocus` still names the old target, and `sameFocus` refuses to
            match a `new` target against an `existing` one on purpose (#96's
@@ -2340,7 +2342,12 @@ export function App(): JSX.Element {
                   detail={
                     open === null || target === null || jump === null ? null : (
                       <SessionWizard
-                        key={editorKey(target)}
+                        /* This tab's own stable id, not `editorKey(target)`:
+                           a brand-new draft's key changes the instant Save
+                           gives it a real one, and remounting mid-save wiped
+                           the local proving/attempted state the credential
+                           prompt depends on. See `OpenEditor.formId`. */
+                        key={open.formId}
                         title={panelTitle}
                         values={open.values}
                         wrong={open.wrong}

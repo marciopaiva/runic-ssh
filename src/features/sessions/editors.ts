@@ -31,6 +31,20 @@ export interface OpenEditor {
   readonly wrong: readonly DraftField[];
   /** Whether this form is waiting on an answer about throwing work away. */
   readonly discarding: boolean;
+  /**
+   * This open tab's own identity, stable for as long as the tab stays open.
+   *
+   * Distinct from {@link editorKey} on purpose: that one names *which host*
+   * a form is for, and changes the instant a brand-new draft is saved and
+   * learns its real id (`new` -> `existing`). `SessionWizard` is keyed by
+   * this field instead, so that exact save does not read as React as "a
+   * different host" and remount the component mid-save, wiping the local
+   * `proving`/`attempted` state driving the credential prompt out from under
+   * it. A regression from #297's own remount-per-host fix: found live,
+   * saving a brand-new host silently lost its own Access form the instant
+   * it got an id.
+   */
+  readonly formId: string;
 }
 
 /**
@@ -89,6 +103,7 @@ export function withEditor(
       baseline: loaded,
       wrong: [],
       discarding: false,
+      formId: crypto.randomUUID(),
     },
   ];
 }
@@ -187,8 +202,13 @@ export function forwardsChangedIn(editor: OpenEditor, forwards: readonly Forward
  * For a host that did not exist this is the first time the form learns its id.
  * Without it the form stays on "new session" after saving one, and the tab goes
  * on claiming unsaved work for a host that is already on disk.
+ *
+ * `formId` is the caller's own, carried over rather than reissued: this is
+ * still the same open tab, mid-save, and `SessionWizard`'s own local state
+ * (the credential prompt a fresh save just triggered) depends on that
+ * identity not changing here. See {@link OpenEditor.formId}.
  */
-export function settled(stored: Session): OpenEditor {
+export function settled(stored: Session, formId: string): OpenEditor {
   const values = editorValues(stored);
 
   return {
@@ -197,5 +217,6 @@ export function settled(stored: Session): OpenEditor {
     baseline: values,
     wrong: [],
     discarding: false,
+    formId,
   };
 }
