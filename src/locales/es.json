@@ -141,7 +141,6 @@
   "hostKind.jumpServer": "Servidor de salto",
   "hostKind.label": "Tipo",
   "hostKind.target": "Destino",
-  "kept.done": "Listo",
   "kept.none.body": "Usted eligió no guardar esta contraseña. El host la aceptó, y la pide cada vez que se conecta.",
   "kept.none.title": "No se guardó nada",
   "kept.refused.body": "El llavero del sistema la rechazó. El host aceptó la contraseña, así que no hay nada malo con ella, y se le pedirá de nuevo la próxima vez.",
@@ -395,6 +394,5 @@
   "wizard.finish": "Finalizar",
   "wizard.phase.bastion": "Bastion",
   "wizard.phase.proving": "Probando",
-  "wizard.result.failed": "Guardado, pero la conexión falló.",
-  "wizard.result.saved": "Guardado."
+  "wizard.result.failed": "Guardado, pero la conexión falló."
 }
