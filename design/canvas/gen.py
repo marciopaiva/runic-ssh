@@ -2355,76 +2355,25 @@ def build_home_hosts_credential():
 
 
 def theme_language_toolbar_controls():
-    """Revised against the maintainer's own read of `settings_popover()`'s
-    first cut: theme and language do not need a click to reveal at all,
-    the way `split_control()`/`select_all_button()` already sit directly
-    in SFTP's own toolbar rather than behind a menu. Two chip groups,
-    inline, separated by a hairline; the same three theme paths the old
-    `HomeDashboard.dc.html` (retired with ADR-0052) once drew, reused
-    verbatim at the smaller scale this bar's own 26px height calls for.
-    The vault status this replaced is not drawn here: it was never a
-    per-visit control the way theme and language are, and where it
-    belongs now is a separate question, not assumed."""
-    system_ic = '<path d="M4 5h16v11H4z"></path><path d="M9 20h6M12 16v4" stroke-linecap="round"></path>'
-    light_ic = ('<circle cx="12" cy="12" r="4.2"></circle>'
-                '<path d="M12 2.5v2.4M12 19.1v2.4M21.5 12h-2.4M4.9 12H2.5M18.4 5.6l-1.7 1.7M7.3 16.7l-1.7 1.7M18.4 18.4l-1.7-1.7M7.3 7.3L5.6 5.6" stroke-linecap="round"></path>')
+    """ADR-0059: folded behind one button each, not drawn flat. The first
+    cut (ADR-0052) put every choice as its own chip, seven of them, citing
+    `split_control()`/`select_all_button()` as the reason to keep them
+    undisguised in the bar rather than behind a gear. Comparing directly
+    against what those two controls actually do (`SftpSplitControl`,
+    `ShapeControl`) found neither draws its own choices flat: both fold
+    behind one button showing the current choice, opening the rest only on
+    click. This draws that shape instead: one button with the theme icon
+    currently in use (dark, matching this artboard), one with the current
+    locale's flag, separated by the same hairline as before."""
     dark_ic = '<path d="M20 13.8A8.5 8.5 0 1110.2 4a6.8 6.8 0 009.8 9.8z" stroke-linejoin="round"></path>'
 
-    def chip(svg_paths, checked, size=13):
-        border = T['accent'] if checked else T['line']
-        bg = f'background: {T["accentsoft"]};' if checked else ''
-        color = T['ink'] if checked else T['ink2']
-        return (f'<span style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid {border}; {bg}'
-                f' display: flex; align-items: center; justify-content: center; color: {color};">'
-                f'<svg viewBox="0 0 24 24" style="width: {size}px; height: {size}px;" fill="none" stroke="currentColor" stroke-width="1.6">{svg_paths}</svg></span>')
+    def fold_button(inner, size=14):
+        return (f'<span style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid {T["line"]};'
+                f' display: flex; align-items: center; justify-content: center; color: {T["ink2"]};">'
+                f'{inner}</span>')
 
-    def flag_chip(emoji, checked):
-        border = T['accent'] if checked else T['line']
-        bg = f'background: {T["accentsoft"]};' if checked else ''
-        return (f'<span style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid {border}; {bg}'
-                f' display: flex; align-items: center; justify-content: center; font-size: 12px;">{emoji}</span>')
-
-    theme = f'<div style="display: flex; gap: 4px;">{chip(system_ic, False)}{chip(light_ic, False)}{chip(dark_ic, True)}</div>'
-    lang = (f'<div style="display: flex; gap: 4px;">{flag_chip("&#127760;", False)}{flag_chip("&#127482;&#127480;", False)}'
-            f'{flag_chip("&#127463;&#127479;", True)}{flag_chip("&#127466;&#127480;", False)}</div>')
-    sep = f'<div style="width: 1px; height: 20px; background: {T["line"]};"></div>'
-    return f'<div style="display: flex; align-items: center; gap: 10px;">{theme}{sep}{lang}</div>'
-
-
-
-def theme_language_toolbar_controls():
-    """Revised against the maintainer's own read of `settings_popover()`'s
-    first cut: theme and language do not need a click to reveal at all,
-    the way `split_control()`/`select_all_button()` already sit directly
-    in SFTP's own toolbar rather than behind a menu. Two chip groups,
-    inline, separated by a hairline; the same three theme paths the old
-    `HomeDashboard.dc.html` (retired with ADR-0052) once drew, reused
-    verbatim at the smaller scale this bar's own 26px height calls for.
-    The vault status this replaced is not drawn here: it was never a
-    per-visit control the way theme and language are, and where it
-    belongs now is a separate question, not assumed."""
-    system_ic = '<path d="M4 5h16v11H4z"></path><path d="M9 20h6M12 16v4" stroke-linecap="round"></path>'
-    light_ic = ('<circle cx="12" cy="12" r="4.2"></circle>'
-                '<path d="M12 2.5v2.4M12 19.1v2.4M21.5 12h-2.4M4.9 12H2.5M18.4 5.6l-1.7 1.7M7.3 16.7l-1.7 1.7M18.4 18.4l-1.7-1.7M7.3 7.3L5.6 5.6" stroke-linecap="round"></path>')
-    dark_ic = '<path d="M20 13.8A8.5 8.5 0 1110.2 4a6.8 6.8 0 009.8 9.8z" stroke-linejoin="round"></path>'
-
-    def chip(svg_paths, checked, size=13):
-        border = T['accent'] if checked else T['line']
-        bg = f'background: {T["accentsoft"]};' if checked else ''
-        color = T['ink'] if checked else T['ink2']
-        return (f'<span style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid {border}; {bg}'
-                f' display: flex; align-items: center; justify-content: center; color: {color};">'
-                f'<svg viewBox="0 0 24 24" style="width: {size}px; height: {size}px;" fill="none" stroke="currentColor" stroke-width="1.6">{svg_paths}</svg></span>')
-
-    def flag_chip(emoji, checked):
-        border = T['accent'] if checked else T['line']
-        bg = f'background: {T["accentsoft"]};' if checked else ''
-        return (f'<span style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid {border}; {bg}'
-                f' display: flex; align-items: center; justify-content: center; font-size: 12px;">{emoji}</span>')
-
-    theme = f'<div style="display: flex; gap: 4px;">{chip(system_ic, False)}{chip(light_ic, False)}{chip(dark_ic, True)}</div>'
-    lang = (f'<div style="display: flex; gap: 4px;">{flag_chip("&#127760;", False)}{flag_chip("&#127482;&#127480;", False)}'
-            f'{flag_chip("&#127463;&#127479;", True)}{flag_chip("&#127466;&#127480;", False)}</div>')
+    theme = fold_button(f'<svg viewBox="0 0 24 24" style="width: {14}px; height: 14px;" fill="none" stroke="currentColor" stroke-width="1.6">{dark_ic}</svg>')
+    lang = fold_button('<span style="font-size: 12px;">&#127463;&#127479;</span>')
     sep = f'<div style="width: 1px; height: 20px; background: {T["line"]};"></div>'
     return f'<div style="display: flex; align-items: center; gap: 10px;">{theme}{sep}{lang}</div>'
 
