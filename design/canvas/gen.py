@@ -2149,10 +2149,13 @@ def build_home_hosts():
     write("HomeHosts.dc.html", HEAD + page_html + FOOT)
 
 
-def host_detail_panel():
+def host_detail_panel(banner_html=""):
     """The populated form `HomeHosts.dc.html` and `HomeCollapsed.dc.html`
     both show, factored out once a second artboard needed the identical
-    General/Topology/Access/Forwarding panel at a different width."""
+    General/Topology/Access/Forwarding panel at a different width.
+    `banner_html` is `HomeDeleteConfirm.dc.html`'s own hook: the delete
+    question renders inside this same scrollable panel, above the form,
+    the same place `SessionWizard.tsx` already puts the discard one."""
     general = bordered_section("General", f"""
       <div>{wizard_label('Host')}{wizard_field('target.internal')}</div>
       <div style="display: flex; gap: 12px; margin-top: 14px;">
@@ -2184,6 +2187,7 @@ def host_detail_panel():
 
     panel = f"""      <div style="height: 100%; padding: 24px 28px; overflow-y: auto;">
         <span style="font-size: 15px; font-weight: 600;">runic-target-a</span>
+        {banner_html}
         <div style="display: flex; gap: 40px; margin-top: 22px;">
           <div style="width: 440px; flex: none; display: flex; flex-direction: column; gap: 22px;">
             {general}
@@ -2269,6 +2273,41 @@ def build_home_collapsed():
 </div>
 """
     write("HomeCollapsed.dc.html", HEAD + page_html + FOOT)
+
+
+def build_home_delete_confirm():
+    """The one question Delete now always asks first. Reported directly by
+    the maintainer: it used to remove the host on the spot, the one
+    destructive action on this form with nothing in front of it. The same
+    inline `role="alertdialog"` shape `SessionWizard.tsx` already uses for
+    a discarded draft, not `SftpDeleteConfirm`'s own full-screen
+    `SessionSurface`: this question lives inside the form it is about, the
+    same place the discard one already does, rather than taking over the
+    session rectangle SFTP's own delete has no form to live inside of."""
+    rows = "\n".join([
+        host_row("runic-target-a", "target.internal", active=True, kind="target"),
+        host_row("runic-bastion", "127.0.0.1", kind="jumpServer"),
+        host_row("dev-web", "10.0.1.5", kind="direct"),
+    ])
+    banner = f"""<div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: {T['dangersoft']}; border: 1px solid {T['danger']}; border-radius: 6px; padding: 8px 12px; margin-top: 14px;">
+        <span style="font-size: 12px; color: {T['danger']}; flex: 1;">Delete runic-target-a? This cannot be undone.</span>
+        <span style="font-size: 12px; padding: 4px 10px; border: 1px solid {T['line2']}; border-radius: 4px; color: {T['ink2']};">Cancel</span>
+        <span style="font-size: 12px; font-weight: 600; padding: 4px 10px; border: 1px solid {T['danger']}; border-radius: 4px; color: {T['danger']};">Delete</span>
+      </div>"""
+    body = hosts_shell(rows, host_detail_panel(banner), show_filter=True)
+    st = status(stat_text("runic-target-a", T['muted'], mono=False), stat_text("11 hosts", T['faint']))
+    page_html = f"""
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{plain_titlebar()}
+{toolbar_row(right_html=theme_language_toolbar_controls())}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{home_rail(workspace="home")}
+{body}
+  </div>
+{st}
+</div>
+"""
+    write("HomeDeleteConfirm.dc.html", HEAD + page_html + FOOT)
 
 
 def theme_language_toolbar_controls():
@@ -2803,7 +2842,7 @@ else:
                build_terminal_motd,
                build_sessions_proposal, build_sessions_proposal_broadcast,
                build_sessions_proposal_broadcast_multi,
-               build_home_hosts, build_home_hosts_empty, build_home_collapsed,
+               build_home_hosts, build_home_hosts_empty, build_home_collapsed, build_home_delete_confirm,
                build_anatomy, build_tokens,
                build_hostkeychanged, build_failure, build_paste, build_palette):
         fn()

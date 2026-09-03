@@ -59,9 +59,15 @@ interface SessionWizardProps {
   /** Drops the stored credential, or `null` on a host that does not exist
    * yet: there is nothing to drop. */
   readonly onForget: (() => void) | null;
-  /** Deletes this host outright, or `null` on one that does not exist yet:
-   * there is nothing on disk to delete. */
+  /** Asks about deleting this host outright, or `null` on one that does not
+   * exist yet: there is nothing on disk to delete. Answered by
+   * `onConfirmDelete`/`onCancelDelete` below, not acted on directly: this
+   * is a one-way door with nothing on the other side of it to undo from. */
   readonly onDelete: (() => void) | null;
+  /** Whether the delete question above is on screen. */
+  readonly deleting: boolean;
+  readonly onConfirmDelete: () => void;
+  readonly onCancelDelete: () => void;
   /**
    * Validates and saves General/Topology, synchronously, so the caller knows
    * before starting a proof whether there is anything left to prove against.
@@ -152,6 +158,9 @@ export function SessionWizard({
   onSkipTest,
   onForget,
   onDelete,
+  deleting,
+  onConfirmDelete,
+  onCancelDelete,
   onSave,
   onTest,
   onFinish,
@@ -262,6 +271,32 @@ export function SessionWizard({
             className="text-danger-text border-danger rounded border px-2.5 py-1 text-[12px] font-semibold"
           >
             {i18n.t('settings.discard.confirm')}
+          </button>
+        </div>
+      )}
+
+      {deleting && (
+        <div
+          role="alertdialog"
+          aria-label={i18n.t('session.editor.delete.confirm.title', { name: title })}
+          className="border-danger bg-danger-soft flex max-w-[440px] flex-wrap items-center gap-3 rounded border px-3 py-2"
+        >
+          <p className="text-danger-text mr-auto text-[12px]">
+            {i18n.t('session.editor.delete.confirm.title', { name: title })}
+          </p>
+          <button
+            type="button"
+            onClick={onCancelDelete}
+            className="border-line-strong text-ink-secondary hover:text-ink rounded border bg-transparent px-2.5 py-1 text-[12px]"
+          >
+            {i18n.t('session.editor.delete.confirm.cancel')}
+          </button>
+          <button
+            type="button"
+            onClick={onConfirmDelete}
+            className="text-danger-text border-danger rounded border px-2.5 py-1 text-[12px] font-semibold"
+          >
+            {i18n.t('session.editor.delete.confirm.confirm')}
           </button>
         </div>
       )}
