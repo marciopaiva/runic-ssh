@@ -129,6 +129,7 @@ describe('which wizard entry answers a missing credential', () => {
     credentialId: null,
     proxyJump: null,
     kind: 'direct',
+    forwards: [],
     ...overrides,
   });
 
@@ -272,6 +273,7 @@ describe('reading whether a host has a stored password', () => {
     credentialId: null,
     proxyJump: null,
     kind: 'direct',
+    forwards: [],
     ...overrides,
   });
 

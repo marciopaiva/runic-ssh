@@ -30,6 +30,37 @@ export type SessionHandle = number;
  */
 export type HostKind = 'jumpServer' | 'target' | 'direct';
 
+/**
+ * Which direction a `Forward` runs.
+ *
+ * ADR-0054. `local` and `remote` are opposite directions through the same
+ * underlying primitive; `dynamic` opens no fixed destination at all, reading
+ * one from a SOCKS handshake per connection instead.
+ */
+export type ForwardKind = 'local' | 'remote' | 'dynamic';
+
+/**
+ * A port forward saved against a host, started when the session connects.
+ *
+ * ADR-0054: the same weight `proxyJump` or `kind` already carry with no
+ * second confirmation of their own. Nothing here opens anything by itself;
+ * this is only the saved shape.
+ */
+export interface Forward {
+  readonly kind: ForwardKind;
+  /**
+   * Local: the port this machine listens on.
+   * Remote: the port asked of the server.
+   * Dynamic: the local SOCKS listener's port.
+   */
+  readonly bindPort: number;
+  /** `null` for `dynamic`, whose destination is read from the SOCKS
+   * handshake at connect time rather than fixed here. */
+  readonly targetHost: string | null;
+  readonly targetPort: number | null;
+  readonly name: string | null;
+}
+
 /** A saved session. Names a host; never holds a secret. */
 export interface Session {
   readonly id: string;
@@ -53,6 +84,7 @@ export interface Session {
    */
   readonly proxyJump: string | null;
   readonly kind: HostKind;
+  readonly forwards: readonly Forward[];
 }
 
 /**
@@ -72,6 +104,7 @@ export interface SessionDraft {
   /** The id of the saved session to reach this host through. */
   readonly proxyJump?: string | null;
   readonly kind: HostKind;
+  readonly forwards: readonly Forward[];
 }
 
 export async function listSessions(): Promise<readonly Session[]> {

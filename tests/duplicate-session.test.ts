@@ -22,6 +22,7 @@ function session(id: string, overrides: Partial<Session> = {}): Session {
     credentialId: null,
     proxyJump: null,
     kind: 'direct',
+    forwards: [],
     ...overrides,
   };
 }

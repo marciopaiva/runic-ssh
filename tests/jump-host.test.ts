@@ -38,6 +38,7 @@ function session(id: string, overrides: Partial<Session> = {}): Session {
     credentialId: null,
     proxyJump: null,
     kind: 'jumpServer',
+    forwards: [],
     ...overrides,
   };
 }
