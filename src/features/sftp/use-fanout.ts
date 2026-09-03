@@ -148,6 +148,12 @@ export interface FanoutState {
 
 export interface FanoutActions {
   readonly setSource: (endpoint: Endpoint) => void;
+  /** Clears the source back to empty. Dragging a different host onto it
+   * already replaces it outright (`setSource` again, via
+   * `assignSftpEndpoint`); this is the other half, the destination's own
+   * clear button mirrored onto the source, for leaving it empty rather
+   * than replacing it with something. */
+  readonly clearSource: () => void;
   /** Fills the first empty slot, or does nothing once all
    * {@link MAX_DESTINATIONS} are occupied. */
   readonly addDestination: (endpoint: Endpoint) => void;
@@ -303,6 +309,10 @@ export function useFanout(sessions: readonly LiveSession[]): FanoutState & Fanou
     },
     [include],
   );
+
+  const clearSource = useCallback(() => {
+    setSource(null);
+  }, []);
 
   const clearDestination = useCallback(
     (slot: number) => {
@@ -545,6 +555,7 @@ export function useFanout(sessions: readonly LiveSession[]): FanoutState & Fanou
     folderCopies,
     mutedDestinations,
     setSource,
+    clearSource,
     addDestination,
     replaceDestination,
     clearDestination,

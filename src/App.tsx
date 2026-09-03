@@ -2173,7 +2173,7 @@ export function App(): JSX.Element {
                       identity={sftpIdentity(fanout.source)}
                       onReport={fanout.reportPane}
                       onSend={fanout.sendToDestinations}
-                      onClear={null}
+                      onClear={fanout.clearSource}
                       receiving={null}
                       onToggleReceiving={null}
                       onDragEntriesStart={setDraggedEntries}
