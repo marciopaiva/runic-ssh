@@ -10,10 +10,21 @@
  * Pure, because the alternative is asserting it through a rendered form.
  */
 
-import type { Session } from '../../ipc';
+import type { Forward, Session } from '../../ipc';
 
 import { EMPTY_DRAFT } from './draft';
-import type { DraftValues } from './draft';
+import type { DraftValues, ForwardDraft } from './draft';
+
+/** `Forward`, as saved, in the shape the form edits. See `editorValues`. */
+function forwardDraft(forward: Forward): ForwardDraft {
+  return {
+    kind: forward.kind,
+    bindPort: String(forward.bindPort),
+    targetHost: forward.targetHost ?? '',
+    targetPort: forward.targetPort === null ? '' : String(forward.targetPort),
+    name: forward.name ?? '',
+  };
+}
 
 /** Which host the form is showing: a saved one, or one that does not exist yet. */
 export type EditorTarget =
@@ -32,6 +43,7 @@ export function editorValues(session: Session | null): DraftValues {
     group: session.group ?? '',
     proxyJump: session.proxyJump ?? '',
     kind: session.kind,
+    forwards: session.forwards.map(forwardDraft),
   };
 }
 
@@ -55,8 +67,28 @@ export function differs(values: DraftValues, baseline: DraftValues): boolean {
     values.user !== baseline.user ||
     values.group !== baseline.group ||
     values.proxyJump !== baseline.proxyJump ||
-    values.kind !== baseline.kind
+    values.kind !== baseline.kind ||
+    forwardsDiffer(values.forwards, baseline.forwards)
   );
+}
+
+function forwardsDiffer(
+  values: readonly ForwardDraft[],
+  baseline: readonly ForwardDraft[],
+): boolean {
+  if (values.length !== baseline.length) return true;
+
+  return values.some((forward, index) => {
+    const other = baseline[index];
+    return (
+      other === undefined ||
+      forward.kind !== other.kind ||
+      forward.bindPort !== other.bindPort ||
+      forward.targetHost !== other.targetHost ||
+      forward.targetPort !== other.targetPort ||
+      forward.name !== other.name
+    );
+  });
 }
 
 /** Whether the form holds work that closing it would throw away. */

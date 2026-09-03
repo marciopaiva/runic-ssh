@@ -28,7 +28,17 @@ export {
 } from './connect';
 export type { ConnectStage, HeldDecision, HostKeyVerdict } from './connect';
 export { useConnect } from './use-connect';
-export { EMPTY_DRAFT, LIMITS, invalidFields, parsePort, suggestName } from './draft';
+export {
+  EMPTY_DRAFT,
+  EMPTY_FORWARD,
+  LIMITS,
+  invalidFields,
+  invalidForward,
+  invalidForwards,
+  parsePort,
+  suggestName,
+  toForwards,
+} from './draft';
 export { describeKeeping, hasStoredCredential } from './kept';
 export type { KeptOutcome } from './kept';
 export { carrierName, markCarried } from './carried';
@@ -37,7 +47,7 @@ export { bastionName, eligibleJumpHosts, jumpHostChoice, jumpRole, orderChain } 
 export type { JumpHostChoice } from './jump';
 export type { ChainRow, JumpRole } from './jump';
 export { accessUnchanged, duplicateOf } from './duplicate';
-export type { DraftField, DraftValues } from './draft';
+export type { DraftField, DraftValues, ForwardDraft } from './draft';
 export { MAPPED_FAILURES, describeFailure, stateAfterFailure } from './failure';
 export type { Failure } from './failure';
 export { menuPosition, sessionMenu } from './menu';
@@ -50,6 +60,7 @@ export {
   editorDirty,
   editorKey,
   findEditor,
+  forwardsChangedIn,
   settled,
   typedInto,
   updateEditor,

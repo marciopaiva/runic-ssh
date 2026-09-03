@@ -14,7 +14,7 @@
  * decides anything is testable without a DOM, and the component only draws.
  */
 
-import type { DraftField, DraftValues } from './draft';
+import type { DraftField, DraftValues, ForwardDraft } from './draft';
 import { invalidFields, parsePort } from './draft';
 import { duplicateOf } from './duplicate';
 import { differs, editorValues, targetSession } from './editor';
@@ -163,6 +163,20 @@ export function typedInto(
     /* Cleared on edit rather than re-checked: the field is being worked on, and
        a message that disappears mid-word reads as flicker. */
     wrong: editor.wrong.filter((name) => name !== field),
+    discarding: false,
+  };
+}
+
+/**
+ * [`typedInto`], for the one field that is not a string: the forward list
+ * replaces itself wholesale on every row edit, add or remove, rather than
+ * being addressed by `keyof DraftValues` the way every other field is.
+ */
+export function forwardsChangedIn(editor: OpenEditor, forwards: readonly ForwardDraft[]): OpenEditor {
+  return {
+    ...editor,
+    values: { ...editor.values, forwards },
+    wrong: editor.wrong.filter((name) => name !== 'forwards'),
     discarding: false,
   };
 }

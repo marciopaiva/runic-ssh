@@ -14,12 +14,16 @@ import { describe, expect, it } from 'vitest';
 
 import {
   EMPTY_DRAFT,
+  EMPTY_FORWARD,
   LIMITS,
   invalidFields,
+  invalidForward,
+  invalidForwards,
   parsePort,
   suggestName,
+  toForwards,
 } from '../src/features/sessions/draft';
-import type { DraftValues } from '../src/features/sessions/draft';
+import type { DraftValues, ForwardDraft } from '../src/features/sessions/draft';
 
 const valid: DraftValues = {
   name: 'web-01',
@@ -29,6 +33,7 @@ const valid: DraftValues = {
   group: 'Production',
   proxyJump: '',
   kind: 'direct',
+  forwards: [],
 };
 
 const withValue = (field: keyof DraftValues, value: string): DraftValues => ({
@@ -50,9 +55,20 @@ describe('a session draft', () => {
   it('names every field that is wrong, not just the first', () => {
     /* Reporting one at a time makes somebody submit four times to find out
        about four mistakes. */
-    expect([...invalidFields({ name: '', host: '', port: 'x', user: '', group: '', proxyJump: '', kind: 'direct' })].sort()).toEqual(
-      ['host', 'name', 'port', 'user'].sort(),
-    );
+    expect(
+      [
+        ...invalidFields({
+          name: '',
+          host: '',
+          port: 'x',
+          user: '',
+          group: '',
+          proxyJump: '',
+          kind: 'direct',
+          forwards: [],
+        }),
+      ].sort(),
+    ).toEqual(['host', 'name', 'port', 'user'].sort());
   });
 
   it('refuses a field that is only whitespace', () => {
@@ -114,6 +130,63 @@ describe('naming a session', () => {
 
   it('has nothing to suggest with no host either', () => {
     expect(suggestName({ ...EMPTY_DRAFT }).name).toBe('');
+  });
+});
+
+describe('a forward row (ADR-0054)', () => {
+  const local: ForwardDraft = { ...EMPTY_FORWARD, bindPort: '8080', targetHost: 'target.internal', targetPort: '80' };
+
+  it('accepts a complete local or remote row', () => {
+    expect(invalidForward(local)).toBe(false);
+    expect(invalidForward({ ...local, kind: 'remote' })).toBe(false);
+  });
+
+  it('accepts a dynamic row with no target at all', () => {
+    expect(invalidForward({ ...EMPTY_FORWARD, kind: 'dynamic', bindPort: '1080' })).toBe(false);
+  });
+
+  it('refuses a missing or invalid bind port on every kind', () => {
+    expect(invalidForward({ ...local, bindPort: '' })).toBe(true);
+    expect(invalidForward({ ...local, bindPort: '0' })).toBe(true);
+    expect(invalidForward({ ...EMPTY_FORWARD, kind: 'dynamic', bindPort: '' })).toBe(true);
+  });
+
+  it('refuses a local or remote row missing a target host', () => {
+    expect(invalidForward({ ...local, targetHost: '' })).toBe(true);
+  });
+
+  it('refuses a local or remote row with an invalid target port', () => {
+    expect(invalidForward({ ...local, targetPort: 'x' })).toBe(true);
+  });
+
+  it('ignores an empty target on a dynamic row, even if one was typed before switching kind', () => {
+    /* Switching a row to Dynamic and back to Local should not resurrect a
+       half-typed target the UI hid meanwhile; that is `toForwards`' own
+       concern, this is just the validity check agreeing it is fine either
+       way while the row reads as Dynamic. */
+    expect(invalidForward({ ...local, kind: 'dynamic' })).toBe(false);
+  });
+
+  it('flags the whole list when any one row is invalid', () => {
+    expect(invalidForwards([local, { ...local, bindPort: '' }])).toBe(true);
+    expect(invalidForwards([local])).toBe(false);
+    expect(invalidForwards([])).toBe(false);
+  });
+
+  it('carries a name through, or null when left blank', () => {
+    expect(toForwards([{ ...local, name: 'web' }])[0]?.name).toBe('web');
+    expect(toForwards([local])[0]?.name).toBeNull();
+  });
+
+  it('drops the target for a dynamic row even if one was typed before switching kind', () => {
+    expect(toForwards([{ ...local, kind: 'dynamic' }])[0]).toMatchObject({
+      targetHost: null,
+      targetPort: null,
+    });
+  });
+
+  it('parses every port as the number the core expects', () => {
+    expect(toForwards([local])[0]).toMatchObject({ bindPort: 8080, targetPort: 80 });
   });
 });
 

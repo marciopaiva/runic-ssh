@@ -10,7 +10,7 @@
  * because the core is what writes the file; a test pins the limits against it.
  */
 
-import type { HostKind } from '../../ipc';
+import type { Forward, ForwardKind, HostKind } from '../../ipc';
 
 /**
  * A field a submit can find wrong.
@@ -18,8 +18,34 @@ import type { HostKind } from '../../ipc';
  * `proxyJump` is here and is not checked by `invalidFields`: the only way it
  * can be wrong is a question about the session list rather than about the
  * string, so it is set by the shell, which has the list. See `jumpHostChoice`.
+ * `forwards` names the list as a whole rather than one row: which row is
+ * wrong is `ForwardsFields`' own concern, recomputed from `value` directly
+ * rather than threaded through here as a second, parallel shape.
  */
-export type DraftField = 'name' | 'host' | 'port' | 'user' | 'group' | 'proxyJump';
+export type DraftField = 'name' | 'host' | 'port' | 'user' | 'group' | 'proxyJump' | 'forwards';
+
+/**
+ * A forward (ADR-0054) as the form edits it: every number a string, like
+ * `port` above, so a field can sit empty or mid-edit without being forced
+ * into something plausible early.
+ */
+export interface ForwardDraft {
+  readonly kind: ForwardKind;
+  readonly bindPort: string;
+  /** Ignored for `dynamic`, whose destination is read from the SOCKS
+   * handshake at connect time rather than stored. */
+  readonly targetHost: string;
+  readonly targetPort: string;
+  readonly name: string;
+}
+
+export const EMPTY_FORWARD: ForwardDraft = {
+  kind: 'local',
+  bindPort: '',
+  targetHost: '',
+  targetPort: '',
+  name: '',
+};
 
 /** The lengths the core refuses beyond. Pinned against Rust by a test. */
 export const LIMITS: Readonly<Record<'name' | 'host' | 'user' | 'group', number>> = {
@@ -47,6 +73,9 @@ export interface DraftValues {
   /** ADR-0031. Never wrong on its own: every value the picker offers is one
    * the core accepts, the same reason `proxyJump` needs no check here. */
   readonly kind: HostKind;
+  /** ADR-0054. Started when the session connects; no separate "arm this
+   * forward" gesture, the same weight `proxyJump` or `kind` already carry. */
+  readonly forwards: readonly ForwardDraft[];
 }
 
 export const EMPTY_DRAFT: DraftValues = {
@@ -59,6 +88,7 @@ export const EMPTY_DRAFT: DraftValues = {
   group: '',
   proxyJump: '',
   kind: 'direct',
+  forwards: [],
 };
 
 /**
@@ -107,6 +137,7 @@ export function invalidFields(values: DraftValues): readonly DraftField[] {
   }
 
   if (parsePort(values.port) === null) wrong.push('port');
+  if (invalidForwards(values.forwards)) wrong.push('forwards');
 
   return wrong;
 }
@@ -124,6 +155,39 @@ export function parsePort(value: string): number | null {
 
   const port = Number(trimmed);
   return port >= 1 && port <= 65535 ? port : null;
+}
+
+/**
+ * Whether one forward row is not yet complete enough to save: a bind port
+ * always, and for `local`/`remote` a target host and port too. `dynamic`
+ * needs neither, since its destination is read from the SOCKS handshake.
+ */
+export function invalidForward(forward: ForwardDraft): boolean {
+  if (parsePort(forward.bindPort) === null) return true;
+  if (forward.kind === 'dynamic') return false;
+
+  return forward.targetHost.trim() === '' || parsePort(forward.targetPort) === null;
+}
+
+export function invalidForwards(forwards: readonly ForwardDraft[]): boolean {
+  return forwards.some(invalidForward);
+}
+
+/**
+ * `forwards` as the core accepts them, once `invalidForwards` has already
+ * said every row is complete. `targetHost`/`targetPort` are `null` for
+ * `dynamic` regardless of what a row still holds from switching kind and
+ * back, the same reasoning the core's own `Forward` shape gives for never
+ * storing a destination that kind does not use.
+ */
+export function toForwards(forwards: readonly ForwardDraft[]): readonly Forward[] {
+  return forwards.map((forward) => ({
+    kind: forward.kind,
+    bindPort: parsePort(forward.bindPort) ?? 0,
+    targetHost: forward.kind === 'dynamic' ? null : forward.targetHost.trim(),
+    targetPort: forward.kind === 'dynamic' ? null : parsePort(forward.targetPort),
+    name: forward.name.trim() === '' ? null : forward.name.trim(),
+  }));
 }
 
 /** Fills in the name from the host, the way somebody would if asked twice. */

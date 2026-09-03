@@ -66,7 +66,7 @@ export function HostGeneralFields({
   }, [groupOpen]);
 
   const field = (
-    name: keyof DraftValues,
+    name: 'host' | 'user' | 'port' | 'name',
     label: string,
     extra: {
       readonly ref?: RefObject<HTMLInputElement | null> | undefined;
