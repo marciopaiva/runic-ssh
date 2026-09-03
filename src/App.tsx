@@ -1481,6 +1481,23 @@ export function App(): JSX.Element {
     [remove, forgetHome, clearFailure, failIn],
   );
 
+  /* The Delete button's own click: asks first, rather than removing the
+     host on the spot. Found live, reported directly: the one destructive
+     action on this form with no question in front of it, unlike every
+     other one-way door in the app (a discarded draft, an SFTP delete). */
+  const requestDelete = useCallback((target: EditorTarget): void => {
+    if (target.kind === 'new') return;
+    setEditors((current) =>
+      updateEditor(current, target, (editor) => ({ ...editor, deleting: true })),
+    );
+  }, []);
+
+  const cancelDelete = useCallback((target: EditorTarget): void => {
+    setEditors((current) =>
+      updateEditor(current, target, (editor) => ({ ...editor, deleting: false })),
+    );
+  }, []);
+
   const discardIn = useCallback(
     (target: EditorTarget, confirmed: boolean): void => {
       if (!confirmed) {
@@ -2379,7 +2396,10 @@ export function App(): JSX.Element {
                           }
                         }}
                         onForget={editingId === null ? null : () => forgetPassword(target)}
-                        onDelete={target.kind === 'new' ? null : () => removeIn(target)}
+                        onDelete={target.kind === 'new' ? null : () => requestDelete(target)}
+                        deleting={open.deleting}
+                        onConfirmDelete={() => removeIn(target)}
+                        onCancelDelete={() => cancelDelete(target)}
                         onSave={() => hostFieldsValid(target)}
                         onTest={(method) => testInWizard(target, method)}
                         onFinish={() => finishWizard(target)}

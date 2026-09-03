@@ -31,6 +31,11 @@ export interface OpenEditor {
   readonly wrong: readonly DraftField[];
   /** Whether this form is waiting on an answer about throwing work away. */
   readonly discarding: boolean;
+  /** Whether this form is waiting on an answer about deleting the host it is
+      on. Deleting used to happen the instant the button was clicked: found
+      live, reported directly, the one destructive action on this form with
+      no question in front of it. */
+  readonly deleting: boolean;
   /**
    * This open tab's own identity, stable for as long as the tab stays open.
    *
@@ -103,6 +108,7 @@ export function withEditor(
       baseline: loaded,
       wrong: [],
       discarding: false,
+      deleting: false,
       formId: crypto.randomUUID(),
     },
   ];
@@ -179,6 +185,7 @@ export function typedInto(
        a message that disappears mid-word reads as flicker. */
     wrong: editor.wrong.filter((name) => name !== field),
     discarding: false,
+    deleting: false,
   };
 }
 
@@ -193,6 +200,7 @@ export function forwardsChangedIn(editor: OpenEditor, forwards: readonly Forward
     values: { ...editor.values, forwards },
     wrong: editor.wrong.filter((name) => name !== 'forwards'),
     discarding: false,
+    deleting: false,
   };
 }
 
@@ -217,6 +225,7 @@ export function settled(stored: Session, formId: string): OpenEditor {
     baseline: values,
     wrong: [],
     discarding: false,
+    deleting: false,
     formId,
   };
 }
