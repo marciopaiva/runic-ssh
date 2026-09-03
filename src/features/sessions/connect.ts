@@ -82,16 +82,29 @@ export type ConnectStage =
   | { readonly stage: 'settled'; readonly keeping: Keeping }
   | {
       readonly stage: 'failed';
-      readonly code: IpcErrorCode;
+      readonly code: FailureCode;
       /** Which host it failed at, or `null` when there was no chain. */
       readonly hop: Hop | null;
     };
 
 /**
+ * A `ConnectStage`'s own code, when the attempt failed.
+ *
+ * Usually one the core sent (`IpcErrorCode`). `'bastionListenerTimedOut'` is
+ * the one exception: registering to hear a bastion's own inline credential
+ * request (`onInlineCredentialRequest`) is a call into the webview's own
+ * event system, not into the core, and it can stall for reasons this
+ * codebase does not control (#240). This file's own opening promise, that no
+ * path leaves a session `connecting` forever, needs an ending for that case
+ * too, even though nothing here produced a real `IpcError` to report.
+ */
+export type FailureCode = IpcErrorCode | 'bastionListenerTimedOut';
+
+/**
  * A failure, and which host in a chain it happened at.
  */
 export interface ReportedFailure {
-  readonly code: IpcErrorCode;
+  readonly code: FailureCode;
   readonly hop: Hop | null;
 }
 
@@ -196,7 +209,7 @@ export function wasCancelled(code: IpcErrorCode): boolean {
  * purpose, they answer a master-password prompt in Settings and can never
  * come out of resolving a saved credential.
  */
-export function shouldPromptAfterSaved(code: IpcErrorCode): boolean {
+export function shouldPromptAfterSaved(code: FailureCode): boolean {
   return (
     code === 'noSavedCredential' ||
     code === 'authenticationFailed' ||

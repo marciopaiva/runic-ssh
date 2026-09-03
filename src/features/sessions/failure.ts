@@ -12,6 +12,7 @@
  */
 
 import type { Hop, IpcErrorCode } from '../../ipc';
+import type { FailureCode } from './connect';
 import type { ConnectionKind } from './state';
 import type { ParameterlessKey } from '../../lib/i18n';
 
@@ -163,8 +164,8 @@ const STORE_REFUSED: ReadonlySet<IpcErrorCode> = new Set<IpcErrorCode>([
   'vaultUnreadable',
 ]);
 
-export function describeFailure(code: IpcErrorCode, hop: Hop | null = null): Failure {
-  if (hop === 'bastion' && STORE_REFUSED.has(code)) {
+export function describeFailure(code: FailureCode, hop: Hop | null = null): Failure {
+  if (hop === 'bastion' && STORE_REFUSED.has(code as IpcErrorCode)) {
     return {
       title: 'failure.jumpCredential.title',
       body: 'failure.jumpCredential.body',
@@ -172,7 +173,7 @@ export function describeFailure(code: IpcErrorCode, hop: Hop | null = null): Fai
     };
   }
 
-  return FAILURES[code] ?? UNEXPECTED;
+  return FAILURES[code as IpcErrorCode] ?? UNEXPECTED;
 }
 
 /** Every failure this maps, for the test that checks each has its own copy. */
@@ -194,7 +195,7 @@ export const MAPPED_FAILURES: readonly Failure[] = Object.values(FAILURES).filte
  * said "Cancelled" in the panel and "Unreachable" on the floor, about the same
  * session, at the same moment.
  */
-export function stateAfterFailure(code: IpcErrorCode): ConnectionKind {
+export function stateAfterFailure(code: FailureCode): ConnectionKind {
   if (code === 'hostKeyDecision') return 'keyMismatch';
   if (code === 'hostUnreachable' || code === 'sshTransport' || code === 'connectTimedOut') {
     return 'unreachable';

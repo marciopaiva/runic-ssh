@@ -54,6 +54,17 @@ describe('describing a failure', () => {
     expect(failure.title).toBe('failure.unexpected.title');
   });
 
+  it('gives the same honest answer for a failure the core never sent', () => {
+    /* #240: registering to hear a bastion's own inline credential request is
+       a call into the webview's own event system, not the core, so a stall
+       there produces a code with no `IpcError` behind it at all. The same
+       fallback that covers a code this file has not learned yet also has to
+       cover one that was never going to be in `FAILURES` to begin with. */
+    const failure = describeFailure('bastionListenerTimedOut');
+
+    expect(failure.title).toBe('failure.unexpected.title');
+  });
+
   it('has an answer for every code the core can send', () => {
     /* The fallback is what makes this safe, so this asserts the fallback is
        reachable for anything and never throws. */
