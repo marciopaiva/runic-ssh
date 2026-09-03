@@ -16,8 +16,8 @@ use russh::ChannelId;
 use russh::MethodKind;
 
 use runic_ssh::ssh::connection::{
-    close_shared, connect, connect_via, connect_within, share, ConnectionError, Credential,
-    Endpoint, Hop, Shared,
+    close_shared, connect, connect_via, connect_within, share, Connection, ConnectionError,
+    Credential, Endpoint, Hop, Shared,
 };
 use runic_ssh::ssh::forward;
 use runic_ssh::ssh::known_hosts::KnownHosts;
@@ -1233,4 +1233,241 @@ async fn stopping_a_forward_closes_a_connection_already_riding_it() {
     );
 
     close_shared(bastion).await.expect("it closes");
+}
+
+/* ------------------------------------------------------------------------ *
+ * Remote port forwarding. ADR-0054.
+ *
+ * The one direction this project had never driven data through before this
+ * issue: the server initiating a channel to us, not the reverse. A separate,
+ * smaller fake server rather than reusing `TestServer`: what it needs to
+ * simulate (granting `tcpip-forward`, then opening its own channel back for
+ * each connection its own listener accepts) is unrelated to the bastion
+ * behaviour every other test in this file exercises, and bolting it onto
+ * `TestServer` would mean every one of those tests carrying a field only
+ * these three ever set.
+ * ------------------------------------------------------------------------ */
+
+/// Grants or refuses `tcpip-forward`, and for each connection its own
+/// listener accepts when it grants one, opens a real `forwarded-tcpip`
+/// channel back to the client: `Session::handle` is exactly the same handle
+/// a real `sshd` would drive its own equivalent listener with, so this
+/// proves the client's own `server_channel_open_forwarded_tcpip` end to end
+/// rather than only against a mock of the message.
+#[derive(Clone)]
+struct RemoteForwardServer {
+    grants: bool,
+}
+
+impl russh::server::Server for RemoteForwardServer {
+    type Handler = Self;
+    fn new_client(&mut self, _peer: Option<std::net::SocketAddr>) -> Self {
+        self.clone()
+    }
+}
+
+impl ServerHandler for RemoteForwardServer {
+    type Error = russh::Error;
+
+    async fn auth_password(&mut self, user: &str, password: &str) -> Result<Auth, Self::Error> {
+        Ok(if user == USER && password == PASSWORD {
+            Auth::Accept
+        } else {
+            Auth::Reject {
+                proceed_with_methods: None,
+                partial_success: false,
+            }
+        })
+    }
+
+    async fn tcpip_forward(
+        &mut self,
+        address: &str,
+        port: &mut u32,
+        session: &mut Session,
+    ) -> Result<bool, Self::Error> {
+        if !self.grants {
+            return Ok(false);
+        }
+
+        let requested = *port as u16;
+        let listener = tokio::net::TcpListener::bind(("127.0.0.1", requested))
+            .await
+            .expect("a loopback port");
+        let bound = listener.local_addr().expect("an address").port();
+        *port = u32::from(bound);
+
+        let handle = session.handle();
+        let address = address.to_owned();
+        tokio::spawn(async move {
+            loop {
+                let Ok((mut accepted, peer)) = listener.accept().await else {
+                    break;
+                };
+                let handle = handle.clone();
+                let address = address.clone();
+                tokio::spawn(async move {
+                    let Ok(channel) = handle
+                        .channel_open_forwarded_tcpip(
+                            address,
+                            u32::from(bound),
+                            peer.ip().to_string(),
+                            u32::from(peer.port()),
+                        )
+                        .await
+                    else {
+                        return;
+                    };
+                    let mut downstream = channel.into_stream();
+                    let _ = tokio::io::copy_bidirectional(&mut accepted, &mut downstream).await;
+                });
+            }
+        });
+
+        Ok(true)
+    }
+
+    async fn cancel_tcpip_forward(
+        &mut self,
+        _address: &str,
+        _port: u32,
+        _session: &mut Session,
+    ) -> Result<bool, Self::Error> {
+        Ok(true)
+    }
+}
+
+/// Starts a [`RemoteForwardServer`] on a loopback port and connects to it,
+/// authenticated, ready to ask for a remote forward.
+async fn connected_to_remote_forward_server(grants: bool) -> Connection {
+    let config = Arc::new(russh::server::Config {
+        keys: vec![
+            PrivateKey::random(&mut rng(), russh::keys::Algorithm::Ed25519).expect("a host key"),
+        ],
+        methods: [MethodKind::Password].as_slice().into(),
+        ..Default::default()
+    });
+    let listener = TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .expect("a loopback port");
+    let port = listener.local_addr().expect("an address").port();
+    let host_public = config.keys[0].public_key().clone();
+
+    let mut server = RemoteForwardServer { grants };
+    tokio::spawn(async move {
+        let _ = server.run_on_socket(config, &listener).await;
+    });
+
+    let mut connection = connect(endpoint(port), trusting(port, &host_public))
+        .await
+        .expect("the server accepts its own key");
+    connection
+        .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
+        .await
+        .expect("the server accepts its own password");
+
+    connection
+}
+
+#[tokio::test]
+async fn a_remote_forward_pumps_bytes_from_the_server_to_a_local_target() {
+    let connection = connected_to_remote_forward_server(true).await;
+    let target_port = echo_server().await;
+    let bind_port = free_port().await;
+
+    let granted = connection
+        .start_remote_forward(
+            bind_port,
+            Endpoint {
+                host: "127.0.0.1".to_owned(),
+                port: target_port,
+            },
+        )
+        .await
+        .expect("the server grants the forward");
+
+    let mut client = TcpStream::connect(("127.0.0.1", granted))
+        .await
+        .expect("the server's own listener accepts a connection");
+    client
+        .write_all(b"from the server side")
+        .await
+        .expect("the write reaches the channel");
+
+    let mut reply = [0u8; "from the server side".len()];
+    client
+        .read_exact(&mut reply)
+        .await
+        .expect("the echo comes back through the forwarded channel");
+    assert_eq!(&reply, b"from the server side");
+
+    connection.disconnect().await.expect("it closes");
+}
+
+#[tokio::test]
+async fn a_server_that_refuses_forwarding_is_a_real_named_failure() {
+    let connection = connected_to_remote_forward_server(false).await;
+
+    let error = connection
+        .start_remote_forward(
+            free_port().await,
+            Endpoint {
+                host: "127.0.0.1".to_owned(),
+                port: 0,
+            },
+        )
+        .await
+        .expect_err("the server refuses");
+
+    assert!(matches!(
+        error,
+        ConnectionError::RemoteForwardRefused { .. }
+    ));
+
+    connection.disconnect().await.expect("it closes");
+}
+
+#[tokio::test]
+async fn stopping_a_remote_forward_closes_a_connection_already_riding_it() {
+    let connection = connected_to_remote_forward_server(true).await;
+    let target_port = echo_server().await;
+    let bind_port = free_port().await;
+
+    let granted = connection
+        .start_remote_forward(
+            bind_port,
+            Endpoint {
+                host: "127.0.0.1".to_owned(),
+                port: target_port,
+            },
+        )
+        .await
+        .expect("the server grants the forward");
+
+    let mut client = TcpStream::connect(("127.0.0.1", granted))
+        .await
+        .expect("the server's own listener accepts a connection");
+    client
+        .write_all(b"still open")
+        .await
+        .expect("the write reaches the channel");
+    let mut reply = [0u8; "still open".len()];
+    client
+        .read_exact(&mut reply)
+        .await
+        .expect("the echo proves the pump is running");
+
+    connection.stop_remote_forward(granted).await;
+
+    let mut buffer = [0u8; 1];
+    let read = tokio::time::timeout(std::time::Duration::from_secs(5), client.read(&mut buffer))
+        .await
+        .expect("stopping the forward closes every connection riding it, not just new ones");
+    assert_eq!(
+        read.expect("a close is not a read error"),
+        0,
+        "the connection is still open after the forward it rode was stopped"
+    );
+
+    connection.disconnect().await.expect("it closes");
 }

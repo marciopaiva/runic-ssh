@@ -66,6 +66,10 @@ fn every_connection_error() -> Vec<ConnectionError> {
         })),
         ConnectionError::HostKeyRejected(Box::new(Trust::Matched)),
         ConnectionError::TimedOut,
+        /* Carries only a port, never a secret, so no canary belongs on this
+        one; it is here for the same reason every other variant is: the
+        exhaustive match below must account for it. */
+        ConnectionError::RemoteForwardRefused { port: 8080 },
     ];
 
     for error in &all {
@@ -76,6 +80,7 @@ fn every_connection_error() -> Vec<ConnectionError> {
             | ConnectionError::RsaKeyRefused
             | ConnectionError::AuthenticationFailed
             | ConnectionError::Transport
+            | ConnectionError::RemoteForwardRefused { .. }
             | ConnectionError::HostKeyRejected(_) => {}
         }
     }

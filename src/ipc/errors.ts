@@ -190,7 +190,13 @@ export type IpcError =
    * A local port forward's own local half could not bind. `port` names it,
    * so the message can say plainly which one. ADR-0054.
    */
-  | { readonly code: 'forwardBindFailed'; readonly port: number };
+  | { readonly code: 'forwardBindFailed'; readonly port: number }
+  /**
+   * The server refused to forward a remote forward's own port: no
+   * `AllowTcpForwarding`, or a port it will not grant. The two are
+   * indistinguishable from here, so `port` is all this carries. ADR-0054.
+   */
+  | { readonly code: 'remoteForwardRefused'; readonly port: number };
 
 export type IpcErrorCode = IpcError['code'];
 
@@ -255,6 +261,7 @@ export const CODES: ReadonlySet<IpcErrorCode> = new Set<IpcErrorCode>([
   'localIoFailed',
   'localNameRefused',
   'forwardBindFailed',
+  'remoteForwardRefused',
 ]);
 
 /**

@@ -1,10 +1,16 @@
-//! Local port forwarding (`-L`).
+//! Local port forwarding (`-L`), and tracking either direction once running.
 //!
 //! ADR-0054. [`Connection::open_forward`] already opens a `direct-tcpip`
 //! channel to an arbitrary endpoint, over `&self`, so several may run on one
 //! connection at once: every ProxyJump hop already does exactly this to
 //! reach the next host in the chain. A local forward is the same call,
 //! driven by an accepted [`TcpListener`] connection instead of a chain hop.
+//!
+//! [`Forwards`] tracks both directions under the one [`ForwardHandle`] type,
+//! since the frontend's own idea of "a forward that is running" does not
+//! need to know which kind it is stopping: a remote forward's own start and
+//! stop live on [`Connection`] instead, next to the connection-handler state
+//! they update, but this is where both are found again by handle.
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -43,15 +49,28 @@ pub enum ForwardError {
     },
 }
 
-/// Every local forward currently running.
+/// What stopping a [`ForwardHandle`] actually does, which differs by
+/// direction: a local forward has one task (its accept loop, plus the
+/// [`JoinSet`] of connections riding it) to abort; a remote forward has no
+/// task of its own here at all; asking the connection to stop is what tears
+/// down its own [`JoinSet`] of connections, next to the map entry that
+/// routes to it.
+enum Running {
+    Local(JoinHandle<()>),
+    Remote { connection: Shared, bind_port: u16 },
+}
+
+/// Every forward currently running, of either direction.
 ///
-/// Mirrors [`crate::sftp::transfer::Transfers`]' own shape exactly: an opaque
-/// handle per running forward, independent of any other, stoppable without
-/// touching the rest.
+/// Mirrors [`crate::sftp::transfer::Transfers`]' own shape: an opaque handle
+/// per running forward, independent of any other, stoppable without
+/// touching the rest. One handle type for both directions, since the
+/// frontend's own idea of "a forward that is running" does not need to know
+/// which kind it is stopping.
 #[derive(Default)]
 pub struct Forwards {
     next: AtomicU64,
-    running: Mutex<HashMap<ForwardHandle, JoinHandle<()>>>,
+    running: Mutex<HashMap<ForwardHandle, Running>>,
 }
 
 impl Forwards {
@@ -66,10 +85,26 @@ impl Forwards {
         ForwardHandle(self.next.fetch_add(1, Ordering::Relaxed))
     }
 
-    /// Registers a task already spawned under a handle [`reserve`](Self::reserve)
-    /// already produced.
-    pub async fn attach(&self, handle: ForwardHandle, task: JoinHandle<()>) {
-        self.running.lock().await.insert(handle, task);
+    /// Registers a local forward's own accept loop, already spawned under a
+    /// handle [`reserve`](Self::reserve) already produced.
+    pub async fn attach_local(&self, handle: ForwardHandle, task: JoinHandle<()>) {
+        self.running
+            .lock()
+            .await
+            .insert(handle, Running::Local(task));
+    }
+
+    /// Registers a remote forward already started on `connection`, so
+    /// [`stop`](Self::stop) knows which connection and which port to ask to
+    /// stop it.
+    pub async fn attach_remote(&self, handle: ForwardHandle, connection: Shared, bind_port: u16) {
+        self.running.lock().await.insert(
+            handle,
+            Running::Remote {
+                connection,
+                bind_port,
+            },
+        );
     }
 
     /// Forgets a forward once it stops on its own, for whatever reason.
@@ -78,17 +113,27 @@ impl Forwards {
     }
 
     /// Stops a forward in flight, tearing down every connection currently
-    /// riding it along with the accept loop itself: see [`listen`]'s own doc
-    /// comment for why aborting the one task this handle names is enough for
-    /// both.
+    /// riding it: see [`listen`]'s own doc comment for a local forward, and
+    /// [`crate::ssh::connection::Connection::stop_remote_forward`] for a
+    /// remote one.
     ///
     /// `false` if the handle names nothing: already stopped, or never
     /// existed. Not an error in either case, since the caller's goal, that
     /// forward not running, is already true.
     pub async fn stop(&self, handle: ForwardHandle) -> bool {
         match self.running.lock().await.remove(&handle) {
-            Some(task) => {
+            Some(Running::Local(task)) => {
                 task.abort();
+                true
+            }
+            Some(Running::Remote {
+                connection,
+                bind_port,
+            }) => {
+                let held = connection.lock().await;
+                if let Some(connection) = held.as_ref() {
+                    connection.stop_remote_forward(bind_port).await;
+                }
                 true
             }
             None => false,
@@ -175,13 +220,13 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn a_tracked_forward_can_be_stopped() {
+    async fn a_tracked_local_forward_can_be_stopped() {
         let forwards = Forwards::new();
         let handle = forwards.reserve();
         let task = tokio::spawn(async {
             tokio::time::sleep(std::time::Duration::from_secs(60)).await;
         });
-        forwards.attach(handle, task).await;
+        forwards.attach_local(handle, task).await;
 
         assert!(forwards.stop(handle).await, "the forward was running");
         assert!(
@@ -194,7 +239,7 @@ mod tests {
     async fn an_unknown_handle_stops_nothing() {
         let forwards = Forwards::new();
         let phantom = forwards.reserve();
-        forwards.attach(phantom, tokio::spawn(async {})).await;
+        forwards.attach_local(phantom, tokio::spawn(async {})).await;
         forwards.forget(phantom).await;
 
         assert!(!forwards.stop(phantom).await);
