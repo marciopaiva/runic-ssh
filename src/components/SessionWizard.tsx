@@ -362,7 +362,7 @@ export function SessionWizard({
         <div
           role="alertdialog"
           aria-label={i18n.t('settings.discard.title')}
-          className="border-danger bg-danger-soft flex max-w-[440px] flex-wrap items-center gap-3 rounded border px-3 py-2"
+          className="border-danger bg-danger-soft flex flex-wrap items-center gap-3 rounded border px-3 py-2"
         >
           <p className="text-danger-text mr-auto text-[12px]">{i18n.t('settings.discard.title')}</p>
           <button
@@ -386,7 +386,7 @@ export function SessionWizard({
         <div
           role="alertdialog"
           aria-label={i18n.t('session.editor.delete.confirm.title', { name: title })}
-          className="border-danger bg-danger-soft flex max-w-[440px] flex-wrap items-center gap-3 rounded border px-3 py-2"
+          className="border-danger bg-danger-soft flex flex-wrap items-center gap-3 rounded border px-3 py-2"
         >
           <p className="text-danger-text mr-auto text-[12px]">
             {i18n.t('session.editor.delete.confirm.title', { name: title })}
@@ -411,7 +411,7 @@ export function SessionWizard({
       {problem !== null && (
         <div
           role="alert"
-          className="border-danger bg-danger-soft flex max-w-[440px] flex-col gap-2 rounded border px-3 py-2"
+          className="border-danger bg-danger-soft flex flex-col gap-2 rounded border px-3 py-2"
         >
           <div className="min-w-0">
             <p className="text-danger-text text-[12px] font-semibold">{i18n.t(problem.title)}</p>

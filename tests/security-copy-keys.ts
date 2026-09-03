@@ -269,8 +269,20 @@ export const REVIEWS: Readonly<
        for a "Pronto" click, so `kept.done`, the button that card alone used,
        left both SECURITY_COPY_KEYS and this list. One fewer reviewed string,
        not an unreviewed one. */
-    date: '2026-08-26',
-    hash: '55e221f5315189b4047d2a3ae4e413d2cf377a11b9d0128ffa6de0c7cd88cd06',
+    /* Date and hash both moved again 2026-09-03, this time for a real wording
+       change, reviewed live by the maintainer: `credential.keep.stored` and
+       `.stored.vault` dropped the first-person "até eu remover", which read
+       as grammatically incomplete on its own (missing the object: remover
+       o quê) and, separately, put a person speaking in a system message
+       where `credential.keep.forThisRun` right next to it already does not
+       ("Até o Runic SSH fechar", not "até eu fechar"). Now "até que seja
+       removida", matching that voice. en.json and es.json changed the same
+       two keys the same way, for the same reason, but neither is tracked
+       here: en.json is the source, not a translation under review, and
+       es.json's own narrower scope (#4) never covered these two to begin
+       with. */
+    date: '2026-09-03',
+    hash: 'b642fbf3c7a7099bdc77743c4494c65fc0013d989dcd3ab781ec01417694e8e3',
     keys: [
       'credential.cancel',
       'credential.hop.bastion',
