@@ -162,7 +162,8 @@ export function ActivityRail({
           strokeLinejoin="round"
           aria-hidden="true"
         >
-          <path d="M4 11.5 12 4l8 7.5M6 10v9.5h5V14h2v5.5h5V10" />
+          <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+          <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
         </svg>
       </RailSlot>
 
