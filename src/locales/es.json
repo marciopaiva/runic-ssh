@@ -390,9 +390,5 @@
   "window.maximize": "Maximizar",
   "window.minimize": "Minimizar",
   "window.restore": "Restaurar",
-  "wizard.back": "Atrás",
-  "wizard.finish": "Finalizar",
-  "wizard.phase.bastion": "Bastion",
-  "wizard.phase.proving": "Probando",
-  "wizard.result.failed": "Guardado, pero la conexión falló."
+  "wizard.phase.proving": "Probando"
 }

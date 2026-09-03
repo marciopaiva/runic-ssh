@@ -396,9 +396,5 @@ export const SOURCE_CATALOG = {
   "window.maximize": "Maximize",
   "window.minimize": "Minimize",
   "window.restore": "Restore down",
-  "wizard.back": "Back",
-  "wizard.finish": "Finish",
-  "wizard.phase.bastion": "Bastion",
   "wizard.phase.proving": "Proving",
-  "wizard.result.failed": "Saved, but the connection failed.",
 } as const;
