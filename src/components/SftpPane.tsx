@@ -31,9 +31,9 @@ interface SftpPaneProps {
    * receives. Called once per file selected, ADR-0047's own reading of
    * "check one row, press Send" covering the single-file case too. */
   readonly onSend: ((entry: PaneEntry) => void) | null;
-  /** A destination slot's own way to clear itself, drawn beside its
-   * identity. `null` on the source, which has nothing to clear to. */
-  readonly onClear: (() => void) | null;
+  /** This pane's own way to clear itself back to empty, drawn beside its
+   * identity: the source and every destination slot alike. */
+  readonly onClear: () => void;
   /** Whether this destination slot receives a fan-out right now. `null` on
    * the source, which the question does not apply to (ADR-0047). */
   readonly receiving: boolean | null;
@@ -742,19 +742,17 @@ export function SftpPane({
             <BroadcastGlyph className="h-3.5 w-3.5" />
           </button>
         )}
-        {onClear !== null && (
-          <button
-            type="button"
-            onClick={onClear}
-            aria-label={i18n.t('sftp.clearSlot')}
-            title={i18n.t('sftp.clearSlot')}
-            className="text-ink-faint hover:text-ink flex h-4 w-4 shrink-0 items-center justify-center"
-          >
-            <svg viewBox="0 0 10 10" className="h-2 w-2" fill="none" aria-hidden="true">
-              <path d="M0.5 0.5l9 9M9.5 0.5l-9 9" stroke="currentColor" strokeWidth="1.4" />
-            </svg>
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={onClear}
+          aria-label={i18n.t('sftp.clearSlot')}
+          title={i18n.t('sftp.clearSlot')}
+          className="text-ink-faint hover:text-ink flex h-4 w-4 shrink-0 items-center justify-center"
+        >
+          <svg viewBox="0 0 10 10" className="h-2 w-2" fill="none" aria-hidden="true">
+            <path d="M0.5 0.5l9 9M9.5 0.5l-9 9" stroke="currentColor" strokeWidth="1.4" />
+          </svg>
+        </button>
       </div>
 
       <NavBar
