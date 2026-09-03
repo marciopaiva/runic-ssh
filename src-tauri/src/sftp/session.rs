@@ -163,13 +163,13 @@ pub async fn download(
 
 /// Uploads `local_path` to `remote_dir`, joined with its own file name.
 ///
-/// The file name comes from the local path the native picker returned
-/// (ADR-0042), which this process chose and already trusts; `check_name`
-/// still runs on it before it is sent, because the remote name a local pick
-/// produces is still the name this application will ask a server to create,
-/// and a name good enough for this machine's filesystem is not automatically
-/// one every SFTP server accepts (a leading `.` meaning something different
-/// remotely, for one).
+/// The file name comes from the local path the frontend's own directory
+/// listing produced, which this process chose and already trusts;
+/// `check_name` still runs on it before it is sent, because the remote name a
+/// local listing produces is still the name this application will ask a
+/// server to create, and a name good enough for this machine's filesystem is
+/// not automatically one every SFTP server accepts (a leading `.` meaning
+/// something different remotely, for one).
 ///
 /// Cancellation, as for [`download`], belongs to whichever task the caller
 /// runs this in and its own `JoinHandle`, not to a token threaded through

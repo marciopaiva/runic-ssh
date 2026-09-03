@@ -38,10 +38,6 @@ interface SftpPaneProps {
    * the source, which the question does not apply to (ADR-0047). */
   readonly receiving: boolean | null;
   readonly onToggleReceiving: (() => void) | null;
-  /** The native "choose a file" dialog (ADR-0042), aimed at this one
-   * destination. `null` on the source (nothing to browse for there) and on
-   * a local destination (nothing here sends a file to itself). */
-  readonly onUploadFromDialog: (() => void) | null;
   /** A file row has started being dragged out of this pane, carrying
    * whichever entries the drag actually means (this one alone, or the
    * whole current selection if the dragged row was part of it). `null` on
@@ -526,7 +522,6 @@ export function SftpPane({
   onClear,
   receiving,
   onToggleReceiving,
-  onUploadFromDialog,
   onDragEntriesStart,
   onDragEntriesEnd,
 }: SftpPaneProps): JSX.Element {
@@ -732,25 +727,6 @@ export function SftpPane({
         <span className="text-ink-muted truncate font-mono text-[11px]">{identity}</span>
         <span className="text-ink-disabled truncate font-mono text-[10.5px]">{pane.path ?? ''}</span>
         <div className="flex-1" />
-        {onUploadFromDialog !== null && (
-          <button
-            type="button"
-            onClick={onUploadFromDialog}
-            aria-label={i18n.t('sftp.uploadFromDialog')}
-            title={i18n.t('sftp.uploadFromDialog')}
-            className="text-ink-faint hover:text-ink flex h-4 w-4 shrink-0 items-center justify-center"
-          >
-            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" aria-hidden="true">
-              <path
-                d="M12 16V5M7 10l5-5 5 5M5 19h14"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
-        )}
         {receiving !== null && onToggleReceiving !== null && (
           <button
             type="button"

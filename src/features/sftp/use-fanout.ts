@@ -16,7 +16,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
-  chooseUploadSource,
   localListDirectory,
   localMkdir,
   onAnyFinished,
@@ -32,7 +31,7 @@ import type { TransferHandle, TransferOutcome, TransferProgress } from '../../ip
 import type { LiveSession } from '../sessions/state';
 import { groupLabel } from '../terminal';
 import { useTranslator } from '../settings';
-import { localFileName, reduceFolderCopies, reduceTransfers, toggleReceiving } from './browser';
+import { reduceFolderCopies, reduceTransfers, toggleReceiving } from './browser';
 import type { FolderCopyState, TransferDirection, TransferState } from './browser';
 import { fromLocalEntry, fromRemoteEntry } from './endpoint';
 import type { Endpoint, PaneEntry } from './endpoint';
@@ -167,9 +166,6 @@ export interface FanoutActions {
    * reaches only that slot, whether or not its own receive toggle spares
    * it from a broadcast `sendToDestinations` run. */
   readonly sendEntriesToDestination: (entries: readonly PaneEntry[], slot: number) => void;
-  /** The native "choose a file" dialog, aimed at one destination without
-   * needing a source pane set up at all. */
-  readonly uploadFromDialogTo: (slot: number) => void;
   readonly cancelTransfer: (transfer: TransferHandle) => void;
   readonly dismissTransfer: (transfer: TransferHandle) => void;
   /** Stops a folder copy after whichever file is currently in flight
@@ -523,35 +519,6 @@ export function useFanout(sessions: readonly LiveSession[]): FanoutState & Fanou
     [source, destinations, labelFor, track, runFolderCopy],
   );
 
-  /* The native "choose a file" dialog (ADR-0042), aimed at one destination
-   * directly rather than at browsing a local source pane first: a
-   * shortcut for "send this one file here" that needs no source pane set
-   * up at all. Remote destinations only, the same restriction
-   * `startTransfer` already enforces for local-to-local. */
-  const uploadFromDialogTo = useCallback(
-    (slot: number) => {
-      const destination = destinations[slot];
-      if (destination === undefined || destination === null || destination.kind !== 'remote') return;
-
-      const label = labelFor(destination);
-      /* The pane's own path is read fresh once the dialog answers, not
-         captured before it opened: a native dialog holds the OS's own
-         focus for as long as it is up, so nothing in this window can
-         navigate meanwhile, but there is no reason to rely on that when
-         reading it late costs nothing. */
-      void chooseUploadSource().then((path) => {
-        if (path === null) return;
-        const pane = panes.current.get(destinationPaneId(slot));
-        if (pane?.path == null) return;
-
-        void sftpUpload(destination.handle, path, pane.path).then((transfer) => {
-          track(transfer, 'upload', localFileName(path), label, () => pane.reload());
-        });
-      });
-    },
-    [destinations, labelFor, track],
-  );
-
   const cancelTransfer = useCallback((transfer: TransferHandle) => {
     void sftpCancel(transfer);
   }, []);
@@ -586,7 +553,6 @@ export function useFanout(sessions: readonly LiveSession[]): FanoutState & Fanou
     reportPane,
     sendToDestinations,
     sendEntriesToDestination,
-    uploadFromDialogTo,
     cancelTransfer,
     dismissTransfer,
     cancelFolderCopy,

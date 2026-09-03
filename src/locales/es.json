@@ -247,7 +247,6 @@
   "sftp.transferSucceeded": "Listo",
   "sftp.transfers": "TRANSFERENCIAS",
   "sftp.upload": "Subir",
-  "sftp.uploadFromDialog": "Subir un archivo desde su equipo",
   "sftp.workspace.empty.body": "Añada un host al que conectarse, en Sesiones. No se envía nada hasta que lo haga.",
   "sftp.workspace.empty.title": "Todavía no hay sesiones",
   "sftp.workspace.title": "SFTP",

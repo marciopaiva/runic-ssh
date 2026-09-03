@@ -76,7 +76,6 @@ const ipc = vi.hoisted(() => {
   };
 
   return {
-    chooseUploadSource: vi.fn(async () => null),
     localListDirectory: vi.fn(),
     localMkdir: vi.fn(async (dir: string, name: string) => `${dir}/${name}`),
     localRemove: vi.fn(async () => undefined),
