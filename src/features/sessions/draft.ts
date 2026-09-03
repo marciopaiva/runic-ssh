@@ -11,6 +11,16 @@
  */
 
 import type { Forward, ForwardKind, HostKind } from '../../ipc';
+import type { ParameterlessKey } from '../../lib/i18n';
+
+/** A forward's kind, labelled. Shared between `ForwardsFields`' own picker
+ * and `StatusBar`'s tooltip, so a renamed kind cannot drift between the two
+ * places it is spelled out for a person. */
+export const FORWARD_KIND_LABEL: Readonly<Record<ForwardKind, ParameterlessKey>> = {
+  local: 'forward.kind.local',
+  remote: 'forward.kind.remote',
+  dynamic: 'forward.kind.dynamic',
+};
 
 /**
  * A field a submit can find wrong.

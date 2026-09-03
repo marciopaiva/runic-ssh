@@ -1,9 +1,8 @@
 import type { JSX } from 'react';
 
-import { EMPTY_FORWARD, parsePort } from '../features/sessions';
+import { EMPTY_FORWARD, FORWARD_KIND_LABEL, parsePort } from '../features/sessions';
 import type { DraftField, ForwardDraft } from '../features/sessions';
 import { useTranslator } from '../features/settings';
-import type { ParameterlessKey } from '../lib/i18n';
 import type { ForwardKind } from '../ipc';
 
 interface ForwardsFieldsProps {
@@ -15,12 +14,6 @@ interface ForwardsFieldsProps {
 }
 
 const KINDS: readonly ForwardKind[] = ['local', 'remote', 'dynamic'];
-
-const KIND_LABEL: Readonly<Record<ForwardKind, ParameterlessKey>> = {
-  local: 'forward.kind.local',
-  remote: 'forward.kind.remote',
-  dynamic: 'forward.kind.dynamic',
-};
 
 const INPUT =
   'bg-surface-input text-ink rounded border px-2 py-1 outline-none placeholder:text-ink-faint';
@@ -79,7 +72,7 @@ export function ForwardsFields({ value, wrong, onChange }: ForwardsFieldsProps):
                           : 'border-line-subtle text-ink-secondary hover:bg-surface-raised/60'
                       }`}
                     >
-                      {i18n.t(KIND_LABEL[kind])}
+                      {i18n.t(FORWARD_KIND_LABEL[kind])}
                     </button>
                   );
                 })}

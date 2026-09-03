@@ -18,6 +18,13 @@ export {
 } from './chrome';
 export type { CommandModifier, WindowChrome, WindowControlsOwner } from './chrome';
 export type { Hop, IpcError, IpcErrorCode } from './errors';
+export {
+  startDynamicForward,
+  startLocalForward,
+  startRemoteForward,
+  stopForward,
+} from './forward';
+export type { ForwardHandle } from './forward';
 export { getSettings, setLocale, setTheme } from './settings';
 export {
   authenticateSession,

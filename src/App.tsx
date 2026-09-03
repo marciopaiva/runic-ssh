@@ -98,6 +98,7 @@ import {
   saveSession,
   sendInput,
   sessionCredentialKept,
+  stopForward,
   submitCredential,
 } from './ipc';
 import type { Keep, Secret, Session, SessionDraft, SuggestedMethod } from './ipc';
@@ -106,8 +107,15 @@ import { visibleDestinationRows } from './features/sftp/browser';
 import { endpointKey } from './features/sftp/endpoint';
 import type { DraggedEndpoint, Endpoint, PaneEntry } from './features/sftp/endpoint';
 import { destinationPaneId, MAX_DESTINATIONS, SOURCE_PANE_ID, useFanout } from './features/sftp/use-fanout';
-import { announceBroadcast, useSessionStats } from './features/status';
-import type { Announcement } from './features/status';
+import {
+  announceBroadcast,
+  resolveForward,
+  runningForwardHandles,
+  startForward,
+  startingForwards,
+  useSessionStats,
+} from './features/status';
+import type { Announcement, ForwardStatus } from './features/status';
 import {
   WHOLE_AREA,
   activeEntry,
@@ -425,12 +433,51 @@ export function App(): JSX.Element {
      Cleared on an abandon rather than left stale, so cancelling a retry
      never shows the *previous* attempt's result on this one. */
   const [testOutcome, setTestOutcome] = useState<ReadonlyMap<string, 'saved' | 'failed'>>(new Map());
+  /* Every saved forward's own runtime state (ADR-0054), keyed by session id,
+     from the moment its session connects until it disconnects. `disconnect`
+     is what removes an entry, not a forward failing: a forward that failed
+     to start stays visible, marking that session as one to look at, until
+     the session itself goes away. */
+  const [forwardStatuses, setForwardStatuses] = useState<ReadonlyMap<string, readonly ForwardStatus[]>>(
+    new Map(),
+  );
 
   const { attempt, connect, trust, abandon, submitInlineCredential } = useConnect({
     onConnecting: (sessionId) => setState(sessionId, 'connecting'),
     onOpened: (sessionId, handle, via) => {
       attach(sessionId, handle);
       setState(sessionId, 'connected');
+      /* ADR-0054: every saved forward starts here, the same instant the
+         session itself does, with no separate "arm this forward" gesture.
+         Through the ref for the same reason `carriedOn` below reads one:
+         a connect runs for as long as the network takes, and the list this
+         closure captured may be several reloads old by now. */
+      const forwards = savedRef.current.find((one) => one.id === sessionId)?.forwards ?? [];
+      if (forwards.length > 0) {
+        setForwardStatuses((current) => new Map(current).set(sessionId, startingForwards(forwards)));
+        forwards.forEach((forward, index) => {
+          void startForward(handle, forward).then(
+            (forwardHandle) => {
+              setForwardStatuses((current) => {
+                const statuses = current.get(sessionId);
+                if (statuses === undefined) return current;
+                return new Map(current).set(
+                  sessionId,
+                  resolveForward(statuses, index, { kind: 'running', handle: forwardHandle }),
+                );
+              });
+            },
+            (rejection: unknown) => {
+              const error = asIpcError(rejection) ?? { code: 'sshTransport' as const };
+              setForwardStatuses((current) => {
+                const statuses = current.get(sessionId);
+                if (statuses === undefined) return current;
+                return new Map(current).set(sessionId, resolveForward(statuses, index, { kind: 'failed', error }));
+              });
+            },
+          );
+        });
+      }
       /* ADR-0045: a connection `assignSftpEndpoint` started lands in the
          pane it was asked for instead of a focused shell, the one place
          this shared success handler has to ask who wanted this connection
@@ -757,12 +804,29 @@ export function App(): JSX.Element {
         );
       if (stillUsedBySftp) return;
 
+      /* Stopped before the connection itself is: a running local or dynamic
+         forward's own accept loop holds a share of the connection for as
+         long as it runs (ADR-0024's same reasoning for a bastion), so
+         leaving one running here would hold the connection open past the
+         disconnect that was just asked for. A remote forward has no such
+         share to release, but is stopped the same way regardless, since
+         `disconnect` is the one place every kind's own teardown belongs. */
+      for (const handle of runningForwardHandles(forwardStatuses.get(sessionId) ?? [])) {
+        void stopForward(handle);
+      }
+      setForwardStatuses((current) => {
+        if (!current.has(sessionId)) return current;
+        const next = new Map(current);
+        next.delete(sessionId);
+        return next;
+      });
+
       void disconnectSession(live.handle).finally(() => {
         attach(sessionId, null);
         setState(sessionId, 'saved');
       });
     },
-    [sessions, attach, setState, unwantTerminal, fanout],
+    [sessions, attach, setState, unwantTerminal, fanout, forwardStatuses],
   );
 
   /* Taking a tab off the strip also takes it out of the group that held it.
@@ -2347,6 +2411,7 @@ export function App(): JSX.Element {
         via={activeCarrier}
         announcement={announcement}
         credentialUnsaved={activeId !== null ? (unsaved.get(activeId) ?? null) : null}
+        forwards={activeId !== null ? (forwardStatuses.get(activeId) ?? []) : []}
         buildVersion={workspace === 'home' ? version : null}
         onDismissUnsaved={() =>
           setUnsaved((current) => {
