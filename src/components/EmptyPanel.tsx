@@ -15,6 +15,14 @@ interface EmptyPanelProps {
    * tabs are already there, and picking one fills the empty rectangle first.
    */
   readonly variant?: 'panel' | 'group';
+  /**
+   * Overrides Sessions' own copy, for a caller with a different "nothing is
+   * open" of its own. Home's empty host list is the first of these: its hint
+   * ("pick a host on the left") has nothing to do with `modifier`'s shortcut,
+   * so a caller that gives one gives the other.
+   */
+  readonly title?: string;
+  readonly body?: string;
 }
 
 /**
@@ -24,7 +32,7 @@ interface EmptyPanelProps {
  * failed to paint, which is the first thing a new user meets. This says which
  * of the two it is, and names the two ways forward.
  */
-export function EmptyPanel({ modifier, variant = 'panel' }: EmptyPanelProps): JSX.Element {
+export function EmptyPanel({ modifier, variant = 'panel', title, body }: EmptyPanelProps): JSX.Element {
   const i18n = useTranslator();
   /* The same helper the status bar uses, so the shortcut is never spelled two
      ways in one window — and so a Mac reads ⌘ in both places. */
@@ -61,10 +69,10 @@ export function EmptyPanel({ modifier, variant = 'panel' }: EmptyPanelProps): JS
 
       <div className="flex flex-col items-center gap-[7px]">
         <span className="text-ink-secondary text-[14px] font-semibold">
-          {i18n.t(variant === 'group' ? 'empty.group.title' : 'empty.title')}
+          {title ?? i18n.t(variant === 'group' ? 'empty.group.title' : 'empty.title')}
         </span>
         <span className="text-ink-faint text-[12.5px]">
-          {variant === 'group' ? i18n.t('empty.group.hint') : i18n.t('empty.hint', { keys })}
+          {body ?? (variant === 'group' ? i18n.t('empty.group.hint') : i18n.t('empty.hint', { keys }))}
         </span>
       </div>
     </div>

@@ -1762,7 +1762,7 @@ export function App(): JSX.Element {
           openCount={tabs.length}
           sftpCount={(fanout.source === null ? 0 : 1) + fanout.destinations.filter((d) => d !== null).length}
           onChoose={(next) => {
-            if (next === workspace && (next === 'sessions' || next === 'sftp')) {
+            if (next === workspace) {
               setSidebarOpen((open) => !open);
               return;
             }
@@ -2337,6 +2337,8 @@ export function App(): JSX.Element {
                   sessions={sessions}
                   selectedId={editingId}
                   creatingNew={target?.kind === 'new'}
+                  sidebarOpen={sidebarOpen}
+                  modifier={chrome?.commandModifier ?? 'control'}
                   onSelect={(sessionId) => openEditor({ kind: 'existing', sessionId })}
                   onNew={() => openEditor({ kind: 'new' })}
                   detail={
