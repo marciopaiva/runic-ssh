@@ -50,6 +50,17 @@ import type { ConnectIntent, ConnectStage, FailureCode, ReportedFailure } from '
     has hung. */
 const INLINE_LISTENER_TIMEOUT_MS = 20_000;
 
+/**
+ * A secret the wizard's own Access section already collected, ADR-0057.
+ * Carried as a plain value through `connect`/`attemptConnect`/`authenticate`,
+ * never `useState` and never a component prop: the same discipline
+ * `InlineCredentialForm.tsx` already keeps for the bastion's own case.
+ */
+interface PreCollectedCredential {
+  readonly secret: Secret;
+  readonly keep: Keep;
+}
+
 interface Attempt {
   readonly sessionId: string;
   readonly stage: ConnectStage;
@@ -71,6 +82,16 @@ interface Attempt {
    * rather than left for this type to accept both shapes.
    */
   readonly method: SuggestedMethod | null;
+  /**
+   * A secret the wizard's own Access section already collected, ADR-0057.
+   * Carried on the attempt for the same reason `method` is: a host key
+   * accepted mid-attempt rebuilds the connection through `trust`, and the
+   * credential typed before Save has to survive that rebuild rather than
+   * being asked for twice. `null` for `'open'`, and for `'inline'` when a
+   * stored or kept credential already covers this host and there was
+   * nothing to read from the form.
+   */
+  readonly credential: PreCollectedCredential | null;
 }
 
 interface ConnectState {
@@ -79,16 +100,11 @@ interface ConnectState {
     sessionId: string,
     intent?: ConnectIntent,
     method?: SuggestedMethod,
+    credential?: PreCollectedCredential | null,
   ) => Promise<void>;
   /** Accepts the held host key and connects again. */
   readonly trust: (confirmation?: string) => Promise<void>;
   readonly abandon: () => void;
-  /**
-   * Answers an `'awaitingInline'` attempt with a secret the wizard collected
-   * itself. ADR-0032. A no-op outside that stage, the same guard `trust`
-   * already keeps against `'deciding'`.
-   */
-  readonly submitInlineCredential: (secret: Secret, keep: Keep) => Promise<void>;
 }
 
 interface Wiring {
@@ -196,6 +212,7 @@ export function useConnect(wiring: Wiring): ConnectState {
         intent,
         decision: null,
         method: method ?? null,
+        credential: null,
       });
       /* The state machine sees the inner code, so a bastion that cannot be
          reached still marks the session unreachable. It is: the host cannot be
@@ -212,24 +229,11 @@ export function useConnect(wiring: Wiring): ConnectState {
       mine: number,
       intent: ConnectIntent,
       method?: SuggestedMethod,
+      credential?: PreCollectedCredential | null,
     ): Promise<void> => {
       const { handle } = opened;
       if (!current(mine)) {
         void disconnectSession(handle);
-        return;
-      }
-
-      /* ADR-0032. The wizard's own proof phase collects the secret itself:
-         `submitInlineCredential` picks up from here once its form is
-         answered. */
-      if (intent === 'inline') {
-        setAttempt({
-          sessionId,
-          stage: { stage: 'awaitingInline', handle },
-          intent,
-          decision: null,
-          method: method ?? null,
-        });
         return;
       }
 
@@ -239,10 +243,61 @@ export function useConnect(wiring: Wiring): ConnectState {
         intent,
         decision: null,
         method: method ?? null,
+        credential: credential ?? null,
       });
 
-      /* A saved credential is tried first and silently. Only `'open'` ever
-         reaches this call: `'inline'` returned above. */
+      /* ADR-0057. A secret the wizard's own Access section already
+         collected authenticates directly, the same command the retired
+         `submitInlineCredential` used to call from a second screen. The
+         connection this attempt opened is closed either way once the
+         answer is known: a test is what this is, never a session left open
+         for a terminal nobody asked to see. ADR-0034. */
+      if (intent === 'inline' && credential) {
+        try {
+          await authenticateSession(handle, credential.secret);
+        } catch (rejection) {
+          if (!current(mine)) return;
+          void disconnectSession(handle);
+          fail(sessionId, reportedFailure(asIpcError(rejection) ?? null), mine, intent, method);
+          return;
+        }
+
+        if (!current(mine)) {
+          void disconnectSession(handle);
+          return;
+        }
+
+        /* Encoded as `Keeping` (ADR-0008's own three endings), the shape
+           `CredentialSaved` already knows how to render. */
+        let keeping: Keeping = 'notAsked';
+        if (credential.keep !== 'never') {
+          try {
+            if (credential.keep === 'forThisRun') await keepCredentialForRun(sessionId, credential.secret);
+            else await rememberCredential(sessionId, credential.secret);
+            keeping = 'kept';
+          } catch {
+            keeping = 'refused';
+          }
+        }
+
+        void disconnectSession(handle);
+        setAttempt({
+          sessionId,
+          stage: { stage: 'settled', keeping },
+          intent,
+          decision: null,
+          method: method ?? null,
+          credential: null,
+        });
+        onCredentialSettled(sessionId);
+        return;
+      }
+
+      /* A saved credential is tried first and silently. Reached by `'open'`
+         always, and by `'inline'` exactly when a stored or kept credential
+         already covers this host, ADR-0036's own `skipTest` case: there was
+         nothing to read off the Access section, since it never rendered a
+         field for this host to begin with. */
       try {
         await authenticateWithSaved(handle);
         if (!current(mine)) {
@@ -262,8 +317,12 @@ export function useConnect(wiring: Wiring): ConnectState {
         if (!current(mine)) return;
 
         /* ADR-0039: nothing usable was saved, and there is nowhere left in
-           Sessions to collect one. The wizard on this host's own entry is. */
-        if (shouldPromptAfterSaved(reported.code)) {
+           Sessions to collect one. The wizard on this host's own entry is.
+           Only `'open'` redirects there: `'inline'` is already on that
+           entry, mid-test, and a stale stored credential (host changed
+           since it was saved) is reported as an ordinary failure instead,
+           landing back on the same form to retype. */
+        if (intent === 'open' && shouldPromptAfterSaved(reported.code)) {
           onCredentialMissing(sessionId, 'target');
           return;
         }
@@ -271,7 +330,7 @@ export function useConnect(wiring: Wiring): ConnectState {
         fail(sessionId, reported, mine, intent, method);
       }
     },
-    [fail, onOpened, onCredentialRefused, onCredentialMissing, current],
+    [fail, onOpened, onCredentialRefused, onCredentialSettled, onCredentialMissing, current],
   );
 
   const attemptConnect = useCallback(
@@ -285,6 +344,7 @@ export function useConnect(wiring: Wiring): ConnectState {
       intent: ConnectIntent,
       continuing?: number,
       method?: SuggestedMethod,
+      credential?: PreCollectedCredential | null,
     ): Promise<void> => {
       generation.current += 1;
       const mine = generation.current;
@@ -295,6 +355,7 @@ export function useConnect(wiring: Wiring): ConnectState {
         intent,
         decision: null,
         method: method ?? null,
+        credential: credential ?? null,
       });
       onConnecting(sessionId);
 
@@ -316,6 +377,7 @@ export function useConnect(wiring: Wiring): ConnectState {
               intent,
               decision: null,
               method: method ?? null,
+              credential: credential ?? null,
             });
           });
         });
@@ -387,6 +449,7 @@ export function useConnect(wiring: Wiring): ConnectState {
             intent,
             decision,
             method: method ?? null,
+            credential: credential ?? null,
           });
         } catch {
           fail(sessionId, { code: 'unknownDecision', hop: null }, mine, intent, method);
@@ -396,7 +459,7 @@ export function useConnect(wiring: Wiring): ConnectState {
         unlisten?.();
       }
 
-      await authenticate(sessionId, opened, mine, intent, method);
+      await authenticate(sessionId, opened, mine, intent, method, credential);
     },
     [authenticate, fail, onConnecting, onCredentialMissing, current],
   );
@@ -406,8 +469,9 @@ export function useConnect(wiring: Wiring): ConnectState {
       sessionId: string,
       intent: ConnectIntent = 'open',
       method?: SuggestedMethod,
+      credential?: PreCollectedCredential | null,
     ): Promise<void> => {
-      await attemptConnect(sessionId, intent, undefined, method);
+      await attemptConnect(sessionId, intent, undefined, method, credential);
     },
     [attemptConnect],
   );
@@ -415,7 +479,7 @@ export function useConnect(wiring: Wiring): ConnectState {
   const trust = useCallback(
     async (confirmation?: string): Promise<void> => {
       if (attempt === null || attempt.stage.stage !== 'deciding') return;
-      const { sessionId, intent, method } = attempt;
+      const { sessionId, intent, method, credential } = attempt;
       /* `Attempt.method` is `| null`, normalised on the way in; the calls
          below take a parameter that is optional instead, the ordinary shape
          for something most callers never pass. */
@@ -441,7 +505,7 @@ export function useConnect(wiring: Wiring): ConnectState {
          does not ask again for a hop already answered, and the method comes
          with it so a changed key does not lose the kind of credential the
          editor already suggested. */
-      await attemptConnect(sessionId, intent, pending, suggested);
+      await attemptConnect(sessionId, intent, pending, suggested, credential);
     },
     [attempt, attemptConnect, fail],
   );
@@ -461,20 +525,11 @@ export function useConnect(wiring: Wiring): ConnectState {
       void dismissHostKey(attempt.stage.decision.pending).catch(() => undefined);
     }
 
-    /* ADR-0032. There is no window to answer for `'awaitingInline'`. The
-       connection itself is what has to be let go, open and unauthenticated,
-       or it holds a slot against the server's `MaxSessions` with nothing on
-       screen able to reach it again. */
-    if (attempt !== null && attempt.stage.stage === 'awaitingInline') {
-      void disconnectSession(attempt.stage.handle).catch(() => undefined);
-    }
-
-    /* ADR-0033. No window either, for the same reason `awaitingInline` has
-       none. There is no connection to let go by hand here, though: the bastion
-       connection is held inside the still-running `connect_session` call,
-       and dismissing its request is what lets that call unwind on its own,
-       closing everything it opened exactly as a dismissed window already
-       does today. */
+    /* ADR-0033. There is no window to answer for a bastion mid-chain either.
+       The connection is held inside the still-running `connect_session`
+       call, and dismissing its request is what lets that call unwind on its
+       own, closing everything it opened exactly as a dismissed window
+       already does today. */
     if (attempt !== null && attempt.stage.stage === 'awaitingBastionCredential') {
       void dismissCredential(attempt.stage.request).catch(() => undefined);
     }
@@ -486,63 +541,5 @@ export function useConnect(wiring: Wiring): ConnectState {
     }
   }, [attempt, onAbandoned]);
 
-  /**
-   * Answers an `'awaitingInline'` attempt. ADR-0032.
-   *
-   * Authenticates directly against the connection `attemptConnect` already
-   * opened and verified the host key for, through `authenticateSession`
-   * rather than the credential window's protocol: there is no window here
-   * to protocol with. The connection closes either way, because a test is
-   * what this is, never a session left open for a terminal nobody asked to
-   * see. The same ending the retired `'credential'` intent used to reach
-   * through the window instead. ADR-0034.
-   */
-  const submitInlineCredential = useCallback(
-    async (secret: Secret, keep: Keep): Promise<void> => {
-      if (attempt === null || attempt.stage.stage !== 'awaitingInline') return;
-      const { sessionId, intent, method } = attempt;
-      const { handle } = attempt.stage;
-      const mine = generation.current;
-
-      try {
-        await authenticateSession(handle, secret);
-      } catch (rejection) {
-        if (!current(mine)) return;
-        void disconnectSession(handle);
-        fail(sessionId, reportedFailure(asIpcError(rejection) ?? null), mine, intent, method ?? undefined);
-        return;
-      }
-
-      if (!current(mine)) {
-        void disconnectSession(handle);
-        return;
-      }
-
-      /* Encoded as `Keeping` (ADR-0008's own three endings), the shape
-         `CredentialSaved` already knows how to render. */
-      let keeping: Keeping = 'notAsked';
-      if (keep !== 'never') {
-        try {
-          if (keep === 'forThisRun') await keepCredentialForRun(sessionId, secret);
-          else await rememberCredential(sessionId, secret);
-          keeping = 'kept';
-        } catch {
-          keeping = 'refused';
-        }
-      }
-
-      void disconnectSession(handle);
-      setAttempt({
-        sessionId,
-        stage: { stage: 'settled', keeping },
-        intent,
-        decision: null,
-        method,
-      });
-      onCredentialSettled(sessionId);
-    },
-    [attempt, fail, onCredentialSettled, current],
-  );
-
-  return { attempt, connect, trust, abandon, submitInlineCredential };
+  return { attempt, connect, trust, abandon };
 }

@@ -178,7 +178,6 @@
   "rail.sftp.show": "Mostrar a lista do SFTP",
   "session.editor.cancel": "Cancelar",
   "session.editor.credential.forget": "Esquecer",
-  "session.editor.credential.none": "Nada salvo ainda. Será pedida assim que isto conectar.",
   "session.editor.credential.stored": "Existe uma credencial guardada para este host no chaveiro do sistema. Ela nunca é mostrada neste formulário e nunca é enviada para esta janela.",
   "session.editor.delete": "Excluir",
   "session.editor.delete.confirm.cancel": "Cancelar",
@@ -396,8 +395,6 @@
   "wizard.finish": "Concluir",
   "wizard.phase.bastion": "Bastion",
   "wizard.phase.proving": "Testando",
-  "wizard.phase.signIn": "Entrar",
   "wizard.result.failed": "Salvo, mas a conexão falhou.",
-  "wizard.result.saved": "Salvo.",
-  "wizard.test.now": "Testar agora"
+  "wizard.result.saved": "Salvo."
 }

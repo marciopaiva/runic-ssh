@@ -319,8 +319,8 @@ describe('reaching a host through another one', () => {
 describe('what became of a credential the user asked to keep', () => {
   /* ADR-0039 retired `authenticate_interactively`, the one place `Keeping`
      was ever constructed on the Rust side; the wizard's own inline test
-     computes it client-side now (`submitInlineCredential`), so there is no
-     Rust literal left to check it against. What is left, `status.
+     computes it client-side now, in `use-connect.ts`'s own `authenticate`,
+     so there is no Rust literal left to check it against. What is left, `status.
      credentialUnsaved`, is a different case entirely: a keep the user asked
      for and the store refused, at a hop with no tab of its own. */
 

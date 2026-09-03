@@ -148,10 +148,6 @@ export const SECURITY_COPY_KEYS: readonly MessageKey[] = [
   // The editor's password block, added in the v0.2.1 sweep.
   'session.editor.credential.forget',
   'session.editor.credential.stored',
-  /* Added 2026-09-03, not yet in any locale's reviewed scope below: says
-     when a credential is asked for, not what happens to one, the same
-     shape `session.editor.missingCredential` already has. */
-  'session.editor.credential.none',
   /* ADR-0039, added 2026-08-30, not yet in any locale's reviewed scope
      below: says a credential is why this editor opened, not what happens
      to one. */

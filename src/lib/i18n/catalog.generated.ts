@@ -184,7 +184,6 @@ export const SOURCE_CATALOG = {
   "rail.sftp.show": "Show the SFTP list",
   "session.editor.cancel": "Cancel",
   "session.editor.credential.forget": "Forget it",
-  "session.editor.credential.none": "Nothing is saved yet. You are asked for it once this connects.",
   "session.editor.credential.stored": "One is stored for this host in the system keychain. It is never shown on this form and never sent to this window.",
   "session.editor.delete": "Delete",
   "session.editor.delete.confirm.cancel": "Cancel",
@@ -402,8 +401,6 @@ export const SOURCE_CATALOG = {
   "wizard.finish": "Finish",
   "wizard.phase.bastion": "Bastion",
   "wizard.phase.proving": "Proving",
-  "wizard.phase.signIn": "Sign in",
   "wizard.result.failed": "Saved, but the connection failed.",
   "wizard.result.saved": "Saved.",
-  "wizard.test.now": "Test now",
 } as const;

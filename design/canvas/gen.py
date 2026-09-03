@@ -2149,13 +2149,17 @@ def build_home_hosts():
     write("HomeHosts.dc.html", HEAD + page_html + FOOT)
 
 
-def host_detail_panel(banner_html=""):
+def host_detail_panel(banner_html="", access_html=None):
     """The populated form `HomeHosts.dc.html` and `HomeCollapsed.dc.html`
     both show, factored out once a second artboard needed the identical
     General/Topology/Access/Forwarding panel at a different width.
     `banner_html` is `HomeDeleteConfirm.dc.html`'s own hook: the delete
     question renders inside this same scrollable panel, above the form,
-    the same place `SessionWizard.tsx` already puts the discard one."""
+    the same place `SessionWizard.tsx` already puts the discard one.
+    `access_html` is `HomeHostsCredential.dc.html`'s own hook (ADR-0057):
+    the default below still shows a host with something already stored,
+    since that stays worth keeping as the richer reference; the field
+    itself is the other Access this same panel can show."""
     general = bordered_section("General", f"""
       <div>{wizard_label('Host')}{wizard_field('target.internal')}</div>
       <div style="display: flex; gap: 12px; margin-top: 14px;">
@@ -2167,7 +2171,7 @@ def host_detail_panel(banner_html=""):
     topology = bordered_section("Topology", f"""
       <div>{wizard_label('Kind')}{kind_picker('target')}</div>
       <div style="margin-top: 14px;">{wizard_label('Reached through')}{wizard_field('runic-bastion', mono=False, chev=True)}</div>""")
-    access = bordered_section("Access", f"""
+    access = bordered_section("Access", access_html if access_html is not None else f"""
       <div role="radiogroup" style="display: flex; gap: 3px; background: {T['input']}; border: 1px solid {T['line']}; border-radius: 8px; padding: 3px;">
         <span style="flex: 1; text-align: center; font-size: 11.5px; font-weight: 600; color: {T['ink']}; background: {T['raised']}; border-radius: 6px; padding: 6px 0;">Password</span>
         <span style="flex: 1; text-align: center; font-size: 11.5px; color: {T['muted']}; padding: 6px 0;">Private key</span>
@@ -2308,6 +2312,46 @@ def build_home_delete_confirm():
 </div>
 """
     write("HomeDeleteConfirm.dc.html", HEAD + page_html + FOOT)
+
+
+def build_home_hosts_credential():
+    """ADR-0057: the field itself, not just tabs and a hint (#327's own
+    stopgap), for a host with nothing stored yet. The same uncontrolled
+    field `InlineCredentialForm.tsx` used to render only after Save, now
+    part of Access from the start; read once, on Save, and never sent
+    until the host key that same click resolves is confirmed. The bastion
+    mid-chain case (ADR-0033) is untouched and draws nothing here."""
+    rows = "\n".join([
+        host_row("runic-target-a", "target.internal", active=True, kind="target"),
+        host_row("runic-bastion", "127.0.0.1", kind="jumpServer"),
+        host_row("dev-web", "10.0.1.5", kind="direct"),
+    ])
+    access = f"""
+      <div role="radiogroup" style="display: flex; gap: 3px; background: {T['input']}; border: 1px solid {T['line']}; border-radius: 8px; padding: 3px;">
+        <span style="flex: 1; text-align: center; font-size: 11.5px; font-weight: 600; color: {T['ink']}; background: {T['raised']}; border-radius: 6px; padding: 6px 0;">Password</span>
+        <span style="flex: 1; text-align: center; font-size: 11.5px; color: {T['muted']}; padding: 6px 0;">Private key</span>
+      </div>
+      <div style="margin-top: 14px;">
+        {wizard_label('Password')}
+        <div style="height: 32px; background: {T['input']}; border: 1px solid {T['line2']}; border-radius: 6px; display: flex; align-items: center; padding: 0 10px;">
+          <span style="font-size: 14px; letter-spacing: 2px; color: {T['ink']};">&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;</span>
+        </div>
+      </div>
+      {wizard_hint('In the system keychain, until I remove it.')}"""
+    body = hosts_shell(rows, host_detail_panel(access_html=access), show_filter=True)
+    st = status(stat_text("runic-target-a", T['muted'], mono=False), stat_text("11 hosts", T['faint']))
+    page_html = f"""
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{plain_titlebar()}
+{toolbar_row(right_html=theme_language_toolbar_controls())}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{home_rail(workspace="home")}
+{body}
+  </div>
+{st}
+</div>
+"""
+    write("HomeHostsCredential.dc.html", HEAD + page_html + FOOT)
 
 
 def theme_language_toolbar_controls():
@@ -2843,6 +2887,7 @@ else:
                build_sessions_proposal, build_sessions_proposal_broadcast,
                build_sessions_proposal_broadcast_multi,
                build_home_hosts, build_home_hosts_empty, build_home_collapsed, build_home_delete_confirm,
+               build_home_hosts_credential,
                build_anatomy, build_tokens,
                build_hostkeychanged, build_failure, build_paste, build_palette):
         fn()

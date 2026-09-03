@@ -8,30 +8,20 @@ import type { Keep, Secret, SuggestedMethod } from '../ipc';
 import { MethodPicker } from './MethodPicker';
 
 interface InlineCredentialFormProps {
-  /**
-   * Fixed, or `null` meaning the form offers the choice itself.
-   *
-   * Fixed for the target's own credential, chosen on the wizard's own Access
-   * step: ADR-0032 exists so it is asked once, not asked again. `null` for
-   * a bastion's, ADR-0033: Access answered a question about the target, and
-   * a different host nothing has asked about yet gets the same choice the
-   * separate window always gave it, defaulting to password.
-   */
-  readonly method: SuggestedMethod | null;
   readonly onSubmit: (secret: Secret, keep: Keep) => void;
   readonly onCancel: () => void;
   /**
-   * The session this credential is actually on the way to, when it is not
-   * the one this form otherwise belongs to. ADR-0033: the same fact the
-   * separate window's own banner already states for a bastion prompt,
-   * reused rather than rewritten here.
+   * The session this credential is actually on the way to. ADR-0033: the
+   * same fact the separate window's own banner already stated for a bastion
+   * prompt, reused rather than rewritten here.
    */
-  readonly carrying?: string | null;
+  readonly carrying: string | null;
 }
 
 /**
- * The wizard's own credential field, once Access has led into the proof
- * phase. ADR-0032, and ADR-0033 for the `carrying` case.
+ * A bastion's own credential field, mid-chain, ADR-0033: the only caller
+ * left, since ADR-0057 moved the target's own field into the wizard's
+ * Access section directly, read at Save rather than asked for here.
  *
  * Everything ADR-0008 asked of the credential window it replaced (ADR-0039)
  * still applies. Nothing typed is ever held in React state: the field
@@ -42,10 +32,9 @@ interface InlineCredentialFormProps {
  * why that gap was accepted for this one caller and not for any other.
  */
 export function InlineCredentialForm({
-  method: fixedMethod,
   onSubmit,
   onCancel,
-  carrying = null,
+  carrying,
 }: InlineCredentialFormProps): JSX.Element {
   const i18n = useTranslator();
   const form = useRef<HTMLFormElement>(null);
@@ -53,11 +42,10 @@ export function InlineCredentialForm({
   const takeFirst = (node: HTMLElement | null): void => {
     first.current = node;
   };
-  /* Only reachable while `fixedMethod` is `null`. Nothing else ever reads
-   * or writes it, so a bastion's own choice cannot leak into the target's
-   * fixed one on a later render of this same component. */
-  const [chosenMethod, setChosenMethod] = useState<SuggestedMethod>('password');
-  const method = fixedMethod ?? chosenMethod;
+  /* Access answered a question about the target; the bastion is a
+     different host nothing has asked about yet, so this form still offers
+     the choice itself, defaulting to password. */
+  const [method, setMethod] = useState<SuggestedMethod>('password');
   /* `undefined` while the probe is in flight. `submit` below and the status
    * line both wait on a real answer rather than assuming a keychain exists,
    * the same caution `credential.method` in the separate window carries for
@@ -119,7 +107,7 @@ export function InlineCredentialForm({
         </p>
       )}
 
-      {fixedMethod === null && <MethodPicker value={method} onChange={setChosenMethod} />}
+      <MethodPicker value={method} onChange={setMethod} />
 
       {method === 'password' ? (
         <label className="flex flex-col gap-1.5">
