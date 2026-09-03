@@ -40,7 +40,7 @@ ADR-0020 exists to stop.
 | Page | What is on it |
 | --- | --- |
 | `System` | The anatomy and its seven rules, and the token, type, density and marker sheet |
-| `Surfaces` | Nineteen screens |
+| `Surfaces` | Twenty-one screens |
 | `Variants` | Light, and the same window in pt-BR and neutral es |
 
 ## Files
@@ -61,6 +61,8 @@ ADR-0020 exists to stop.
 | `PasteConfirm.dc.html` | A paste going to three hosts at once |
 | `Palette.dc.html` | The command palette |
 | `HomeHosts.dc.html` | Home, the host book: General, Topology, Access and Forwarding on one screen (ADR-0052, ADR-0056, ADR-0054) |
+| `HomeHostsEmpty.dc.html` | Home, nothing picked yet, with the same brand mark Sessions' own empty state carries |
+| `HomeCollapsed.dc.html` | Home, its own host list hidden, the rail's Home icon toggling it the same way Sessions' and SFTP's already do |
 | `TerminalMotd.dc.html` | The brand banner, printed into the terminal on connect (ADR-0051) |
 | `SftpWorkspace.dc.html` | SFTP's own workspace, nothing picked yet (ADR-0044) |
 | `SftpFanout.dc.html` | One source, a grid of up to four destinations (ADR-0045) |

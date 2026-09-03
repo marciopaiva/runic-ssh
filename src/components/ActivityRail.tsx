@@ -149,7 +149,15 @@ export function ActivityRail({
         on={workspace === 'home'}
         tone={armed ? 'warn' : 'accent'}
         locked={armed}
-        label={i18n.t(armed ? 'rail.home.locked' : 'rail.home')}
+        label={i18n.t(
+          armed
+            ? 'rail.home.locked'
+            : workspace === 'home'
+              ? sidebarOpen
+                ? 'rail.home.hide'
+                : 'rail.home.show'
+              : 'rail.home',
+        )}
         onClick={() => onChoose('home')}
       >
         <svg

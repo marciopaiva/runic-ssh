@@ -2133,7 +2133,26 @@ def build_home_hosts():
         host_row("runic-bastion", "127.0.0.1", kind="jumpServer"),
         host_row("dev-web", "10.0.1.5", kind="direct"),
     ])
+    body = hosts_shell(rows, host_detail_panel(), show_filter=True)
+    st = status(stat_text("runic-target-a", T['muted'], mono=False), stat_text("11 hosts", T['faint']))
+    page_html = f"""
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{plain_titlebar()}
+{toolbar_row(right_html=theme_language_toolbar_controls())}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{home_rail(workspace="home")}
+{body}
+  </div>
+{st}
+</div>
+"""
+    write("HomeHosts.dc.html", HEAD + page_html + FOOT)
 
+
+def host_detail_panel():
+    """The populated form `HomeHosts.dc.html` and `HomeCollapsed.dc.html`
+    both show, factored out once a second artboard needed the identical
+    General/Topology/Access/Forwarding panel at a different width."""
     general = bordered_section("General", f"""
       <div>{wizard_label('Host')}{wizard_field('target.internal')}</div>
       <div style="display: flex; gap: 12px; margin-top: 14px;">
@@ -2177,8 +2196,45 @@ def build_home_hosts():
         </div>
         <div style="margin-top: 26px;">{wizard_actions(('Delete', False), ('Cancel', False), ('Save', True))}</div>
       </div>"""
-    body = hosts_shell(rows, panel, show_filter=True)
-    st = status(stat_text("runic-target-a", T['muted'], mono=False), stat_text("11 hosts", T['faint']))
+    return panel
+
+
+def empty_host_panel(title, hint):
+    """`EmptyPanel.tsx`'s own plain shape (`variant='panel'`): the mark
+    beside the wordmark, then a title and a hint, centred. Not
+    `Empty.dc.html`'s own richer command-list treatment, which is
+    Sessions' further onboarding on top of the same base; every other
+    caller (Home's own "no host selected" now among them) gets this
+    simpler one."""
+    return f"""      <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 40px; padding: 32px;">
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none">
+            <circle cx="9.5" cy="12" r="7" stroke="{T['bstart']}" stroke-width="1.2"></circle>
+            <circle cx="14.5" cy="12" r="7" stroke="{T['bend']}" stroke-width="1.2"></circle>
+            <path d="M12 6.5v11M12 10l3-2.5M12 14l3 2.5M12 12l-2.6-2.2" stroke="{T['brune']}" stroke-width="1.2" stroke-linecap="round"></path>
+          </svg>
+          <span style="font-size: 27px; font-weight: 800; color: {T['ink']}; letter-spacing: -0.01em;">Runic SSH</span>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 7px;">
+          <span style="font-size: 14px; font-weight: 600; color: {T['ink2']};">{title}</span>
+          <span style="font-size: 12.5px; color: {T['faint']};">{hint}</span>
+        </div>
+      </div>"""
+
+
+def build_home_hosts_empty():
+    """The other half of `HomeHosts.dc.html`'s own screen: nothing picked
+    yet. Reported directly by the maintainer as a real gap, not a new ask:
+    Sessions' equivalent (`Empty.dc.html`) has always carried the brand
+    mark, and Home's own text-only version was the one screen that never
+    got it. `EmptyPanel.tsx` is the shared component behind both now."""
+    rows = "\n".join([
+        host_row("runic-target-a", "target.internal", kind="target"),
+        host_row("runic-bastion", "127.0.0.1", kind="jumpServer"),
+        host_row("dev-web", "10.0.1.5", kind="direct"),
+    ])
+    body = hosts_shell(rows, empty_host_panel("No host selected", "Pick a host on the left to change it, or add one."), show_filter=True)
+    st = status(stat_text("No host selected", T['faint']), stat_text("11 hosts", T['faint']))
     page_html = f"""
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
 {plain_titlebar()}
@@ -2190,7 +2246,29 @@ def build_home_hosts():
 {st}
 </div>
 """
-    write("HomeHosts.dc.html", HEAD + page_html + FOOT)
+    write("HomeHostsEmpty.dc.html", HEAD + page_html + FOOT)
+
+
+def build_home_collapsed():
+    """Home's own sidebar can now hide, the same rail click that already
+    toggled `sidebarOpen` for Sessions and SFTP (`ActivityRail.tsx`)
+    reported directly by the maintainer as missing here. Shows the form
+    still open, not the empty state, the same choice `Collapsed.dc.html`
+    already made for Sessions: a list hidden while something real is on
+    screen is the case worth drawing, not a list hidden over nothing."""
+    st = status(stat_text("runic-target-a", T['muted'], mono=False), stat_text("11 hosts", T['faint']))
+    page_html = f"""
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{plain_titlebar()}
+{toolbar_row(right_html=theme_language_toolbar_controls())}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{home_rail(workspace="home")}
+    <div style="flex: 1; min-height: 0; display: flex;">{host_detail_panel()}</div>
+  </div>
+{st}
+</div>
+"""
+    write("HomeCollapsed.dc.html", HEAD + page_html + FOOT)
 
 
 def theme_language_toolbar_controls():
@@ -2725,7 +2803,7 @@ else:
                build_terminal_motd,
                build_sessions_proposal, build_sessions_proposal_broadcast,
                build_sessions_proposal_broadcast_multi,
-               build_home_hosts,
+               build_home_hosts, build_home_hosts_empty, build_home_collapsed,
                build_anatomy, build_tokens,
                build_hostkeychanged, build_failure, build_paste, build_palette):
         fn()

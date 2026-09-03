@@ -4,7 +4,9 @@ import type { JSX, ReactNode } from 'react';
 import { filterGroups, groupSessions } from '../features/sessions/state';
 import type { LiveSession } from '../features/sessions/state';
 import { useTranslator } from '../features/settings';
+import type { CommandModifier } from '../ipc';
 
+import { EmptyPanel } from './EmptyPanel';
 import { HostKindIcon } from './HostKindIcon';
 
 interface HostsSectionProps {
@@ -13,6 +15,14 @@ interface HostsSectionProps {
   readonly selectedId: string | null;
   /** Whether the open form is the unsaved "new host" draft. */
   readonly creatingNew: boolean;
+  /** Whether the host list is beside the form. The rail's own Home icon
+      toggles this, the same as it already does for Sessions and SFTP
+      (`ActivityRail.tsx`); Home had no way to hide its own list at all
+      until now. */
+  readonly sidebarOpen: boolean;
+  /** For `EmptyPanel`'s own command-palette hint, unused while `title`/
+      `body` are overridden below but part of its uniform signature. */
+  readonly modifier: CommandModifier;
   readonly onSelect: (sessionId: string) => void;
   readonly onNew: () => void;
   /** The form itself, assembled by the caller: its wiring is `App.tsx`'s, not
@@ -40,6 +50,8 @@ export function HostsSection({
   sessions,
   selectedId,
   creatingNew,
+  sidebarOpen,
+  modifier,
   onSelect,
   onNew,
   detail,
@@ -50,6 +62,7 @@ export function HostsSection({
 
   return (
     <div className="flex h-full min-h-0">
+      {sidebarOpen && (
       <nav
         aria-label={i18n.t('home.hosts')}
         className="bg-surface-panel border-line-subtle flex h-full w-[280px] shrink-0 flex-col border-r"
@@ -168,17 +181,15 @@ export function HostsSection({
           </div>
         )}
       </nav>
+      )}
 
       <div className="min-w-0 flex-1 overflow-y-auto">
         {selectedId === null && !creatingNew ? (
-          <div className="flex h-full flex-col items-center justify-center gap-1.5 px-6 text-center">
-            <p className="text-ink-secondary text-[12.5px] font-semibold">
-              {i18n.t('home.hosts.empty.title')}
-            </p>
-            <p className="text-ink-faint text-[11.5px] leading-snug text-pretty">
-              {i18n.t('home.hosts.empty.body')}
-            </p>
-          </div>
+          <EmptyPanel
+            modifier={modifier}
+            title={i18n.t('home.hosts.empty.title')}
+            body={i18n.t('home.hosts.empty.body')}
+          />
         ) : (
           detail
         )}
