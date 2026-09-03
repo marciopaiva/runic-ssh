@@ -1,14 +1,15 @@
 import type { JSX } from 'react';
 
 import { describeFailure } from '../features/sessions';
+import type { FailureCode } from '../features/sessions';
 import { useTranslator } from '../features/settings';
-import type { Hop, IpcErrorCode, Session } from '../ipc';
+import type { Hop, Session } from '../ipc';
 
 import { SessionSurface, SurfaceAction } from './SessionSurface';
 
 interface ConnectionFailureProps {
   readonly session: Session;
-  readonly code: IpcErrorCode;
+  readonly code: FailureCode;
   /**
    * Which host in a chain the failure happened at, or `null` when the session
    * is not behind one.

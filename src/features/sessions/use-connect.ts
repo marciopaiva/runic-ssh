@@ -31,7 +31,6 @@ import {
 import type {
   HostKeyDecisionView,
   Hop,
-  IpcErrorCode,
   Keep,
   Keeping,
   OpenSession,
@@ -41,7 +40,15 @@ import type {
 } from '../../ipc';
 
 import { heldDecision, reportedFailure, shouldPromptAfterSaved } from './connect';
-import type { ConnectIntent, ConnectStage, ReportedFailure } from './connect';
+import type { ConnectIntent, ConnectStage, FailureCode, ReportedFailure } from './connect';
+
+/** How long registering to hear a bastion's own inline credential request
+    (`onInlineCredentialRequest`) may take before an `'inline'` attempt gives
+    up on it. Matches `ssh/connection.rs`'s own `CONNECT_TIMEOUT`: this is
+    local IPC rather than a network call, but the same reasoning applies.
+    Both land far inside the point where a person decides the application
+    has hung. */
+const INLINE_LISTENER_TIMEOUT_MS = 20_000;
 
 interface Attempt {
   readonly sessionId: string;
@@ -96,7 +103,7 @@ interface Wiring {
    */
   readonly onOpened: (sessionId: string, handle: SessionHandle, via: string | null) => void;
   readonly onConnecting: (sessionId: string) => void;
-  readonly onFailed: (sessionId: string, code: IpcErrorCode) => void;
+  readonly onFailed: (sessionId: string, code: FailureCode) => void;
   /**
    * Called when an attempt is let go, answered or not.
    *
@@ -297,22 +304,53 @@ export function useConnect(wiring: Wiring): ConnectState {
          the separate window is not going to open. Registered before the
          call it is listening across, so nothing emitted the instant the
          core starts can be missed. */
-      const unlisten =
-        intent === 'inline'
-          ? await onInlineCredentialRequest((request) => {
-              if (!current(mine)) return;
-              void credentialPrompt(request).then((prompt) => {
-                if (!current(mine)) return;
-                setAttempt({
-                  sessionId,
-                  stage: { stage: 'awaitingBastionCredential', request, prompt },
-                  intent,
-                  decision: null,
-                  method: method ?? null,
-                });
-              });
-            })
-          : undefined;
+      let unlisten;
+      if (intent === 'inline') {
+        const registering = onInlineCredentialRequest((request) => {
+          if (!current(mine)) return;
+          void credentialPrompt(request).then((prompt) => {
+            if (!current(mine)) return;
+            setAttempt({
+              sessionId,
+              stage: { stage: 'awaitingBastionCredential', request, prompt },
+              intent,
+              decision: null,
+              method: method ?? null,
+            });
+          });
+        });
+
+        /* Registering to hear this is a call into the webview's own event
+           system, not into the core, and it can occasionally take far
+           longer than the connect it exists to guard: found live (#240),
+           an attempt sat on "Reaching…" long after the far host had already
+           answered, because this single registration was still pending.
+           This file's own opening promise needs a bound here too, even
+           though nothing here produced a real `IpcError`. A late
+           registration is not wasted: it is still unlistened once it
+           lands, so it does not outlive the attempt that gave up on it. */
+        const timedOut = Symbol('inline listener timed out');
+        const outcome = await Promise.race([
+          registering,
+          new Promise<typeof timedOut>((resolve) => {
+            setTimeout(() => resolve(timedOut), INLINE_LISTENER_TIMEOUT_MS);
+          }),
+        ]);
+
+        if (outcome === timedOut) {
+          void registering.then((fn) => fn());
+          fail(
+            sessionId,
+            { code: 'bastionListenerTimedOut', hop: 'bastion' },
+            mine,
+            intent,
+            method,
+          );
+          return;
+        }
+
+        unlisten = outcome;
+      }
 
       let opened;
       try {

@@ -26,7 +26,7 @@ export {
   shouldPromptAfterSaved,
   wasCancelled,
 } from './connect';
-export type { ConnectStage, HeldDecision, HostKeyVerdict } from './connect';
+export type { ConnectStage, FailureCode, HeldDecision, HostKeyVerdict } from './connect';
 export { useConnect } from './use-connect';
 export {
   EMPTY_DRAFT,
