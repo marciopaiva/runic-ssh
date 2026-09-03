@@ -141,7 +141,6 @@
   "hostKind.jumpServer": "Jump server",
   "hostKind.label": "Tipo",
   "hostKind.target": "Alvo",
-  "kept.done": "Pronto",
   "kept.none.body": "Você escolheu não guardar esta senha. O host aceitou, e vai pedir de novo toda vez que você conectar.",
   "kept.none.title": "Nada foi guardado",
   "kept.refused.body": "O chaveiro do sistema recusou. O host aceitou a senha, então não há nada de errado com ela, e ela vai ser pedida de novo na próxima vez.",
@@ -395,6 +394,5 @@
   "wizard.finish": "Concluir",
   "wizard.phase.bastion": "Bastion",
   "wizard.phase.proving": "Testando",
-  "wizard.result.failed": "Salvo, mas a conexão falhou.",
-  "wizard.result.saved": "Salvo."
+  "wizard.result.failed": "Salvo, mas a conexão falhou."
 }

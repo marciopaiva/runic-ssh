@@ -147,7 +147,6 @@ export const SOURCE_CATALOG = {
   "hostKind.jumpServer": "Jump server",
   "hostKind.label": "Kind",
   "hostKind.target": "Target",
-  "kept.done": "Done",
   "kept.none.body": "You chose not to keep this password. The host accepted it, and asks for it again every time you connect.",
   "kept.none.title": "Nothing was kept",
   "kept.refused.body": "The system keychain refused it. The host accepted the password, so nothing is wrong with it, and you are asked for it again next time.",
@@ -402,5 +401,4 @@ export const SOURCE_CATALOG = {
   "wizard.phase.bastion": "Bastion",
   "wizard.phase.proving": "Proving",
   "wizard.result.failed": "Saved, but the connection failed.",
-  "wizard.result.saved": "Saved.",
 } as const;

@@ -97,13 +97,24 @@ interface SessionWizardProps {
   /** Closes the wizard once an attempt has run at least once. */
   readonly onFinish: () => void;
   /**
+   * Closes the wizard the instant a test succeeds, with nothing on screen
+   * to dismiss first: a save that worked has nothing left to ask about.
+   * Reported strange live ("não precisamos dessa tela ao salvar... e
+   * fechando a tela se tudo estiver ok"): the wizard used to wait on
+   * `CredentialSaved` being dismissed and then on Finish being clicked, two
+   * screens for an ending that needed neither. `abandon` and `finishWizard`
+   * together, called once by the effect that watches `lastOutcome`.
+   */
+  readonly onAutoFinish: () => void;
+  /**
    * What the settled row should say happened, or `null` before anything has.
    *
-   * `CredentialSaved`/`ConnectionFailure` already state this once, inside
-   * `testSurface`; this is what is left once either is dismissed and the
-   * generic Back/Test again/Finish row is all that remains on screen. `App.tsx`
-   * owns it because it is the one place both endings, and the ADR-0036 path
-   * that skips testing altogether, are already visible.
+   * `ConnectionFailure` already states a failure once, inside `testSurface`;
+   * this is what is left once it is dismissed and the generic Back/Finish
+   * row is all that remains on screen. A success never reaches that row:
+   * `onAutoFinish` above closes the wizard before it would render. `App.tsx`
+   * owns this because it is the one place both endings, and the ADR-0036
+   * path that skips testing altogether, are already visible.
    */
   readonly lastOutcome: 'saved' | 'failed' | null;
   /**
@@ -168,6 +179,7 @@ export function SessionWizard({
   onSave,
   onTest,
   onFinish,
+  onAutoFinish,
   lastOutcome,
   testSurface,
   bastionCredential,
@@ -241,6 +253,20 @@ export function SessionWizard({
       const credential = pendingCredential.current;
       pendingCredential.current = null;
       onTest(method, credential);
+    }
+  });
+
+  /* Closes the wizard the instant Save's own attempt succeeds, with nothing
+   * shown to dismiss first. Guarded by a ref rather than by unmounting on
+   * its own: `onAutoFinish` closes this component from the outside
+   * (`App.tsx` drops it from `editors`), which does not happen within the
+   * same tick, so a plain condition here would fire again on the next
+   * render before that takes effect. */
+  const autoFinished = useRef(false);
+  useEffect(() => {
+    if (proving && lastOutcome === 'saved' && !autoFinished.current) {
+      autoFinished.current = true;
+      onAutoFinish();
     }
   });
 
@@ -527,23 +553,20 @@ export function SessionWizard({
             onSubmit={bastionCredential.onSubmit}
             onCancel={bastionCredential.onCancel}
           />
-        ) : attempted ? (
-          /* The attempt has already settled once, refused or cancelled
-             attempts included: the host is on disk either way, only
-             `lastOutcome` says which ending this one actually reached.
-             `CredentialSaved`/`ConnectionFailure` already said so, once,
-             inside `testSurface`; dismissing either is what leaves this row
-             on screen with nothing else saying it. */
+        ) : attempted && lastOutcome !== 'saved' ? (
+          /* The attempt has already failed once, refused or cancelled
+             attempts included: the host is on disk either way, `wizard.
+             result.failed` says only that this attempt did not reach it.
+             `ConnectionFailure` already said so once, inside `testSurface`;
+             dismissing it is what leaves this row on screen with nothing
+             else saying it. A success never reaches here: `onAutoFinish`
+             closes the wizard the instant `lastOutcome` becomes `'saved'`,
+             below the render, so there is nothing for this row to say and
+             nothing for it to wait on. */
           <div className="flex max-w-[440px] flex-col gap-2">
             {lastOutcome !== null && (
-              <div
-                className={`rounded border-l-2 px-3 py-2 text-[12.5px] ${
-                  lastOutcome === 'saved'
-                    ? 'border-ok/40 bg-ok-soft text-ok'
-                    : 'border-danger bg-danger-soft text-danger-text'
-                }`}
-              >
-                {i18n.t(lastOutcome === 'saved' ? 'wizard.result.saved' : 'wizard.result.failed')}
+              <div className="border-danger bg-danger-soft text-danger-text rounded border-l-2 px-3 py-2 text-[12.5px]">
+                {i18n.t('wizard.result.failed')}
               </div>
             )}
             <div className="flex items-center gap-2">

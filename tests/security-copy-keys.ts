@@ -156,7 +156,6 @@ export const SECURITY_COPY_KEYS: readonly MessageKey[] = [
   'settings.sessions.lead',
 
   // The four endings a kept credential can have, added in the v0.2.1 sweep.
-  'kept.done',
   'kept.none.body',
   'kept.none.title',
   'kept.refused.body',
@@ -265,8 +264,13 @@ export const REVIEWS: Readonly<
        .title, that described waiting on it, and failure.prompt.body/.title,
        which described the one failure only opening it could produce. Nine
        fewer reviewed strings, not nine unreviewed ones. */
+    /* Hash moved again 2026-09-03, again with no wording change: the wizard
+       closes itself on a successful test instead of showing `CredentialSaved`
+       for a "Pronto" click, so `kept.done`, the button that card alone used,
+       left both SECURITY_COPY_KEYS and this list. One fewer reviewed string,
+       not an unreviewed one. */
     date: '2026-08-26',
-    hash: '03ee17a4bd92cbda11418529a8fed6ec13220bf9e8d2761bcfd97428dc4b9af4',
+    hash: '55e221f5315189b4047d2a3ae4e413d2cf377a11b9d0128ffa6de0c7cd88cd06',
     keys: [
       'credential.cancel',
       'credential.hop.bastion',
@@ -325,7 +329,6 @@ export const REVIEWS: Readonly<
       'session.editor.credential.stored',
       'session.editor.jumpHostHint',
       'settings.sessions.lead',
-      'kept.done',
       'kept.none.body',
       'kept.none.title',
       'kept.refused.body',

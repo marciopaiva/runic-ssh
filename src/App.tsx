@@ -13,7 +13,6 @@ import { GroupStrip, entryTitle } from './components/GroupStrip';
 import type { GroupMenuItem } from './components/GroupMenu';
 import { HostKeyBlocked } from './components/HostKeyBlocked';
 import { ConnectionFailure } from './components/ConnectionFailure';
-import { CredentialSaved } from './components/CredentialSaved';
 import { HostKeyPrompt } from './components/HostKeyPrompt';
 import { HostKeyRefused } from './components/HostKeyRefused';
 import { PasteConfirm } from './components/PasteConfirm';
@@ -1135,19 +1134,13 @@ export function App(): JSX.Element {
       return <ConnectingSurface session={live.session} onCancel={abandon} />;
     }
 
-    if (attempt.stage.stage === 'settled') {
-      const live = sessions.find((entry) => entry.session.id === attempt.sessionId);
-      if (live === undefined) return null;
-
-      return (
-        <CredentialSaved
-          session={live.session}
-          keeping={attempt.stage.keeping}
-          stored={hasStoredCredential(live.session)}
-          onDismiss={abandon}
-        />
-      );
-    }
+    /* `'settled'` is a completed wizard test. The wizard closes itself the
+       instant one succeeds (`onAutoFinish` below) rather than waiting on a
+       card here to be dismissed, so there is nothing left for this surface
+       to show for it. Only ever reached by the `'inline'` intent, which
+       only the wizard ever starts, so nothing outside it could have shown
+       this card anyway. */
+    if (attempt.stage.stage === 'settled') return null;
 
     if (failed !== null) {
       return (
@@ -2400,6 +2393,10 @@ export function App(): JSX.Element {
                         onSave={() => hostFieldsValid(target)}
                         onTest={(method, credential) => testInWizard(target, method, credential)}
                         onFinish={() => finishWizard(target)}
+                        onAutoFinish={() => {
+                          abandon();
+                          finishWizard(target);
+                        }}
                         testSurface={testSurface}
                         lastOutcome={editingId !== null ? (testOutcome.get(editingId) ?? null) : null}
                         bastionCredential={bastionCredential}
