@@ -1,6 +1,15 @@
 export { announceBroadcast } from './broadcast';
 export type { Announcement } from './broadcast';
 export {
+  FORWARD_STATE_LABEL,
+  anyForwardFailed,
+  resolveForward,
+  runningForwardHandles,
+  startForward,
+  startingForwards,
+} from './forwards';
+export type { ForwardRuntime, ForwardStatus } from './forwards';
+export {
   ALL_LATENCY_READINGS,
   ENCODING,
   NO_STATS,

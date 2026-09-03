@@ -1,10 +1,10 @@
 import type { JSX } from 'react';
 
 import type { ConnectionKind } from '../features/sessions';
-import { describeState } from '../features/sessions';
+import { describeState, FORWARD_KIND_LABEL } from '../features/sessions';
 import { useTranslator } from '../features/settings';
-import { ENCODING, TERM, gradeLatency, paletteKeys } from '../features/status';
-import type { Announcement } from '../features/status';
+import { ENCODING, FORWARD_STATE_LABEL, TERM, anyForwardFailed, gradeLatency, paletteKeys } from '../features/status';
+import type { Announcement, ForwardStatus } from '../features/status';
 import type { GroupLabel } from '../features/terminal';
 import type { TerminalSize } from '../features/terminal/use-terminal';
 import type { CommandModifier, SessionStats } from '../ipc';
@@ -52,6 +52,11 @@ interface StatusBarProps {
    */
   readonly via: string | null;
   readonly onDismissUnsaved: () => void;
+  /**
+   * This session's own saved forwards (ADR-0054), started the moment it
+   * connected. Empty for a session with none saved, which is most of them.
+   */
+  readonly forwards: readonly ForwardStatus[];
   /**
    * The running build's version, shown in place of the encoding/terminal/size
    * cells while Home is the active workspace. Those three describe a session,
@@ -120,12 +125,20 @@ export function StatusBar({
   credentialUnsaved,
   via,
   onDismissUnsaved,
+  forwards,
   buildVersion,
 }: StatusBarProps): JSX.Element {
   const i18n = useTranslator();
   const latency = gradeLatency(stats.latencyMs);
   const down = i18n.bytes(stats.fromHost);
   const up = i18n.bytes(stats.toHost);
+  const forwardsFailed = anyForwardFailed(forwards);
+  const forwardsTitle = forwards
+    .map(
+      (status) =>
+        `${i18n.t(FORWARD_KIND_LABEL[status.forward.kind])} ${status.forward.bindPort}: ${i18n.t(FORWARD_STATE_LABEL[status.runtime.kind])}`,
+    )
+    .join('\n');
 
   return (
     <footer
@@ -199,6 +212,35 @@ export function StatusBar({
               />
             </svg>
             <span className="text-ink-secondary max-w-[160px] truncate">{via}</span>
+          </>
+        </Cell>
+      )}
+
+      {/* Only when this session has saved forwards, the same "nothing to
+          say" reasoning `via` above already follows. Warn-tinted the moment
+          one of them failed to start, the same tone `syncing` below already
+          uses for "worth a look", rather than a colour of its own for a
+          third meaning. The tooltip is where each one's own state actually
+          reads, the same `title` every other cell on this bar already
+          answers a hover with. */}
+      {forwards.length > 0 && (
+        <Cell title={`${i18n.t('status.forwards')}\n${forwardsTitle}`}>
+          <>
+            <svg
+              viewBox="0 0 16 16"
+              className={`h-3 w-3 ${forwardsFailed ? 'text-warn' : 'text-ink-faint'}`}
+              fill="none"
+              aria-hidden="true"
+            >
+              <path
+                d="M3 4v8M13 4v8M6 8h4M8 6l2 2-2 2"
+                stroke="currentColor"
+                strokeWidth="1.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <span className={`font-mono ${forwardsFailed ? 'text-warn' : ''}`}>{forwards.length}</span>
           </>
         </Cell>
       )}

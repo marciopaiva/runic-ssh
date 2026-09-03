@@ -31,6 +31,7 @@ export { useConnect } from './use-connect';
 export {
   EMPTY_DRAFT,
   EMPTY_FORWARD,
+  FORWARD_KIND_LABEL,
   LIMITS,
   invalidFields,
   invalidForward,
