@@ -198,6 +198,35 @@ chain opens itself is not registered, so a second chain to the same host opens
 another connection to it. That costs a bastion's log and its `MaxSessions` more
 than it should. It does not widen what anything can read.
 
+## What a dynamic forward carries
+
+A saved host can carry a dynamic forward (ADR-0054): a local SOCKS4/SOCKS4a/
+SOCKS5 listener that opens a channel through the connection to wherever each
+client of that listener asks for, one destination at a time, decided by that
+client rather than fixed when the forward was configured.
+
+That is a wider grant than a local or remote forward makes. A fixed forward
+names one destination once, when a person saves it; a dynamic forward names
+none, and answers whatever a SOCKS request asks for the whole time it runs.
+Anything on this machine configured to use `127.0.0.1:bind_port` as a SOCKS
+proxy, not only this application, reaches through the connection from that
+point on: a browser, a second CLI tool, anything that speaks the protocol
+and knows the port.
+
+The listener binds loopback only, the same restriction a local forward's own
+listener already carries: nothing beyond this machine can dial in and use it
+as a proxy of its own. What changes is not who can reach the listener, but
+where the connection it opens can then go, which a fixed forward's own saved
+`target_host`/`target_port` does not leave open to be decided later, by
+whoever happens to be talking to the port.
+
+The far host's own policy is the other half of this. A server with
+`AllowTcpForwarding no` refuses every `direct-tcpip` channel regardless of
+who asked for it or why, the same refusal a local forward already meets
+(`ConnectionError::Unreachable`); a dynamic forward does not widen what the
+server itself is willing to reach on this connection's behalf, only what a
+person is willing to ask it to.
+
 ## What synchronised typing carries
 
 The main area can be divided, and typing can be sent to every group at once. It

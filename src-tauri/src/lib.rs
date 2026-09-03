@@ -121,6 +121,7 @@ pub fn run() -> tauri::Result<()> {
             commands::sftp::local_remove,
             commands::forward::start_local_forward,
             commands::forward::start_remote_forward,
+            commands::forward::start_dynamic_forward,
             commands::forward::stop_forward,
         ])
         .run(tauri::generate_context!())
