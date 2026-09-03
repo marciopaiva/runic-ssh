@@ -1965,6 +1965,8 @@ export function App(): JSX.Element {
               <TerminalView
                 key={terminal.sessionId}
                 handle={terminal.handle}
+                session={saved.find((one) => one.id === terminal.sessionId) ?? null}
+                sessions={saved}
                 visible={box !== null}
                 focused={isFocused}
                 /* Off screen it keeps the whole area, so `FitAddon` and the

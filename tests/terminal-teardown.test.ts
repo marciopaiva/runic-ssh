@@ -64,6 +64,10 @@ const xterm = vi.hoisted(() => {
 vi.mock('@xterm/xterm', () => ({ Terminal: xterm.FakeTerminal }));
 vi.mock('@xterm/addon-fit', () => ({ FitAddon: xterm.FakeFitAddon }));
 vi.mock('../src/features/terminal/theme', () => ({ terminalTheme: () => ({}) }));
+/* Not this file's concern (`session` is `null` below, which skips the
+   ADR-0051 banner entirely); a real `useTranslator` throws outside
+   `SettingsProvider`, which nothing here mounts. */
+vi.mock('../src/features/settings', () => ({ useTranslator: () => ({ t: (key: string) => key }) }));
 
 const ipc = vi.hoisted(() => ({
   openTerminal: vi.fn(async () => {}),
@@ -92,6 +96,8 @@ function Probe(props: {
     () => {},
     () => {},
     false,
+    null,
+    [],
   );
   return null;
 }

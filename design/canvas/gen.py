@@ -2654,38 +2654,35 @@ def motd_row(art_html, info_html=''):
             f'<span style="display: inline-block; width: {MOTD_WIDTH + 2}ch; flex: none;">{art_html}</span>'
             f'<span>{info_html}</span></div>')
 
-def build_terminal_motd_proposal():
-    """Exploratory (2026-09-01): the maintainer's own want, printed
-    directly into `xterm.js` rather than drawn as chrome around it. The
-    injection point already exists cleanly: `use-terminal.ts` opens the
-    terminal (`terminal.open(container)`), then only later starts
-    `watchTerminal`/`openTerminal`, the calls that let a remote byte
-    arrive at all. A write between those two lines always lands first, so
-    this can never race a server's own real `/etc/motd`, which some hosts
-    already send down the same channel.
+def build_terminal_motd():
+    """ADR-0051, accepted and shipped: the brand banner `use-terminal.ts`
+    writes into `xterm.js` the moment a shell connects, between
+    `terminal.open(container)` and `watchTerminal`/`openTerminal`, the
+    calls that let a remote byte arrive at all. A write placed there
+    always lands first, so it can never race a server's own real
+    `/etc/motd`, which some hosts already send down the same channel.
 
-    Revised the same day, against the maintainer's own read: side by side,
-    `neofetch`'s own logo-left, text-right layout, rather than the
-    stacked-only version this artboard first drew. The 49-column-wide art
-    only fits this way in a wide enough window; `use-terminal.ts` already
-    knows the pty's own column count at the point this would be written
-    (`terminal.cols`, read a few lines below the injection point above),
-    so a real implementation should fall back to stacking them, this
-    artboard's first cut, once a terminal is too narrow for both side by
-    side. Not drawn here: this artboard is the wide case.
+    Side by side, `neofetch`'s own logo-left, text-right layout, once the
+    terminal is wide enough for both (Option B over always-stacked or
+    always-side-by-side; see the ADR). `src/features/terminal/motd.ts`'s
+    `motdBanner` makes the same call this artboard draws, from the real
+    art width, the real field text, and `terminal.cols`; this artboard is
+    the wide case, the one a maximized window actually shows.
 
-    The info column now also names a jump host, when there is one:
+    The info column names a jump host, when there is one:
     `bastionName(session, sessions)` (`src/features/sessions/jump.ts`)
-    already answers exactly this, by id, for `SessionsSidebar`'s own "via"
-    row (`sessions.viaBastion`); the MOTD's `Via` field reads the same
-    function rather than a second way of asking whether a host rides one.
-    Omitted entirely for a direct connection, the same "say nothing rather
-    than say none" rule `bastionName` already returns `null` for.
+    answers exactly this, the same function `SessionsSidebar`'s own "via"
+    row already reads. Omitted entirely for a direct connection, the same
+    "say nothing rather than say none" rule `bastionName` already returns
+    `null` for.
 
     Colour: `motd_art_lines_html()`'s `bstart`/`bend`/`brune` are the exact
     three colours `MARK` already strokes the real mark with, so the banner
     reads as the same brand identity already drawn everywhere else, not a
-    fourth palette invented for the terminal alone."""
+    fourth palette invented for the terminal alone. The shipped write uses
+    the terminal's own existing ANSI slots instead (blue/cyan/magenta),
+    which repaint for free on a theme change; this artboard, like the rest
+    of the canvas, is still drawn from the design tokens directly."""
     art_rows = motd_art_lines_html()
     info_rows = [
         f'<span style="color: {T["ink"]}; font-weight: 700;">Runic SSH</span>',
@@ -2708,7 +2705,7 @@ def build_terminal_motd_proposal():
               term(motd + prompt("deploy", "web-01") + CURSOR))
     rows_sidebar = "\n".join([group_row("PRODUCTION", 3), host_row("web-01", "deploy@10.4.1.20", "ok", True, via="bastion-01")])
     st = status(stat_session("deploy@10.4.1.20"), stat_text("198 x 48"))
-    write("TerminalMotdProposal.dc.html",
+    write("TerminalMotd.dc.html",
           page(f'      <div style="flex: 1; min-height: 0; display: flex;">{g}</div>',
                sidebar_shell(sessions_header(), rows_sidebar), home_rail(workspace="sessions", badge="1"), st))
 
@@ -2721,7 +2718,7 @@ else:
                build_hostkey, build_sftp, build_sftp_workspace, build_sftp_fanout, build_sftp_proposal,
                build_sftp_proposal_broadcast, build_sftp_file_ops, build_sftp_folder_copy,
                build_sftp_selection, build_sftp_delete_confirm,
-               build_terminal_motd_proposal,
+               build_terminal_motd,
                build_sessions_proposal, build_sessions_proposal_broadcast,
                build_sessions_proposal_broadcast_multi,
                build_home_hosts,
