@@ -184,6 +184,7 @@ export const SOURCE_CATALOG = {
   "rail.sftp.show": "Show the SFTP list",
   "session.editor.cancel": "Cancel",
   "session.editor.credential.forget": "Forget it",
+  "session.editor.credential.none": "Nothing is saved yet. You are asked for it once this connects.",
   "session.editor.credential.stored": "One is stored for this host in the system keychain. It is never shown on this form and never sent to this window.",
   "session.editor.delete": "Delete",
   "session.editor.delete.confirm.cancel": "Cancel",

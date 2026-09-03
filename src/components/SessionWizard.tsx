@@ -373,29 +373,32 @@ export function SessionWizard({
                     so both sentences render when both answer yes, reusing
                     `kept.ts`'s own vocabulary for the run half rather than
                     inventing a second way to say it. */}
-                {(storedCredential || keptCredential) && (
-                  <div className="flex flex-col items-start gap-1">
-                    {storedCredential && (
-                      <span className="text-ink-faint text-[11px] leading-snug">
-                        {i18n.t('session.editor.credential.stored')}
-                      </span>
-                    )}
-                    {keptCredential && (
-                      <span className="text-ink-faint text-[11px] leading-snug">
-                        {i18n.t('kept.run.body')}
-                      </span>
-                    )}
-                    {onForget !== null && (
-                      <button
-                        type="button"
-                        onClick={onForget}
-                        className="text-danger-text hover:bg-danger-soft rounded px-2 py-1 text-[11.5px]"
-                      >
-                        {i18n.t('session.editor.credential.forget')}
-                      </button>
-                    )}
-                  </div>
-                )}
+                <div className="flex flex-col items-start gap-1">
+                  {storedCredential && (
+                    <span className="text-ink-faint text-[11px] leading-snug">
+                      {i18n.t('session.editor.credential.stored')}
+                    </span>
+                  )}
+                  {keptCredential && (
+                    <span className="text-ink-faint text-[11px] leading-snug">
+                      {i18n.t('kept.run.body')}
+                    </span>
+                  )}
+                  {!storedCredential && !keptCredential && (
+                    <span className="text-ink-faint text-[11px] leading-snug">
+                      {i18n.t('session.editor.credential.none')}
+                    </span>
+                  )}
+                  {onForget !== null && (storedCredential || keptCredential) && (
+                    <button
+                      type="button"
+                      onClick={onForget}
+                      className="text-danger-text hover:bg-danger-soft rounded px-2 py-1 text-[11.5px]"
+                    >
+                      {i18n.t('session.editor.credential.forget')}
+                    </button>
+                  )}
+                </div>
               </FormSection>
               <FormSection title={i18n.t('session.editor.section.forwarding')}>
                 <ForwardsFields value={values.forwards} wrong={wrong} onChange={onChangeForwards} />

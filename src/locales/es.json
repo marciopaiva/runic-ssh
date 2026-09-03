@@ -178,6 +178,7 @@
   "rail.sftp.show": "Mostrar la lista de SFTP",
   "session.editor.cancel": "Cancelar",
   "session.editor.credential.forget": "Olvidarla",
+  "session.editor.credential.none": "Nada guardado todavía. Se pide en cuanto esto se conecte.",
   "session.editor.credential.stored": "Hay una guardada para este host en el llavero del sistema. Nunca se muestra en este formulario ni se envía a esta ventana.",
   "session.editor.delete": "Eliminar",
   "session.editor.delete.confirm.cancel": "Cancelar",
