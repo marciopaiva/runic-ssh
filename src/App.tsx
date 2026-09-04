@@ -2179,7 +2179,7 @@ export function App(): JSX.Element {
                        here: a plain dashed box with a line of text was
                        the one empty surface in the app without it. */
                     <div
-                      className={`rounded border-2 border-dashed transition-colors ${dropTone({ kind: 'source' })}`}
+                      className={`h-full rounded border-2 border-dashed transition-colors ${dropTone({ kind: 'source' })}`}
                     >
                       <EmptyPanel
                         modifier={chrome?.commandModifier ?? 'control'}
@@ -2223,7 +2223,7 @@ export function App(): JSX.Element {
                         <div key={`destination-${String(slot)}`} className="relative" {...dragOverHandlers({ kind: 'destination', slot })}>
                           {endpoint === null ? (
                             <div
-                              className={`rounded border-2 border-dashed transition-colors ${dropTone({ kind: 'destination', slot })}`}
+                              className={`h-full rounded border-2 border-dashed transition-colors ${dropTone({ kind: 'destination', slot })}`}
                             >
                               <EmptyPanel
                                 modifier={chrome?.commandModifier ?? 'control'}
