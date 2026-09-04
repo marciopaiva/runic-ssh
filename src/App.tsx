@@ -2173,10 +2173,20 @@ export function App(): JSX.Element {
                     two must match. */}
                 <div className="relative w-1/2 min-w-[260px] shrink-0" {...dragOverHandlers({ kind: 'source' })}>
                   {fanout.source === null ? (
+                    /* Reuses the same brand mark every other empty
+                       rectangle in the app shows (Sessions' own empty
+                       groups, EmptyPanel.tsx), reported live as missing
+                       here: a plain dashed box with a line of text was
+                       the one empty surface in the app without it. */
                     <div
-                      className={`text-ink-faint flex h-full flex-col items-center justify-center gap-2 rounded border-2 border-dashed text-[12.5px] transition-colors ${dropTone({ kind: 'source' })}`}
+                      className={`h-full rounded border-2 border-dashed transition-colors ${dropTone({ kind: 'source' })}`}
                     >
-                      {i18n.t('sftp.source.empty')}
+                      <EmptyPanel
+                        modifier={chrome?.commandModifier ?? 'control'}
+                        variant="group"
+                        title={i18n.t('sftp.source.empty.title')}
+                        body={i18n.t('sftp.source.empty')}
+                      />
                     </div>
                   ) : (
                     <SftpPane
@@ -2213,9 +2223,14 @@ export function App(): JSX.Element {
                         <div key={`destination-${String(slot)}`} className="relative" {...dragOverHandlers({ kind: 'destination', slot })}>
                           {endpoint === null ? (
                             <div
-                              className={`text-ink-faint flex h-full flex-col items-center justify-center gap-2 rounded border-2 border-dashed text-[12px] transition-colors ${dropTone({ kind: 'destination', slot })}`}
+                              className={`h-full rounded border-2 border-dashed transition-colors ${dropTone({ kind: 'destination', slot })}`}
                             >
-                              {i18n.t('sftp.destination.empty')}
+                              <EmptyPanel
+                                modifier={chrome?.commandModifier ?? 'control'}
+                                variant="group"
+                                title={i18n.t('sftp.destination.empty.title')}
+                                body={i18n.t('sftp.destination.empty')}
+                              />
                             </div>
                           ) : (
                             <SftpPane

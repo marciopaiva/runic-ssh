@@ -785,9 +785,8 @@ def build_sftp_fanout():
         return (f'<div style="display: flex; flex-direction: column; border: 1px solid {T["line"]}; border-radius: 6px; overflow: hidden;">'
                 f'{pane_header("DESTINATION", who)}<div style="flex: 1; padding: 4px 0; overflow: hidden;">{body}</div></div>')
 
-    empty_slot = (f'<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;'
-                  f' border: 1.5px dashed {T["line2"]}; border-radius: 6px; padding: 20px;">'
-                  f'{ic("sftp", 22, T["off"])}<span style="font-size: 11px; color: {T["faint"]}; text-align: center;">Drop a host here</span></div>')
+    empty_slot = (f'<div style="border: 1.5px dashed {T["line2"]}; border-radius: 6px; padding: 20px;">'
+                  f'{sftp_empty_drop("No destination yet", "Drop a host here")}</div>')
 
     source = (f'<div style="display: flex; flex-direction: column; border: 1px solid {T["line"]}; border-radius: 6px; overflow: hidden; height: 100%;">'
               f'{pane_header("SOURCE", "deploy@10.4.1.20")}'
@@ -1390,9 +1389,8 @@ def build_sftp_file_ops():
     d1 = (f'<div style="display: flex; flex-direction: column; overflow: hidden; border: 1px solid {T["line"]}; border-radius: 6px;">'
           f'{pane_header("DESTINATION", "deploy@10.4.1.21")}{nav_bar(["/", "var", "www"], False, new_folder=True)}'
           f'<div style="flex: 1; padding: 4px 0; overflow: hidden;">{d1_rows}</div></div>')
-    d2 = (f'<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;'
-          f' border: 1.5px dashed {T["line2"]}; border-radius: 6px;">'
-          f'{ic("sftp", 22, T["off"])}<span style="font-size: 11px; color: {T["faint"]};">Drop a host here</span></div>')
+    d2 = (f'<div style="border: 1.5px dashed {T["line2"]}; border-radius: 6px;">'
+          f'{sftp_empty_drop("No destination yet", "Drop a host here")}</div>')
 
     body = f"""      <div style="flex: 1; min-height: 0; display: flex; gap: 10px; padding: 12px;">
         <div style="width: 50%;">{source}</div>
@@ -1480,9 +1478,8 @@ def build_sftp_folder_copy():
     d1 = (f'<div style="display: flex; flex-direction: column; overflow: hidden; border: 1px solid {T["line"]}; border-radius: 6px;">'
           f'{pane_header("DESTINATION", "deploy@10.4.1.21")}{nav_bar(["/", "var", "www"], False)}'
           f'<div style="flex: 1; padding: 4px 0; overflow: hidden;">{crow("assets", is_dir=True)}{crow("logs", is_dir=True)}</div></div>')
-    d2 = (f'<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;'
-          f' border: 1.5px dashed {T["line2"]}; border-radius: 6px;">'
-          f'{ic("sftp", 22, T["off"])}<span style="font-size: 11px; color: {T["faint"]};">Drop a host here</span></div>')
+    d2 = (f'<div style="border: 1.5px dashed {T["line2"]}; border-radius: 6px;">'
+          f'{sftp_empty_drop("No destination yet", "Drop a host here")}</div>')
 
     body = f"""      <div style="flex: 1; min-height: 0; display: flex; gap: 10px; padding: 12px;">
         <div style="width: 50%;">{source}</div>
@@ -1638,9 +1635,8 @@ def build_sftp_selection():
           f'{pane_header("DESTINATION", "deploy@10.4.1.21", receiving=True, clearable=True)}{nav_bar(["/", "var", "www"], False, new_folder=True, selected_count=1)}'
           f'<div style="flex: 1; padding: 4px 0; overflow: hidden;">{d1_rows}</div>'
           f'{selection_bar(1, show_send=False)}</div>')
-    d2 = (f'<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;'
-          f' border: 1.5px dashed {T["line2"]}; border-radius: 6px;">'
-          f'{ic("sftp", 22, T["off"])}<span style="font-size: 11px; color: {T["faint"]};">Drop a host here</span></div>')
+    d2 = (f'<div style="border: 1.5px dashed {T["line2"]}; border-radius: 6px;">'
+          f'{sftp_empty_drop("No destination yet", "Drop a host here")}</div>')
 
     body = f"""      <div style="flex: 1; min-height: 0; display: flex; gap: 10px; padding: 12px;">
         <div style="width: 50%;">{source}</div>
@@ -2340,6 +2336,28 @@ def host_detail_panel(banner_html="", access_html=None, topology_folded=False, f
         <div style="margin-top: 26px; padding-top: 16px; border-top: 1px solid {T['line']};">{wizard_actions(('Delete', False), ('Cancel', False), ('Save', True))}</div>
       </div>"""
     return panel
+
+
+def sftp_empty_drop(title, body):
+    """`EmptyPanel.tsx`'s own `variant='group'` shape: the same dimmed
+    rune `empty_host_panel` draws at full size and beside the wordmark,
+    smaller and alone, for a rectangle that is one of several rather than
+    the whole window. Reported live as missing from every SFTP drop
+    target, which drew a generic folder glyph and one line of text
+    instead: the one empty surface in the app without the brand mark
+    every other empty rectangle (Sessions' own empty groups) already
+    carries."""
+    return f"""<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; height: 100%;">
+      <svg width="34" height="34" viewBox="0 0 24 24" fill="none" style="opacity: 0.5;">
+        <circle cx="9.5" cy="12" r="7" stroke="{T['bstart']}" stroke-width="1.2"></circle>
+        <circle cx="14.5" cy="12" r="7" stroke="{T['bend']}" stroke-width="1.2"></circle>
+        <path d="M12 6.5v11M12 10l3-2.5M12 14l3 2.5M12 12l-2.6-2.2" stroke="{T['brune']}" stroke-width="1.2" stroke-linecap="round"></path>
+      </svg>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+        <span style="font-size: 12px; font-weight: 600; color: {T['ink2']};">{title}</span>
+        <span style="font-size: 11px; color: {T['faint']}; text-align: center;">{body}</span>
+      </div>
+    </div>"""
 
 
 def empty_host_panel(title, hint):
