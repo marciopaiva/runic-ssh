@@ -207,6 +207,18 @@ export function SessionWizard({
   const [method, setMethod] = useState<SuggestedMethod>('password');
   const problem = failure === null ? null : describeEditorFailure(failure);
 
+  /* Host is the natural first field of this screen, the same way it was
+     the single, always-focused field of the old wizard's own first step.
+     Once, on mount: the caller keys this component per host
+     (`key={editorKey(target)}`), so switching which host is being edited
+     remounts it and refocuses Host again, exactly like opening a fresh
+     editor. Reported live: `CredentialAccessFields`' own focus effect used
+     to fire on the same mount and win, since it renders after this in the
+     tree; that effect is now guarded to skip its first run instead. */
+  useEffect(() => {
+    first.current?.focus();
+  }, []);
+
   /* ADR-0061: Topology draws in full the instant the host's own data uses
      it, carried is included alongside kind/proxyJump for the same reason
      ADR-0060 gave the host list: a host whose manual `kind` disagrees with
@@ -601,7 +613,7 @@ export function SessionWizard({
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="border-line-subtle flex items-center gap-2 border-t pt-4">
         {onDelete !== null && (
           <button
             type="button"
