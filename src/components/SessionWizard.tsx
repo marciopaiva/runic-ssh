@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { JSX, ReactNode } from 'react';
 
-import { describeEditorFailure, describeFailure } from '../features/sessions';
+import { describeEditorFailure, describeFailure, topologyInUse } from '../features/sessions';
 import type { DraftField, DraftValues, EditorFailure, FailureCode, ForwardDraft } from '../features/sessions';
 import { useTranslator } from '../features/settings';
 import { credentialStoreStatus, internalVaultStatus } from '../ipc';
@@ -11,6 +11,7 @@ import { CredentialAccessFields } from './CredentialAccessFields';
 import { FormSection } from './FormSection';
 import { ForwardsFields } from './ForwardsFields';
 import { HostGeneralFields } from './HostGeneralFields';
+import { HOST_KIND_LABEL, HostKindIcon } from './HostKindIcon';
 import { HostTopologyFields } from './HostTopologyFields';
 import { InlineCredentialForm } from './InlineCredentialForm';
 import { MethodPicker } from './MethodPicker';
@@ -205,6 +206,17 @@ export function SessionWizard({
   const first = useRef<HTMLInputElement>(null);
   const [method, setMethod] = useState<SuggestedMethod>('password');
   const problem = failure === null ? null : describeEditorFailure(failure);
+
+  /* ADR-0061: Topology draws in full the instant the host's own data uses
+     it, carried is included alongside kind/proxyJump for the same reason
+     ADR-0060 gave the host list: a host whose manual `kind` disagrees with
+     what it actually carries is the computed topology telling the truth,
+     not a case to leave folded shut. `topologyOpened` is the one-way
+     manual override "Change" sets; it never closes the section again on
+     its own, and resets on remount the same way `proving`/`attempted` do
+     when the caller switches which host this component is editing. */
+  const [topologyOpened, setTopologyOpened] = useState(false);
+  const showTopology = topologyInUse(values, carried) || topologyOpened;
 
   /* Probed once the Access section has a field to show for it: whether the
      target's own credential, once typed, has anywhere to be kept. ADR-0057
@@ -480,15 +492,34 @@ export function SessionWizard({
               firstRef={first}
             />
           </FormSection>
-          <FormSection title={i18n.t('session.editor.section.topology')}>
-            <HostTopologyFields
-              values={values}
-              wrong={wrong}
-              onChange={onChange}
-              jumpHosts={jumpHosts}
-              carried={carried}
-            />
-          </FormSection>
+          {showTopology ? (
+            <FormSection title={i18n.t('session.editor.section.topology')}>
+              <HostTopologyFields
+                values={values}
+                wrong={wrong}
+                onChange={onChange}
+                jumpHosts={jumpHosts}
+                carried={carried}
+              />
+            </FormSection>
+          ) : (
+            /* ADR-0061: a bare line, not a bordered section, since a plain
+               direct host riding nothing has nothing here worth a heading.
+               "Change" only opens the fields; it never touches `values`
+               itself, which is what keeps this the same layout for a
+               fresh draft and an existing host alike (ADR-0056). */
+            <div className="flex items-center gap-2 px-0.5 py-1">
+              <HostKindIcon kind={values.kind} className="text-ink-faint h-3 w-3 shrink-0" />
+              <span className="text-ink-secondary text-[12.5px]">{i18n.t(HOST_KIND_LABEL[values.kind])}</span>
+              <button
+                type="button"
+                onClick={() => setTopologyOpened(true)}
+                className="text-accent ml-auto text-[12px] hover:underline"
+              >
+                {i18n.t('session.editor.topology.change')}
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col gap-4 lg:w-[340px] lg:flex-none">
@@ -556,9 +587,17 @@ export function SessionWizard({
               </div>
             )}
           </FormSection>
-          <FormSection title={i18n.t('session.editor.section.forwarding')}>
+          {/* ADR-0061: `ForwardsFields` already renders nothing but its own
+              "+ Add forward" link for an empty list; the only change here
+              is whether `FormSection`'s border and heading wrap it, which
+              they earn back the instant a forward exists. */}
+          {values.forwards.length > 0 ? (
+            <FormSection title={i18n.t('session.editor.section.forwarding')}>
+              <ForwardsFields value={values.forwards} wrong={wrong} onChange={onChangeForwards} />
+            </FormSection>
+          ) : (
             <ForwardsFields value={values.forwards} wrong={wrong} onChange={onChangeForwards} />
-          </FormSection>
+          )}
         </div>
       </div>
 

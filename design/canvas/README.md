@@ -40,7 +40,7 @@ ADR-0020 exists to stop.
 | Page | What is on it |
 | --- | --- |
 | `System` | The anatomy and its seven rules, and the token, type, density and marker sheet |
-| `Surfaces` | Twenty-four screens |
+| `Surfaces` | Twenty-five screens |
 | `Variants` | Light, and the same window in pt-BR and neutral es |
 
 ## Files
@@ -61,6 +61,7 @@ ADR-0020 exists to stop.
 | `PasteConfirm.dc.html` | A paste going to three hosts at once |
 | `Palette.dc.html` | The command palette |
 | `HomeHosts.dc.html` | Home, the host book: General, Topology, Access and Forwarding on one screen (ADR-0052, ADR-0056, ADR-0054) |
+| `HomeHostsCommonCase.dc.html` | Home, a plain direct host with nothing to fold open: Topology and Forwarding both collapse to one bare line (ADR-0061) |
 | `HomeHostsEmpty.dc.html` | Home, nothing picked yet, with the same brand mark Sessions' own empty state carries |
 | `HomeCollapsed.dc.html` | Home, its own host list hidden, the rail's Home icon toggling it the same way Sessions' and SFTP's already do |
 | `HomeDeleteConfirm.dc.html` | Home, the one question Delete now always asks first |

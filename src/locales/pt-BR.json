@@ -210,6 +210,7 @@
   "session.editor.section.forwarding": "Encaminhamento",
   "session.editor.section.general": "Geral",
   "session.editor.section.topology": "Topologia",
+  "session.editor.topology.change": "Alterar",
   "session.editor.user": "Usuário",
   "session.menu.connect": "Conectar",
   "session.menu.disconnect": "Desconectar",

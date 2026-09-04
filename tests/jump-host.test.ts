@@ -17,7 +17,9 @@ import {
   jumpHostChoice,
   jumpRole,
   orderChain,
+  topologyInUse,
 } from '../src/features/sessions/jump';
+import { EMPTY_DRAFT } from '../src/features/sessions/draft';
 import { describeFailure } from '../src/features/sessions/failure';
 import { createTranslator } from '../src/lib/i18n';
 import type { IpcError, Session } from '../src/ipc';
@@ -437,5 +439,27 @@ describe('a host other sessions are reached through', () => {
 
     expect(choice.carried).toEqual([]);
     expect(choice.offered.map((host) => host.id)).toEqual(['bastion', 'gateway']);
+  });
+});
+
+describe('whether Topology has anything to say (ADR-0061)', () => {
+  it('is false for a plain direct host riding and carrying nothing', () => {
+    expect(topologyInUse(EMPTY_DRAFT, [])).toBe(false);
+  });
+
+  it('is true once the kind is not direct, even with no bastion set', () => {
+    expect(topologyInUse({ ...EMPTY_DRAFT, kind: 'jumpServer' }, [])).toBe(true);
+  });
+
+  it('is true once a bastion is chosen', () => {
+    expect(topologyInUse({ ...EMPTY_DRAFT, proxyJump: 'bastion' }, [])).toBe(true);
+  });
+
+  it('is true for a host tagged direct that another session actually rides', () => {
+    /* ADR-0060's own point applied here: the computed topology (this host
+       is somebody's bastion, per `carried`) outranks a stale or never-set
+       `kind`, so this does not fold shut just because nobody has retagged
+       it yet. */
+    expect(topologyInUse(EMPTY_DRAFT, [session('web-01', { proxyJump: 'this-host' })])).toBe(true);
   });
 });

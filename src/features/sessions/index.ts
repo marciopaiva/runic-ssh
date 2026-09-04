@@ -54,7 +54,7 @@ export { describeKeeping, hasStoredCredential } from './kept';
 export type { KeptOutcome } from './kept';
 export { carrierName, markCarried } from './carried';
 export type { CarriedOn } from './carried';
-export { bastionName, eligibleJumpHosts, jumpHostChoice, jumpRole, orderChain } from './jump';
+export { bastionName, eligibleJumpHosts, jumpHostChoice, jumpRole, orderChain, topologyInUse } from './jump';
 export type { JumpHostChoice } from './jump';
 export type { ChainRow, JumpRole } from './jump';
 export { accessUnchanged, duplicateOf } from './duplicate';
