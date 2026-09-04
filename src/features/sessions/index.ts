@@ -4,18 +4,28 @@ export {
   UNGROUPED_KEY,
   describeState,
   filterGroups,
+  filterHosts,
   groupKey,
   groupNames,
   groupSessions,
+  hostGroupLabel,
+  hostRows,
+  hostSections,
+  hostSubtreeCounts,
   soloGroup,
+  visibleHostRows,
 } from './state';
 export type {
   ConnectionKind,
   ConnectionState,
+  HostRow,
+  HostSearch,
+  HostSections,
   LiveSession,
   MarkerShape,
   SessionGroup,
 } from './state';
+export { useCollapsedBastions } from './use-collapsed-bastions';
 export {
   credentialRedirectTarget,
   heldDecision,
