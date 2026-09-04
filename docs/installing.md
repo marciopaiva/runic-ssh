@@ -46,12 +46,30 @@ workflow produced, and it is the answer to "is this usable yet".
 
 | Platform | Installed and driven | Version | Where the file came from |
 | --- | --- | --- | --- |
-| Linux, `.deb` | **yes**, 2026-09-01 | 0.3.0 | **downloaded from the release** |
+| Linux, `.deb` | **yes**, 2026-09-04 | 0.4.0 | **downloaded from the release** |
 | Linux, `.rpm` | no | | no RPM distribution to hand |
 | Linux, `.AppImage` | no | | discouraged anyway, see below |
 | Windows, `.exe` (NSIS) | **yes**, 2026-08-26 | 0.1.1 | **a workflow artifact, copied in through WSL** |
 | Windows, `.msi` (WiX) | built, not installed | | the NSIS package was the one exercised |
 | macOS, `.dmg` | **no** | | needs an Apple Silicon Mac |
+
+**The 0.4.0 `.deb` was downloaded from the release**, checked against
+`SHA256SUMS`, and installed over the 0.3.0 package already on this machine
+with `apt install ./Runic-SSH_0.4.0_amd64.deb`, an upgrade rather than a
+fresh install. Driven against `runic-test-sshd` on an isolated display, on a
+fresh `XDG_CONFIG_HOME` seeded with one saved host carrying a saved local
+forward: an unknown host key on a port never connected to before, its
+fingerprint checked by eye against `ssh-keyscan`, the credential typed into
+the one-screen editor's own Access column and saved by testing it, a shell
+opened with the MOTD printing into it (ADR-0051) and a command run with the
+output checked. The forward itself was then checked from outside the
+application: `ss -tln` showed its bind port listening the instant the
+session reported connected, and `ssh-keyscan` through that port returned the
+exact fingerprint `ssh-keyscan` against the real target returns directly,
+confirming it genuinely tunnels rather than only accepting connections. This
+is the first time this table records port forwarding being driven on a
+packaged build at all; SFTP was not re-driven this pass, and the 0.3.0
+paragraph below still stands for it.
 
 **The 0.3.0 `.deb` was downloaded from the release**, checked against
 `SHA256SUMS`, and installed over the 0.2.1 package already on this machine
