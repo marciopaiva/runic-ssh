@@ -216,6 +216,7 @@ export const SOURCE_CATALOG = {
   "session.editor.section.forwarding": "Forwarding",
   "session.editor.section.general": "General",
   "session.editor.section.topology": "Topology",
+  "session.editor.topology.change": "Change",
   "session.editor.user": "User",
   "session.menu.connect": "Connect",
   "session.menu.disconnect": "Disconnect",

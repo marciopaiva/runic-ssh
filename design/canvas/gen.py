@@ -2218,7 +2218,61 @@ def build_home_hosts():
     write("HomeHosts.dc.html", HEAD + page_html + FOOT)
 
 
-def host_detail_panel(banner_html="", access_html=None):
+def build_home_hosts_common_case():
+    """ADR-0061's own follow-up: the common case (`nav-proposal-
+    progressive.html`'s namesake mockup, one of three throwaway agent-
+    built HTML files, never committed) drawn as a real artboard. A plain
+    direct host, no bastion, nothing forwarded, is most of the book
+    (ADR-0060's own Context); Topology folds to `topology_folded_row()`,
+    Forwarding to its own bare "+ Add forward" line, neither drawn in a
+    bordered section with nothing in it to justify one. `HomeHosts.dc.html`
+    stays the reference for the opposite, fully-expanded case: a host
+    whose own data keeps both sections open from the moment it mounts."""
+    general = f"""
+      <div>{wizard_label('Host')}{wizard_field('10.0.1.5')}</div>
+      <div style="display: flex; gap: 12px; margin-top: 14px;">
+        <div style="flex: 1;">{wizard_label('User')}{wizard_field('deploy')}</div>
+        <div style="width: 90px;">{wizard_label('Port')}{wizard_field('22')}</div>
+      </div>
+      <div style="margin-top: 14px;">{wizard_label('Name')}{wizard_field('dev-web', mono=False)}</div>
+      <div style="margin-top: 14px;">{wizard_label('Group')}{wizard_field('', mono=False, chev=True, placeholder=True)}</div>"""
+    rows = home_hosts_rows(active="dev-web")
+    body = hosts_shell(rows, host_detail_panel(title="dev-web", general_html=general,
+                                                topology_folded=True, forwarding_folded=True),
+                        show_filter=True)
+    st = status(stat_text("dev-web", T['muted'], mono=False), stat_text("11 hosts", T['faint']))
+    page_html = f"""
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{plain_titlebar()}
+{toolbar_row(right_html=theme_language_toolbar_controls())}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{home_rail(workspace="home")}
+{body}
+  </div>
+{st}
+</div>
+"""
+    write("HomeHostsCommonCase.dc.html", HEAD + page_html + FOOT)
+
+
+def topology_folded_row(kind="direct", via=None):
+    """ADR-0061: Topology's own collapsed state, a bare line rather than a
+    bordered section, since a host using neither a non-direct `kind` nor a
+    bastion has nothing here worth a heading. `kind_ic` and the label are
+    the same ones `HostKindIcon`/`hostKind.*` already draw everywhere
+    else; "Change" opens the full `bordered_section("Topology", ...)`
+    below it, in place, on click."""
+    label = {"direct": "Direct connection", "target": "Target", "jumpServer": "Jump server"}[kind]
+    detail = f' via {via}' if via else ''
+    return f"""<div style="display: flex; align-items: center; gap: 8px; padding: 2px 2px;">
+      {kind_ic(kind, T['faint'])}
+      <span style="font-size: 12.5px; color: {T['ink2']};">{label}{detail}</span>
+      <span style="margin-left: auto; font-size: 12px; color: {T['accent']};">Change</span>
+    </div>"""
+
+
+def host_detail_panel(banner_html="", access_html=None, topology_folded=False, forwarding_folded=False,
+                       title="runic-target-a", general_html=None):
     """The populated form `HomeHosts.dc.html` and `HomeCollapsed.dc.html`
     both show, factored out once a second artboard needed the identical
     General/Topology/Access/Forwarding panel at a different width.
@@ -2228,8 +2282,19 @@ def host_detail_panel(banner_html="", access_html=None):
     `access_html` is `HomeHostsCredential.dc.html`'s own hook (ADR-0057):
     the default below still shows a host with something already stored,
     since that stays worth keeping as the richer reference; the field
-    itself is the other Access this same panel can show."""
-    general = bordered_section("General", f"""
+    itself is the other Access this same panel can show.
+
+    `topology_folded`/`forwarding_folded` (ADR-0061): a plain direct host
+    with nothing forwarded draws neither section in full, the common case
+    ADR-0060's own Context already named as most of the book. Default
+    `False` for both keeps every existing caller's own bastion-and-
+    forwards fixture drawn exactly as it already was. `title`/
+    `general_html` follow the same reasoning as `access_html`: a folded
+    Topology only makes sense drawn against a host that is actually plain,
+    so the artboard that turns the fold on also needs its own General
+    fields rather than inheriting `runic-target-a`'s own bastion-routed
+    ones."""
+    general = bordered_section("General", general_html if general_html is not None else f"""
       <div>{wizard_label('Host')}{wizard_field('target.internal')}</div>
       <div style="display: flex; gap: 12px; margin-top: 14px;">
         <div style="flex: 1;">{wizard_label('User')}{wizard_field('deploy')}</div>
@@ -2237,7 +2302,7 @@ def host_detail_panel(banner_html="", access_html=None):
       </div>
       <div style="margin-top: 14px;">{wizard_label('Name')}{wizard_field('runic-target-a', mono=False)}</div>
       <div style="margin-top: 14px;">{wizard_label('Group')}{wizard_field('REAL-CHAIN', mono=False, chev=True)}</div>""")
-    topology = bordered_section("Topology", f"""
+    topology = topology_folded_row() if topology_folded else bordered_section("Topology", f"""
       <div>{wizard_label('Kind')}{kind_picker('target')}</div>
       <div style="margin-top: 14px;">{wizard_label('Reached through')}{wizard_field('runic-bastion', mono=False, chev=True)}</div>""")
     access = bordered_section("Access", access_html if access_html is not None else f"""
@@ -2250,16 +2315,17 @@ def host_detail_panel(banner_html="", access_html=None):
         <span style="font-size: 11.5px; color: {T['ink2']}; flex: 1; line-height: 1.4;">One is stored in the system keychain. Never shown here, never sent to this window.</span>
       </div>
       <div style="margin-top: 8px;"><span style="font-size: 12px; color: {T['danger']};">Forget it</span></div>""")
-    forwarding = bordered_section("Forwarding", f"""
+    forwarding = (f'<div style="padding: 2px 2px;"><span style="font-size: 12px; color: {T["accent"]};">+ Add forward</span></div>'
+                  if forwarding_folded else bordered_section("Forwarding", f"""
       <div style="display: flex; flex-direction: column; gap: 8px;">
         {forward_row('Local', '8080', 'target.internal:80', 'web')}
         {forward_row('Remote', '9000', 'localhost:3000', 'dev server')}
         {forward_row('Dynamic', '1080', None, 'SOCKS')}
       </div>
-      <div style="margin-top: 8px;"><span style="font-size: 12px; color: {T['accent']};">+ Add forward</span></div>""")
+      <div style="margin-top: 8px;"><span style="font-size: 12px; color: {T['accent']};">+ Add forward</span></div>"""))
 
     panel = f"""      <div style="height: 100%; padding: 24px 28px; overflow-y: auto;">
-        <span style="font-size: 15px; font-weight: 600;">runic-target-a</span>
+        <span style="font-size: 15px; font-weight: 600;">{title}</span>
         {banner_html}
         <div style="display: flex; gap: 40px; margin-top: 22px;">
           <div style="width: 440px; flex: none; display: flex; flex-direction: column; gap: 22px;">
@@ -2892,7 +2958,7 @@ else:
                build_terminal_motd,
                build_sessions_proposal, build_sessions_proposal_broadcast,
                build_sessions_proposal_broadcast_multi,
-               build_home_hosts, build_home_hosts_empty, build_home_collapsed, build_home_delete_confirm,
+               build_home_hosts, build_home_hosts_common_case, build_home_hosts_empty, build_home_collapsed, build_home_delete_confirm,
                build_home_hosts_credential, build_home_hosts_topology,
                build_anatomy, build_tokens,
                build_hostkeychanged, build_failure, build_paste, build_palette):

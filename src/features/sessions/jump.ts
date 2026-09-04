@@ -12,6 +12,26 @@
  */
 
 import type { Session } from '../../ipc';
+import type { DraftValues } from './draft';
+
+/**
+ * Whether Topology has anything to say about this draft: a non-direct
+ * `kind`, a bastion already chosen, or another saved host already reached
+ * through this one.
+ *
+ * ADR-0061: the one condition `SessionWizard.tsx` folds its own Topology
+ * section behind, to one line, when it is false. `carried` is checked
+ * alongside `kind`/`proxyJump` for the same reason ADR-0060 gave the host
+ * list: a host whose manual `kind` disagrees with what it actually
+ * carries is the computed topology telling the truth, not a case to leave
+ * folded shut.
+ */
+export function topologyInUse(
+  values: Pick<DraftValues, 'kind' | 'proxyJump'>,
+  carried: readonly Session[],
+): boolean {
+  return values.kind !== 'direct' || values.proxyJump !== '' || carried.length > 0;
+}
 
 export function eligibleJumpHosts(
   sessions: readonly Session[],
