@@ -11,6 +11,133 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-09-04
+
+Opens the ground v0.3.0's roadmap named next: port forwarding. Everything
+else below shipped in the same window and is not held back for a release
+of its own, including a reorganization of the host book itself, prompted
+by the same question the forwarding work kept raising: what a saved host
+actually is, structurally, was never something the list showed. Session
+import (OpenSSH and PuTTY), also named in v0.3.0's roadmap, did not make
+this window and moves to v0.5.0 rather than holding the rest back
+(#128).
+
+### Added
+
+- **Port forwarding: local, remote and dynamic** (ADR-0054, #301
+  through #305). Saved per host, alongside its own credential, and
+  started the instant that host's session connects, no separate command
+  to remember and nothing left running once it disconnects.
+  - **Local** forwards, the direction with the most production mileage
+    already: `open_forward` is the same call site every jump chain has
+    used since v0.2.0.
+  - **Remote** forwards, the server initiating a channel back to this
+    machine rather than the reverse, new surface for `ssh/connection.rs`'s
+    own handler.
+  - **Dynamic** forwards, a local SOCKS4/SOCKS4a/SOCKS5 listener whose
+    destination is read from the handshake itself rather than fixed when
+    the forward was saved; documented in `docs/security-model.md` as the
+    one wider grant of the three, since where it can reach is chosen live
+    by whatever client uses the proxy rather than named once by a person.
+  - The host editor's own Forwarding section is where one is added,
+    edited or removed; the status bar says how many are running for the
+    session in front of you.
+
+- **The host book organized by topology, not a free-text group**
+  (ADR-0060). `proxyJump`, not a typed-in label, decides where a host
+  lists: **Bastions**, a host carrying at least one other, its own
+  riders nested directly beneath it, recursively; **Direct**, flat,
+  everything else. `group` moves off the section axis onto a small pill
+  per row instead. A bastion's own fold state survives closing the
+  application, the first use of `localStorage` anywhere in this
+  frontend, and a name search auto-expands whichever folded bastion
+  holds the match it is reporting.
+
+- **The host editor is one screen**, General, Topology, Access and
+  Forwarding together (ADR-0056, #295 through #297, #308, #309, #311),
+  the credential read and proven in the same click that saves everything
+  else (ADR-0057) rather than a step reached after. A failed credential
+  test reports inline, next to the field it is actually about, and Save
+  is the retry (ADR-0058). Topology and Forwarding each fold to one bare
+  line when a host's data says neither is in use, and open on their own
+  the instant it is, driven by the same fields for a fresh draft and an
+  existing host alike (ADR-0061).
+
+- **Theme and language are reachable from every toolbar** (ADR-0059,
+  ADR-0062), not Home's alone: each folds behind one button showing the
+  current choice, the same fold `ShapeControl`/`SftpSplitControl`
+  already used for "which one of several is this," rather than drawn as
+  a flat row of chips.
+
+- **A brand MOTD prints into the terminal on connect** (#294, ADR-0051),
+  the same mark the empty states already carry, now the first thing a
+  fresh shell shows too.
+
+- **SFTP: rows select by click**, the way a file manager's already do,
+  not a checkbox per row (#291). Rename and delete gained their own icons
+  in the nav bar, F2 and Delete as shortcuts, and delete asks first
+  (#292). The upload-from-dialog icon and its `tauri-plugin-dialog`
+  dependency are gone, dragging in from the host's own listing having
+  made it redundant (#293).
+
+- **Home's own host list can hide**, the same rail click that already
+  toggled Sessions' and SFTP's sidebars, and its empty state carries the
+  brand mark the others always had (#325).
+
+### Fixed
+
+- Deleting a host asks first; it used to happen on the spot (#326).
+- The wizard closes itself the instant a save succeeds, instead of
+  waiting on a card and then a Finish click for an ending that needed
+  neither (#329).
+- A wrong password now reports inline, next to the password field, the
+  way an ordinary form does; it used to open a separate card (#330).
+- Reopening an editor mid-save no longer loses the credential form that
+  was on screen (#322); a bastion's own credential listener no longer
+  outlives the wizard that registered it (#324).
+- SFTP's source pane can clear itself, the way every destination already
+  could (#332).
+- **Three visual regressions found in a pre-release audit** (#333): a
+  banner in the host editor was narrower than the panel it should have
+  spanned (ADR-0056's own rule); a locale string used first-person
+  voice ("I remove it") where every other system message in the tree is
+  impersonal; `hostKind.jumpServer` was translated per locale when it
+  names the same technical term this project keeps untranslated
+  everywhere else, "JumpServer."
+- **Four more reported live after that pass**, none caught by it: the
+  host editor's two columns were fixed at 440px/340px, inherited from
+  the old single-column wizard, leaving a void on a wide window; the
+  Access column's own input style was copied from a floating card and
+  never restyled to match the rest of the form; a fresh draft's first
+  field never actually received focus, an unrelated effect stealing it
+  every time; the Delete/Cancel/Save row had no separator from the form
+  above it.
+- SFTP's empty source and destination drop targets drew a generic folder
+  glyph and one line of text, the one empty rectangle in the app without
+  the brand mark every other one already carries.
+- `wnaf`, pulled in transitively through `russh`'s elliptic-curve stack,
+  bumped past a version crates.io yanked the same day it landed.
+
+### Known limitations
+
+- **Session import from OpenSSH and PuTTY did not ship**, despite being
+  named in v0.3.0's own roadmap entry for this release. Moved to v0.5.0
+  rather than held back further (#128); nothing about this window's work
+  narrows what it will need to do.
+- **Remote and dynamic forwards are proven by their own unit tests, not
+  by the same live, driven confirmation local forwarding got.** A local
+  forward was driven end to end against a real fixture and its bind port
+  checked to genuinely tunnel traffic; remote (the server-initiated
+  channel) and dynamic (the SOCKS listener) are new surface this window
+  did not drive the same concrete way.
+- **A saved forward binds on every connection regardless of whether the
+  service on the far end still exists.** The same cost OpenSSH's own
+  config directives already carry, not a new one this design invents,
+  but nothing here detects or reports it.
+- Everything v0.3.0 listed that is not named above is still true,
+  including SFTP having no resume and a folder copy that fails partway
+  leaving no cleanup.
+
 ## [0.3.0] — 2026-09-01
 
 Opens the ground v0.2.1's roadmap named next: SFTP, moving files over the

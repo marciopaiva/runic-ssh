@@ -256,6 +256,21 @@ records both, and why per-group opt-in was refused: a subset the user has to
 check one rectangle at a time is harder to see than a rule that spans all of
 them.
 
+## What `localStorage` carries
+
+The host book remembers which bastions a person has folded shut
+(ADR-0060), the first and only thing this frontend keeps in
+`localStorage` rather than in the settings file the Rust core owns. What
+is written is a session id and a boolean per bastion, nothing else: no
+host address, no credential, no field the IPC boundary would otherwise
+have to cross. It survives closing the application, which is the point
+of it, and it is readable by anything else that can run script in this
+origin, the same exposure every other unencrypted, webview-local store
+carries. Rule 1 ("credentials never cross IPC toward the frontend") is
+what actually protects a secret; this note exists so a future review does
+not have to rediscover that `localStorage` is now a place this frontend
+writes to at all.
+
 ## Reviewing a change
 
 Any change touching `vault/`, host key verification, logging, or

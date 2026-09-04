@@ -37,10 +37,18 @@ env -u WAYLAND_DISPLAY DISPLAY=:99 GDK_BACKEND=x11 \
 
 `env -u WAYLAND_DISPLAY` is load-bearing under WSL. See `docs/testing.md`.
 
+`screenshot-hostbook-*.png` (v0.4.0) used the application's own theme picker
+instead, now that one exists in every toolbar (ADR-0062): open the fold in
+the top right and choose Light or Dark directly, rather than signalling the
+desktop through `GTK_THEME`. Both paths land on the same `data-theme`
+attribute; the picker is simply the more direct one now that it is there.
+
 The fleet is staged to match the design canvas, so the artboards and the
 screenshots show the same invented hosts: `web-01` and `db-01` under
 `PRODUCTION`, `stg-app` under `STAGING`. They resolve to the test sshd through
 temporary `/etc/hosts` entries, and the locale is set to `en` because the README
-is in English.
+is in English. `screenshot-hostbook-*.png` instead uses this project's own
+container fixtures directly (`docs/testing.md`), named for what they are:
+`runic-bastion`, `runic-target-a`, `dev-web`.
 
 Nothing in frame is a real address, a real host name or a real key of anyone's.

@@ -593,6 +593,80 @@ The last row is the only way a broken session gets repaired, so it is worth
 building one: write the `proxyJump` into `sessions.json` by hand on a host that
 already carries others, and open the form.
 
+### Port forwarding (ADR-0054)
+
+A saved forward starts the instant its own session connects, no separate
+arm gesture, and stops when the session does. The status bar carries a
+count of how many are running for the focused session; the editor's own
+Forwarding section is where one is added, edited or removed.
+
+| Do this | Expect |
+| --- | --- |
+| Add a Local forward (bind port, a target host and port) to a host, save, connect | the status bar's forward count reads at least 1 the instant the session finishes connecting |
+| Reach the bind port from this machine | traffic arrives at the target, over the same connection, no second authentication |
+| Disconnect the session | the bind port stops accepting new connections |
+
+Confirmed on Linux on 2026-09-04, against the real `runic-test-sshd`
+fixture on port 2222 (`deploy` / `runic-test`, this file's own first
+fixture): a Local forward, bind port 18022, target `127.0.0.1:2222`,
+saved on the host and started on connect. `ss -tln` showed `18022`
+listening on this machine the instant the session reported connected, and
+
+```sh
+ssh-keyscan -p 18022 -t ed25519 127.0.0.1 | ssh-keygen -lf -
+```
+
+returned the exact same fingerprint `ssh-keyscan -p 2222` returns
+directly, `SHA256:aFlhIVptureOEVBRgdbFwxN3+m0oKeVC8hLnP8ihBqI`: the bind
+port is genuinely tunneling to the target's own sshd through the SSH
+connection, not just accepting connections and doing nothing with them.
+Remote and Dynamic forwards share the same start-on-connect mechanism and
+the same editor section; this pass drove Local specifically, since it is
+the direction with the least new surface (`open_forward` already proven
+by every jump chain, ADR-0054's own words). Driving Remote (the server
+initiating a channel back to this machine) and Dynamic (a local SOCKS
+listener) the same concrete way is open work, not assumed safe by
+analogy here.
+
+### The host book organized by topology (ADR-0060)
+
+Hosts groups by `proxyJump`, computed, not by the free-text `group` field
+a person may or may not have typed. A host carrying at least one other is
+a bastion; everything else is direct.
+
+| Do this | Expect |
+| --- | --- |
+| Save a plain host, no jump host set | it lists under **Direct** |
+| Save a second host reached through the first | the first now lists under **Bastions**, the second nested beneath it, `via <name>` in place of its address |
+| Click the chevron on a bastion row | its riders hide; the row itself stays, its address line replaced by a count |
+| Close and reopen the application | the fold state from the click above is exactly as it was left (`localStorage`, ADR-0060) |
+| Type a name into the filter box that matches only a nested, folded rider | the bastion holding it opens on its own, whether or not it was folded before |
+| A book with no bastion at all | no **Bastions** heading renders, the same rule an empty free-text group already followed |
+
+Confirmed on Linux on 2026-09-04, against a saved bastion and a target
+reached through it (`runic-bastion` / `runic-target-a`, the chain this
+file already builds below) plus a plain direct host: the nesting, the
+fold-and-reopen-the-app persistence, and the filter auto-expand all
+matched the table above in the packaged v0.4.0 build.
+
+### Progressive disclosure in the host editor (ADR-0061)
+
+General and Access always render in full. Topology and Forwarding each
+collapse to one line when the host's own data says neither is in use,
+and expand the instant it is.
+
+| Do this | Expect |
+| --- | --- |
+| Open a plain direct host with no forwards | Topology reads one line (its kind, "Change"); Forwarding reads only "+ Add forward" |
+| Click "Change" | Topology opens in full, without saving anything |
+| Close this editor and reopen the same host, having changed nothing | Topology is folded again: the manual "Change" click does not persist on its own |
+| Open a host with a bastion already set, or one that carries another host | Topology opens already, no click needed |
+| Add a forward, save | Forwarding stays open on every later visit, since the list is no longer empty |
+
+Confirmed on Linux on 2026-09-04 in the packaged v0.4.0 build: a plain
+host folded both sections; the same host, after the Local forward above
+was added and saved, opened Forwarding automatically on the next visit.
+
 ### SFTP
 
 ADR-0044 through ADR-0049. One fixture on 2222 is enough for browsing,

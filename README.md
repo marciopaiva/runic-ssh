@@ -101,13 +101,23 @@ carries your keys.
 - **The fingerprint drawn as randomart**, the same picture `ssh-keygen -lv`
   draws, so a check against something you already trust is a check and not a
   comparison of two different pictures.
-- **Saved hosts**, grouped, each edited on its own tab. A host's password is
-  saved from that tab by connecting once, so there is never a password field on
-  a form rendered in the same document as a remote host's output, and the same
-  block forgets one.
+- **A saved host book organized by how hosts actually connect**, not by a
+  free-text label. A host that carries another nests what it carries
+  directly beneath it; everything else sits flat, direct (ADR-0060). One
+  host is edited at a time, in a form beside the list rather than a tab of
+  its own: General, Topology, Access and Forwarding together, the
+  password saved by testing it in the same click that saves everything
+  else. Topology and Forwarding each fold to one line when a host uses
+  neither, and open on their own the instant it does (ADR-0056, ADR-0057,
+  ADR-0061).
+- **Port forwarding over the connection that is already open.** Local,
+  remote and dynamic (SOCKS) forwards, saved per host and started the
+  moment it connects, no separate command to remember. The status bar
+  says how many are running for the session in front of you (ADR-0054).
 - **A command palette** on `Ctrl+Shift+P`.
-- **Light and dark**, from one token set, chosen in settings or left to follow
-  the system.
+- **Light and dark, reachable from every workspace.** One token set, one
+  fold showing the current choice in Sessions', SFTP's and Home's own
+  toolbar alike, chosen or left to follow the system (ADR-0059, ADR-0062).
 - **English, Brazilian Portuguese and Spanish.** Spanish was held out of the
   selector from the first release until a native speaker read the copy that
   describes a security decision, which happened for v0.2.1.
@@ -121,18 +131,38 @@ carries your keys.
   before it is trusted the same way a host key is (ADR-0041, ADR-0044
   through ADR-0049).
 
-Not yet: **port forwarding**, snippets, and a signed installer of any kind.
-Those are the roadmap further down, not this list. A features section
-describing software that does not exist is the kind of thing this project
-would rather not do.
+Not yet: **session import** from OpenSSH and PuTTY, snippets, and a signed
+installer of any kind. Those are the roadmap further down, not this list. A
+features section describing software that does not exist is the kind of
+thing this project would rather not do.
 
 ## 📸 What it looks like
 
-Both captures are of the release build, the same binary the installers carry,
-connected to a real SSH server. They are not mockups, and not the design canvas.
-The hosts are invented; the fingerprints, the shells and the output are not.
-Each fingerprint shown was checked against `ssh-keyscan` before the picture was
-taken.
+Every capture below is of the release build, the same binary the installers
+carry, connected to a real SSH server. None are mockups, and none are the
+design canvas. GitHub's own README rendering has no carousel, script-driven
+or otherwise, so this is a sequence rather than one: the first shows what is
+new in v0.4.0, the rest fold under **Older screens** further down rather
+than force a scroll past what has not changed.
+
+**The host book, organized by how hosts actually connect (v0.4.0).** A
+bastion nests what it carries directly beneath it in the sidebar; this one
+is also mid-edit, Topology open because it rides one, a local forward
+already saved and ready to start on connect.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-hostbook-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="assets/screenshot-hostbook-light.png">
+  <img src="assets/screenshot-hostbook-dark.png" alt="The Home host book: a JumpServers section with a bastion carrying a nested target host, a Direct section below it, and the target's own editor open beside the list showing General, an expanded Topology naming the bastion it is reached through, Access, and a saved local forward under Forwarding" width="880">
+</picture>
+
+<details>
+<summary><strong>Older screens</strong> (unchanged since v0.3.0)</summary>
+<br>
+
+Each fingerprint shown below was checked against `ssh-keyscan` before the
+picture was taken; the hosts are invented, the fingerprints, the shells and
+the output are not.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-main-dark.png">
@@ -151,24 +181,29 @@ exists to prevent, so it is not one click away.
   <img src="assets/screenshot-hostkey-dark.png" alt="The unknown host key screen, showing the host, key type and SHA256 fingerprint, with the trust button disabled until an out-of-band verification checkbox is ticked" width="880">
 </picture>
 
+</details>
+
 ## 🚦 Status
 
 **Pre-alpha, and it connects.** v0.1.0 and v0.1.1 shipped on 2026-08-23, v0.2.0
-on 2026-08-26 with groups and jump hosts, and v0.2.1 the same day finishing what
-that release said it did. On Linux and on Windows 11 a packaged build was
-installed and driven end to end: it verified an unknown host key against its
-real fingerprint, asked for a password in its own window, opened a shell and ran
-commands in it.
+on 2026-08-26 with groups and jump hosts, v0.2.1 the same day finishing what
+that release said it did, v0.3.0 on 2026-09-01 with SFTP, and v0.4.0 opens the
+ground v0.3.0's own roadmap named next: port forwarding, and the host book
+reorganized around how a saved host actually connects. On Linux and on
+Windows 11 a packaged build was installed and driven end to end: it verified
+an unknown host key against its real fingerprint, asked for a password, opened
+a shell and ran commands in it.
 
 **macOS has never been opened by anyone.** The `.dmg` builds on every run and
 that is all anyone can say about it. `docs/installing.md` tracks which packages
 a human has actually installed, per platform, which is not the same list as the
 one CI produces. The Linux `.deb` has now been downloaded from a release,
-checked against its hash, installed and driven three times, at v0.1.1, at
-v0.2.0, and again at v0.2.1 as an upgrade over the 0.2.0 already on the
-machine, which is the only path where somebody has run the same file a
-stranger would. On Windows the newest package anyone has installed is a
-v0.1.1 build, and it came off a developer's machine rather than a release.
+checked against its hash, installed and driven at every release through
+v0.3.0, including as an upgrade over the version already on the machine, which
+is the only path where somebody has run the same file a stranger would. On
+Windows the newest package anyone has installed is a v0.1.1 build, and it came
+off a developer's machine rather than a release; `docs/installing.md` has the
+exact state per platform, kept current there rather than duplicated here.
 
 Work is tracked in [issues](https://github.com/marciopaiva/runic-ssh/issues) and
 the decisions behind it in [`docs/adr/`](docs/adr/).
@@ -261,7 +296,8 @@ the tree. Five green commands and a red pull request is what happens without it.
 - [x] **v0.2.0:** reaching a host through a bastion, a main area divided into groups, and typing into all of them at once. [Released 2026-08-26](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.2.0).
 - [x] **v0.2.1:** finishing what v0.2.0 claimed: a jump host that asks for its own credential, a password saved from a host's own form, and a bastion that admits it is carrying somebody else's session. [Released 2026-08-26](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.2.1).
 - [x] **v0.3.0:** SFTP, upload and download over the connection that is already open. [Released 2026-09-01](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.3.0).
-- [ ] **v0.4.0:** port forwarding (SSH tunnels), customizable themes, and session import from PuTTY and OpenSSH.
+- [x] **v0.4.0:** port forwarding (local, remote and dynamic), the host book reorganized around how a saved host actually connects, and theme and language reachable from every workspace. [Released 2026-09-04](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.4.0).
+- [ ] **v0.5.0:** session import from OpenSSH and PuTTY.
 - [ ] **v1.0.0:** production grade stability, and a signed installer on every platform.
 
 The versions after v0.1.0 are a direction, not a promise. If you need something
