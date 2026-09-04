@@ -109,7 +109,7 @@
   "group.tabs": "Abas do grupo {number}",
   "home.groups": "Grupos",
   "home.hosts": "Hosts",
-  "home.hosts.bastions": "Bastiões",
+  "home.hosts.bastions": "JumpServers",
   "home.hosts.bastions.collapse": "Recolher {name}",
   "home.hosts.bastions.collapsed.one": "1 host",
   "home.hosts.bastions.collapsed.other": "{count} hosts",

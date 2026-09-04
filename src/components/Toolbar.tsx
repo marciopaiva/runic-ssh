@@ -20,10 +20,11 @@ interface ToolbarProps {
  * Sessions and SFTP alike so a workspace's own controls have one place to
  * live rather than each workspace inventing its own.
  *
- * ADR-0052 gives Home this same row, for `ThemeLanguageControls`: a "set
+ * ADR-0052 gave Home this same row for `ThemeLanguageControls`, a "set
  * once and forget" choice that used to live on a dashboard card `HomeNav`
  * switched to, before Home became one screen with no dashboard to switch
- * away from.
+ * away from. ADR-0062 puts it in Sessions' and SFTP's own rows too, after
+ * each workspace's own controls, rather than confining it to Home alone.
  */
 export function Toolbar({ leading, trailing }: ToolbarProps): JSX.Element {
   return (

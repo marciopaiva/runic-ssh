@@ -1735,10 +1735,10 @@ export function App(): JSX.Element {
       />
 
       {/* ADR-0046: a shared row for a workspace's own controls, between the
-          Titlebar and the rail/sidebar/body below. ADR-0052 gives Home this
-          same row for theme and language, a "set once and forget" choice
-          rather than a per-rectangle one, which is why it stays out of
-          Sessions' and SFTP's own trailing content below. */}
+          Titlebar and the rail/sidebar/body below. ADR-0062: theme and
+          language render in every workspace's own row now, not Home's
+          alone, so reaching either never means switching away from
+          whichever workspace is actually in use. */}
       {workspace === 'sessions' && (
         <Toolbar
           trailing={
@@ -1753,6 +1753,13 @@ export function App(): JSX.Element {
                 }}
               />
               <ShapeControl layout={layout} onChoose={chooseLayout} />
+              <span className="bg-line-subtle h-4 w-px shrink-0" aria-hidden="true" />
+              <ThemeLanguageControls
+                theme={theme}
+                onChooseTheme={(next) => void chooseTheme(next)}
+                chosenLocale={chosen}
+                onChooseLocale={(locale) => void choose(locale)}
+              />
             </>
           }
         />
@@ -1766,6 +1773,13 @@ export function App(): JSX.Element {
                 onSelectAll={fanout.includeEveryDestination}
               />
               <SftpSplitControl value={destinationSplit} onChange={setDestinationSplit} />
+              <span className="bg-line-subtle h-4 w-px shrink-0" aria-hidden="true" />
+              <ThemeLanguageControls
+                theme={theme}
+                onChooseTheme={(next) => void chooseTheme(next)}
+                chosenLocale={chosen}
+                onChooseLocale={(locale) => void choose(locale)}
+              />
             </>
           }
         />

@@ -115,7 +115,7 @@ export const SOURCE_CATALOG = {
   "group.tabs": "Tabs in group {number}",
   "home.groups": "Groups",
   "home.hosts": "Hosts",
-  "home.hosts.bastions": "Bastions",
+  "home.hosts.bastions": "JumpServers",
   "home.hosts.bastions.collapse": "Collapse {name}",
   "home.hosts.bastions.collapsed.one": "1 host",
   "home.hosts.bastions.collapsed.other": "{count} hosts",
