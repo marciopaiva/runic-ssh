@@ -1000,7 +1000,7 @@ def build_sftp_proposal():
     page_html = f"""
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
 {plain_titlebar()}
-{toolbar_row(right_html=split_control(active=3))}
+{toolbar_row(right_html=split_control(active=3) + toolbar_group_divider() + theme_language_toolbar_controls())}
   <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
 {home_rail(workspace="sftp", sftp_badge="3")}
 {sidebar}
@@ -1281,7 +1281,7 @@ def build_sftp_proposal_broadcast():
     page_html = f"""
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
 {plain_titlebar()}
-{toolbar_row(right_html=select_all_button(1) + split_control(active=3))}
+{toolbar_row(right_html=select_all_button(1) + split_control(active=3) + toolbar_group_divider() + theme_language_toolbar_controls())}
   <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
 {home_rail(workspace="sftp", sftp_badge="3")}
 {sidebar}
@@ -1405,7 +1405,7 @@ def build_sftp_file_ops():
     page_html = f"""
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
 {plain_titlebar()}
-{toolbar_row(right_html=select_all_button(1) + split_control(active=2))}
+{toolbar_row(right_html=select_all_button(1) + split_control(active=2) + toolbar_group_divider() + theme_language_toolbar_controls())}
   <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
 {home_rail(workspace="sftp", sftp_badge="2")}
 {sidebar}
@@ -1503,7 +1503,7 @@ def build_sftp_folder_copy():
     page_html = f"""
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
 {plain_titlebar()}
-{toolbar_row(right_html=select_all_button(1) + split_control(active=2))}
+{toolbar_row(right_html=select_all_button(1) + split_control(active=2) + toolbar_group_divider() + theme_language_toolbar_controls())}
   <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
 {home_rail(workspace="sftp", sftp_badge="2")}
 {sidebar}
@@ -1653,7 +1653,7 @@ def build_sftp_selection():
     page_html = f"""
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
 {plain_titlebar()}
-{toolbar_row(right_html=select_all_button(1) + split_control(active=2))}
+{toolbar_row(right_html=select_all_button(1) + split_control(active=2) + toolbar_group_divider() + theme_language_toolbar_controls())}
   <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
 {home_rail(workspace="sftp", sftp_badge="2")}
 {sidebar}
@@ -1761,7 +1761,7 @@ def build_sftp_delete_confirm():
     page_html = f"""
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
 {plain_titlebar()}
-{toolbar_row(right_html=select_all_button(1) + split_control(active=2))}
+{toolbar_row(right_html=select_all_button(1) + split_control(active=2) + toolbar_group_divider() + theme_language_toolbar_controls())}
   <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
 {home_rail(workspace="sftp", sftp_badge="2")}
 {sidebar}
@@ -1801,7 +1801,7 @@ def build_sessions_proposal():
     page_html = f"""
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
 {plain_titlebar()}
-{toolbar_row(right_html=broadcast_button(False) + shapes('rows'))}
+{toolbar_row(right_html=broadcast_button(False) + shapes('rows') + toolbar_group_divider() + theme_language_toolbar_controls())}
   <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
 {home_rail(workspace="sessions", badge="1")}
 {sidebar}
@@ -1864,7 +1864,7 @@ def build_sessions_proposal_broadcast():
     page_html = f"""
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
 {plain_titlebar()}
-{toolbar_row(right_html=broadcast_button(True, 2) + shapes('rows'))}
+{toolbar_row(right_html=broadcast_button(True, 2) + shapes('rows') + toolbar_group_divider() + theme_language_toolbar_controls())}
   <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
 {home_rail(workspace="sessions", badge="2")}
 {sidebar}
@@ -1927,7 +1927,7 @@ def build_sessions_proposal_broadcast_multi():
     page_html = f"""
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
 {plain_titlebar()}
-{toolbar_row(right_html=broadcast_button(True, 2) + shapes('rows'))}
+{toolbar_row(right_html=broadcast_button(True, 2) + shapes('rows') + toolbar_group_divider() + theme_language_toolbar_controls())}
   <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
 {home_rail(workspace="sessions", badge="4")}
 {sidebar}
@@ -2132,7 +2132,7 @@ def home_hosts_rows(active=None):
     selected, so the four call sites stop drifting from each other by
     hand."""
     return "\n".join([
-        group_row("BASTIONS", 2),
+        group_row("JUMPSERVERS", 2),
         host_row("runic-bastion", "127.0.0.1", kind="jumpServer", active=(active == "runic-bastion"), chevron="expanded"),
         host_row("runic-target-a", None, active=(active == "runic-target-a"), kind="target", via="runic-bastion", depth=1),
         group_row("DIRECT", 1),
@@ -2155,7 +2155,7 @@ def build_home_hosts_topology():
         # collapsed. The heading counts every host in the section the same
         # way `groupSessions`'s own heading already does, whether or not a
         # fold is currently hiding it.
-        group_row("BASTIONS", 7),
+        group_row("JUMPSERVERS", 7),
         host_row("runic-bastion", "127.0.0.1", kind="jumpServer", chevron="expanded"),
         host_row("runic-target-a", None, active=True, kind="target", via="runic-bastion", depth=1),
         host_row("db-replica", None, kind="target", via="runic-bastion", depth=1, tag="prod"),
@@ -2475,6 +2475,14 @@ def build_home_hosts_credential():
 </div>
 """
     write("HomeHostsCredential.dc.html", HEAD + page_html + FOOT)
+
+
+def toolbar_group_divider():
+    """ADR-0062: the same hairline `ThemeLanguageControls` already draws
+    between its own two folds, reused here between a workspace's own
+    trailing controls and the shared theme/language pair that now follows
+    them in every toolbar, not Home's alone."""
+    return f'<span style="width: 1px; height: 16px; background: {T["line"]}; flex: none;"></span>'
 
 
 def theme_language_toolbar_controls():

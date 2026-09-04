@@ -109,7 +109,7 @@
   "group.tabs": "Pestañas del grupo {number}",
   "home.groups": "Grupos",
   "home.hosts": "Hosts",
-  "home.hosts.bastions": "Bastiones",
+  "home.hosts.bastions": "JumpServers",
   "home.hosts.bastions.collapse": "Colapsar {name}",
   "home.hosts.bastions.collapsed.one": "1 host",
   "home.hosts.bastions.collapsed.other": "{count} hosts",

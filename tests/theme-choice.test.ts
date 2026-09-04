@@ -80,12 +80,13 @@ describe('the light theme is reachable at all', () => {
     expect(context).toContain('applyTheme(document.documentElement');
   });
 
-  it('offers all three choices on Home\'s own toolbar', () => {
+  it('offers all three choices in every workspace\'s own toolbar', () => {
     /* A control that offers two of them is the boolean this deliberately is
        not: "follow the system" has to stay reachable after a user has picked
        something else, or the choice is one way. Moved here from a dashboard
        card (ADR-0052, once the card itself went with Home's own Dashboard
-       section). Folded behind one button since (found comparing directly
+       section), then into Sessions' and SFTP's own toolbars too (ADR-0062).
+       Folded behind one button since (found comparing directly
        against `ShapeControl`/`SftpSplitControl`, the toolbar's own answer
        for "which one of several is this" elsewhere): a `menu` of
        `menuitemradio` options, the same roles those two already use, not
