@@ -481,7 +481,7 @@ export function SessionWizard({
       )}
 
       <div className="flex flex-col gap-6 lg:flex-row lg:gap-10">
-        <div className="flex flex-col gap-4 lg:w-[440px] lg:flex-none">
+        <div className="flex min-w-0 flex-col gap-4 lg:flex-1">
           <FormSection title={i18n.t('session.editor.section.general')}>
             <HostGeneralFields
               values={values}
@@ -522,7 +522,7 @@ export function SessionWizard({
           )}
         </div>
 
-        <div className="flex flex-col gap-4 lg:w-[340px] lg:flex-none">
+        <div className="flex min-w-0 flex-col gap-4 lg:flex-1">
           <FormSection title={i18n.t('session.editor.section.access')}>
             <MethodPicker value={method} onChange={setMethod} />
 

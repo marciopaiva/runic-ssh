@@ -2328,11 +2328,11 @@ def host_detail_panel(banner_html="", access_html=None, topology_folded=False, f
         <span style="font-size: 15px; font-weight: 600;">{title}</span>
         {banner_html}
         <div style="display: flex; gap: 40px; margin-top: 22px;">
-          <div style="width: 440px; flex: none; display: flex; flex-direction: column; gap: 22px;">
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 22px;">
             {general}
             {topology}
           </div>
-          <div style="width: 340px; flex: none; display: flex; flex-direction: column; gap: 22px;">
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 22px;">
             {access}
             {forwarding}
           </div>
