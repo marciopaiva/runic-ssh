@@ -2337,7 +2337,7 @@ def host_detail_panel(banner_html="", access_html=None, topology_folded=False, f
             {forwarding}
           </div>
         </div>
-        <div style="margin-top: 26px;">{wizard_actions(('Delete', False), ('Cancel', False), ('Save', True))}</div>
+        <div style="margin-top: 26px; padding-top: 16px; border-top: 1px solid {T['line']};">{wizard_actions(('Delete', False), ('Cancel', False), ('Save', True))}</div>
       </div>"""
     return panel
 

@@ -49,7 +49,18 @@ export function CredentialAccessFields({
     first.current = node;
   };
 
+  /* Only on a method change, never on mount: this field used to be the
+     first thing on Access's own step, reached after Host, so focusing it
+     the instant it appeared was correct. ADR-0056 put Access on screen at
+     the same time as General, and this effect kept firing anyway, taking
+     focus away from Host's own mount-time focus (`SessionWizard.tsx`)
+     every time. Reported live. */
+  const mounted = useRef(false);
   useEffect(() => {
+    if (!mounted.current) {
+      mounted.current = true;
+      return;
+    }
     first.current?.focus();
   }, [method]);
 
@@ -137,5 +148,10 @@ export function CredentialAccessFields({
   );
 }
 
+/* Matches `HostGeneralFields`/`HostTopologyFields`/`ForwardsFields`'s own
+   input style. Copied instead from `InlineCredentialForm.tsx` when this
+   field moved here (ADR-0057), which draws its own floating card rather
+   than one of `SessionWizard.tsx`'s bordered sections, and reads visibly
+   different sitting inside one. Reported live. */
 const INPUT =
-  'bg-surface-base border-line-subtle text-ink rounded-lg border px-3 py-2 font-mono text-[12.5px] outline-none focus:border-accent';
+  'bg-surface-input border-line-subtle text-ink rounded border px-2.5 py-1.5 font-mono text-[12.5px] outline-none';
