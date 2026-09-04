@@ -302,7 +302,8 @@ def group_row(label, count):
             f'<span class="mono" style="margin-left: auto; font-size: 9.5px; color: {T["off"]};'
             f' background: {T["raised"]}; border-radius: 4px; padding: 1px 6px;">{count}</span></div>')
 
-def host_row(name, who, state="saved", active=False, mark=None, edge=None, kind=None, via=None, depth=0):
+def host_row(name, who, state="saved", active=False, mark=None, edge=None, kind=None, via=None, depth=0,
+             chevron=None, tag=None):
     """Two lines: dot, kind icon (rare, 'other' draws none) and name on the
     first, with room left for the reached tick or SPARED; the address, or
     the bastion a rider rides, on its own line below, always drawn now
@@ -310,6 +311,15 @@ def host_row(name, who, state="saved", active=False, mark=None, edge=None, kind=
     slot. Matches `SessionsSidebar.tsx` since 2026-08-30: a name and an
     address used to shrink each other to an ellipsis on one line, worse once
     a kind icon or a state-tinted `JumpMark` also asked for room on it.
+
+    `chevron` (ADR-0060, `HostsSection.tsx` only): a bastion carrying at
+    least one other host draws a disclosure triangle, "expanded" (rotated,
+    children drawn below) or "collapsed" (children hidden, `who` carries
+    the count instead). `None`, the default, draws nothing and costs no
+    space, so every other row in every other list this same function draws
+    is unaffected. `tag` (ADR-0060: `group` moves off the section axis onto
+    a pill per row): the free-text group string, drawn as a small pill when
+    present, absent exactly as `group` itself can be.
     """
     dots = {"ok": f'background: {T["ok"]};', "saved": f'border: 1.5px solid {T["off"]}; box-sizing: border-box;',
             "warn": f'border: 1.5px solid {T["warn"]}; box-sizing: border-box;'}
@@ -331,15 +341,24 @@ def host_row(name, who, state="saved", active=False, mark=None, edge=None, kind=
         f'<span style="width: 1px; background: {T["off"]}; opacity: 0.35;"></span></span>'
         for _ in range(depth)
     )
+    disclosure = ''
+    if chevron is not None:
+        rotate = ' transform: rotate(90deg);' if chevron == 'expanded' else ''
+        disclosure = (f'<span style="width: 14px; flex: none; display: flex; align-items: center; justify-content: center;">'
+                       f'{ic("chev", 10, T["faint"], extra=rotate)}</span>')
+    pill = ''
+    if tag is not None:
+        pill = (f'<span style="font-size: 9px; color: {T["muted"]}; background: {T["raised"]}; border-radius: 4px;'
+                f' padding: 1px 6px; flex: none; margin-left: auto;">{tag}</span>')
     return (f'<div class="row" style="{bg} height: auto; align-items: center; padding: 6px 8px;">'
-            f'{indent}'
+            f'{indent}{disclosure}'
             f'<span class="dot" style="{dots[state]} align-self: center; flex: none;"></span>'
             f'<div style="display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1;">'
             f'<div style="display: flex; align-items: center; gap: 8px;">'
             f'{kind_ic(kind, T["faint"])}'
             f'<span style="font-size: 12.5px; color: {name_color}; {weight} min-width: 0; overflow: hidden;'
             f' text-overflow: ellipsis; white-space: nowrap;">{name}</span>'
-            f'{tail}</div>'
+            f'{tail}{pill}</div>'
             f'<span class="mono" style="font-size: 10.5px; color: {T["off"]}; overflow: hidden;'
             f' text-overflow: ellipsis; white-space: nowrap;">{subtitle}</span>'
             f'</div></div>')
@@ -2106,6 +2125,60 @@ def forward_row(kind, bind_port, target=None, name=None):
       </div>
     </div>"""
 
+def home_hosts_rows(active=None):
+    """The one sample host book every Home/Hosts artboard draws (ADR-0060):
+    a bastion carrying one target, nested under it, and one direct host
+    beside them. `active` names whichever row that artboard highlights as
+    selected, so the four call sites stop drifting from each other by
+    hand."""
+    return "\n".join([
+        group_row("BASTIONS", 2),
+        host_row("runic-bastion", "127.0.0.1", kind="jumpServer", active=(active == "runic-bastion"), chevron="expanded"),
+        host_row("runic-target-a", None, active=(active == "runic-target-a"), kind="target", via="runic-bastion", depth=1),
+        group_row("DIRECT", 1),
+        host_row("dev-web", "10.0.1.5", kind="direct", active=(active == "dev-web")),
+    ])
+
+
+def build_home_hosts_topology():
+    """ADR-0060's own follow-up: the mockup that won (`nav-proposal-
+    topology.html`, one of three throwaway agent-built HTML files, never
+    committed) drawn as a real artboard instead, now that a single bastion
+    no longer shows the whole shape. A second bastion, collapsed, is the
+    row `home_hosts_rows()`'s own single-bastion sample never needed to
+    draw: `who` carries the hidden count in place of an address, exactly
+    what `HostsSection.tsx` shows for a bastion with nothing expanded. The
+    `group` pill on `db-replica` is the other resolved question: a tag
+    that used to be a section heading, now riding on one row instead."""
+    rows = "\n".join([
+        # 7: the 4 rows drawn plus the 3 edge-relay is standing in for while
+        # collapsed. The heading counts every host in the section the same
+        # way `groupSessions`'s own heading already does, whether or not a
+        # fold is currently hiding it.
+        group_row("BASTIONS", 7),
+        host_row("runic-bastion", "127.0.0.1", kind="jumpServer", chevron="expanded"),
+        host_row("runic-target-a", None, active=True, kind="target", via="runic-bastion", depth=1),
+        host_row("db-replica", None, kind="target", via="runic-bastion", depth=1, tag="prod"),
+        host_row("edge-relay", "3 hosts", kind="jumpServer", chevron="collapsed"),
+        group_row("DIRECT", 1),
+        host_row("dev-web", "10.0.1.5", kind="direct"),
+    ])
+    body = hosts_shell(rows, host_detail_panel(), show_filter=True)
+    st = status(stat_text("runic-target-a", T['muted'], mono=False), stat_text("8 hosts", T['faint']))
+    page_html = f"""
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{plain_titlebar()}
+{toolbar_row(right_html=theme_language_toolbar_controls())}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{home_rail(workspace="home")}
+{body}
+  </div>
+{st}
+</div>
+"""
+    write("HomeHostsTopology.dc.html", HEAD + page_html + FOOT)
+
+
 def build_home_hosts():
     """Home, the host book: General, Topology, Access and Forwarding all on
     one screen, ADR-0056's answer to what ADR-0052 deferred. Replaces the
@@ -2128,11 +2201,7 @@ def build_home_hosts():
     remote/dynamic forwards are a real thing a saved host can hold, is
     answered by this being the shipped screen; it is retired rather than
     kept alongside a now-identical General/Topology/Access shape."""
-    rows = "\n".join([
-        host_row("runic-target-a", "target.internal", active=True, kind="target"),
-        host_row("runic-bastion", "127.0.0.1", kind="jumpServer"),
-        host_row("dev-web", "10.0.1.5", kind="direct"),
-    ])
+    rows = home_hosts_rows(active="runic-target-a")
     body = hosts_shell(rows, host_detail_panel(), show_filter=True)
     st = status(stat_text("runic-target-a", T['muted'], mono=False), stat_text("11 hosts", T['faint']))
     page_html = f"""
@@ -2236,11 +2305,7 @@ def build_home_hosts_empty():
     Sessions' equivalent (`Empty.dc.html`) has always carried the brand
     mark, and Home's own text-only version was the one screen that never
     got it. `EmptyPanel.tsx` is the shared component behind both now."""
-    rows = "\n".join([
-        host_row("runic-target-a", "target.internal", kind="target"),
-        host_row("runic-bastion", "127.0.0.1", kind="jumpServer"),
-        host_row("dev-web", "10.0.1.5", kind="direct"),
-    ])
+    rows = home_hosts_rows()
     body = hosts_shell(rows, empty_host_panel("No host selected", "Pick a host on the left to change it, or add one."), show_filter=True)
     st = status(stat_text("No host selected", T['faint']), stat_text("11 hosts", T['faint']))
     page_html = f"""
@@ -2288,11 +2353,7 @@ def build_home_delete_confirm():
     `SessionSurface`: this question lives inside the form it is about, the
     same place the discard one already does, rather than taking over the
     session rectangle SFTP's own delete has no form to live inside of."""
-    rows = "\n".join([
-        host_row("runic-target-a", "target.internal", active=True, kind="target"),
-        host_row("runic-bastion", "127.0.0.1", kind="jumpServer"),
-        host_row("dev-web", "10.0.1.5", kind="direct"),
-    ])
+    rows = home_hosts_rows(active="runic-target-a")
     banner = f"""<div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: {T['dangersoft']}; border: 1px solid {T['danger']}; border-radius: 6px; padding: 8px 12px; margin-top: 14px;">
         <span style="font-size: 12px; color: {T['danger']}; flex: 1;">Delete runic-target-a? This cannot be undone.</span>
         <span style="font-size: 12px; padding: 4px 10px; border: 1px solid {T['line2']}; border-radius: 4px; color: {T['ink2']};">Cancel</span>
@@ -2321,11 +2382,7 @@ def build_home_hosts_credential():
     part of Access from the start; read once, on Save, and never sent
     until the host key that same click resolves is confirmed. The bastion
     mid-chain case (ADR-0033) is untouched and draws nothing here."""
-    rows = "\n".join([
-        host_row("runic-target-a", "target.internal", active=True, kind="target"),
-        host_row("runic-bastion", "127.0.0.1", kind="jumpServer"),
-        host_row("dev-web", "10.0.1.5", kind="direct"),
-    ])
+    rows = home_hosts_rows(active="runic-target-a")
     access = f"""
       <div role="radiogroup" style="display: flex; gap: 3px; background: {T['input']}; border: 1px solid {T['line']}; border-radius: 8px; padding: 3px;">
         <span style="flex: 1; text-align: center; font-size: 11.5px; font-weight: 600; color: {T['ink']}; background: {T['raised']}; border-radius: 6px; padding: 6px 0;">Password</span>
@@ -2836,7 +2893,7 @@ else:
                build_sessions_proposal, build_sessions_proposal_broadcast,
                build_sessions_proposal_broadcast_multi,
                build_home_hosts, build_home_hosts_empty, build_home_collapsed, build_home_delete_confirm,
-               build_home_hosts_credential,
+               build_home_hosts_credential, build_home_hosts_topology,
                build_anatomy, build_tokens,
                build_hostkeychanged, build_failure, build_paste, build_palette):
         fn()
