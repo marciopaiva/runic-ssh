@@ -37,7 +37,7 @@ found already correct. "I updated the changelog" is not an answer to this list.
 | --- | --- |
 | `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` | the version, and they move **together**. `Cargo.lock` follows: `cargo update -p <crate> --offline` |
 | `CHANGELOG.md` | the release section, written by hand, before the tag. `Known limitations` is not optional |
-| `README.md` | the feature list, the roadmap, and the status paragraph. All three drift independently |
+| `README.md` | the feature list, the roadmap, the status paragraph, and the Downloads table. All four drift independently; the Downloads table links each asset by tag and filename, both carrying the version, the same way `docs/installing.md`'s examples do |
 | `docs/installing.md` | example filenames carry the version, and the upgrade advice changes when the version actually moves |
 | `docs/testing.md` | how a person drives whatever shipped. Anything a test cannot assert belongs here or it is untestable forever |
 | `docs/security-model.md` | only if the change moved data somewhere new, and then it is required |

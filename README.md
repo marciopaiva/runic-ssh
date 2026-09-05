@@ -212,13 +212,22 @@ the decisions behind it in [`docs/adr/`](docs/adr/).
 
 Installers for all three platforms are attached to each
 [release](https://github.com/marciopaiva/runic-ssh/releases), with a
-`SHA256SUMS` covering every file.
+`SHA256SUMS` covering every file. The table below links straight to the
+latest one, currently
+[v0.4.0](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.4.0).
 
-| | |
+| Platform | Download |
 | --- | --- |
-| Windows | `.msi` (WiX) or `.exe` (NSIS) |
-| macOS | `.dmg`, Apple Silicon only |
-| Linux | `.deb`, `.rpm`, `.AppImage` |
+| Windows | [`.msi`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.4.0/Runic-SSH_0.4.0_x64_en-US.msi) (WiX) or [`.exe`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.4.0/Runic-SSH_0.4.0_x64-setup.exe) (NSIS) |
+| macOS | [`.dmg`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.4.0/Runic-SSH_0.4.0_aarch64.dmg), Apple Silicon only |
+| Linux | [`.deb`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.4.0/Runic-SSH_0.4.0_amd64.deb), [`.rpm`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.4.0/Runic-SSH-0.4.0-1.x86_64.rpm), [`.AppImage`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.4.0/Runic-SSH_0.4.0_amd64.AppImage) |
+
+Each link names the tag directly rather than GitHub's `latest/download`
+path: every release here ships `--prerelease`, per the badge comment above,
+and GitHub's own "latest" excludes a prerelease, so that path 404s on this
+repository. Tauri's bundler also writes the version into every asset name, so
+both the tag and the six filenames need updating at the same time
+`docs/installing.md`'s example filenames do.
 
 **Nothing here is code-signed.** Windows shows SmartScreen, macOS says the
 application is damaged. Neither is a malfunction: they are what an operating
