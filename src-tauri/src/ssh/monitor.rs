@@ -29,13 +29,23 @@ const SECTION_MARKER: &str = "@@RUNIC-MONITOR@@";
 ///
 /// `df`'s `-P` flag is load-bearing: without it, a filesystem whose name is
 /// long enough wraps its line, and a parser reading "the next line" reads
-/// half a filesystem name instead of the numbers. `2>/dev/null` on the `df`
-/// call keeps a permission error off the stdout this parses, since only exit
-/// status and stdout cross [`Connection::run_command`] at all.
+/// half a filesystem name instead of the numbers. `-T` adds the filesystem
+/// type column [`filesystems`] filters pseudo-filesystems on. `2>/dev/null`
+/// on the `df` call keeps a permission error off the stdout this parses,
+/// since only exit status and stdout cross [`Connection::run_command`] at
+/// all.
+///
+/// `/proc/net/dev` rides in the same before/after samples `/proc/stat` uses
+/// for the CPU delta: neither file's own lines contain a colon except a
+/// network interface's own (`eth0: 123 456 ...`), so both parse out of one
+/// combined blob with no marker of their own needed between them, and a
+/// network rate costs no extra channel round trip over the CPU delta it
+/// already paid for.
 pub fn command() -> String {
     format!(
-        "cat /proc/stat; echo {marker}; sleep {interval}; cat /proc/stat; echo {marker}; \
-         cat /proc/meminfo; echo {marker}; df -k -P / 2>/dev/null; echo {marker}; \
+        "cat /proc/stat; cat /proc/net/dev; echo {marker}; sleep {interval}; \
+         cat /proc/stat; cat /proc/net/dev; echo {marker}; \
+         cat /proc/meminfo; echo {marker}; df -k -P -T 2>/dev/null; echo {marker}; \
          cat /proc/uptime; echo {marker}; cat /proc/loadavg",
         marker = SECTION_MARKER,
         interval = CPU_SAMPLE_INTERVAL_SECONDS,
@@ -62,15 +72,47 @@ pub struct LoadAverage {
     pub fifteen: f64,
 }
 
+/// One mounted filesystem. `mount` rather than the device name: a device
+/// can be a UUID or an overlay id nobody recognizes, and the mount point is
+/// what a person actually typed or read to find the thing that filled up.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Filesystem {
+    pub mount: String,
+    pub usage: Usage,
+}
+
+/// How fast bytes are moving over every network interface but loopback,
+/// summed rather than kept per-interface: a v1 reading is "is this host
+/// pushing more traffic than usual," not "which of its four interfaces."
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NetworkRate {
+    pub receive_bytes_per_sec: f64,
+    pub transmit_bytes_per_sec: f64,
+}
+
 /// A host's vital signs at the moment it was asked. Every field is
 /// independent: one failing to parse says nothing about the others.
-#[derive(Debug, Clone, Copy, Default, PartialEq, serde::Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemStats {
     pub cpu_percent: Option<f64>,
     pub memory: Option<Usage>,
     pub swap: Option<Usage>,
+    /// The root filesystem's own usage, kept as its own field for the
+    /// status bar and the Home tab's own card: both want one number, not a
+    /// list to search for `/` in. Derived from `filesystems` below, the
+    /// same `df` output parsed once.
     pub disk: Option<Usage>,
+    /// Every mounted filesystem `filesystems` (the function) did not filter
+    /// out as a pseudo-filesystem. Empty rather than absent when `df`
+    /// itself failed or printed nothing recognizable: a host with no
+    /// disks to report and a host that refused to answer read the same
+    /// from here, the same reasoning `ssh::systemd::parse_units` already
+    /// applies to a host with no `systemd`.
+    pub filesystems: Vec<Filesystem>,
+    pub network: Option<NetworkRate>,
     pub uptime_seconds: Option<u64>,
     pub load_average: Option<LoadAverage>,
 }
@@ -88,15 +130,23 @@ pub fn parse(stdout: &[u8]) -> SystemStats {
     let before = sections.next().unwrap_or_default();
     let after = sections.next().unwrap_or_default();
     let meminfo = sections.next().unwrap_or_default();
-    let disk = sections.next().unwrap_or_default();
+    let df = sections.next().unwrap_or_default();
     let uptime = sections.next().unwrap_or_default();
     let loadavg = sections.next().unwrap_or_default();
+
+    let filesystems = filesystems(df);
+    let disk = filesystems
+        .iter()
+        .find(|filesystem| filesystem.mount == "/")
+        .map(|filesystem| filesystem.usage);
 
     SystemStats {
         cpu_percent: cpu_percent(before, after),
         memory: memory(meminfo),
         swap: swap(meminfo),
-        disk: disk_usage(disk),
+        disk,
+        filesystems,
+        network: network_rate(before, after, f64::from(CPU_SAMPLE_INTERVAL_SECONDS)),
         uptime_seconds: uptime_seconds(uptime),
         load_average: load_average(loadavg),
     }
@@ -181,22 +231,116 @@ fn swap(meminfo: &str) -> Option<Usage> {
     Some(Usage { used_kb, total_kb })
 }
 
-fn disk_usage(df: &str) -> Option<Usage> {
-    /* `df -k -P`'s header, then one data line: filesystem, 1K-blocks, used,
-    available, capacity, mounted-on. `-P` is what guarantees the data is one
-    line rather than two: without it, a data line wraps once the filesystem
-    name is long enough to push the numbers to a line of their own.
-    Blank lines are skipped rather than counted: [`command`]'s own `echo`
-    between sections leaves the section after it starting with one, from
-    `echo`'s own trailing newline landing on the wrong side of the split. */
-    let mut lines = df.lines().map(str::trim).filter(|line| !line.is_empty());
-    let _header = lines.next()?;
-    let data = lines.next()?;
-    let fields: Vec<&str> = data.split_whitespace().collect();
-    let total_kb = fields.get(1)?.parse().ok()?;
-    let used_kb = fields.get(2)?.parse().ok()?;
+/// Filesystem types that never carry storage information worth a card:
+/// kernel pseudo-filesystems, control groups, device and pipe nodes. Not
+/// excluded: `tmpfs` (a `/tmp` or `/dev/shm` genuinely filling up is
+/// exactly what this screen exists to catch) and `overlay`/the various
+/// `fuse.*overlayfs` types (a container's own root is commonly one of
+/// these, and it is real, sized storage, not a kernel bookkeeping mount).
+const PSEUDO_FILESYSTEM_TYPES: &[&str] = &[
+    "proc",
+    "sysfs",
+    "cgroup",
+    "cgroup2",
+    "devpts",
+    "devtmpfs",
+    "mqueue",
+    "securityfs",
+    "pstore",
+    "debugfs",
+    "tracefs",
+    "configfs",
+    "fusectl",
+    "binfmt_misc",
+    "autofs",
+    "rpc_pipefs",
+    "nsfs",
+    "squashfs",
+];
 
-    Some(Usage { used_kb, total_kb })
+/// `df -k -P -T`'s header, then one data line per mount: filesystem, type,
+/// 1K-blocks, used, available, capacity, mounted-on. `-P` is what
+/// guarantees each mount is one line rather than two: without it, a data
+/// line wraps once the filesystem name is long enough to push the numbers
+/// to a line of their own. Blank lines are skipped rather than counted:
+/// [`command`]'s own `echo` between sections leaves the section after it
+/// starting with one, from `echo`'s own trailing newline landing on the
+/// wrong side of the split.
+fn filesystems(df: &str) -> Vec<Filesystem> {
+    let mut lines = df.lines().map(str::trim).filter(|line| !line.is_empty());
+    let Some(_header) = lines.next() else {
+        return Vec::new();
+    };
+
+    lines.filter_map(parse_filesystem_line).collect()
+}
+
+fn parse_filesystem_line(line: &str) -> Option<Filesystem> {
+    let fields: Vec<&str> = line.split_whitespace().collect();
+    let fs_type = *fields.get(1)?;
+    if PSEUDO_FILESYSTEM_TYPES.contains(&fs_type) {
+        return None;
+    }
+
+    let total_kb = fields.get(2)?.parse().ok()?;
+    let used_kb = fields.get(3)?.parse().ok()?;
+    let mount = (*fields.get(6)?).to_owned();
+
+    Some(Filesystem {
+        mount,
+        usage: Usage { used_kb, total_kb },
+    })
+}
+
+/// A section's own per-interface receive and transmit byte counters,
+/// loopback excluded and every other interface summed. `/proc/net/dev`'s
+/// two header lines, and every line of `/proc/stat` sharing this section
+/// (see [`command`]'s own doc comment), have no colon; an interface's own
+/// line always does, which is the whole of how this tells the two apart
+/// without needing its own delimiter.
+fn interface_bytes(section: &str) -> Option<(u64, u64)> {
+    let mut receive = 0u64;
+    let mut transmit = 0u64;
+    let mut found = false;
+
+    for line in section.lines() {
+        let Some((name, rest)) = line.split_once(':') else {
+            continue;
+        };
+        if name.trim().is_empty() || name.trim() == "lo" {
+            continue;
+        }
+
+        let fields: Vec<u64> = rest
+            .split_whitespace()
+            .filter_map(|field| field.parse().ok())
+            .collect();
+        /* Receive: bytes packets errs drop fifo frame compressed multicast,
+        then Transmit's own bytes as the ninth field. Fewer than that is not
+        a line this kernel meant as an interface's own. */
+        let (Some(&receive_bytes), Some(&transmit_bytes)) = (fields.first(), fields.get(8)) else {
+            continue;
+        };
+
+        receive = receive.saturating_add(receive_bytes);
+        transmit = transmit.saturating_add(transmit_bytes);
+        found = true;
+    }
+
+    found.then_some((receive, transmit))
+}
+
+fn network_rate(before: &str, after: &str, elapsed_seconds: f64) -> Option<NetworkRate> {
+    let (receive_before, transmit_before) = interface_bytes(before)?;
+    let (receive_after, transmit_after) = interface_bytes(after)?;
+
+    let receive_delta = receive_after.checked_sub(receive_before)?;
+    let transmit_delta = transmit_after.checked_sub(transmit_before)?;
+
+    Some(NetworkRate {
+        receive_bytes_per_sec: receive_delta as f64 / elapsed_seconds,
+        transmit_bytes_per_sec: transmit_delta as f64 / elapsed_seconds,
+    })
 }
 
 /// `/proc/loadavg`'s first three fields: `0.42 0.35 0.30 2/456 12345`. The
@@ -228,13 +372,26 @@ mod tests {
         "cpu  1000 0 500 8500 0 0 0 0 0 0\ncpu0 1000 0 500 8500 0 0 0 0 0 0\n";
     const STAT_AFTER: &str = "cpu  1100 0 550 8850 0 0 0 0 0 0\ncpu0 1100 0 550 8850 0 0 0 0 0 0\n";
 
+    /// A real `/proc/net/dev`'s own shape: two header lines with no colon,
+    /// then one line per interface. `lo` carries obviously-wrong numbers on
+    /// purpose, so a test that accidentally counted it would fail loudly.
+    const NET_BEFORE: &str = "Inter-|   Receive                                                |  Transmit\n \
+                               face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed\n\
+                                  lo: 999999   10    0    0    0     0          0         0  999999   10    0    0    0     0       0          0\n\
+                                eth0: 5000   50    0    0    0     0          0         0  2000   20    0    0    0     0       0          0\n";
+    const NET_AFTER: &str = "Inter-|   Receive                                                |  Transmit\n \
+                              face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed\n\
+                                 lo: 999999   10    0    0    0     0          0         0  999999   10    0    0    0     0       0          0\n\
+                               eth0: 5500   55    0    0    0     0          0         0  2300   23    0    0    0     0       0          0\n";
+
     const MEMINFO: &str = "MemTotal:       16000000 kB\nMemFree:         2000000 kB\n\
                             MemAvailable:    8000000 kB\nBuffers:          500000 kB\n\
                             SwapTotal:       4000000 kB\nSwapFree:        1500000 kB\n";
 
-    const DF: &str =
-        "Filesystem                 1024-blocks     Used Available Capacity Mounted on\n\
-                       /dev/mapper/vg0-root         103080160 42123456  56000000      43% /\n";
+    const DF: &str = "Filesystem            Type   1024-blocks     Used Available Capacity Mounted on\n\
+                       /dev/mapper/vg0-root  ext4     103080160 42123456  56000000      43% /\n\
+                       tmpfs                 tmpfs      2000000        0   2000000       0% /dev/shm\n\
+                       proc                  proc             0        0         0       0% /proc\n";
 
     const UPTIME: &str = "123456.78 987654.32\n";
 
@@ -248,7 +405,7 @@ mod tests {
     /// while failing against a real host.
     fn combined() -> Vec<u8> {
         format!(
-            "{STAT_BEFORE}{SECTION_MARKER}\n{STAT_AFTER}{SECTION_MARKER}\n{MEMINFO}{SECTION_MARKER}\n{DF}{SECTION_MARKER}\n{UPTIME}{SECTION_MARKER}\n{LOADAVG}"
+            "{STAT_BEFORE}{NET_BEFORE}{SECTION_MARKER}\n{STAT_AFTER}{NET_AFTER}{SECTION_MARKER}\n{MEMINFO}{SECTION_MARKER}\n{DF}{SECTION_MARKER}\n{UPTIME}{SECTION_MARKER}\n{LOADAVG}"
         )
         .into_bytes()
     }
@@ -279,6 +436,36 @@ mod tests {
             Some(Usage {
                 used_kb: 42_123_456,
                 total_kb: 103_080_160
+            })
+        );
+        assert_eq!(
+            stats.filesystems,
+            vec![
+                Filesystem {
+                    mount: "/".to_owned(),
+                    usage: Usage {
+                        used_kb: 42_123_456,
+                        total_kb: 103_080_160
+                    }
+                },
+                Filesystem {
+                    mount: "/dev/shm".to_owned(),
+                    usage: Usage {
+                        used_kb: 0,
+                        total_kb: 2_000_000
+                    }
+                },
+            ],
+            "proc is a pseudo-filesystem and must not appear"
+        );
+        /* eth0 advances 500 bytes received and 300 sent over the command's
+        one-second sample window; lo's own, much larger numbers must not be
+        counted at all. */
+        assert_eq!(
+            stats.network,
+            Some(NetworkRate {
+                receive_bytes_per_sec: 500.0,
+                transmit_bytes_per_sec: 300.0,
             })
         );
         assert_eq!(stats.uptime_seconds, Some(123_456));
@@ -349,6 +536,8 @@ mod tests {
         assert_eq!(stats.memory, None);
         assert_eq!(stats.swap, None);
         assert_eq!(stats.disk, None);
+        assert_eq!(stats.filesystems, Vec::new());
+        assert_eq!(stats.network, None);
         assert_eq!(stats.uptime_seconds, None);
         assert_eq!(stats.load_average, None);
     }
@@ -367,6 +556,17 @@ mod tests {
                     total_kb: 4_000_000
                 }),
                 disk: None,
+                filesystems: vec![Filesystem {
+                    mount: "/".to_owned(),
+                    usage: Usage {
+                        used_kb: 1,
+                        total_kb: 2
+                    }
+                }],
+                network: Some(NetworkRate {
+                    receive_bytes_per_sec: 500.0,
+                    transmit_bytes_per_sec: 300.0,
+                }),
                 uptime_seconds: Some(60),
                 load_average: Some(LoadAverage {
                     one: 0.1,
@@ -375,7 +575,47 @@ mod tests {
                 }),
             })
             .expect("serializes"),
-            r#"{"cpuPercent":12.5,"memory":{"usedKb":100,"totalKb":200},"swap":{"usedKb":0,"totalKb":4000000},"disk":null,"uptimeSeconds":60,"loadAverage":{"one":0.1,"five":0.2,"fifteen":0.3}}"#
+            r#"{"cpuPercent":12.5,"memory":{"usedKb":100,"totalKb":200},"swap":{"usedKb":0,"totalKb":4000000},"disk":null,"filesystems":[{"mount":"/","usage":{"usedKb":1,"totalKb":2}}],"network":{"receiveBytesPerSec":500.0,"transmitBytesPerSec":300.0},"uptimeSeconds":60,"loadAverage":{"one":0.1,"five":0.2,"fifteen":0.3}}"#
         );
+    }
+
+    #[test]
+    fn a_pseudo_filesystem_is_excluded_but_tmpfs_and_overlay_are_kept() {
+        let df = "Filesystem   Type      1024-blocks Used Available Capacity Mounted on\n\
+                   overlay      overlay      10000000 5000000   5000000      50% /\n\
+                   tmpfs        tmpfs          100000       0    100000       0% /dev/shm\n\
+                   proc         proc                 0       0         0       0% /proc\n\
+                   cgroup2      cgroup2              0       0         0       0% /sys/fs/cgroup\n";
+
+        let found = filesystems(df);
+
+        assert_eq!(found.len(), 2, "found: {found:?}");
+        assert!(found.iter().any(|filesystem| filesystem.mount == "/"));
+        assert!(found
+            .iter()
+            .any(|filesystem| filesystem.mount == "/dev/shm"));
+    }
+
+    #[test]
+    fn a_host_with_no_recognizable_filesystem_line_reports_an_empty_list() {
+        assert_eq!(filesystems("df: command not found\n"), Vec::new());
+    }
+
+    #[test]
+    fn loopback_never_counts_towards_the_network_rate() {
+        let before = "lo: 1000 1 0 0 0 0 0 0 1000 1 0 0 0 0 0 0\n";
+        let after = "lo: 999999999 1 0 0 0 0 0 0 999999999 1 0 0 0 0 0 0\n";
+
+        assert_eq!(network_rate(before, after, 1.0), None);
+    }
+
+    #[test]
+    fn a_counter_that_goes_backwards_is_left_unknown_rather_than_huge() {
+        /* An interface that was reset between samples (a link flap, a
+        driver reload) must not report the wrap as a burst of traffic. */
+        let before = "eth0: 5000 1 0 0 0 0 0 0 2000 1 0 0 0 0 0 0\n";
+        let after = "eth0: 100 1 0 0 0 0 0 0 2000 1 0 0 0 0 0 0\n";
+
+        assert_eq!(network_rate(before, after, 1.0), None);
     }
 }

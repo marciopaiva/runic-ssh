@@ -31,6 +31,9 @@ export interface StatsHistory {
   /** The one-minute load average. Five and fifteen stay in `stats` itself;
    * charting only needs the most responsive of the three. */
   readonly loadAverage: readonly Sample[];
+  /** Receive plus transmit, in bytes/sec: one line answering "how busy is
+   * this host's network right now," not which direction. */
+  readonly networkBytesPerSec: readonly Sample[];
 }
 
 const EMPTY_HISTORY: StatsHistory = {
@@ -39,6 +42,7 @@ const EMPTY_HISTORY: StatsHistory = {
   swapPercent: [],
   diskPercent: [],
   loadAverage: [],
+  networkBytesPerSec: [],
 };
 
 function append(history: readonly Sample[], value: number | null, at: number): readonly Sample[] {
@@ -91,6 +95,13 @@ export function useStatsHistory(handle: SessionHandle | null, stats: SystemStats
           at,
         ),
         loadAverage: append(current.loadAverage, stats.loadAverage?.one ?? null, at),
+        networkBytesPerSec: append(
+          current.networkBytesPerSec,
+          stats.network === null
+            ? null
+            : stats.network.receiveBytesPerSec + stats.network.transmitBytesPerSec,
+          at,
+        ),
       };
 
       const unchanged =
@@ -98,7 +109,8 @@ export function useStatsHistory(handle: SessionHandle | null, stats: SystemStats
         next.ramPercent === current.ramPercent &&
         next.swapPercent === current.swapPercent &&
         next.diskPercent === current.diskPercent &&
-        next.loadAverage === current.loadAverage;
+        next.loadAverage === current.loadAverage &&
+        next.networkBytesPerSec === current.networkBytesPerSec;
 
       return unchanged ? current : next;
     });

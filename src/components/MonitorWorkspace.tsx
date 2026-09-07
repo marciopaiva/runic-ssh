@@ -3,17 +3,18 @@ import type { JSX } from 'react';
 
 import {
   filterUnits,
+  meterTone,
   niceMax,
   unitTone,
   useStatsHistory,
   useSystemdUnits,
   useSystemInfo,
 } from '../features/monitor';
-import type { Sample, UnitTone } from '../features/monitor';
+import type { MeterTone, Sample, UnitTone } from '../features/monitor';
 import { useTranslator } from '../features/settings';
 import { formatUptime } from '../features/status';
 import type { GroupLabel } from '../features/terminal';
-import type { SessionHandle, SystemdUnit, SystemStats } from '../ipc';
+import type { Filesystem, SessionHandle, SystemdUnit, SystemStats } from '../ipc';
 
 interface MonitorWorkspaceProps {
   readonly identity: GroupLabel;
@@ -110,6 +111,15 @@ function AreaChart({
 
 function clockTime(at: number): string {
   return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(new Date(at));
+}
+
+/**
+ * `i18n.bytes` already formats a byte count for the locale (`2.4 MB`); "/s"
+ * is a unit suffix, not prose, the same reason `ms` and `kB` stay
+ * untranslated everywhere else in this app.
+ */
+function formatRate(bytesPerSec: number, i18n: ReturnType<typeof useTranslator>): string {
+  return `${i18n.bytes(bytesPerSec)}/s`;
 }
 
 function MetricCard({
@@ -239,6 +249,59 @@ function SystemInfoCard({ handle }: { readonly handle: SessionHandle }): JSX.Ele
   );
 }
 
+const FS_BAR_FILL: Readonly<Record<MeterTone, string>> = {
+  ok: 'bg-ok',
+  warn: 'bg-warn',
+  danger: 'bg-danger',
+};
+
+function FilesystemRow({ filesystem, i18n }: { readonly filesystem: Filesystem; readonly i18n: ReturnType<typeof useTranslator> }): JSX.Element {
+  const percent = (filesystem.usage.usedKb / filesystem.usage.totalKb) * 100;
+  const tone = meterTone(percent);
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-ink-secondary truncate font-mono text-[11.5px]">{filesystem.mount}</span>
+        <span className="text-ink-faint shrink-0 font-mono text-[11px]">
+          {i18n.bytes(filesystem.usage.usedKb * 1024)} / {i18n.bytes(filesystem.usage.totalKb * 1024)}
+        </span>
+      </div>
+      <div className="bg-surface-raised h-1.5 w-full overflow-hidden rounded-full">
+        <div
+          className={`h-full rounded-full ${FS_BAR_FILL[tone]}`}
+          style={{ width: `${Math.min(100, Math.max(0, percent))}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Every mounted filesystem, not only the root: a table rather than a
+ * `MetricCard`, since there can be more than one number to trend and a
+ * chart has nowhere to put a second mount point. `ssh/monitor.rs` already
+ * filtered out the pseudo-filesystems (`proc`, `cgroup`, device nodes); a
+ * host reporting none at all (an unreadable `df`, or genuinely nothing
+ * left after filtering) renders nothing rather than an empty card.
+ */
+function FilesystemsCard({ filesystems }: { readonly filesystems: readonly Filesystem[] }): JSX.Element | null {
+  const i18n = useTranslator();
+
+  if (filesystems.length === 0) return null;
+
+  return (
+    <div className="border-line-subtle bg-surface-chrome flex flex-col gap-2.5 rounded border p-3">
+      <span className="text-ink-secondary text-[12px] font-semibold">{i18n.t('monitor.filesystems')}</span>
+      <div className="flex flex-col gap-2.5">
+        {filesystems.map((filesystem) => (
+          <FilesystemRow key={filesystem.mount} filesystem={filesystem} i18n={i18n} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function HomeTab({ handle, stats }: { readonly handle: SessionHandle; readonly stats: SystemStats }): JSX.Element {
   const i18n = useTranslator();
   const history = useStatsHistory(handle, stats);
@@ -249,6 +312,8 @@ function HomeTab({ handle, stats }: { readonly handle: SessionHandle; readonly s
     i18n.number(value / 100, { style: 'percent', maximumFractionDigits: 0 });
   const loadPeak = Math.max(1, ...history.loadAverage.map((sample) => sample.value));
   const loadMax = niceMax(loadPeak);
+  const networkPeak = Math.max(1, ...history.networkBytesPerSec.map((sample) => sample.value));
+  const networkMax = niceMax(networkPeak);
 
   return (
     <div className="flex flex-col gap-4 overflow-y-auto p-4">
@@ -317,11 +382,25 @@ function HomeTab({ handle, stats }: { readonly handle: SessionHandle; readonly s
             formatValue={(value) => i18n.number(value, { maximumFractionDigits: 2 })}
           />
         )}
+
+        {stats.network !== null && (
+          <MetricCard
+            title={i18n.t('status.monitor.network')}
+            value={`↓${formatRate(stats.network.receiveBytesPerSec, i18n)} ↑${formatRate(stats.network.transmitBytesPerSec, i18n)}`}
+            samples={history.networkBytesPerSec}
+            max={networkMax}
+            formatValue={(value) => formatRate(value, i18n)}
+          />
+        )}
       </div>
+
+      <FilesystemsCard filesystems={stats.filesystems} />
 
       {stats.cpuPercent === null &&
         stats.memory === null &&
         stats.disk === null &&
+        stats.filesystems.length === 0 &&
+        stats.network === null &&
         stats.uptimeSeconds === null &&
         stats.loadAverage === null && (
           <p className="text-ink-faint text-[12px]">{i18n.t('monitor.unavailable')}</p>

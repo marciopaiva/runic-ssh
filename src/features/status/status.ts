@@ -103,6 +103,8 @@ export const NO_SYSTEM_STATS: SystemStats = {
   memory: null,
   swap: null,
   disk: null,
+  filesystems: [],
+  network: null,
   uptimeSeconds: null,
   loadAverage: null,
 };

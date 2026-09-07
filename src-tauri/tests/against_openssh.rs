@@ -532,7 +532,15 @@ async fn the_monitor_command_parses_against_a_real_linux_host() {
     );
     assert!(
         stats.disk.is_some(),
-        "no disk reading from a real df -P /: {stats:?}"
+        "no disk reading from a real df -P -T: {stats:?}"
+    );
+    assert!(
+        !stats.filesystems.is_empty(),
+        "no filesystems from a real df -P -T: {stats:?}"
+    );
+    assert!(
+        stats.network.is_some(),
+        "no network rate from a real /proc/net/dev: {stats:?}"
     );
     assert!(
         stats.uptime_seconds.is_some(),

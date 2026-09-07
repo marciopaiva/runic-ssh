@@ -253,19 +253,36 @@ export interface LoadAverage {
   readonly fifteen: number;
 }
 
+/** One mounted filesystem, pseudo-filesystems already filtered out. See `ssh/monitor.rs`. */
+export interface Filesystem {
+  readonly mount: string;
+  readonly usage: Usage;
+}
+
+/**
+ * How fast bytes are moving over every network interface but loopback,
+ * summed rather than kept per interface.
+ */
+export interface NetworkRate {
+  readonly receiveBytesPerSec: number;
+  readonly transmitBytesPerSec: number;
+}
+
 /**
  * A host's own vital signs, read over the connection already open.
  *
- * Every field is independent and `null` on its own when it could not be
- * read. A host that is not Linux, or one whose `df`/`free`/`uptime` output
- * did not parse, still reports whichever of these this did understand.
- * See `ssh/monitor.rs`.
+ * Every field is independent and `null` (or, for `filesystems`, empty) on
+ * its own when it could not be read. A host that is not Linux, or one whose
+ * `df`/`free`/`uptime` output did not parse, still reports whichever of
+ * these this did understand. See `ssh/monitor.rs`.
  */
 export interface SystemStats {
   readonly cpuPercent: number | null;
   readonly memory: Usage | null;
   readonly swap: Usage | null;
   readonly disk: Usage | null;
+  readonly filesystems: readonly Filesystem[];
+  readonly network: NetworkRate | null;
   readonly uptimeSeconds: number | null;
   readonly loadAverage: LoadAverage | null;
 }
