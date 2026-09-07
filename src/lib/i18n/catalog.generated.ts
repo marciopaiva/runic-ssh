@@ -171,6 +171,7 @@ export const SOURCE_CATALOG = {
   "macro.confirm.cancel": "Cancel",
   "macro.confirm.confirm": "Run",
   "macro.confirm.title": "Run \"{name}\"?",
+  "macro.confirm.varies": "Shown for this host. $host, $port and $username differ on each of the others.",
   "macros.editor.close": "Close",
   "macros.editor.delete": "Delete {name}",
   "macros.editor.deleteConfirm": "Delete?",

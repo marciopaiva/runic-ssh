@@ -1,3 +1,3 @@
 export { useMacros } from './use-macros';
-export { applyVariables } from './variables';
+export { applyVariables, usesVariables } from './variables';
 export type { MacroVariables } from './variables';

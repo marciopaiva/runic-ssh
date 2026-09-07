@@ -35,7 +35,7 @@ import { Toolbar } from './components/Toolbar';
 import { TransfersBar } from './components/TransfersBar';
 import { actionCommands, macroCommands, sessionCommands, usePalette } from './features/commands';
 import type { CommandContext } from './features/commands';
-import { applyVariables, useMacros } from './features/macros';
+import { applyVariables, useMacros, usesVariables } from './features/macros';
 import {
   focusAfter,
   focusAfterClosing,
@@ -399,7 +399,11 @@ export function App(): JSX.Element {
   const [pendingMacro, setPendingMacro] = useState<{
     readonly sessionId: string;
     readonly name: string;
+    /** This host's own version, for the preview: each entry below may read
+        differently once `$host`/`$port`/`$username` are resolved per host. */
     readonly text: string;
+    readonly varies: boolean;
+    readonly entries: readonly { readonly sessionId: string; readonly text: string }[];
   } | null>(null);
   const [macrosOpen, setMacrosOpen] = useState(false);
   /* How the area is divided, and what each group holds. What is held is a hint
@@ -786,12 +790,21 @@ export function App(): JSX.Element {
     [groups, sync, muted, mounted],
   );
 
-  /* A macro's own text, resolved against the session it is about to run in
-     and sent the same way a confirmed paste already is: through `broadcast`,
-     with newlines turned into the carriage return a terminal expects
-     (`preparePaste`). A single target runs immediately; more than one holds
-     for `pendingMacro`'s own confirmation, the same reason `pendingPaste`
-     already asks before a paste reaches several hosts. */
+  /* One payload per target rather than one shared with `broadcast`: a
+     macro's own text can read differently host to host once
+     `$host`/`$port`/`$username` are in it, which identical bytes cannot
+     express. */
+  const sendEach = useCallback(
+    (entries: readonly { readonly sessionId: string; readonly bytes: Uint8Array }[]): void => {
+      for (const entry of entries) {
+        const target = mounted.find((candidate) => candidate.sessionId === entry.sessionId);
+        if (target === undefined) continue;
+        void sendInput(target.handle, entry.bytes).catch(() => {});
+      }
+    },
+    [mounted],
+  );
+
   /* Keyed by session id rather than held as one function, since more than
      one terminal is mounted at a time (ADR-0014) and only the active one is
      the right target for a macro run. */
@@ -800,26 +813,53 @@ export function App(): JSX.Element {
     focusFns.current.get(sessionId)?.();
   }, []);
 
+  /* A macro's own text, resolved separately against each host it is about to
+     reach, so `$host`/`$port`/`$username` name that host rather than
+     whichever session was focused. Sent the same way a confirmed paste
+     already is, with newlines turned into the carriage return a terminal
+     expects (`preparePaste`). A single target runs immediately; more than
+     one holds for `pendingMacro`'s own confirmation, the same reason
+     `pendingPaste` already asks before a paste reaches several hosts. */
   const runMacro = useCallback(
     (macro: Macro): void => {
       if (activeId === null) return;
       const session = sessions.find((live) => live.session.id === activeId)?.session;
       if (session === undefined) return;
 
-      const text = applyVariables(macro.text, session);
       const targets = inputTargets(groups, activeId, sync, muted);
+      const entries = targets.flatMap((sessionId) => {
+        const target =
+          sessionId === activeId
+            ? session
+            : sessions.find((live) => live.session.id === sessionId)?.session;
+        return target === undefined
+          ? []
+          : [{ sessionId, text: applyVariables(macro.text, target) }];
+      });
 
-      if (targets.length > 1) {
-        setPendingMacro({ sessionId: activeId, name: macro.name, text });
+      if (entries.length > 1) {
+        const anchor = entries.find((entry) => entry.sessionId === activeId);
+        setPendingMacro({
+          sessionId: activeId,
+          name: macro.name,
+          text: anchor?.text ?? applyVariables(macro.text, session),
+          varies: usesVariables(macro.text),
+          entries,
+        });
         return;
       }
 
-      broadcast(activeId, new TextEncoder().encode(preparePaste(text)));
+      sendEach(
+        entries.map((entry) => ({
+          sessionId: entry.sessionId,
+          bytes: new TextEncoder().encode(preparePaste(entry.text)),
+        })),
+      );
       /* Run from the sidebar, so the keyboard is sitting on a button there
          until this hands it back to the shell the macro just spoke to. */
       focusTerminal(activeId);
     },
-    [activeId, sessions, groups, sync, muted, broadcast, focusTerminal],
+    [activeId, sessions, groups, sync, muted, sendEach, focusTerminal],
   );
 
   /* Which rectangle a session's surfaces belong in, or `null` when it is not
@@ -2204,12 +2244,15 @@ export function App(): JSX.Element {
               <MacroConfirm
                 name={pendingMacro.name}
                 text={pendingMacro.text}
-                hosts={inputTargets(groups, pendingMacro.sessionId, sync, muted).length}
+                hosts={pendingMacro.entries.length}
+                varies={pendingMacro.varies}
                 onCancel={() => setPendingMacro(null)}
                 onConfirm={() => {
-                  broadcast(
-                    pendingMacro.sessionId,
-                    new TextEncoder().encode(preparePaste(pendingMacro.text)),
+                  sendEach(
+                    pendingMacro.entries.map((entry) => ({
+                      sessionId: entry.sessionId,
+                      bytes: new TextEncoder().encode(preparePaste(entry.text)),
+                    })),
                   );
                   setPendingMacro(null);
                   focusTerminal(pendingMacro.sessionId);

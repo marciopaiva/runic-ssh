@@ -165,6 +165,7 @@
   "macro.confirm.cancel": "Cancelar",
   "macro.confirm.confirm": "Ejecutar",
   "macro.confirm.title": "¿Ejecutar \"{name}\"?",
+  "macro.confirm.varies": "Mostrado para este host. $host, $port y $username cambian en los demás.",
   "macros.editor.close": "Cerrar",
   "macros.editor.delete": "Eliminar {name}",
   "macros.editor.deleteConfirm": "¿Eliminar?",

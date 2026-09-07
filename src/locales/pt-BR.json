@@ -165,6 +165,7 @@
   "macro.confirm.cancel": "Cancelar",
   "macro.confirm.confirm": "Rodar",
   "macro.confirm.title": "Rodar \"{name}\"?",
+  "macro.confirm.varies": "Mostrado para este host. $host, $port e $username mudam nos demais.",
   "macros.editor.close": "Fechar",
   "macros.editor.delete": "Excluir {name}",
   "macros.editor.deleteConfirm": "Excluir?",

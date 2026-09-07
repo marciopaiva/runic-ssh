@@ -12,6 +12,9 @@ interface MacroConfirmProps {
   /** How many hosts a confirmed run reaches. Always more than one: a single
    * target runs immediately, without asking. See `App.tsx`'s `runMacro`. */
   readonly hosts: number;
+  /** Whether `text` is only this host's own version: `$host`, `$port` or
+      `$username` in the macro resolves differently on each of the others. */
+  readonly varies: boolean;
   readonly onConfirm: () => void;
   readonly onCancel: () => void;
 }
@@ -33,6 +36,7 @@ export function MacroConfirm({
   name,
   text,
   hosts,
+  varies,
   onConfirm,
   onCancel,
 }: MacroConfirmProps): JSX.Element {
@@ -58,6 +62,10 @@ export function MacroConfirm({
         </>
       }
     >
+      {varies && (
+        <p className="text-ink-faint text-[11.5px]">{i18n.t('macro.confirm.varies')}</p>
+      )}
+
       <div className="bg-surface-base border-line-subtle max-h-56 overflow-auto rounded-lg border p-3">
         <ol className="flex flex-col gap-0.5">
           {shown.map((line, at) => (
