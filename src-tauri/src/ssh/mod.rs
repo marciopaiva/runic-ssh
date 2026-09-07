@@ -9,6 +9,7 @@ pub mod forward;
 pub mod known_hosts;
 pub mod monitor;
 pub mod pending;
+pub mod processes;
 pub mod registry;
 pub mod socks;
 pub mod stats;

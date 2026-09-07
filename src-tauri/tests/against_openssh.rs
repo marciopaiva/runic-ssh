@@ -579,6 +579,32 @@ async fn a_host_with_no_systemd_reports_no_units_rather_than_failing() {
 
 #[tokio::test]
 #[ignore = "needs the test container; see the module comment"]
+async fn a_host_with_busybox_ps_reports_no_processes_rather_than_failing() {
+    /* The fixture container's `ps` has no `--sort` flag and no `pcpu`/`pmem`
+    columns; it answers on stderr, which `run_command` never sees, so this
+    proves the graceful-empty path against a real "unrecognized option"
+    rather than a canned string. */
+    let known = trusting(offered_key().await);
+    let mut connection = connect(endpoint(), known).await.expect("connects");
+
+    connection
+        .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
+        .await
+        .expect("authenticates");
+
+    let output = connection
+        .run_command(&runic_ssh::ssh::processes::command())
+        .await
+        .expect("the command runs even though this ps rejects its own flags");
+
+    assert_eq!(
+        runic_ssh::ssh::processes::parse_processes(&output.stdout),
+        Vec::new()
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs the test container; see the module comment"]
 async fn the_sysinfo_command_parses_against_a_real_linux_host() {
     let known = trusting(offered_key().await);
     let mut connection = connect(endpoint(), known).await.expect("connects");

@@ -2,19 +2,22 @@ import { useState } from 'react';
 import type { JSX } from 'react';
 
 import {
+  filterProcesses,
   filterUnits,
   meterTone,
   niceMax,
+  sortProcesses,
   unitTone,
+  useProcesses,
   useStatsHistory,
   useSystemdUnits,
   useSystemInfo,
 } from '../features/monitor';
-import type { MeterTone, Sample, UnitTone } from '../features/monitor';
+import type { MeterTone, ProcessSort, Sample, UnitTone } from '../features/monitor';
 import { useTranslator } from '../features/settings';
 import { formatUptime } from '../features/status';
 import type { GroupLabel } from '../features/terminal';
-import type { Filesystem, SessionHandle, SystemdUnit, SystemStats } from '../ipc';
+import type { Filesystem, Process, SessionHandle, SystemdUnit, SystemStats } from '../ipc';
 
 interface MonitorWorkspaceProps {
   readonly identity: GroupLabel;
@@ -22,7 +25,16 @@ interface MonitorWorkspaceProps {
   readonly stats: SystemStats;
 }
 
-type DetailTab = 'home' | 'systemd';
+type DetailTab = 'home' | 'processes' | 'systemd';
+
+/* `as const satisfies` rather than an annotated `Record<DetailTab, string>`:
+   an explicit `string` annotation would widen each value past the literal
+   key `i18n.t` needs to resolve whether a message takes parameters. */
+const TAB_LABEL = {
+  home: 'monitor.tab.home',
+  processes: 'monitor.tab.processes',
+  systemd: 'monitor.tab.systemd',
+} as const satisfies Record<DetailTab, string>;
 
 /**
  * A reading over the last few minutes, as a filled area chart: the shape
@@ -184,6 +196,85 @@ function SystemdTab({ handle, active }: { readonly handle: SessionHandle; readon
           </p>
         ) : (
           filtered.map((unit) => <UnitRow key={unit.name} unit={unit} />)
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ProcessRow({
+  process,
+  i18n,
+}: {
+  readonly process: Process;
+  readonly i18n: ReturnType<typeof useTranslator>;
+}): JSX.Element {
+  const percent = (value: number): string =>
+    i18n.number(value / 100, { style: 'percent', maximumFractionDigits: 1 });
+
+  return (
+    <div className="border-line-subtle flex items-center gap-2.5 border-b px-3 py-1.5">
+      <span className="text-ink-faint w-12 shrink-0 text-right font-mono text-[11px]">{process.pid}</span>
+      <span className="text-ink-secondary w-20 shrink-0 truncate font-mono text-[11.5px]">{process.user}</span>
+      <span className="text-ink w-12 shrink-0 text-right font-mono text-[11.5px]">
+        {percent(process.cpuPercent)}
+      </span>
+      <span className="text-ink w-12 shrink-0 text-right font-mono text-[11.5px]">
+        {percent(process.memPercent)}
+      </span>
+      <span className="text-ink-faint truncate font-mono text-[11.5px]">{process.command}</span>
+    </div>
+  );
+}
+
+/**
+ * The host's own busiest processes, sorted by CPU or memory: clicking one
+ * of the two column headers re-sorts the list already on screen rather
+ * than asking the host again, since `ssh::processes::command` already
+ * reads both columns in one poll.
+ */
+function ProcessesTab({ handle, active }: { readonly handle: SessionHandle; readonly active: boolean }): JSX.Element {
+  const i18n = useTranslator();
+  const processes = useProcesses(active ? handle : null);
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<ProcessSort>('cpu');
+  const filtered = sortProcesses(filterProcesses(processes, query), sort);
+
+  const sortButton = (candidate: ProcessSort, label: string): JSX.Element => (
+    <button
+      type="button"
+      onClick={() => setSort(candidate)}
+      className={`w-12 shrink-0 text-right ${sort === candidate ? 'text-ink' : 'hover:text-ink-secondary'}`}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="border-line-subtle border-b p-2">
+        <input
+          type="text"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={i18n.t('monitor.processes.filter')}
+          className="bg-surface-base border-line-subtle text-ink w-full rounded border px-2 py-1 text-[12px]"
+        />
+      </div>
+      <div className="border-line-subtle text-ink-faint flex items-center gap-2.5 border-b px-3 py-1 text-[10.5px] font-semibold tracking-wide uppercase">
+        <span className="w-12 shrink-0 text-right">{i18n.t('monitor.processes.pid')}</span>
+        <span className="w-20 shrink-0">{i18n.t('monitor.processes.user')}</span>
+        {sortButton('cpu', i18n.t('monitor.processes.cpu'))}
+        {sortButton('mem', i18n.t('monitor.processes.mem'))}
+        <span className="flex-1">{i18n.t('monitor.processes.command')}</span>
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        {filtered.length === 0 ? (
+          <p className="text-ink-faint p-3 text-[12px]">
+            {processes.length === 0 ? i18n.t('monitor.processes.none') : i18n.t('monitor.processes.noMatch')}
+          </p>
+        ) : (
+          filtered.map((process) => <ProcessRow key={process.pid} process={process} i18n={i18n} />)
         )}
       </div>
     </div>
@@ -440,7 +531,7 @@ export function MonitorWorkspace({ identity, handle, stats }: MonitorWorkspacePr
       </div>
 
       <div className="border-line-subtle flex items-center gap-1 border-b px-3">
-        {(['home', 'systemd'] as const).map((candidate) => (
+        {(['home', 'processes', 'systemd'] as const).map((candidate) => (
           <button
             key={candidate}
             type="button"
@@ -451,7 +542,7 @@ export function MonitorWorkspace({ identity, handle, stats }: MonitorWorkspacePr
                 : 'text-ink-faint hover:text-ink-secondary border-transparent'
             }`}
           >
-            {i18n.t(candidate === 'home' ? 'monitor.tab.home' : 'monitor.tab.systemd')}
+            {i18n.t(TAB_LABEL[candidate])}
           </button>
         ))}
       </div>
@@ -459,6 +550,8 @@ export function MonitorWorkspace({ identity, handle, stats }: MonitorWorkspacePr
       <div className="min-h-0 flex-1">
         {tab === 'home' ? (
           <HomeTab handle={handle} stats={stats} />
+        ) : tab === 'processes' ? (
+          <ProcessesTab handle={handle} active={tab === 'processes'} />
         ) : (
           <SystemdTab handle={handle} active={tab === 'systemd'} />
         )}

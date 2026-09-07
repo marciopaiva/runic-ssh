@@ -4,11 +4,12 @@
 // `status-teardown.test.ts` for why.
 
 /**
- * The two hooks behind the monitor workspace's detail panel.
- * `use-systemd-units.ts` is a polling loop and needs the same teardown proof
- * every other probe in this codebase gets (section 6). `use-stats-history.ts`
- * has no timer to leak, but it does have a rule worth pinning: history resets
- * on a host switch and never records a reading that was not actually taken.
+ * Three of the hooks behind the monitor workspace's detail panel.
+ * `use-systemd-units.ts` and `use-processes.ts` are both polling loops and
+ * need the same teardown proof every other probe in this codebase gets
+ * (section 6). `use-stats-history.ts` has no timer to leak, but it does have
+ * a rule worth pinning: history resets on a host switch and never records a
+ * reading that was not actually taken.
  */
 
 import { act, createElement } from 'react';
@@ -32,9 +33,18 @@ const UNIT = {
 
 const INFO = { osName: 'Debian GNU/Linux 13 (trixie)', kernel: 'Linux 6.6.87.2 x86_64', hostname: 'web-01', cpuModel: null };
 
+const PROCESS = {
+  pid: 1,
+  user: 'deploy',
+  cpuPercent: 0.3,
+  memPercent: 0.4,
+  command: '/usr/sbin/sshd -D',
+};
+
 const ipc = vi.hoisted(() => ({
   sessionSystemdUnits: vi.fn(async () => [UNIT]),
   sessionSystemInfo: vi.fn(async () => INFO),
+  sessionProcesses: vi.fn(async () => [PROCESS]),
 }));
 
 vi.mock('../src/ipc', () => ipc);
@@ -42,6 +52,7 @@ vi.mock('../src/ipc', () => ipc);
 const { useSystemdUnits } = await import('../src/features/monitor/use-systemd-units');
 const { useStatsHistory } = await import('../src/features/monitor/use-stats-history');
 const { useSystemInfo } = await import('../src/features/monitor/use-system-info');
+const { useProcesses } = await import('../src/features/monitor/use-processes');
 
 let renders: unknown[] = [];
 
@@ -52,6 +63,11 @@ function InfoProbe(props: { handle: number | null }): null {
 
 function UnitsProbe(props: { handle: number | null }): null {
   renders.push(useSystemdUnits(props.handle));
+  return null;
+}
+
+function ProcessesProbe(props: { handle: number | null }): null {
+  renders.push(useProcesses(props.handle));
   return null;
 }
 
@@ -97,6 +113,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   ipc.sessionSystemdUnits.mockClear();
   ipc.sessionSystemInfo.mockClear();
+  ipc.sessionProcesses.mockClear();
 });
 
 describe('a selected host\'s own identity', () => {
@@ -163,6 +180,47 @@ describe('polling systemd units', () => {
     const timer = setIntervalSpy.mock.results[0]?.value;
 
     await probe.rerender(createElement(UnitsProbe, { handle: null }));
+
+    expect(clearIntervalSpy).toHaveBeenCalledWith(timer);
+    expect(renders.at(-1)).toEqual([]);
+
+    await probe.unmount();
+  });
+});
+
+describe('polling the process list', () => {
+  it('reads the process list while a handle is given', async () => {
+    const probe = await mount(createElement(ProcessesProbe, { handle: 4 }));
+
+    expect(renders.at(-1)).toEqual([PROCESS]);
+    expect(ipc.sessionProcesses).toHaveBeenCalledWith(4);
+
+    await probe.unmount();
+  });
+
+  it('polls nothing with no handle, the tab-not-visible convention', async () => {
+    const probe = await mount(createElement(ProcessesProbe, { handle: null }));
+
+    expect(ipc.sessionProcesses).not.toHaveBeenCalled();
+    expect(setIntervalSpy).not.toHaveBeenCalled();
+
+    await probe.unmount();
+  });
+
+  it('clears its interval on unmount', async () => {
+    const probe = await mount(createElement(ProcessesProbe, { handle: 1 }));
+    const timer = setIntervalSpy.mock.results[0]?.value;
+
+    await probe.unmount();
+
+    expect(clearIntervalSpy).toHaveBeenCalledWith(timer);
+  });
+
+  it('stops polling once the handle goes back to null', async () => {
+    const probe = await mount(createElement(ProcessesProbe, { handle: 1 }));
+    const timer = setIntervalSpy.mock.results[0]?.value;
+
+    await probe.rerender(createElement(ProcessesProbe, { handle: null }));
 
     expect(clearIntervalSpy).toHaveBeenCalledWith(timer);
     expect(renders.at(-1)).toEqual([]);
