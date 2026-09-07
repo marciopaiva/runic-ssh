@@ -138,7 +138,7 @@ export function MacrosSidebar({
     <div
       ref={panel}
       tabIndex={-1}
-      className="border-line-strong bg-surface-panel fixed inset-y-0 right-0 z-40 flex w-[300px] flex-col border-l shadow-2xl outline-none"
+      className="bg-surface-panel border-line-subtle flex h-full w-[300px] shrink-0 flex-col border-l outline-none"
       onKeyDown={onKeyDown}
     >
       <div className="border-line-subtle flex items-center justify-between border-b px-3.5 py-3">

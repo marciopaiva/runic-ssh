@@ -2252,6 +2252,21 @@ export function App(): JSX.Element {
         </main>
         )}
 
+        {/* A flex sibling of the terminal area, not an overlay: ADR-0014's
+            `Box` percentages and the `ResizeObserver` that reads them already
+            react to a container resize, so this panel opening or closing
+            reflows the terminals the same way `SessionsSidebar` always has,
+            rather than floating over them. */}
+        {workspace === 'sessions' && macrosOpen && (
+          <MacrosSidebar
+            macros={macros}
+            onRun={runMacro}
+            onSave={saveMacroDraft}
+            onDelete={removeMacro}
+            onClose={() => setMacrosOpen(false)}
+          />
+        )}
+
         {/* ADR-0045: source in its own column, destinations fanning out into
             a second column stacked as rows. A drop replaces a slot's
             occupant outright, and every occupied pane stays mounted and
@@ -2749,16 +2764,6 @@ export function App(): JSX.Element {
         onRun={palette.run}
         onDismiss={palette.dismiss}
       />
-
-      {macrosOpen && (
-        <MacrosSidebar
-          macros={macros}
-          onRun={runMacro}
-          onSave={saveMacroDraft}
-          onDelete={removeMacro}
-          onClose={() => setMacrosOpen(false)}
-        />
-      )}
     </div>
   );
 }
