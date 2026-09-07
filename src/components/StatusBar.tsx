@@ -3,11 +3,19 @@ import type { JSX } from 'react';
 import type { ConnectionKind } from '../features/sessions';
 import { describeState, FORWARD_KIND_LABEL } from '../features/sessions';
 import { useTranslator } from '../features/settings';
-import { ENCODING, FORWARD_STATE_LABEL, TERM, anyForwardFailed, gradeLatency, paletteKeys } from '../features/status';
+import {
+  ENCODING,
+  FORWARD_STATE_LABEL,
+  TERM,
+  anyForwardFailed,
+  formatUptime,
+  gradeLatency,
+  paletteKeys,
+} from '../features/status';
 import type { Announcement, ForwardStatus } from '../features/status';
 import type { GroupLabel } from '../features/terminal';
 import type { TerminalSize } from '../features/terminal/use-terminal';
-import type { CommandModifier, SessionStats } from '../ipc';
+import type { CommandModifier, SessionStats, SystemStats } from '../ipc';
 
 import { SessionMarker } from './SessionMarker';
 
@@ -17,6 +25,14 @@ interface StatusBarProps {
   /** What the focused session is called, or `null` when a tab is not one. */
   readonly identity: GroupLabel | null;
   readonly stats: SessionStats;
+  /**
+   * The host's own vital signs, or all-`null` when none have been read yet.
+   *
+   * Linux only for now: a host that is not, or one whose output did not
+   * parse, leaves every field `null`, which is why each cell below renders
+   * on its own rather than as one block that is either whole or absent.
+   */
+  readonly system: SystemStats;
   readonly size: TerminalSize | null;
   readonly modifier: CommandModifier;
   /** How many hosts a keystroke reaches, or `null` when it reaches one. */
@@ -118,6 +134,7 @@ export function StatusBar({
   kind,
   identity,
   stats,
+  system,
   size,
   modifier,
   syncing,
@@ -279,6 +296,44 @@ export function StatusBar({
           </span>
         </>
       </Cell>
+
+      {/* Each of the four below renders only when its own reading came
+          back, the same "nothing to say" rule `via` and `forwards` already
+          follow: a host that is not Linux, or one whose output for just
+          this metric did not parse, leaves a gap rather than a placeholder
+          value nobody asked to see. */}
+      {system.cpuPercent !== null && (
+        <Cell title={i18n.t('status.monitor.cpu')}>
+          <span className="font-mono">
+            {i18n.number(system.cpuPercent / 100, {
+              style: 'percent',
+              maximumFractionDigits: 0,
+            })}
+          </span>
+        </Cell>
+      )}
+
+      {system.memory !== null && (
+        <Cell title={i18n.t('status.monitor.memory')}>
+          <span className="font-mono">
+            {i18n.bytes(system.memory.usedKb * 1024)} / {i18n.bytes(system.memory.totalKb * 1024)}
+          </span>
+        </Cell>
+      )}
+
+      {system.disk !== null && (
+        <Cell title={i18n.t('status.monitor.disk')}>
+          <span className="font-mono">
+            {i18n.bytes(system.disk.usedKb * 1024)} / {i18n.bytes(system.disk.totalKb * 1024)}
+          </span>
+        </Cell>
+      )}
+
+      {system.uptimeSeconds !== null && (
+        <Cell title={i18n.t('status.monitor.uptime')}>
+          <span className="font-mono">{formatUptime(system.uptimeSeconds, i18n)}</span>
+        </Cell>
+      )}
 
       {/* What the bar is good at: saying how many hosts are on the receiving
           end, beside the whole top edge turning warn. The thing you press

@@ -15,9 +15,12 @@ import { describe, expect, it } from 'vitest';
 
 import {
   ALL_LATENCY_READINGS,
+  MONITOR_INTERVAL_MS,
   NO_STATS,
+  NO_SYSTEM_STATS,
   PROBE_INTERVAL_MS,
   TERM,
+  formatUptime,
   gradeLatency,
   paletteKeys,
   shouldProbe,
@@ -129,6 +132,45 @@ describe('formatting through Intl', () => {
   it('writes transfer totals in the locale own way', () => {
     expect(createTranslator('en').bytes(2_400_000)).toBe('2.4 MB');
     expect(createTranslator('pt-BR').bytes(2_400_000)).toBe('2,4 MB');
+  });
+});
+
+describe('a host with no monitor reading yet', () => {
+  it('reports every field as unmeasured, not as zero', () => {
+    /* Unlike the byte counters, zero CPU or zero memory is a real, useful
+       reading, so it cannot also mean "no reading yet". */
+    expect(NO_SYSTEM_STATS.cpuPercent).toBeNull();
+    expect(NO_SYSTEM_STATS.memory).toBeNull();
+    expect(NO_SYSTEM_STATS.disk).toBeNull();
+    expect(NO_SYSTEM_STATS.uptimeSeconds).toBeNull();
+  });
+
+  it('polls slower than the latency probe, since it is one more request the host must answer', () => {
+    expect(MONITOR_INTERVAL_MS).toBeGreaterThan(PROBE_INTERVAL_MS);
+  });
+});
+
+describe('formatting how long a host has been up', () => {
+  const i18n = createTranslator('en');
+
+  it('shows minutes alone under an hour', () => {
+    expect(formatUptime(45 * 60, i18n)).toBe('45m');
+  });
+
+  it('shows hours and minutes under a day', () => {
+    expect(formatUptime(5 * 3600 + 30 * 60, i18n)).toBe('5h 30m');
+  });
+
+  it('drops to days and hours once a day has passed', () => {
+    /* Minutes stop appearing at all past a day: a number refreshed every
+       few seconds cannot back up that much precision, and "3d 4h 12m" reads
+       as more exact than the measurement actually is. */
+    expect(formatUptime(3 * 86400 + 4 * 3600 + 12 * 60, i18n)).toBe('3d 4h');
+  });
+
+  it('rounds down rather than up', () => {
+    /* A host up for 59 minutes and 59 seconds has not been up for an hour. */
+    expect(formatUptime(59 * 60 + 59, i18n)).toBe('59m');
   });
 });
 

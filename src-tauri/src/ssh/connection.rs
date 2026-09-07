@@ -25,7 +25,7 @@ use tokio::task::JoinSet;
 use crate::vault::Secret;
 use russh::client::{self, ChannelOpenHandle, Handle};
 use russh::keys::{decode_secret_key, PrivateKeyWithHashAlg};
-use russh::{Channel, ChannelId, Disconnect};
+use russh::{Channel, ChannelId, ChannelMsg, Disconnect};
 
 use crate::ssh::known_hosts::KnownHosts;
 use crate::ssh::trust::{decide, Trust};
@@ -149,6 +149,16 @@ pub struct OfferedKey {
     /// fingerprint screens in a row, for two different hosts, are the same
     /// screen to anybody not told otherwise.
     pub hop: Hop,
+}
+
+/// What running one command over the connection produced. See
+/// [`Connection::run_command`].
+#[derive(Debug, Clone, Default)]
+pub struct CommandOutput {
+    pub stdout: Vec<u8>,
+    /// `None` when the channel closed without ever reporting one, which a
+    /// well-behaved server does not do for a command that actually ran.
+    pub exit_status: Option<u32>,
 }
 
 /// Where a remote forward (ADR-0054, `-R`) sends what the server accepts, and
@@ -669,6 +679,56 @@ impl Connection {
             .map_err(|_| ConnectionError::Transport)?;
 
         Ok(channel)
+    }
+
+    /// Runs one non-interactive command to completion and captures what it
+    /// wrote to stdout.
+    ///
+    /// A fresh session channel per call, read to `Close` before returning
+    /// rather than as soon as the first batch of data arrives: ADR-0014's
+    /// reasoning applies here too, since a channel this stopped reading
+    /// before the remote command finished would count against the server's
+    /// `MaxSessions` the same way an abandoned shell does. Stderr is
+    /// discarded rather than interleaved, unlike [`open_shell`](Self::open_shell)'s
+    /// pty: a caller here is a fixed, known command whose failure is read from
+    /// the exit status, not prose a person would otherwise read on screen.
+    ///
+    /// Reads past `Eof` rather than stopping there: OpenSSH sends `Eof`
+    /// before the `exit-status` request, not after, so a loop that stopped at
+    /// `Eof` would return every real command's exit status as `None` while
+    /// still reporting every one of its own fake server's, which sends the
+    /// exit status first and only proved that ordering assumption was never
+    /// tested against something else's implementation.
+    pub async fn run_command(&self, command: &str) -> Result<CommandOutput, ConnectionError> {
+        let mut channel = self
+            .handle
+            .channel_open_session()
+            .await
+            .map_err(|_| ConnectionError::Transport)?;
+
+        channel
+            .exec(true, command)
+            .await
+            .map_err(|_| ConnectionError::Transport)?;
+
+        let mut stdout = Vec::new();
+        let mut exit_status = None;
+
+        while let Some(message) = channel.wait().await {
+            match message {
+                ChannelMsg::Data { data } => stdout.extend_from_slice(&data),
+                ChannelMsg::ExitStatus {
+                    exit_status: status,
+                } => exit_status = Some(status),
+                ChannelMsg::Close => break,
+                _ => {}
+            }
+        }
+
+        Ok(CommandOutput {
+            stdout,
+            exit_status,
+        })
     }
 
     /// Opens a forwarded connection to `endpoint`, from this host.

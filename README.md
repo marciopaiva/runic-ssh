@@ -306,7 +306,8 @@ the tree. Five green commands and a red pull request is what happens without it.
 - [x] **v0.2.1:** finishing what v0.2.0 claimed: a jump host that asks for its own credential, a password saved from a host's own form, and a bastion that admits it is carrying somebody else's session. [Released 2026-08-26](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.2.1).
 - [x] **v0.3.0:** SFTP, upload and download over the connection that is already open. [Released 2026-09-01](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.3.0).
 - [x] **v0.4.0:** port forwarding (local, remote and dynamic), the host book reorganized around how a saved host actually connects, and theme and language reachable from every workspace. [Released 2026-09-04](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.4.0).
-- [ ] **v0.5.0:** session import from OpenSSH and PuTTY.
+- [ ] **v0.5.0:** a live system monitor per host, CPU, RAM, disk and uptime, read over the SSH connection already open, no agent installed on the server.
+- [ ] **v0.6.0:** session import from OpenSSH and PuTTY.
 - [ ] **v1.0.0:** production grade stability, and a signed installer on every platform.
 
 The versions after v0.1.0 are a direction, not a promise. If you need something

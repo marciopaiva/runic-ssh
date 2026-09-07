@@ -235,3 +235,29 @@ export interface SessionStats {
 export async function sessionStats(handle: SessionHandle): Promise<SessionStats> {
   return invoke<SessionStats>('session_stats', { handle });
 }
+
+/** How much of something is in use, in kibibytes. */
+export interface Usage {
+  readonly usedKb: number;
+  readonly totalKb: number;
+}
+
+/**
+ * A host's own vital signs, read over the connection already open.
+ *
+ * Every field is independent and `null` on its own when it could not be
+ * read. A host that is not Linux, or one whose `df`/`free`/`uptime` output
+ * did not parse, still reports whichever of the four this did understand.
+ * See `ssh/monitor.rs`.
+ */
+export interface SystemStats {
+  readonly cpuPercent: number | null;
+  readonly memory: Usage | null;
+  readonly disk: Usage | null;
+  readonly uptimeSeconds: number | null;
+}
+
+/** Runs the monitor command over `handle`'s connection and parses it. */
+export async function sessionMonitor(handle: SessionHandle): Promise<SystemStats> {
+  return invoke<SystemStats>('session_monitor', { handle });
+}

@@ -61,10 +61,11 @@ export {
   openTerminal,
   resizeTerminal,
   sendInput,
+  sessionMonitor,
   sessionStats,
   watchTerminal,
 } from './terminal';
-export type { SessionStats } from './terminal';
+export type { SessionStats, SystemStats, Usage } from './terminal';
 export type { SettingsView, Theme } from './settings';
 export {
   FINISHED_EVENT as SFTP_FINISHED_EVENT,

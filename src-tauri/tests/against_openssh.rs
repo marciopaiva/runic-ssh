@@ -467,3 +467,71 @@ async fn repeated_direct_connections_time_consistently() {
         "attempt took {slowest:?} against a median of {median:?}, out of {durations:?}"
     );
 }
+
+#[tokio::test]
+#[ignore = "needs the test container; see the module comment"]
+async fn run_command_executes_a_real_command_on_real_sshd() {
+    /* `ssh_connection.rs` proves the channel mechanics against a fake server
+    that answers every exec the same way. This is the one test that proves a
+    real remote shell actually ran what was asked and reported how it
+    exited, against `sshd` rather than `russh`'s own server. */
+    let known = trusting(offered_key().await);
+    let mut connection = connect(endpoint(), known).await.expect("connects");
+
+    connection
+        .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
+        .await
+        .expect("authenticates");
+
+    let ok = connection
+        .run_command("echo runic-ok")
+        .await
+        .expect("the command runs");
+    assert_eq!(ok.stdout, b"runic-ok\n");
+    assert_eq!(ok.exit_status, Some(0));
+
+    let failed = connection
+        .run_command("false")
+        .await
+        .expect("a failing command still runs");
+    assert_eq!(failed.exit_status, Some(1));
+}
+
+#[tokio::test]
+#[ignore = "needs the test container; see the module comment"]
+async fn the_monitor_command_parses_against_a_real_linux_host() {
+    /* `ssh::monitor::parse`'s own tests feed it canned text; this proves the
+    text a real Linux host actually prints for the combined command still
+    parses, on whatever distribution the fixture container runs. */
+    let known = trusting(offered_key().await);
+    let mut connection = connect(endpoint(), known).await.expect("connects");
+
+    connection
+        .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
+        .await
+        .expect("authenticates");
+
+    let output = connection
+        .run_command(&runic_ssh::ssh::monitor::command())
+        .await
+        .expect("the monitor command runs");
+
+    let stats = runic_ssh::ssh::monitor::parse(&output.stdout);
+
+    assert!(
+        stats.cpu_percent.is_some(),
+        "no CPU reading from a real /proc/stat: {stats:?}"
+    );
+    assert!(
+        stats.memory.is_some(),
+        "no memory reading from a real /proc/meminfo: {stats:?}"
+    );
+    assert!(
+        stats.disk.is_some(),
+        "no disk reading from a real df -P /: {stats:?}"
+    );
+    assert!(
+        stats.uptime_seconds.is_some(),
+        "no uptime reading from a real /proc/uptime: {stats:?}"
+    );
+}
