@@ -292,6 +292,51 @@
       "h": 900,
       "page": "page-3",
       "title": "Main window, es"
+    },
+    {
+      "file": "Monitor.dc.html",
+      "x": 3840,
+      "y": 7560,
+      "w": 1440,
+      "h": 900,
+      "page": "page-2",
+      "title": "Monitor, one host's own vital signs (v0.5.0)"
+    },
+    {
+      "file": "MonitorProcesses.dc.html",
+      "x": 5760,
+      "y": 7560,
+      "w": 1440,
+      "h": 900,
+      "page": "page-2",
+      "title": "Monitor, the host's own busiest processes"
+    },
+    {
+      "file": "MonitorPorts.dc.html",
+      "x": 7680,
+      "y": 7560,
+      "w": 1440,
+      "h": 900,
+      "page": "page-2",
+      "title": "Monitor, every listening TCP/UDP socket"
+    },
+    {
+      "file": "MonitorSystemd.dc.html",
+      "x": 0,
+      "y": 8640,
+      "w": 1440,
+      "h": 900,
+      "page": "page-2",
+      "title": "Monitor, read-only systemd units with a unit's own journal open"
+    },
+    {
+      "file": "MonitorHostsEmpty.dc.html",
+      "x": 1920,
+      "y": 8640,
+      "w": 1440,
+      "h": 900,
+      "page": "page-2",
+      "title": "Monitor, nothing picked yet"
     }
   ],
   "annotations": [
