@@ -24,15 +24,6 @@ interface MonitorWorkspaceProps {
 
 type DetailTab = 'home' | 'systemd';
 
-function Metric({ label, value }: { readonly label: string; readonly value: string }): JSX.Element {
-  return (
-    <div className="flex items-baseline justify-between gap-3">
-      <span className="text-ink-faint text-[11px]">{label}</span>
-      <span className="text-ink-secondary font-mono text-[12px]">{value}</span>
-    </div>
-  );
-}
-
 /**
  * A reading over the last few minutes, as a filled area chart: the shape
  * every monitoring tool a sysadmin already knows draws exactly this reading
@@ -249,6 +240,21 @@ function SystemInfoCard({ handle }: { readonly handle: SessionHandle }): JSX.Ele
   );
 }
 
+function UptimeCard({
+  uptimeSeconds,
+  i18n,
+}: {
+  readonly uptimeSeconds: number;
+  readonly i18n: ReturnType<typeof useTranslator>;
+}): JSX.Element {
+  return (
+    <div className="border-line-subtle bg-surface-chrome flex shrink-0 flex-col justify-center gap-1 rounded border p-3 sm:w-40">
+      <span className="text-ink-faint text-[11px]">{i18n.t('status.monitor.uptime')}</span>
+      <span className="text-ink font-mono text-[15px] font-semibold">{formatUptime(uptimeSeconds, i18n)}</span>
+    </div>
+  );
+}
+
 const FS_BAR_FILL: Readonly<Record<MeterTone, string>> = {
   ok: 'bg-ok',
   warn: 'bg-warn',
@@ -316,95 +322,98 @@ function HomeTab({ handle, stats }: { readonly handle: SessionHandle; readonly s
   const networkMax = niceMax(networkPeak);
 
   return (
-    <div className="flex flex-col gap-4 overflow-y-auto p-4">
-      <SystemInfoCard handle={handle} />
+    <div className="h-full overflow-y-auto p-4">
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="min-w-0 flex-1">
+            <SystemInfoCard handle={handle} />
+          </div>
+          {stats.uptimeSeconds !== null && <UptimeCard uptimeSeconds={stats.uptimeSeconds} i18n={i18n} />}
+        </div>
 
-      {stats.uptimeSeconds !== null && (
-        <Metric label={i18n.t('status.monitor.uptime')} value={formatUptime(stats.uptimeSeconds, i18n)} />
-      )}
-
-      <div className="grid grid-cols-1 gap-3 min-[520px]:grid-cols-2">
-        <MetricCard
-          title={i18n.t('status.monitor.cpu')}
-          value={percentValue(stats.cpuPercent)}
-          samples={history.cpu}
-          max={100}
-          formatValue={formatPercentAxis}
-        />
-
-        <MetricCard
-          title={i18n.t('status.monitor.memory')}
-          value={
-            stats.memory === null
-              ? '—'
-              : i18n.number(stats.memory.usedKb / stats.memory.totalKb, {
-                  style: 'percent',
-                  maximumFractionDigits: 0,
-                })
-          }
-          samples={history.ramPercent}
-          max={100}
-          formatValue={formatPercentAxis}
-        />
-
-        {stats.swap !== null && stats.swap.totalKb > 0 && (
+        <div className="grid grid-cols-1 gap-3 min-[520px]:grid-cols-2">
           <MetricCard
-            title={i18n.t('status.monitor.swap')}
-            value={i18n.number(stats.swap.usedKb / stats.swap.totalKb, {
-              style: 'percent',
-              maximumFractionDigits: 0,
-            })}
-            samples={history.swapPercent}
+            title={i18n.t('status.monitor.cpu')}
+            value={percentValue(stats.cpuPercent)}
+            samples={history.cpu}
             max={100}
             formatValue={formatPercentAxis}
           />
-        )}
 
-        {stats.disk !== null && (
           <MetricCard
-            title={i18n.t('status.monitor.disk')}
-            value={i18n.number(stats.disk.usedKb / stats.disk.totalKb, {
-              style: 'percent',
-              maximumFractionDigits: 0,
-            })}
-            samples={history.diskPercent}
+            title={i18n.t('status.monitor.memory')}
+            value={
+              stats.memory === null
+                ? '—'
+                : i18n.number(stats.memory.usedKb / stats.memory.totalKb, {
+                    style: 'percent',
+                    maximumFractionDigits: 0,
+                  })
+            }
+            samples={history.ramPercent}
             max={100}
             formatValue={formatPercentAxis}
           />
-        )}
 
-        {stats.loadAverage !== null && (
-          <MetricCard
-            title={i18n.t('status.monitor.load')}
-            value={i18n.number(stats.loadAverage.one, { maximumFractionDigits: 2 })}
-            samples={history.loadAverage}
-            max={loadMax}
-            formatValue={(value) => i18n.number(value, { maximumFractionDigits: 2 })}
-          />
-        )}
+          {stats.swap !== null && stats.swap.totalKb > 0 && (
+            <MetricCard
+              title={i18n.t('status.monitor.swap')}
+              value={i18n.number(stats.swap.usedKb / stats.swap.totalKb, {
+                style: 'percent',
+                maximumFractionDigits: 0,
+              })}
+              samples={history.swapPercent}
+              max={100}
+              formatValue={formatPercentAxis}
+            />
+          )}
 
-        {stats.network !== null && (
-          <MetricCard
-            title={i18n.t('status.monitor.network')}
-            value={`↓${formatRate(stats.network.receiveBytesPerSec, i18n)} ↑${formatRate(stats.network.transmitBytesPerSec, i18n)}`}
-            samples={history.networkBytesPerSec}
-            max={networkMax}
-            formatValue={(value) => formatRate(value, i18n)}
-          />
-        )}
+          {stats.disk !== null && (
+            <MetricCard
+              title={i18n.t('status.monitor.disk')}
+              value={i18n.number(stats.disk.usedKb / stats.disk.totalKb, {
+                style: 'percent',
+                maximumFractionDigits: 0,
+              })}
+              samples={history.diskPercent}
+              max={100}
+              formatValue={formatPercentAxis}
+            />
+          )}
+
+          {stats.loadAverage !== null && (
+            <MetricCard
+              title={i18n.t('status.monitor.load')}
+              value={i18n.number(stats.loadAverage.one, { maximumFractionDigits: 2 })}
+              samples={history.loadAverage}
+              max={loadMax}
+              formatValue={(value) => i18n.number(value, { maximumFractionDigits: 2 })}
+            />
+          )}
+
+          {stats.network !== null && (
+            <MetricCard
+              title={i18n.t('status.monitor.network')}
+              value={`↓${formatRate(stats.network.receiveBytesPerSec, i18n)} ↑${formatRate(stats.network.transmitBytesPerSec, i18n)}`}
+              samples={history.networkBytesPerSec}
+              max={networkMax}
+              formatValue={(value) => formatRate(value, i18n)}
+            />
+          )}
+        </div>
+
+        <FilesystemsCard filesystems={stats.filesystems} />
+
+        {stats.cpuPercent === null &&
+          stats.memory === null &&
+          stats.disk === null &&
+          stats.filesystems.length === 0 &&
+          stats.network === null &&
+          stats.uptimeSeconds === null &&
+          stats.loadAverage === null && (
+            <p className="text-ink-faint text-[12px]">{i18n.t('monitor.unavailable')}</p>
+          )}
       </div>
-
-      <FilesystemsCard filesystems={stats.filesystems} />
-
-      {stats.cpuPercent === null &&
-        stats.memory === null &&
-        stats.disk === null &&
-        stats.filesystems.length === 0 &&
-        stats.network === null &&
-        stats.uptimeSeconds === null &&
-        stats.loadAverage === null && (
-          <p className="text-ink-faint text-[12px]">{i18n.t('monitor.unavailable')}</p>
-        )}
     </div>
   );
 }
