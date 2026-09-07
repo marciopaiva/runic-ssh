@@ -33,6 +33,9 @@ interface TerminalViewProps {
   readonly onPaneFocus: () => void;
   /** Reports the grid the remote pty was last told about. */
   readonly onSize: (size: TerminalSize | null) => void;
+  /** Reports this pane's own focus function, so a caller elsewhere (running
+      a macro from the sidebar, say) can hand the keyboard back to it. */
+  readonly onFocusHandle: (focus: () => void) => void;
   /** Which key means the clipboard on this platform. */
   readonly modifier: 'meta' | 'control';
   /** Raised for a paste the remote shell would run a line at a time. */
@@ -78,6 +81,7 @@ export function TerminalView({
   labelledBy,
   onPaneFocus,
   onSize,
+  onFocusHandle,
   modifier,
   onPasteNeedsConfirming,
   onInput,
@@ -85,7 +89,7 @@ export function TerminalView({
 }: TerminalViewProps): JSX.Element {
   const i18n = useTranslator();
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
-  const { closed, exitStatus, size } = useTerminal(
+  const { closed, exitStatus, size, focus } = useTerminal(
     container,
     handle,
     modifier,
@@ -103,6 +107,10 @@ export function TerminalView({
   useEffect(() => {
     if (focused) onSize(size);
   }, [onSize, size, focused]);
+
+  useEffect(() => {
+    onFocusHandle(focus);
+  }, [onFocusHandle, focus]);
 
   return (
     <section

@@ -5,7 +5,8 @@
  * component below is a div and a ref.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { Terminal } from '@xterm/xterm';
 
 import { openTerminal, resizeTerminal, watchTerminal } from '../../ipc';
 import type { Session, SessionHandle } from '../../ipc';
@@ -45,6 +46,9 @@ export interface TerminalState {
    * show a size the remote end was never given.
    */
   readonly size: TerminalSize | null;
+  /** Moves the keyboard caret into this terminal. A no-op before the
+      terminal has finished mounting, since nothing is there yet to catch it. */
+  readonly focus: () => void;
 }
 
 /**
@@ -68,7 +72,7 @@ export function useTerminal(
   sessions: readonly Session[],
 ): TerminalState {
   const i18n = useTranslator();
-  const [state, setState] = useState<TerminalState>({
+  const [state, setState] = useState<Omit<TerminalState, 'focus'>>({
     closed: false,
     exitStatus: null,
     size: null,
@@ -76,6 +80,14 @@ export function useTerminal(
 
   /* Held in a ref rather than state: writing output must not re-render. */
   const writeRef = useRef<((bytes: Uint8Array) => void) | null>(null);
+
+  /* Also a ref: focusing must reach whatever xterm instance is live right
+     now, not the one that existed when a caller first read this hook's
+     return value. */
+  const terminalRef = useRef<Terminal | null>(null);
+  const focus = useCallback((): void => {
+    terminalRef.current?.focus();
+  }, []);
 
   /* Also a ref, for a different reason: the effect below mounts an xterm, and
      it must not tear one down and build another because a parent re-rendered
@@ -141,6 +153,7 @@ export function useTerminal(
       }));
 
       writeRef.current = (bytes) => terminal.write(bytes);
+      terminalRef.current = terminal;
 
       /* ADR-0051: written before `watchTerminal` starts below, which is what
          a real remote MOTD would arrive through, so this can never race one.
@@ -273,9 +286,10 @@ export function useTerminal(
     return () => {
       disposed = true;
       writeRef.current = null;
+      terminalRef.current = null;
       for (const stop of teardown.reverse()) stop();
     };
   }, [container, handle]);
 
-  return state;
+  return { ...state, focus };
 }

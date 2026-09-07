@@ -792,6 +792,14 @@ export function App(): JSX.Element {
      (`preparePaste`). A single target runs immediately; more than one holds
      for `pendingMacro`'s own confirmation, the same reason `pendingPaste`
      already asks before a paste reaches several hosts. */
+  /* Keyed by session id rather than held as one function, since more than
+     one terminal is mounted at a time (ADR-0014) and only the active one is
+     the right target for a macro run. */
+  const focusFns = useRef(new Map<string, () => void>());
+  const focusTerminal = useCallback((sessionId: string): void => {
+    focusFns.current.get(sessionId)?.();
+  }, []);
+
   const runMacro = useCallback(
     (macro: Macro): void => {
       if (activeId === null) return;
@@ -807,8 +815,11 @@ export function App(): JSX.Element {
       }
 
       broadcast(activeId, new TextEncoder().encode(preparePaste(text)));
+      /* Run from the sidebar, so the keyboard is sitting on a button there
+         until this hands it back to the shell the macro just spoke to. */
+      focusTerminal(activeId);
     },
-    [activeId, sessions, groups, sync, muted, broadcast],
+    [activeId, sessions, groups, sync, muted, broadcast, focusTerminal],
   );
 
   /* Which rectangle a session's surfaces belong in, or `null` when it is not
@@ -2152,6 +2163,7 @@ export function App(): JSX.Element {
                 labelledBy={tabElementId(mine)}
                 onPaneFocus={() => focusOn(mine)}
                 onSize={setSize}
+                onFocusHandle={(focus) => focusFns.current.set(terminal.sessionId, focus)}
                 modifier={chrome?.commandModifier ?? 'control'}
                 onPasteNeedsConfirming={(text) =>
                   setPendingPaste({ sessionId: terminal.sessionId, text })
@@ -2200,6 +2212,7 @@ export function App(): JSX.Element {
                     new TextEncoder().encode(preparePaste(pendingMacro.text)),
                   );
                   setPendingMacro(null);
+                  focusTerminal(pendingMacro.sessionId);
                 }}
               />
             </div>
