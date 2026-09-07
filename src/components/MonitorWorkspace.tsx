@@ -190,20 +190,35 @@ function UnitRow({
 function JournalPane({
   handle,
   unit,
+  onClose,
 }: {
   readonly handle: SessionHandle | null;
   readonly unit: string | null;
+  readonly onClose: () => void;
 }): JSX.Element | null {
   const i18n = useTranslator();
   const lines = useUnitJournal(handle, unit);
 
   if (unit === null) return null;
 
+  const closeLabel = i18n.t('tabs.close', { name: unit });
+
   return (
-    <div className="border-line-subtle bg-surface-base flex h-40 shrink-0 flex-col border-t">
-      <span className="text-ink-secondary border-line-subtle truncate border-b px-3 py-1.5 font-mono text-[11px] font-semibold">
-        {unit}
-      </span>
+    <div className="border-line-subtle bg-surface-base flex h-[30%] shrink-0 flex-col border-t">
+      <div className="border-line-subtle flex items-center justify-between gap-2 border-b px-3 py-1.5">
+        <span className="text-ink-secondary truncate font-mono text-[11px] font-semibold">{unit}</span>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label={closeLabel}
+          title={closeLabel}
+          className="text-ink-faint hover:text-ink flex h-4 w-4 shrink-0 items-center justify-center rounded"
+        >
+          <svg viewBox="0 0 10 10" className="h-2 w-2" fill="none" aria-hidden="true">
+            <path d="M0.5 0.5l9 9M9.5 0.5l-9 9" stroke="currentColor" strokeWidth="1.4" />
+          </svg>
+        </button>
+      </div>
       <div className="flex-1 overflow-y-auto px-3 py-1.5">
         {lines.length === 0 ? (
           <p className="text-ink-faint text-[11px]">{i18n.t('monitor.systemd.journal.none')}</p>
@@ -258,7 +273,11 @@ function SystemdTab({ handle, active }: { readonly handle: SessionHandle; readon
           ))
         )}
       </div>
-      <JournalPane handle={active ? handle : null} unit={active ? selected : null} />
+      <JournalPane
+        handle={active ? handle : null}
+        unit={active ? selected : null}
+        onClose={() => setSelected(null)}
+      />
     </div>
   );
 }
