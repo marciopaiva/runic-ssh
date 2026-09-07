@@ -16,7 +16,8 @@ import { ConnectionFailure } from './components/ConnectionFailure';
 import { HostKeyPrompt } from './components/HostKeyPrompt';
 import { HostKeyRefused } from './components/HostKeyRefused';
 import { MacroConfirm } from './components/MacroConfirm';
-import { MacrosEditor } from './components/MacrosEditor';
+import { MacrosButton } from './components/MacrosButton';
+import { MacrosSidebar } from './components/MacrosSidebar';
 import { MonitorWorkspace } from './components/MonitorWorkspace';
 import { PasteConfirm } from './components/PasteConfirm';
 import { SessionMenu } from './components/SessionMenu';
@@ -1852,6 +1853,7 @@ export function App(): JSX.Element {
                   setSync((on) => !on);
                 }}
               />
+              <MacrosButton open={macrosOpen} onToggle={() => setMacrosOpen((open) => !open)} />
               <ShapeControl layout={layout} onChoose={chooseLayout} />
               <span className="bg-line-subtle h-4 w-px shrink-0" aria-hidden="true" />
               <ThemeLanguageControls
@@ -2749,8 +2751,9 @@ export function App(): JSX.Element {
       />
 
       {macrosOpen && (
-        <MacrosEditor
+        <MacrosSidebar
           macros={macros}
+          onRun={runMacro}
           onSave={saveMacroDraft}
           onDelete={removeMacro}
           onClose={() => setMacrosOpen(false)}

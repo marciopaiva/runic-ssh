@@ -3,6 +3,7 @@ import type { JSX } from 'react';
 import { pasteLines } from '../features/terminal/clipboard';
 import { useTranslator } from '../features/settings';
 
+import { MacroGlyph } from './MacroGlyph';
 import { SessionSurface, SurfaceAction } from './SessionSurface';
 
 interface MacroConfirmProps {
@@ -44,17 +45,7 @@ export function MacroConfirm({
     <SessionSurface
       titleId="macro-confirm-title"
       title={i18n.t('macro.confirm.title', { name })}
-      icon={
-        <svg viewBox="0 0 16 16" width="19" height="19" fill="none" aria-hidden="true">
-          <path
-            d="M2.5 3.5h11v9h-11z M5 6.5l2 1.8-2 1.8M8.5 10.2h2.5"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      }
+      icon={<MacroGlyph className="h-[19px] w-[19px]" />}
       body={i18n.t('macro.confirm.body', { count: String(hosts) })}
       actions={
         <>
