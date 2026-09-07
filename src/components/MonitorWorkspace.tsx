@@ -51,22 +51,45 @@ const TAB_LABEL = {
  * given, and text stretched the same way reads as squashed or smeared
  * rather than as a number.
  */
+const AREA_TONE_TEXT: Readonly<Record<MeterTone, string>> = {
+  ok: 'text-ok',
+  warn: 'text-warn',
+  danger: 'text-danger',
+};
+
+const AREA_TONE_FILL: Readonly<Record<MeterTone, string>> = {
+  ok: 'fill-ok-soft',
+  warn: 'fill-warn-soft',
+  danger: 'fill-danger-soft',
+};
+
 function AreaChart({
   samples,
   max,
   formatValue,
+  tone,
+  size = 'default',
 }: {
   readonly samples: readonly Sample[];
   readonly max: number;
   readonly formatValue: (value: number) => string;
+  /** Colors the line and fill the same way the reading's own ring gauge or
+   * usage bar already reads; the default accent otherwise. */
+  readonly tone?: MeterTone;
+  /** `hero` doubles the chart's own height, for the one or two readings a
+   * tab wants to draw the eye to before the rest of it. */
+  readonly size?: 'default' | 'hero';
 }): JSX.Element {
   const width = 300;
-  const height = 64;
+  const height = size === 'hero' ? 128 : 64;
+  const heightClass = size === 'hero' ? 'h-32' : 'h-16';
+  const colorClass = tone ? AREA_TONE_TEXT[tone] : 'text-accent';
+  const fillClass = tone ? AREA_TONE_FILL[tone] : 'fill-accent-soft';
   const y = (value: number): number => height - (Math.min(max, Math.max(0, value)) / max) * height;
 
   const chart =
     samples.length < 2 ? (
-      <svg viewBox={`0 0 ${width} ${height}`} className="h-16 flex-1" aria-hidden="true" />
+      <svg viewBox={`0 0 ${width} ${height}`} className={`${heightClass} flex-1`} aria-hidden="true" />
     ) : (
       (() => {
         const step = width / (samples.length - 1);
@@ -76,13 +99,13 @@ function AreaChart({
         return (
           <svg
             viewBox={`0 0 ${width} ${height}`}
-            className="text-accent h-16 flex-1"
+            className={`${colorClass} ${heightClass} flex-1`}
             preserveAspectRatio="none"
             aria-hidden="true"
           >
             <line x1={0} x2={width} y1={y(max / 2)} y2={y(max / 2)} className="stroke-line-subtle" strokeWidth={1} />
             <line x1={0} x2={width} y1={y(max)} y2={y(max)} className="stroke-line-subtle" strokeWidth={1} />
-            <polygon points={area} className="fill-accent-soft" />
+            <polygon points={area} className={fillClass} />
             <polyline
               points={line}
               fill="none"
@@ -149,6 +172,39 @@ function MetricCard({
         <span className="text-ink font-mono text-[15px] font-semibold">{value}</span>
       </div>
       <AreaChart samples={samples} max={max} formatValue={formatValue} />
+    </div>
+  );
+}
+
+/**
+ * The same card `MetricCard` draws, at the size and tone that pulls a
+ * reader's eye to it first: CPU and memory are the two readings most
+ * likely to be the first sign something is wrong, so they get this
+ * treatment below `IdentityOverviewCard`'s own dials rather than sitting
+ * in the grid with swap, disk, load and network.
+ */
+function HeroMetricCard({
+  title,
+  value,
+  samples,
+  max,
+  formatValue,
+  tone,
+}: {
+  readonly title: string;
+  readonly value: string;
+  readonly samples: readonly Sample[];
+  readonly max: number;
+  readonly formatValue: (value: number) => string;
+  readonly tone: MeterTone;
+}): JSX.Element {
+  return (
+    <div className="border-line-subtle bg-surface-chrome flex flex-col gap-2 rounded border p-3.5">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-ink-secondary text-[13px] font-semibold">{title}</span>
+        <span className="text-ink font-mono text-[18px] font-semibold">{value}</span>
+      </div>
+      <AreaChart samples={samples} max={max} formatValue={formatValue} tone={tone} size="hero" />
     </div>
   );
 }
@@ -438,46 +494,142 @@ function SystemGlyph(): JSX.Element {
   );
 }
 
-function SystemInfoCard({ handle }: { readonly handle: SessionHandle }): JSX.Element | null {
-  const i18n = useTranslator();
-  const info = useSystemInfo(handle);
+const RING_TONE_STROKE: Readonly<Record<MeterTone, string>> = {
+  ok: 'stroke-ok',
+  warn: 'stroke-warn',
+  danger: 'stroke-danger',
+};
 
-  if (info.osName === null && info.kernel === null && info.hostname === null && info.cpuModel === null) {
-    return null;
-  }
+const RING_RADIUS = 30;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
+/**
+ * A dial reading, the same three tones `FilesystemRow`'s own usage bar
+ * already grades a percentage into (`meterTone`), for the two readings
+ * worth a glance before anything else on the tab.
+ */
+function RingGauge({
+  label,
+  valueLabel,
+  percent,
+  tone,
+}: {
+  readonly label: string;
+  readonly valueLabel: string;
+  readonly percent: number;
+  readonly tone: MeterTone;
+}): JSX.Element {
+  const offset = RING_CIRCUMFERENCE * (1 - Math.min(100, Math.max(0, percent)) / 100);
 
   return (
-    <div className="border-line-subtle bg-surface-chrome flex items-start gap-3 rounded border p-3">
-      <SystemGlyph />
-      <div className="flex min-w-0 flex-col gap-1">
-        <span className="text-ink truncate text-[13px] font-semibold">
-          {info.osName ?? i18n.t('monitor.system.unknown')}
-        </span>
-        <div className="flex flex-col gap-0.5">
-          {info.hostname !== null && (
-            <span className="text-ink-faint font-mono text-[11px]">{info.hostname}</span>
-          )}
-          {info.kernel !== null && <span className="text-ink-faint font-mono text-[11px]">{info.kernel}</span>}
-          {info.cpuModel !== null && (
-            <span className="text-ink-faint truncate text-[11px]">{info.cpuModel}</span>
-          )}
+    <div className="flex flex-col items-center gap-2">
+      <div className="relative h-[72px] w-[72px]">
+        <svg viewBox="0 0 76 76" className="h-[72px] w-[72px] -rotate-90" aria-hidden="true">
+          <circle cx={38} cy={38} r={RING_RADIUS} fill="none" className="stroke-line-subtle" strokeWidth={7} />
+          <circle
+            cx={38}
+            cy={38}
+            r={RING_RADIUS}
+            fill="none"
+            className={RING_TONE_STROKE[tone]}
+            strokeWidth={7}
+            strokeLinecap="round"
+            strokeDasharray={RING_CIRCUMFERENCE}
+            strokeDashoffset={offset}
+          />
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-ink font-mono text-[14px] font-semibold">{valueLabel}</span>
         </div>
       </div>
+      <span className="text-ink-faint text-center text-[11px]">{label}</span>
     </div>
   );
 }
 
-function UptimeCard({
+function Divider(): JSX.Element {
+  return <div className="bg-line-subtle h-10 w-px shrink-0" />;
+}
+
+/**
+ * System info, uptime and the CPU/memory dials in one card rather than
+ * several: each section renders only when it has something to show, the
+ * same "nothing to say" rule the rest of this tab already follows, and the
+ * dials render unconditionally since a host either reads as a percentage
+ * or as the dash `percentValue` already falls back to.
+ */
+function IdentityOverviewCard({
+  handle,
   uptimeSeconds,
+  cpuPercent,
+  memPercent,
+  cpuTone,
+  memTone,
+  formatPercent,
   i18n,
 }: {
-  readonly uptimeSeconds: number;
+  readonly handle: SessionHandle;
+  readonly uptimeSeconds: number | null;
+  readonly cpuPercent: number | null;
+  readonly memPercent: number | null;
+  readonly cpuTone: MeterTone;
+  readonly memTone: MeterTone;
+  readonly formatPercent: (value: number | null) => string;
   readonly i18n: ReturnType<typeof useTranslator>;
 }): JSX.Element {
+  const info = useSystemInfo(handle);
+  const hasInfo = info.osName !== null || info.kernel !== null || info.hostname !== null || info.cpuModel !== null;
+
   return (
-    <div className="border-line-subtle bg-surface-chrome flex shrink-0 flex-col justify-center gap-1 rounded border p-3 sm:w-40">
-      <span className="text-ink-faint text-[11px]">{i18n.t('status.monitor.uptime')}</span>
-      <span className="text-ink font-mono text-[15px] font-semibold">{formatUptime(uptimeSeconds, i18n)}</span>
+    <div className="border-line-subtle bg-surface-chrome flex items-center gap-5 overflow-x-auto rounded border p-3.5">
+      {hasInfo && (
+        <>
+          <div className="flex min-w-0 flex-1 items-start gap-3">
+            <SystemGlyph />
+            <div className="flex min-w-0 flex-col gap-1">
+              <span className="text-ink truncate text-[13px] font-semibold">
+                {info.osName ?? i18n.t('monitor.system.unknown')}
+              </span>
+              <div className="flex flex-col gap-0.5">
+                {info.hostname !== null && (
+                  <span className="text-ink-faint font-mono text-[11px]">{info.hostname}</span>
+                )}
+                {info.kernel !== null && (
+                  <span className="text-ink-faint font-mono text-[11px]">{info.kernel}</span>
+                )}
+                {info.cpuModel !== null && (
+                  <span className="text-ink-faint truncate text-[11px]">{info.cpuModel}</span>
+                )}
+              </div>
+            </div>
+          </div>
+          <Divider />
+        </>
+      )}
+
+      {uptimeSeconds !== null && (
+        <>
+          <div className="flex shrink-0 flex-col gap-1">
+            <span className="text-ink-faint text-[11px]">{i18n.t('status.monitor.uptime')}</span>
+            <span className="text-ink font-mono text-[20px] font-semibold">{formatUptime(uptimeSeconds, i18n)}</span>
+          </div>
+          <Divider />
+        </>
+      )}
+
+      <RingGauge
+        label={i18n.t('status.monitor.cpu')}
+        valueLabel={formatPercent(cpuPercent)}
+        percent={cpuPercent ?? 0}
+        tone={cpuTone}
+      />
+      <Divider />
+      <RingGauge
+        label={i18n.t('status.monitor.memory')}
+        valueLabel={formatPercent(memPercent)}
+        percent={memPercent ?? 0}
+        tone={memTone}
+      />
     </div>
   );
 }
@@ -547,41 +699,43 @@ function HomeTab({ handle, stats }: { readonly handle: SessionHandle; readonly s
   const loadMax = niceMax(loadPeak);
   const networkPeak = Math.max(1, ...history.networkBytesPerSec.map((sample) => sample.value));
   const networkMax = niceMax(networkPeak);
+  const memPercent = stats.memory === null ? null : (stats.memory.usedKb / stats.memory.totalKb) * 100;
+  const cpuTone: MeterTone = stats.cpuPercent === null ? 'ok' : meterTone(stats.cpuPercent);
+  const memTone: MeterTone = memPercent === null ? 'ok' : meterTone(memPercent);
 
   return (
     <div className="h-full overflow-y-auto p-4">
       <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <div className="min-w-0 flex-1">
-            <SystemInfoCard handle={handle} />
-          </div>
-          {stats.uptimeSeconds !== null && <UptimeCard uptimeSeconds={stats.uptimeSeconds} i18n={i18n} />}
-        </div>
+        <IdentityOverviewCard
+          handle={handle}
+          uptimeSeconds={stats.uptimeSeconds}
+          cpuPercent={stats.cpuPercent}
+          memPercent={memPercent}
+          cpuTone={cpuTone}
+          memTone={memTone}
+          formatPercent={percentValue}
+          i18n={i18n}
+        />
+
+        <HeroMetricCard
+          title={i18n.t('status.monitor.cpu')}
+          value={percentValue(stats.cpuPercent)}
+          samples={history.cpu}
+          max={100}
+          formatValue={formatPercentAxis}
+          tone={cpuTone}
+        />
+
+        <HeroMetricCard
+          title={i18n.t('status.monitor.memory')}
+          value={percentValue(memPercent)}
+          samples={history.ramPercent}
+          max={100}
+          formatValue={formatPercentAxis}
+          tone={memTone}
+        />
 
         <div className="grid grid-cols-1 gap-3 min-[520px]:grid-cols-2">
-          <MetricCard
-            title={i18n.t('status.monitor.cpu')}
-            value={percentValue(stats.cpuPercent)}
-            samples={history.cpu}
-            max={100}
-            formatValue={formatPercentAxis}
-          />
-
-          <MetricCard
-            title={i18n.t('status.monitor.memory')}
-            value={
-              stats.memory === null
-                ? '—'
-                : i18n.number(stats.memory.usedKb / stats.memory.totalKb, {
-                    style: 'percent',
-                    maximumFractionDigits: 0,
-                  })
-            }
-            samples={history.ramPercent}
-            max={100}
-            formatValue={formatPercentAxis}
-          />
-
           {stats.swap !== null && stats.swap.totalKb > 0 && (
             <MetricCard
               title={i18n.t('status.monitor.swap')}
@@ -607,7 +761,9 @@ function HomeTab({ handle, stats }: { readonly handle: SessionHandle; readonly s
               formatValue={formatPercentAxis}
             />
           )}
+        </div>
 
+        <div className="grid grid-cols-1 gap-3 min-[520px]:grid-cols-2">
           {stats.loadAverage !== null && (
             <MetricCard
               title={i18n.t('status.monitor.load')}
