@@ -2581,7 +2581,7 @@ export function App(): JSX.Element {
             {selectedMonitorSession === null ? (
               <EmptyPanel
                 modifier={chrome?.commandModifier ?? 'control'}
-                variant="group"
+                variant="panel"
                 title={i18n.t('monitor.pick.title')}
                 body={i18n.t('monitor.pick.body')}
               />
