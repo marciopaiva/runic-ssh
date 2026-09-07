@@ -44,8 +44,8 @@ const PENCIL_ICON = (
 type Mode = { readonly kind: 'list' } | { readonly kind: 'form'; readonly editingId: string | null };
 
 /**
- * A docked panel, not a modal: create, edit, delete and — first, since it
- * is the reason this exists — run a saved macro without leaving whatever
+ * A docked panel, not a modal: create, edit, delete and, first, since it
+ * is the reason this exists, run a saved macro without leaving whatever
  * else is on screen.
  *
  * Reached from `MacrosButton` in the Sessions toolbar and, still, from the

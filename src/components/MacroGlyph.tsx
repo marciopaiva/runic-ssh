@@ -6,7 +6,7 @@ interface MacroGlyphProps {
 
 /**
  * The macro glyph: a small terminal window with a prompt arrow, drawn
- * wherever "this is about a saved macro" is answered — the toolbar's own
+ * wherever "this is about a saved macro" is answered: the toolbar's own
  * `MacrosButton` and `MacroConfirm`'s icon. One shape for the concept
  * everywhere it appears, the same reasoning `BroadcastGlyph` already
  * follows for "does this receive a broadcast."
