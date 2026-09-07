@@ -1,5 +1,7 @@
 export { asIpcError } from './errors';
 export { appVersion } from './app';
+export { deleteMacro, listMacros, saveMacro } from './macros';
+export type { Macro, MacroDraft } from './macros';
 export {
   credentialPrompt,
   dismissCredential,

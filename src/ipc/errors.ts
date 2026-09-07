@@ -55,6 +55,10 @@ export type IpcError =
   | { readonly code: 'terminalAlreadyOpen' }
   /** A saved session was rejected; `field` names which part. */
   | { readonly code: 'invalidSession'; readonly field: string }
+  /** The macro id does not name anything saved. */
+  | { readonly code: 'unknownMacro'; readonly id: string }
+  /** A saved macro was rejected; `field` names which part. */
+  | { readonly code: 'invalidMacro'; readonly field: string }
   /**
    * The jump host a session names cannot be used.
    *
@@ -227,6 +231,8 @@ export const CODES: ReadonlySet<IpcErrorCode> = new Set<IpcErrorCode>([
   'inputTooLarge',
   'terminalAlreadyOpen',
   'invalidSession',
+  'unknownMacro',
+  'invalidMacro',
   'invalidProxyJump',
   'duplicateSession',
   'chainFailed',
