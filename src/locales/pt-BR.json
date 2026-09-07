@@ -172,6 +172,7 @@
   "macros.editor.error.generic": "Não foi possível fazer isso. Nada mudou.",
   "macros.editor.error.name": "Dê um nome para a macro.",
   "macros.editor.error.text": "A macro precisa de um texto para enviar.",
+  "macros.editor.insertVariable": "Inserir {name}",
   "macros.editor.name": "Nome",
   "macros.editor.new": "Nova macro",
   "macros.editor.save": "Salvar",

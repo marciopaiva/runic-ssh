@@ -66,6 +66,7 @@ export function MacrosSidebar({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const panel = useRef<HTMLDivElement>(null);
+  const text = useRef<HTMLTextAreaElement>(null);
 
   /* Nothing inside starts focused, and a keydown fired on `document.body`
      never bubbles down into this panel: without moving focus here on
@@ -109,6 +110,20 @@ export function MacrosSidebar({
       .then(() => setMode({ kind: 'list' }))
       .catch(reportFailure)
       .finally(() => setBusy(false));
+  };
+
+  /* The textarea is uncontrolled, read through `FormData` on submit, so a
+     chip writes straight into its DOM value rather than through React
+     state: there is nothing else the value needs to stay in sync with. */
+  const insertVariable = (token: string): void => {
+    const el = text.current;
+    if (el === null) return;
+    const start = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? el.value.length;
+    el.value = el.value.slice(0, start) + token + el.value.slice(end);
+    el.focus();
+    const caret = start + token.length;
+    el.setSelectionRange(caret, caret);
   };
 
   const remove = (id: string): void => {
@@ -237,8 +252,25 @@ export function MacrosSidebar({
           </label>
 
           <label className="flex min-h-0 flex-1 flex-col gap-1">
-            <span className="text-ink-faint text-[11px]">{i18n.t('macros.editor.text')}</span>
+            <span className="flex items-center justify-between gap-2">
+              <span className="text-ink-faint text-[11px]">{i18n.t('macros.editor.text')}</span>
+              <span className="flex gap-1">
+                {(['$host', '$port', '$username'] as const).map((token) => (
+                  <button
+                    key={token}
+                    type="button"
+                    onClick={() => insertVariable(token)}
+                    aria-label={i18n.t('macros.editor.insertVariable', { name: token })}
+                    title={i18n.t('macros.editor.insertVariable', { name: token })}
+                    className="text-accent bg-accent/10 hover:bg-accent/20 rounded px-1.5 py-0.5 font-mono text-[9.5px] font-bold"
+                  >
+                    {token}
+                  </button>
+                ))}
+              </span>
+            </span>
             <textarea
+              ref={text}
               name="text"
               defaultValue={editing?.text ?? ''}
               required

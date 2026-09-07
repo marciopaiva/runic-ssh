@@ -178,6 +178,7 @@ export const SOURCE_CATALOG = {
   "macros.editor.error.generic": "That could not be done. Nothing changed.",
   "macros.editor.error.name": "Give the macro a name.",
   "macros.editor.error.text": "The macro needs some text to send.",
+  "macros.editor.insertVariable": "Insert {name}",
   "macros.editor.name": "Name",
   "macros.editor.new": "New macro",
   "macros.editor.save": "Save",
