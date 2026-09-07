@@ -9,7 +9,7 @@ interface MacroConfirmProps {
   readonly name: string;
   readonly text: string;
   /** How many hosts a confirmed run reaches. Always more than one: a single
-   * target runs immediately, without asking — see `App.tsx`'s `runMacro`. */
+   * target runs immediately, without asking. See `App.tsx`'s `runMacro`. */
   readonly hosts: number;
   readonly onConfirm: () => void;
   readonly onCancel: () => void;

@@ -346,7 +346,7 @@ export function actionCommands(context: CommandContext): readonly Command[] {
  *
  * A macro's own entry is only offered with somewhere to send it: an active
  * session. The same reasoning `actionCommands` already applies to
- * `tab:close` — an entry that cannot do anything costs a keystroke and a
+ * `tab:close`: an entry that cannot do anything costs a keystroke and a
  * disappointment, in a list whose whole value is that everything in it
  * works. "Manage macros" needs no session at all, so it is never gated.
  */

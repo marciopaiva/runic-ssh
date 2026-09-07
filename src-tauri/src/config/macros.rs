@@ -5,7 +5,7 @@
 //! contains beyond being present: the text is exactly what `send_input`
 //! already accepts from a human at the keyboard, sent by a person who is
 //! already looking at the terminal it lands in. What is checked is only
-//! what keeps the file itself honest — a name, and a name a screen can
+//! what keeps the file itself honest: a name, and a name a screen can
 //! render back without it lying about what it says.
 
 use std::fs;

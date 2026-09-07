@@ -25,8 +25,8 @@ pub const SETTINGS_FILE: &str = "settings.json";
 /// function exists: `U+202E RIGHT-TO-LEFT OVERRIDE` is a *format* character
 /// rather than a control one, so `is_control` returns false for the single
 /// character most used to make a name read as something it is not. It is the
-/// same trick the SFTP pane guards against in filenames a remote host sends —
-/// and a name is not safer for having come from our own interface, because the
+/// same trick the SFTP pane guards against in filenames a remote host sends.
+/// A name is not safer for having come from our own interface, because the
 /// interface is the part an attacker reaches first.
 pub(crate) fn is_deceptive(c: char) -> bool {
     c.is_control()
