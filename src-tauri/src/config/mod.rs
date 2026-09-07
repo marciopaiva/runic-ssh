@@ -13,9 +13,28 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::Error;
 
+pub mod macros;
 pub mod sessions;
 
 pub const SETTINGS_FILE: &str = "settings.json";
+
+/// Characters that must never reach a name the interface renders back:
+/// a session's, or a macro's.
+///
+/// `char::is_control` is not enough, and finding that out is the reason this
+/// function exists: `U+202E RIGHT-TO-LEFT OVERRIDE` is a *format* character
+/// rather than a control one, so `is_control` returns false for the single
+/// character most used to make a name read as something it is not. It is the
+/// same trick the SFTP pane guards against in filenames a remote host sends.
+/// A name is not safer for having come from our own interface, because the
+/// interface is the part an attacker reaches first.
+pub(crate) fn is_deceptive(c: char) -> bool {
+    c.is_control()
+        // Bidirectional overrides, embeddings and isolates.
+        || matches!(c, '\u{200e}' | '\u{200f}' | '\u{2066}'..='\u{2069}' | '\u{202a}'..='\u{202e}')
+        // Zero-width characters, which hide a difference between two names.
+        || matches!(c, '\u{200b}'..='\u{200d}' | '\u{feff}')
+}
 
 /// Which palette the window paints in.
 ///

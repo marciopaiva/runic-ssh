@@ -15,6 +15,8 @@ import { HostKeyBlocked } from './components/HostKeyBlocked';
 import { ConnectionFailure } from './components/ConnectionFailure';
 import { HostKeyPrompt } from './components/HostKeyPrompt';
 import { HostKeyRefused } from './components/HostKeyRefused';
+import { MacroConfirm } from './components/MacroConfirm';
+import { MacrosEditor } from './components/MacrosEditor';
 import { MonitorWorkspace } from './components/MonitorWorkspace';
 import { PasteConfirm } from './components/PasteConfirm';
 import { SessionMenu } from './components/SessionMenu';
@@ -30,8 +32,9 @@ import { ThemeLanguageControls } from './components/ThemeLanguageControls';
 import { Titlebar } from './components/Titlebar';
 import { Toolbar } from './components/Toolbar';
 import { TransfersBar } from './components/TransfersBar';
-import { actionCommands, sessionCommands, usePalette } from './features/commands';
+import { actionCommands, macroCommands, sessionCommands, usePalette } from './features/commands';
 import type { CommandContext } from './features/commands';
+import { applyVariables, useMacros } from './features/macros';
 import {
   focusAfter,
   focusAfterClosing,
@@ -101,7 +104,7 @@ import {
   stopForward,
   submitCredential,
 } from './ipc';
-import type { Keep, Secret, Session, SessionDraft, SuggestedMethod } from './ipc';
+import type { Keep, Macro, Secret, Session, SessionDraft, SuggestedMethod } from './ipc';
 import { useLocale, useTheme } from './features/settings';
 import { visibleDestinationRows } from './features/sftp/browser';
 import { endpointKey } from './features/sftp/endpoint';
@@ -251,6 +254,7 @@ function shownSession(group: Group): string | null {
  */
 export function App(): JSX.Element {
   const { sessions, setState, attach, reload } = useSessions();
+  const { macros, save: saveMacroDraft, remove: removeMacro } = useMacros();
   const { chrome, maximized, act, refused, nativeDecorations, useNativeDecorations } = useChrome();
   const { i18n, chosen, choose } = useLocale();
   const { theme, chooseTheme } = useTheme();
@@ -387,6 +391,16 @@ export function App(): JSX.Element {
     readonly sessionId: string;
     readonly text: string;
   } | null>(null);
+  /* A macro held back for a broadcast to confirm, the same reason and the
+     same shape as `pendingPaste`: a single target runs it immediately (see
+     `runMacro`), and this only ever holds one that would reach more than
+     one host. */
+  const [pendingMacro, setPendingMacro] = useState<{
+    readonly sessionId: string;
+    readonly name: string;
+    readonly text: string;
+  } | null>(null);
+  const [macrosOpen, setMacrosOpen] = useState(false);
   /* How the area is divided, and what each group holds. What is held is a hint
      rather than the truth: `resolveGroups` decides what is actually drawn,
      because a session leaves on its own when its host hangs up. */
@@ -769,6 +783,31 @@ export function App(): JSX.Element {
       }
     },
     [groups, sync, muted, mounted],
+  );
+
+  /* A macro's own text, resolved against the session it is about to run in
+     and sent the same way a confirmed paste already is: through `broadcast`,
+     with newlines turned into the carriage return a terminal expects
+     (`preparePaste`). A single target runs immediately; more than one holds
+     for `pendingMacro`'s own confirmation, the same reason `pendingPaste`
+     already asks before a paste reaches several hosts. */
+  const runMacro = useCallback(
+    (macro: Macro): void => {
+      if (activeId === null) return;
+      const session = sessions.find((live) => live.session.id === activeId)?.session;
+      if (session === undefined) return;
+
+      const text = applyVariables(macro.text, session);
+      const targets = inputTargets(groups, activeId, sync, muted);
+
+      if (targets.length > 1) {
+        setPendingMacro({ sessionId: activeId, name: macro.name, text });
+        return;
+      }
+
+      broadcast(activeId, new TextEncoder().encode(preparePaste(text)));
+    },
+    [activeId, sessions, groups, sync, muted, broadcast],
   );
 
   /* Which rectangle a session's surfaces belong in, or `null` when it is not
@@ -1587,6 +1626,7 @@ export function App(): JSX.Element {
       focusedGroup,
       focusedTitle:
         resolvedFocus === null ? null : entryTitle(resolvedFocus, tabs, editorTabs, i18n),
+      macros,
       actions: {
         newSession: () => openEditor({ kind: 'new' }),
         editSession: (sessionId: string) => openEditor({ kind: 'existing', sessionId }),
@@ -1610,17 +1650,19 @@ export function App(): JSX.Element {
         chooseLocale: (locale) => void choose(locale),
         useNativeDecorations,
         openSettings,
+        runMacro,
+        openMacros: () => setMacrosOpen(true),
       },
     }),
-    [i18n, sessions, tabs, activeId, chosen, maximized, nativeDecorations, act, choose, closeFocus, activate, useNativeDecorations, openSettings, resolvedFocus, focusOn, entries, chooseLayout, layout, sync, filled, muted, armed, receiving, groups, focusedGroup, editorTabs, moveTo, closeGroup],
+    [i18n, sessions, tabs, activeId, chosen, maximized, nativeDecorations, act, choose, closeFocus, activate, useNativeDecorations, openSettings, resolvedFocus, focusOn, entries, chooseLayout, layout, sync, filled, muted, armed, receiving, groups, focusedGroup, editorTabs, moveTo, closeGroup, macros, runMacro],
   );
 
   const sources = useMemo(
-    () => [() => sessionCommands(context), () => actionCommands(context)],
+    () => [() => sessionCommands(context), () => actionCommands(context), () => macroCommands(context)],
     [context],
   );
 
-  const palette = usePalette(sources, chrome?.commandModifier ?? 'control');
+  const palette = usePalette(sources, chrome?.commandModifier ?? 'control', macrosOpen);
 
   /* Built once per render rather than looked up per pane: the map is small,
      and four linear searches through the session list to draw four headers is
@@ -1772,6 +1814,8 @@ export function App(): JSX.Element {
 
   const pasteBox =
     pendingPaste === null ? null : boxOf({ kind: 'session', sessionId: pendingPaste.sessionId });
+  const macroBox =
+    pendingMacro === null ? null : boxOf({ kind: 'session', sessionId: pendingMacro.sessionId });
   const attemptBox =
     attempt === null ? null : boxOf({ kind: 'session', sessionId: attempt.sessionId });
 
@@ -2134,6 +2178,26 @@ export function App(): JSX.Element {
                     new TextEncoder().encode(preparePaste(pendingPaste.text)),
                   );
                   setPendingPaste(null);
+                }}
+              />
+            </div>
+          )}
+
+          {/* A macro waiting on an answer before it reaches more than one
+              host, the same shape and the same place as a pending paste. */}
+          {pendingMacro !== null && macroBox !== null && (
+            <div className="absolute" style={bodyStyle(macroBox)}>
+              <MacroConfirm
+                name={pendingMacro.name}
+                text={pendingMacro.text}
+                hosts={inputTargets(groups, pendingMacro.sessionId, sync, muted).length}
+                onCancel={() => setPendingMacro(null)}
+                onConfirm={() => {
+                  broadcast(
+                    pendingMacro.sessionId,
+                    new TextEncoder().encode(preparePaste(pendingMacro.text)),
+                  );
+                  setPendingMacro(null);
                 }}
               />
             </div>
@@ -2683,6 +2747,15 @@ export function App(): JSX.Element {
         onRun={palette.run}
         onDismiss={palette.dismiss}
       />
+
+      {macrosOpen && (
+        <MacrosEditor
+          macros={macros}
+          onSave={saveMacroDraft}
+          onDelete={removeMacro}
+          onClose={() => setMacrosOpen(false)}
+        />
+      )}
     </div>
   );
 }

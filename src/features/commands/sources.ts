@@ -14,6 +14,7 @@
 
 import { offeredLocales } from '../../lib/i18n';
 import type { Translator } from '../../lib/i18n';
+import type { Macro } from '../../ipc';
 import type { WindowAction } from '../chrome';
 import type { Tab } from '../chrome';
 import type { LiveSession } from '../sessions';
@@ -45,6 +46,14 @@ export interface CommandActions {
   readonly closeGroup: () => void;
   /** Arms or disarms typing into every pane at once. */
   readonly toggleSync: () => void;
+  /**
+   * Sends a macro's own text to whatever a keystroke would currently reach
+   * (one session, or a broadcast group already reaching several), resolving
+   * `${host}`/`${port}`/`${username}` against the session it lands in first.
+   */
+  readonly runMacro: (macro: Macro) => void;
+  /** Opens the macro editor. */
+  readonly openMacros: () => void;
 }
 
 export interface CommandContext {
@@ -69,6 +78,7 @@ export interface CommandContext {
   readonly focusedGroup: number;
   /** What the focused tab is called, whichever kind it is. */
   readonly focusedTitle: string | null;
+  readonly macros: readonly Macro[];
   readonly actions: CommandActions;
 }
 
@@ -327,6 +337,42 @@ export function actionCommands(context: CommandContext): readonly Command[] {
       run: () => actions.chooseLocale(null),
     });
   }
+
+  return commands;
+}
+
+/**
+ * Saved macros, run-ready, plus the way to manage them.
+ *
+ * A macro's own entry is only offered with somewhere to send it: an active
+ * session. The same reasoning `actionCommands` already applies to
+ * `tab:close`: an entry that cannot do anything costs a keystroke and a
+ * disappointment, in a list whose whole value is that everything in it
+ * works. "Manage macros" needs no session at all, so it is never gated.
+ */
+export function macroCommands(context: CommandContext): readonly Command[] {
+  const { i18n, macros, activeId, actions } = context;
+  const commands: Command[] = [];
+
+  if (activeId !== null) {
+    for (const macro of macros) {
+      commands.push({
+        id: `macro:${macro.id}`,
+        section: 'snippets',
+        title: macro.name,
+        keywords: ['macro', 'snippet'],
+        run: () => actions.runMacro(macro),
+      });
+    }
+  }
+
+  commands.push({
+    id: 'macros:manage',
+    section: 'actions',
+    title: i18n.t('command.macros.manage'),
+    keywords: ['macro', 'macros', 'snippet', 'snippets'],
+    run: actions.openMacros,
+  });
 
   return commands;
 }

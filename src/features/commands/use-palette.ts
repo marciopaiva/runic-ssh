@@ -33,6 +33,14 @@ interface PaletteState {
 export function usePalette(
   sources: readonly CommandSource[],
   modifier: CommandModifier,
+  /**
+   * True while another full-screen surface (the macro editor, so far) is
+   * already on top. The shortcut still exists on `document`, so without
+   * this a second overlay stacks on the first rather than the second one's
+   * own close reaching it, since nothing here knows anything else is
+   * showing.
+   */
+  suspended = false,
 ): PaletteState {
   const [open, setOpen] = useState(false);
   const [query, setQueryState] = useState('');
@@ -60,6 +68,7 @@ export function usePalette(
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
+      if (suspended) return;
       if (isPaletteShortcut(event, modifier)) {
         event.preventDefault();
         /* Toggling rather than always opening: pressing it twice should leave
@@ -76,7 +85,7 @@ export function usePalette(
 
     document.addEventListener('keydown', onKeyDown, { capture: true });
     return () => document.removeEventListener('keydown', onKeyDown, { capture: true });
-  }, [modifier]);
+  }, [modifier, suspended]);
 
   const setQuery = useCallback((next: string): void => {
     setQueryState(next);

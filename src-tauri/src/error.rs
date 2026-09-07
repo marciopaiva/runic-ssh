@@ -113,6 +113,12 @@ pub enum Error {
     #[error("the session is missing or malformed")]
     InvalidSession { field: String },
 
+    #[error("no saved macro has that id")]
+    UnknownMacro { id: String },
+
+    #[error("the macro is missing or malformed")]
+    InvalidMacro { field: String },
+
     #[error("that decision is not waiting on an answer")]
     UnknownDecision,
 
@@ -305,6 +311,14 @@ pub enum IpcError {
     InvalidSession {
         field: String,
     },
+    /// The macro id does not name anything saved.
+    UnknownMacro {
+        id: String,
+    },
+    /// A saved macro was rejected; `field` names which part.
+    InvalidMacro {
+        field: String,
+    },
     /// The SFTP channel or subsystem could not be opened.
     SftpNotConnected,
     /// A remote name failed `sftp::path::check_name` before it was let
@@ -403,6 +417,8 @@ impl From<Error> for IpcError {
             Error::InputTooLarge => Self::InputTooLarge,
             Error::TerminalAlreadyOpen => Self::TerminalAlreadyOpen,
             Error::InvalidSession { field } => Self::InvalidSession { field },
+            Error::UnknownMacro { id } => Self::UnknownMacro { id },
+            Error::InvalidMacro { field } => Self::InvalidMacro { field },
             Error::UnknownDecision => Self::UnknownDecision,
             Error::NotAwaitingDecision => Self::NotAwaitingDecision,
             Error::HostKeyRevoked => Self::HostKeyRevoked,

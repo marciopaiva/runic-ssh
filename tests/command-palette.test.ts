@@ -13,12 +13,12 @@ import { bySection, collect } from '../src/features/commands/registry';
 import type { Command } from '../src/features/commands/registry';
 import { fold, rank } from '../src/features/commands/match';
 import { isPaletteShortcut, moveBy } from '../src/features/commands/navigation';
-import { actionCommands, sessionCommands } from '../src/features/commands/sources';
+import { actionCommands, macroCommands, sessionCommands } from '../src/features/commands/sources';
 import type { CommandActions, CommandContext } from '../src/features/commands/sources';
 import type { Tab } from '../src/features/chrome';
 import type { LiveSession } from '../src/features/sessions';
 import { createTranslator, offeredLocales } from '../src/lib/i18n';
-import type { Session } from '../src/ipc';
+import type { Macro, Session } from '../src/ipc';
 
 function command(id: string, title: string, extra: Partial<Command> = {}): Command {
   return { id, section: 'actions', title, run: () => undefined, ...extra };
@@ -47,6 +47,10 @@ function tab(sessionId: string): Tab {
   return { sessionId, title: sessionId, kind: 'connected', handle: 1 };
 }
 
+function macro(id: string, name: string): Macro {
+  return { id, name, text: `systemctl status ${name}\n` };
+}
+
 function actions(): CommandActions & { readonly calls: string[] } {
   const calls: string[] = [];
   return {
@@ -65,6 +69,8 @@ function actions(): CommandActions & { readonly calls: string[] } {
     moveTabToGroup: (at) => calls.push(`group:move:${at}`),
     closeGroup: () => calls.push('group:close'),
     toggleSync: () => calls.push('sync'),
+    runMacro: (macro) => calls.push(`macro:${macro.id}`),
+    openMacros: () => calls.push('macros:manage'),
   };
 }
 
@@ -83,6 +89,7 @@ function context(overrides: Partial<CommandContext> = {}): CommandContext {
     groupCount: 1,
     focusedGroup: -1,
     focusedTitle: null,
+    macros: [],
     actions: actions(),
     ...overrides,
   };
@@ -560,5 +567,51 @@ describe('dividing the panel', () => {
       ?.run();
 
     expect(act.calls).toEqual(['split:2x2']);
+  });
+});
+
+describe('macros', () => {
+  it('always offers a way to manage them, session or not', () => {
+    /* Needs no session at all, unlike a macro's own run entry below. */
+    const entry = macroCommands(context()).find((command) => command.id === 'macros:manage');
+    expect(entry).toBeDefined();
+
+    const act = actions();
+    macroCommands(context({ actions: act }))
+      .find((command) => command.id === 'macros:manage')
+      ?.run();
+
+    expect(act.calls).toEqual(['macros:manage']);
+  });
+
+  it('offers no macro to run with nothing active', () => {
+    /* An entry that cannot do anything costs a keystroke and a
+       disappointment, the same reasoning `actionCommands` already applies
+       to `tab:close`. */
+    const ids = macroCommands(context({ macros: [macro('m1', 'nginx')] })).map(
+      (entry) => entry.id,
+    );
+    expect(ids).not.toContain('macro:m1');
+  });
+
+  it('offers every saved macro, under snippets, once a session is active', () => {
+    const commands = macroCommands(
+      context({ activeId: 'a', macros: [macro('m1', 'nginx'), macro('m2', 'disk')] }),
+    );
+
+    expect(commands.filter((entry) => entry.section === 'snippets').map((entry) => entry.title)).toEqual([
+      'nginx',
+      'disk',
+    ]);
+  });
+
+  it('runs the macro it names', () => {
+    const act = actions();
+    const target = macro('m1', 'nginx');
+    macroCommands(context({ activeId: 'a', macros: [target], actions: act }))
+      .find((entry) => entry.id === 'macro:m1')
+      ?.run();
+
+    expect(act.calls).toEqual(['macro:m1']);
   });
 });
