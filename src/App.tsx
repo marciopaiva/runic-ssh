@@ -616,7 +616,6 @@ export function App(): JSX.Element {
   const activeTab = tabs.find((tab) => tab.sessionId === activeId) ?? null;
   const activeHandle = activeTab?.handle ?? null;
   const stats = useSessionStats(activeHandle);
-  const system = useSystemStats(activeHandle);
   /* One terminal per open session, kept mounted across tab switches. */
   const mounted = useMemo(() => mountedTerminals(tabs), [tabs]);
   /* Every open session goes in a group; nothing else does any more
@@ -2627,7 +2626,6 @@ export function App(): JSX.Element {
         kind={activeTab?.kind ?? null}
         identity={activeIdentity}
         stats={stats}
-        system={system}
         size={size}
         modifier={chrome?.commandModifier ?? 'control'}
         syncing={hostsReceiving}
