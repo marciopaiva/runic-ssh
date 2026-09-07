@@ -10,8 +10,8 @@
  * deliberate, and section 7.2 is the reason — see `commands/terminal.rs`.
  */
 
-import type { CommandModifier, SessionStats } from '../../ipc';
-import type { ParameterlessKey } from '../../lib/i18n';
+import type { CommandModifier, SessionStats, SystemStats } from '../../ipc';
+import type { ParameterlessKey, Translator } from '../../lib/i18n';
 
 /**
  * How good a round trip is.
@@ -81,6 +81,35 @@ export function shouldProbe(visible: boolean, handle: number | null): boolean {
 export const PROBE_INTERVAL_MS = 5000;
 
 /**
+ * How often to ask a host for its own vital signs.
+ *
+ * Slower than {@link PROBE_INTERVAL_MS}: a system's CPU and memory usage do
+ * not need a reading five times a second to be useful, and every reading is
+ * one more request the host has to answer. That is traffic, and it resets an
+ * idle timeout the same way `Connection::round_trip`'s own keepalive does.
+ */
+export const MONITOR_INTERVAL_MS = 15000;
+
+/**
+ * What a session with no reading yet, or none open, shows.
+ *
+ * `null` throughout rather than zeroes: unlike the byte counters, where zero
+ * is a true and useful reading for a session that has moved nothing, zero
+ * percent CPU or zero bytes of memory would read as a measurement rather
+ * than as the absence of one.
+ */
+export const NO_SYSTEM_STATS: SystemStats = {
+  cpuPercent: null,
+  memory: null,
+  swap: null,
+  disk: null,
+  filesystems: [],
+  network: null,
+  uptimeSeconds: null,
+  loadAverage: null,
+};
+
+/**
  * The numbers a session with no shell reports.
  *
  * Zeroes rather than blanks: a session that has moved nothing has moved
@@ -120,3 +149,29 @@ export const TERM = 'xterm-256color';
  * says so rather than offering a choice the client does not have.
  */
 export const ENCODING = 'UTF-8';
+
+/**
+ * How long a host has been up, in the coarsest two units that say something.
+ *
+ * Two units rather than one: "3d" alone hides whether that is 3d 0h or
+ * 3d 23h, and three would report more precision than a number refreshed
+ * every {@link MONITOR_INTERVAL_MS} can back up. Seconds never appear:
+ * nobody asking how long a server has been running is counting them.
+ */
+export function formatUptime(totalSeconds: number, i18n: Translator): string {
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  const days = Math.floor(totalMinutes / (24 * 60));
+  const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+  const minutes = totalMinutes % 60;
+
+  if (days > 0) {
+    return i18n.t('status.monitor.uptime.days', { days: String(days), hours: String(hours) });
+  }
+  if (hours > 0) {
+    return i18n.t('status.monitor.uptime.hours', {
+      hours: String(hours),
+      minutes: String(minutes),
+    });
+  }
+  return i18n.t('status.monitor.uptime.minutes', { minutes: String(minutes) });
+}

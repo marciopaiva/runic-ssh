@@ -467,3 +467,215 @@ async fn repeated_direct_connections_time_consistently() {
         "attempt took {slowest:?} against a median of {median:?}, out of {durations:?}"
     );
 }
+
+#[tokio::test]
+#[ignore = "needs the test container; see the module comment"]
+async fn run_command_executes_a_real_command_on_real_sshd() {
+    /* `ssh_connection.rs` proves the channel mechanics against a fake server
+    that answers every exec the same way. This is the one test that proves a
+    real remote shell actually ran what was asked and reported how it
+    exited, against `sshd` rather than `russh`'s own server. */
+    let known = trusting(offered_key().await);
+    let mut connection = connect(endpoint(), known).await.expect("connects");
+
+    connection
+        .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
+        .await
+        .expect("authenticates");
+
+    let ok = connection
+        .run_command("echo runic-ok")
+        .await
+        .expect("the command runs");
+    assert_eq!(ok.stdout, b"runic-ok\n");
+    assert_eq!(ok.exit_status, Some(0));
+
+    let failed = connection
+        .run_command("false")
+        .await
+        .expect("a failing command still runs");
+    assert_eq!(failed.exit_status, Some(1));
+}
+
+#[tokio::test]
+#[ignore = "needs the test container; see the module comment"]
+async fn the_monitor_command_parses_against_a_real_linux_host() {
+    /* `ssh::monitor::parse`'s own tests feed it canned text; this proves the
+    text a real Linux host actually prints for the combined command still
+    parses, on whatever distribution the fixture container runs. */
+    let known = trusting(offered_key().await);
+    let mut connection = connect(endpoint(), known).await.expect("connects");
+
+    connection
+        .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
+        .await
+        .expect("authenticates");
+
+    let output = connection
+        .run_command(&runic_ssh::ssh::monitor::command())
+        .await
+        .expect("the monitor command runs");
+
+    let stats = runic_ssh::ssh::monitor::parse(&output.stdout);
+
+    assert!(
+        stats.cpu_percent.is_some(),
+        "no CPU reading from a real /proc/stat: {stats:?}"
+    );
+    assert!(
+        stats.memory.is_some(),
+        "no memory reading from a real /proc/meminfo: {stats:?}"
+    );
+    assert!(
+        stats.swap.is_some(),
+        "no swap reading from a real /proc/meminfo: {stats:?}"
+    );
+    assert!(
+        stats.disk.is_some(),
+        "no disk reading from a real df -P -T: {stats:?}"
+    );
+    assert!(
+        !stats.filesystems.is_empty(),
+        "no filesystems from a real df -P -T: {stats:?}"
+    );
+    assert!(
+        stats.network.is_some(),
+        "no network rate from a real /proc/net/dev: {stats:?}"
+    );
+    assert!(
+        stats.uptime_seconds.is_some(),
+        "no uptime reading from a real /proc/uptime: {stats:?}"
+    );
+    assert!(
+        stats.load_average.is_some(),
+        "no load average from a real /proc/loadavg: {stats:?}"
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs the test container; see the module comment"]
+async fn a_host_with_no_systemd_reports_no_units_rather_than_failing() {
+    /* The fixture container is BusyBox-based and has no `systemctl` at all,
+    which makes it exactly the host this behavior exists for: real command
+    execution against a real "not found" shell error, not a canned string. */
+    let known = trusting(offered_key().await);
+    let mut connection = connect(endpoint(), known).await.expect("connects");
+
+    connection
+        .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
+        .await
+        .expect("authenticates");
+
+    let output = connection
+        .run_command(runic_ssh::ssh::systemd::list_units_command())
+        .await
+        .expect("the command runs even though systemctl does not exist");
+
+    assert_eq!(
+        runic_ssh::ssh::systemd::parse_units(&output.stdout),
+        Vec::new()
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs the test container; see the module comment"]
+async fn a_host_with_busybox_ps_reports_no_processes_rather_than_failing() {
+    /* The fixture container's `ps` has no `--sort` flag and no `pcpu`/`pmem`
+    columns; it answers on stderr, which `run_command` never sees, so this
+    proves the graceful-empty path against a real "unrecognized option"
+    rather than a canned string. */
+    let known = trusting(offered_key().await);
+    let mut connection = connect(endpoint(), known).await.expect("connects");
+
+    connection
+        .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
+        .await
+        .expect("authenticates");
+
+    let output = connection
+        .run_command(&runic_ssh::ssh::processes::command())
+        .await
+        .expect("the command runs even though this ps rejects its own flags");
+
+    assert_eq!(
+        runic_ssh::ssh::processes::parse_processes(&output.stdout),
+        Vec::new()
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs the test container; see the module comment"]
+async fn a_host_with_no_ss_reports_no_listening_sockets_rather_than_failing() {
+    /* The fixture container has no `ss` at all, which makes it exactly the
+    host this behavior exists for: a real "not found" shell error rather
+    than a canned string. */
+    let known = trusting(offered_key().await);
+    let mut connection = connect(endpoint(), known).await.expect("connects");
+
+    connection
+        .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
+        .await
+        .expect("authenticates");
+
+    let output = connection
+        .run_command(runic_ssh::ssh::ports::command())
+        .await
+        .expect("the command runs even though ss does not exist");
+
+    assert_eq!(runic_ssh::ssh::ports::parse(&output.stdout), Vec::new());
+}
+
+#[tokio::test]
+#[ignore = "needs the test container; see the module comment"]
+async fn a_host_with_no_journalctl_reports_no_journal_lines_rather_than_failing() {
+    /* The fixture container has no `journalctl` at all, which makes it
+    exactly the host this behavior exists for: a real "not found" shell
+    error rather than a canned string. */
+    let known = trusting(offered_key().await);
+    let mut connection = connect(endpoint(), known).await.expect("connects");
+
+    connection
+        .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
+        .await
+        .expect("authenticates");
+
+    let command =
+        runic_ssh::ssh::journal::command("ssh.service").expect("a real unit name builds a command");
+    let output = connection
+        .run_command(&command)
+        .await
+        .expect("the command runs even though journalctl does not exist");
+
+    assert_eq!(
+        runic_ssh::ssh::journal::parse(&output.stdout),
+        Vec::<String>::new()
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs the test container; see the module comment"]
+async fn the_sysinfo_command_parses_against_a_real_linux_host() {
+    let known = trusting(offered_key().await);
+    let mut connection = connect(endpoint(), known).await.expect("connects");
+
+    connection
+        .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
+        .await
+        .expect("authenticates");
+
+    let output = connection
+        .run_command(&runic_ssh::ssh::sysinfo::command())
+        .await
+        .expect("the sysinfo command runs");
+
+    let info = runic_ssh::ssh::sysinfo::parse(&output.stdout);
+
+    assert!(
+        info.kernel.is_some(),
+        "no kernel reading from a real uname -srm: {info:?}"
+    );
+    assert!(
+        info.hostname.is_some(),
+        "no hostname reading from a real host: {info:?}"
+    );
+}

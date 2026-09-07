@@ -3,7 +3,14 @@ import type { JSX } from 'react';
 import type { ConnectionKind } from '../features/sessions';
 import { describeState, FORWARD_KIND_LABEL } from '../features/sessions';
 import { useTranslator } from '../features/settings';
-import { ENCODING, FORWARD_STATE_LABEL, TERM, anyForwardFailed, gradeLatency, paletteKeys } from '../features/status';
+import {
+  ENCODING,
+  FORWARD_STATE_LABEL,
+  TERM,
+  anyForwardFailed,
+  gradeLatency,
+  paletteKeys,
+} from '../features/status';
 import type { Announcement, ForwardStatus } from '../features/status';
 import type { GroupLabel } from '../features/terminal';
 import type { TerminalSize } from '../features/terminal/use-terminal';

@@ -235,3 +235,59 @@ export interface SessionStats {
 export async function sessionStats(handle: SessionHandle): Promise<SessionStats> {
   return invoke<SessionStats>('session_stats', { handle });
 }
+
+/** How much of something is in use, in kibibytes. */
+export interface Usage {
+  readonly usedKb: number;
+  readonly totalKb: number;
+}
+
+/**
+ * The scheduler load averages Linux keeps, over one, five and fifteen
+ * minutes. Unbounded, unlike every other reading here: a host with sixteen
+ * cores comfortably runs at a load of 12.
+ */
+export interface LoadAverage {
+  readonly one: number;
+  readonly five: number;
+  readonly fifteen: number;
+}
+
+/** One mounted filesystem, pseudo-filesystems already filtered out. See `ssh/monitor.rs`. */
+export interface Filesystem {
+  readonly mount: string;
+  readonly usage: Usage;
+}
+
+/**
+ * How fast bytes are moving over every network interface but loopback,
+ * summed rather than kept per interface.
+ */
+export interface NetworkRate {
+  readonly receiveBytesPerSec: number;
+  readonly transmitBytesPerSec: number;
+}
+
+/**
+ * A host's own vital signs, read over the connection already open.
+ *
+ * Every field is independent and `null` (or, for `filesystems`, empty) on
+ * its own when it could not be read. A host that is not Linux, or one whose
+ * `df`/`free`/`uptime` output did not parse, still reports whichever of
+ * these this did understand. See `ssh/monitor.rs`.
+ */
+export interface SystemStats {
+  readonly cpuPercent: number | null;
+  readonly memory: Usage | null;
+  readonly swap: Usage | null;
+  readonly disk: Usage | null;
+  readonly filesystems: readonly Filesystem[];
+  readonly network: NetworkRate | null;
+  readonly uptimeSeconds: number | null;
+  readonly loadAverage: LoadAverage | null;
+}
+
+/** Runs the monitor command over `handle`'s connection and parses it. */
+export async function sessionMonitor(handle: SessionHandle): Promise<SystemStats> {
+  return invoke<SystemStats>('session_monitor', { handle });
+}

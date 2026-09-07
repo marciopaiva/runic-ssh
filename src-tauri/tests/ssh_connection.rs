@@ -178,6 +178,26 @@ impl ServerHandler for TestServer {
         }
         Ok(())
     }
+
+    /// Answers any exec request with the same canned output and a clean
+    /// exit, whatever command was asked for. What `Connection::run_command`
+    /// does with a real command is `against_openssh.rs`'s job; this fake
+    /// server only has to prove the client reads stdout and the exit status
+    /// off a real exec channel and stops at `Eof`/`Close` rather than
+    /// hanging or returning early.
+    async fn exec_request(
+        &mut self,
+        channel: ChannelId,
+        _data: &[u8],
+        session: &mut Session,
+    ) -> Result<(), Self::Error> {
+        session.channel_success(channel)?;
+        session.data(channel, b"runic-exec-ok\n".to_vec())?;
+        session.exit_status_request(channel, 0)?;
+        session.eof(channel)?;
+        session.close(channel)?;
+        Ok(())
+    }
 }
 
 /// Starts a server on a loopback port and returns its address and host key.
@@ -516,6 +536,67 @@ async fn opening_sftp_does_not_need_or_block_a_shell() {
         .open_shell(80, 24)
         .await
         .expect("a shell still opens on the same connection afterwards");
+}
+
+#[tokio::test]
+async fn running_a_command_reads_its_stdout_and_exit_status() {
+    /* The primitive `ssh::monitor` builds on. Proven against a real exec
+    channel, not a mock: the server answers `channel_success`, some data, an
+    exit status, then closes, and `run_command` has to read all of that in
+    order and stop exactly at `Eof`/`Close` rather than returning on the
+    first batch of data or hanging waiting for more. */
+    let key = PrivateKey::random(&mut rng(), russh::keys::Algorithm::Ed25519).expect("a key");
+    let (port, host_public) = start_server(key.public_key().clone()).await;
+
+    let mut connection = connect(endpoint(port), trusting(port, &host_public))
+        .await
+        .expect("connects");
+
+    connection
+        .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
+        .await
+        .expect("authenticates");
+
+    let output = connection
+        .run_command("whatever this fake server ignores")
+        .await
+        .expect("the command runs");
+
+    assert_eq!(output.stdout, b"runic-exec-ok\n");
+    assert_eq!(output.exit_status, Some(0));
+}
+
+#[tokio::test]
+async fn running_a_command_does_not_need_or_block_a_shell() {
+    /* The same independence `opening_sftp_does_not_need_or_block_a_shell`
+    proves for SFTP: an exec channel is its own thing, not gated by or
+    gating `Registry::has_shell`. */
+    let key = PrivateKey::random(&mut rng(), russh::keys::Algorithm::Ed25519).expect("a key");
+    let (port, host_public) = start_server(key.public_key().clone()).await;
+
+    let mut connection = connect(endpoint(port), trusting(port, &host_public))
+        .await
+        .expect("connects");
+
+    connection
+        .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
+        .await
+        .expect("authenticates");
+
+    connection
+        .run_command("first")
+        .await
+        .expect("a command runs before any shell exists");
+
+    connection
+        .open_shell(80, 24)
+        .await
+        .expect("a shell still opens on the same connection afterwards");
+
+    connection
+        .run_command("second")
+        .await
+        .expect("and a second command runs after the shell, on the same connection");
 }
 
 #[tokio::test]

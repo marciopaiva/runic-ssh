@@ -100,6 +100,10 @@ ICON = dict(
     # for the mockup.
     home='<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>'
          '<path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>',
+    # The rail's Monitor icon, a pulse: one host's own vital signs, the
+    # thing the workspace behind this slot actually reads. Path copied
+    # verbatim from ActivityRail.tsx rather than invented for the mockup.
+    monitor='<path d="M3 13h4l2 6 4-14 2 8h6"></path>',
     # Exploratory (`build_sftp_proposal`): a redo-shaped arrow for the
     # navigation bar's refresh action. `chev` rotated stands in for back and
     # up, so this is the only new glyph the proposal needed.
@@ -1945,17 +1949,19 @@ def build_sessions_proposal_broadcast_multi():
 # from the canonical set only by that one still-proposed piece.
 
 def home_rail(workspace="home", badge=None, sftp_badge=None, armed=False):
-    """ADR-0029's rail, now the three peer workspaces it always said would
-    arrive once SFTP had a design of its own (ADR-0044): Home, Sessions,
-    SFTP. No gear (moved to a Home card).
+    """ADR-0029's rail, plus the fourth peer workspace Monitor added beside
+    the three ADR-0044 already settled: Home, Monitor, Sessions, SFTP, in
+    that order (`ActivityRail.tsx`). No gear (moved to a Home card).
 
     `armed` matches `ActivityRail.tsx`'s own prop exactly: it warn-tints
-    every slot and locks Home and SFTP, never Sessions, since typing
-    reaches hosts from inside Sessions and switching away is not what
+    every slot and locks Home, Monitor and SFTP, never Sessions, since
+    typing reaches hosts from inside Sessions and switching away is not what
     someone reaching for the rail mid-broadcast meant to do. `badge` draws
     the open-session count on the Sessions slot, the same as `openCount`
     there; `sftp_badge` draws the open-transfer-tab count on the SFTP slot
-    the same way.
+    the same way. Monitor carries no badge of its own kind: a count of open
+    hosts was tried and dropped, since what matters there is a host's own
+    reading, not how many are open.
 
     #234: `Settings.dc.html` and `NewSession.dc.html` used to still draw the
     pre-ADR-0029 three-slot shape, on purpose, not by oversight. Neither was
@@ -1983,6 +1989,7 @@ def home_rail(workspace="home", badge=None, sftp_badge=None, armed=False):
                 f' position: relative; color: {color};">{bar}{ic(icon, 21, cls="rail-ic")}{badge_html}{lock_html}</div>')
     return f"""    <div style="width: 48px; flex: none; background: {T['chrome']}; border-right: 1px solid {T['line']}; display: flex; flex-direction: column; align-items: center; padding: 6px 0;">
       {slot('home', workspace == 'home', locked=armed)}
+      {slot('monitor', workspace == 'monitor', locked=armed)}
       {slot('ssh', workspace == 'sessions', bad=badge)}
       {slot('sftp', workspace == 'sftp', locked=armed, bad=sftp_badge)}
     </div>"""
@@ -2495,6 +2502,88 @@ def build_home_hosts_credential():
     write("HomeHostsCredential.dc.html", HEAD + page_html + FOOT)
 
 
+def build_home_hosts_unknown_key():
+    """The gap `design/canvas/README.md` named directly: 'the host key
+    artboards used to be standalone cards... They are drawn in place here'.
+    That is true of `HostKey.dc.html` inside a Sessions group, never true of
+    the same decision inside Home's own editor. ADR-0058 moved
+    `HostKeyPrompt` into this panel without redrawing it there, so the
+    shipped screen carries content nobody had drawn against General/Access's
+    current borders, spacing or type scale: reported live, 2026-09-07,
+    against the fixture at 127.0.0.1:2227: 'fizemos todo o fluxo de
+    cadastro e alteracao do host, mas nao incluimos esse card no fluxo'.
+
+    First draft put this in `banner_html`, full panel width, the same slot
+    `HomeDeleteConfirm.dc.html` uses. Redirected on review: Access is
+    already 'how you get into this host', and the key decision is the same
+    question one step earlier, so it reads as one card rather than two.
+    The stored-credential note stays visible above it, a divider, then the
+    challenge, inside Access's own border rather than a second box floating
+    above the whole form. The fields stack instead of sitting beside the
+    randomart, the shape `build_hostkey()`'s wider floating card used: this
+    card is roughly half the panel's width, and a fingerprint wrapped
+    beside a fixed-width art block reads worse than fields that each get
+    the full column to themselves.
+
+    General/Topology/Forwarding stay exactly as `host_detail_panel` already
+    draws them: ADR-0058 disables Save/Cancel/Delete while a decision is
+    pending, not the fields themselves. Warn-toned rather than
+    `HomeDeleteConfirm`'s danger: this is the unknown-key case, the one
+    Trust actually answers, not the blocked changed-key refusal
+    `HostKeyChanged.dc.html` already draws its own way."""
+    art = "\n".join(RANDOMART)
+    stored_note = f"""<div style="display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: {T['raised']}; border-radius: 6px;">
+        <svg viewBox="0 0 24 24" style="width: 14px; height: 14px; color: {T['ok']}; flex: none;" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 11V7a7 7 0 0114 0v4M5 11h14v9H5z"></path></svg>
+        <span style="font-size: 11.5px; color: {T['ink2']}; flex: 1; line-height: 1.4;">One is stored in the system keychain. Never shown here, never sent to this window.</span>
+      </div>
+      <div style="margin-top: 8px;"><span style="font-size: 12px; color: {T['danger']};">Forget it</span></div>"""
+    challenge = f"""<div style="border-top: 1px solid {T['line']}; margin-top: 16px; padding-top: 16px;">
+        <div style="display: flex; align-items: center; gap: 9px;">
+          <svg class="ic" viewBox="0 0 24 24" style="width: 15px; height: 15px; color: {T['warn']};">{ICON['shield']}</svg>
+          <span style="font-size: 12.5px; font-weight: 700;">Unknown host key</span>
+        </div>
+        <div style="font-size: 11.5px; color: {T['ink2']}; line-height: 1.6; margin-top: 7px;">Runic SSH has never connected to 127.0.0.1 before. Confirm the fingerprint through a channel you already trust, not through this connection.</div>
+        <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 14px;">
+          <div><div style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.11em; color: {T['faint']};">HOST</div>
+          <div class="mono" style="font-size: 12px; color: {T['ink']}; margin-top: 4px;">127.0.0.1:2227</div></div>
+          <div><div style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.11em; color: {T['faint']};">KEY TYPE</div>
+          <div class="mono" style="font-size: 12px; color: {T['ink']}; margin-top: 4px;">ssh-ed25519</div></div>
+          <div><div style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.11em; color: {T['faint']};">SHA256 FINGERPRINT</div>
+          <div class="mono" style="font-size: 12px; color: {T['accent2']}; margin-top: 4px; word-break: break-all;">SHA256:dD3AgWFOWojBT99stT9P1RURg+DaX/uz4lj0iBn+UJ4</div></div>
+          <div>
+            <div style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.11em; color: {T['faint']};">RANDOMART</div>
+            <pre class="mono" style="margin: 4px 0 0; font-size: 10px; line-height: 1.25; color: {T['muted']}; background: {T['terminal']}; border: 1px solid {T['line']}; border-radius: 6px; padding: 8px 10px; display: inline-block;">{art}</pre>
+          </div>
+        </div>
+        <div style="display: flex; align-items: flex-start; gap: 10px; margin-top: 14px; padding: 11px 13px; background: {T['base']}; border: 1px solid {T['line']}; border-radius: 8px;">
+          <span style="width: 15px; height: 15px; border: 1.5px solid {T['line2']}; border-radius: 4px; flex: none; margin-top: 1px;"></span>
+          <div><div style="font-size: 11.5px; color: {T['ink2']}; font-weight: 600;">I verified this fingerprint out of band</div>
+          <div style="font-size: 10.5px; color: {T['faint']}; margin-top: 3px; line-height: 1.4;">From the provider console, a configuration repository, or someone who runs the host.</div></div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; margin-top: 14px; flex-wrap: wrap;">
+          <span style="font-size: 10.5px; color: {T['faint']};">Saved to known_hosts</span>
+          <div style="flex: 1;"></div>
+          <span style="font-size: 12px; color: {T['muted']};">Cancel</span>
+          <span style="font-size: 12px; font-weight: 600; color: {T['off']}; background: {T['raised']}; border-radius: 6px; padding: 7px 16px;">Trust and connect</span>
+        </div>
+      </div>"""
+    rows = home_hosts_rows(active="runic-target-a")
+    body = hosts_shell(rows, host_detail_panel(access_html=stored_note + challenge), show_filter=True)
+    st = status(stat_text("runic-target-a", T['muted'], mono=False), stat_text("11 hosts", T['faint']))
+    page_html = f"""
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{plain_titlebar()}
+{toolbar_row(right_html=theme_language_toolbar_controls())}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{home_rail(workspace="home")}
+{body}
+  </div>
+{st}
+</div>
+"""
+    write("HomeHostsUnknownKey.dc.html", HEAD + page_html + FOOT)
+
+
 def toolbar_group_divider():
     """ADR-0062: the same hairline `ThemeLanguageControls` already draws
     between its own two folds, reused here between a workspace's own
@@ -2525,6 +2614,439 @@ def theme_language_toolbar_controls():
     lang = fold_button('<span style="font-size: 12px;">&#127463;&#127479;</span>')
     sep = f'<div style="width: 1px; height: 20px; background: {T["line"]};"></div>'
     return f'<div style="display: flex; align-items: center; gap: 10px;">{theme}{sep}{lang}</div>'
+
+# ---------- 12. monitor: a host's own vital signs, no agent installed
+def monitor_header():
+    """`SessionsSidebar.tsx` reused verbatim for Monitor (`App.tsx`): same
+    component, same "Filter sessions" placeholder text, only the `title`
+    prop swapped to `rail.monitor`'s own string. A separate function from
+    `sessions_header()` rather than a parameter on it, because the two
+    happen to differ by one string today and that is coincidence, not a
+    rule two callers should share."""
+    return f"""      <div style="padding: 12px; display: flex; flex-direction: column; gap: 10px; border-bottom: 1px solid {T['line']};">
+        <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.12em; color: {T['faint']};">MONITOR</span>
+        <div style="height: 32px; background: {T['input']}; border: 1px solid {T['line']}; border-radius: 6px; display: flex; align-items: center; gap: 8px; padding: 0 10px;">
+          {ic('search', 14, T['faint'])}<span style="font-size: 12px; color: {T['faint']};">Filter sessions</span>
+        </div>
+      </div>"""
+
+def monitor_sidebar(active=None):
+    return sessions_sidebar(active=active, header=monitor_header())
+
+def monitor_pane_header(name, where):
+    return f"""      <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid {T['line']}; padding: 8px 12px;">
+        <div style="display: flex; flex-direction: column; min-width: 0;">
+          <span style="font-size: 13px; font-weight: 600; color: {T['ink']}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{name}</span>
+          <span class="mono" style="font-size: 11px; color: {T['faint']}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{where}</span>
+        </div>
+      </div>"""
+
+def monitor_tabs(active="home"):
+    labels = [("home", "Home"), ("processes", "Processes"), ("ports", "Ports"), ("systemd", "Systemd")]
+    out = []
+    for key, label in labels:
+        on = key == active
+        border = f'border-bottom: 2px solid {T["accent"]};' if on else 'border-bottom: 2px solid transparent;'
+        color = T['ink'] if on else T['faint']
+        weight = 'font-weight: 500;'
+        out.append(f'<span style="{border} padding: 8px 12px; font-size: 12.5px; {weight} color: {color};">{label}</span>')
+    return f'      <div style="display: flex; align-items: center; gap: 1px; border-bottom: 1px solid {T["line"]}; padding: 0 12px;">{"".join(out)}</div>'
+
+def filter_input(placeholder):
+    return f"""      <div style="border-bottom: 1px solid {T['line']}; padding: 8px;">
+        <div style="height: 30px; background: {T['input']}; border: 1px solid {T['line']}; border-radius: 5px; display: flex; align-items: center; padding: 0 8px; font-size: 12px; color: {T['faint']};">{placeholder}</div>
+      </div>"""
+
+def system_glyph():
+    """A generic machine glyph, deliberately not a distro logo: path copied
+    verbatim from `MonitorWorkspace.tsx`'s own `SystemGlyph`."""
+    return f"""<svg viewBox="0 0 24 24" style="width: 32px; height: 32px; color: {T['faint']}; flex: none;" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="18" height="12" rx="1.5"></rect>
+        <path d="M8 20h8M12 16v4"></path>
+        <path d="M6.5 8h5M6.5 11h3"></path>
+      </svg>"""
+
+def area_chart(values, max_label, mid_label, zero_label, start_time, end_time):
+    """The shape `AreaChart` in `MonitorWorkspace.tsx` draws for real: two
+    gridlines, a filled area under one series, the line on top, axis labels
+    beside it as ordinary text rather than inside the scaled SVG. Fake
+    numbers, real shape: this is what a reading over a few minutes actually
+    looks like, not a flat line nobody would mistake for one."""
+    width, height = 220, 56
+    n = len(values)
+    step = width / (n - 1)
+    def y(v):
+        return height - max(0.0, min(1.0, v)) * height
+    pts = " ".join(f"{i * step:.1f},{y(v):.1f}" for i, v in enumerate(values))
+    area = f"0,{height} {pts} {width},{height}"
+    chart = f"""<svg viewBox="0 0 {width} {height}" style="width: 100%; height: {height}px; display: block; color: {T['accent']};">
+            <line x1="0" y1="0" x2="{width}" y2="0" stroke="{T['line']}" stroke-width="1"></line>
+            <line x1="0" y1="{height / 2:.1f}" x2="{width}" y2="{height / 2:.1f}" stroke="{T['line']}" stroke-width="1"></line>
+            <polygon points="{area}" fill="{T['accentsoft']}"></polygon>
+            <polyline points="{pts}" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></polyline>
+          </svg>"""
+    return f"""<div style="display: flex; flex-direction: column; gap: 4px;">
+          <div style="display: flex; gap: 6px;">
+            <div class="mono" style="width: 30px; flex: none; display: flex; flex-direction: column; justify-content: space-between; padding: 2px 0; text-align: right; font-size: 9px; color: {T['faint']};">
+              <span>{max_label}</span><span>{mid_label}</span><span>{zero_label}</span>
+            </div>
+            {chart}
+          </div>
+          <div style="display: flex; justify-content: space-between; padding-left: 36px; font-size: 9.5px; color: {T['faint']};">
+            <span>{start_time}</span><span>{end_time}</span>
+          </div>
+        </div>"""
+
+def metric_card(title, value, values, max_label, mid_label, zero_label="0%", start_time="4:02 PM", end_time="4:04 PM"):
+    return f"""<div style="border: 1px solid {T['line']}; background: {T['chrome']}; border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px;">
+            <span style="font-size: 12px; font-weight: 600; color: {T['ink2']};">{title}</span>
+            <span class="mono" style="font-size: 15px; font-weight: 600; color: {T['ink']};">{value}</span>
+          </div>
+          {area_chart(values, max_label, mid_label, zero_label, start_time, end_time)}
+        </div>"""
+
+def filesystem_row(mount, used_label, total_label, percent, tone="ok"):
+    fill = {"ok": T['ok'], "warn": T['warn'], "danger": T['danger']}[tone]
+    return f"""<div style="display: flex; flex-direction: column; gap: 4px;">
+            <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px;">
+              <span class="mono" style="font-size: 11.5px; color: {T['ink2']};">{mount}</span>
+              <span class="mono" style="font-size: 11px; color: {T['faint']};">{used_label} / {total_label}</span>
+            </div>
+            <div style="height: 6px; border-radius: 3px; background: {T['raised']}; overflow: hidden;">
+              <div style="height: 100%; width: {percent}%; border-radius: 3px; background: {fill};"></div>
+            </div>
+          </div>"""
+
+def filesystems_card(rows_html):
+    return f"""<div style="border: 1px solid {T['line']}; background: {T['chrome']}; border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 10px;">
+          <span style="font-size: 12px; font-weight: 600; color: {T['ink2']};">Filesystems</span>
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+{rows_html}
+          </div>
+        </div>"""
+
+def build_monitor():
+    """The Monitor workspace's Home tab (v0.5.0), redrawn against the
+    maintainer's own Grafana screenshot ("Windows Host Overview") and
+    shipped the same day: one card for identity, uptime and the CPU/memory
+    dials, full-width area charts for CPU and memory (the two Grafana gives
+    the most room), swap/disk and load/network as a compact pair each, and
+    every mounted filesystem as a usage bar at the bottom.
+
+    Deliberately absent: processor queue length, context switches, system
+    calls and handle counts, all Windows perf counters with no portable
+    Linux exec equivalent, and per-process private/virtual/working-set
+    bytes, which is Grafana's own Process section reading a single process
+    rather than the host. The sidebar is `SessionsSidebar.tsx` itself, the
+    same identical-to-Sessions shape the maintainer asked for."""
+    sidebar = monitor_sidebar(active="web-01")
+    fs_rows = "\n".join([
+        filesystem_row("/", "18.2 GB", "40 GB", 46, "ok"),
+        filesystem_row("/boot", "112 MB", "512 MB", 22, "ok"),
+        filesystem_row("/data", "890 GB", "953 GB", 93, "danger"),
+    ])
+    body = f"""{monitor_pane_header("web-01", "deploy@10.4.1.20")}
+{monitor_tabs("home")}
+      <div style="flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px;">
+        {identity_overview_card("Debian GNU/Linux 13 (trixie)", "web-01", "Linux 6.6.87.2 x86_64", "Intel(R) Xeon(R) CPU E5-2670 v3", "14d 6h", 34, "ok", 62, "warn")}
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          {section_label("CPU")}
+          {hero_chart("CPU usage", "34%", [0.2, 0.5, 0.3, 0.6, 0.4, 0.7, 0.34], "100%", "50%", "0%", "4:02 PM", "4:04 PM", tone="ok")}
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          {section_label("Memory")}
+          {hero_chart("Memory usage", "62%", [0.5, 0.55, 0.6, 0.58, 0.63, 0.6, 0.62], "100%", "50%", "0%", "4:02 PM", "4:04 PM", tone="warn")}
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          {section_label("Swap & disk")}
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            {metric_card("Swap usage", "4%", [0.02, 0.03, 0.05, 0.04, 0.04, 0.05, 0.04], "100%", "50%")}
+            {metric_card("Disk usage", "46%", [0.4, 0.42, 0.44, 0.45, 0.45, 0.46, 0.46], "100%", "50%")}
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          {section_label("Load & network")}
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            {metric_card("Load average", "1.84", [0.3, 0.4, 0.6, 0.5, 0.7, 0.55, 0.46], "4.00", "2.00", zero_label="0.00")}
+            {metric_card("Network", "&#8595;12.4 KB/s &#8593;3.1 KB/s", [0.1, 0.4, 0.2, 0.6, 0.3, 0.5, 0.31], "40 KB/s", "20 KB/s", zero_label="0 KB/s")}
+          </div>
+        </div>
+        {filesystems_card(fs_rows)}
+      </div>"""
+    st = status(stat_text("web-01", T['muted'], mono=False), stat_text("6 hosts saved", T['faint']))
+    write("Monitor.dc.html", page(body, sidebar, home_rail(workspace="monitor"), st, show_shapes=False))
+
+def ring_gauge(label, value_label, percent, tone="ok", size=72):
+    """A Grafana-style dial: `MeterTone`'s own three colors (`meter.ts`)
+    around a ring instead of the flat bar `FilesystemRow` already draws
+    them with, for the handful of readings worth reading at a glance
+    before anything else on the tab."""
+    color = {"ok": T['ok'], "warn": T['warn'], "danger": T['danger']}[tone]
+    r = 30
+    circumference = 2 * 3.14159265 * r
+    offset = circumference * (1 - max(0, min(100, percent)) / 100)
+    return f"""<div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+      <div style="position: relative; width: {size}px; height: {size}px;">
+        <svg viewBox="0 0 76 76" style="width: {size}px; height: {size}px; transform: rotate(-90deg);">
+          <circle cx="38" cy="38" r="{r}" fill="none" stroke="{T['line']}" stroke-width="7"></circle>
+          <circle cx="38" cy="38" r="{r}" fill="none" stroke="{color}" stroke-width="7" stroke-linecap="round"
+            stroke-dasharray="{circumference:.1f}" stroke-dashoffset="{offset:.1f}"></circle>
+        </svg>
+        <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;">
+          <span class="mono" style="font-size: 14px; font-weight: 700; color: {T['ink']};">{value_label}</span>
+        </div>
+      </div>
+      <span style="font-size: 11px; color: {T['faint']}; text-align: center;">{label}</span>
+    </div>"""
+
+def identity_overview_card(
+    os_name, hostname, kernel, cpu_model, uptime_value,
+    cpu_percent, cpu_tone, mem_percent, mem_tone,
+):
+    """System info, uptime and the two dials worth reading before anything
+    else on the tab, in one card rather than several: the maintainer's own
+    call after seeing the first draft's dials sit apart from the identity
+    they describe. Disk and swap keep no dial of their own; a value shown
+    once, as a trend, is enough for either (`metric_card` below)."""
+    divider = f'<div style="width: 1px; align-self: stretch; background: {T["line"]};"></div>'
+    return f"""<div style="border: 1px solid {T['line']}; background: {T['chrome']}; border-radius: 6px; padding: 14px 18px; display: flex; align-items: center; gap: 20px;">
+      <div style="flex: 1; min-width: 0; display: flex; align-items: flex-start; gap: 12px;">
+        {system_glyph()}
+        <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+          <span style="font-size: 13px; font-weight: 600; color: {T['ink']}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{os_name}</span>
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <span class="mono" style="font-size: 11px; color: {T['faint']};">{hostname}</span>
+            <span class="mono" style="font-size: 11px; color: {T['faint']};">{kernel}</span>
+            <span style="font-size: 11px; color: {T['faint']}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{cpu_model}</span>
+          </div>
+        </div>
+      </div>
+      {divider}
+      <div style="flex: none; display: flex; flex-direction: column; gap: 4px; padding: 0 8px;">
+        <span style="font-size: 11px; color: {T['faint']};">Uptime</span>
+        <span class="mono" style="font-size: 22px; font-weight: 700; color: {T['ink']};">{uptime_value}</span>
+      </div>
+      {divider}
+      <div style="flex: none; padding-left: 8px;">
+        {ring_gauge("CPU usage", f"{cpu_percent}%", cpu_percent, cpu_tone)}
+      </div>
+      {divider}
+      <div style="flex: none; padding-right: 4px;">
+        {ring_gauge("Memory usage", f"{mem_percent}%", mem_percent, mem_tone)}
+      </div>
+    </div>"""
+
+def section_label(text):
+    return (f'<span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;'
+            f' color: {T["faint"]};">{text}</span>')
+
+def hero_chart(title, value, values, max_label, mid_label, zero_label, start_time, end_time, tone="ok"):
+    """The same `AreaChart` shape `metric_card` draws, at three times its
+    width and nearly twice its height: the two readings that draw a
+    person's eye first on the Grafana dashboard the maintainer pointed to
+    (`CPU Usage`, `Memory Usage`) got the same full-width treatment here,
+    the supporting ones stay the compact card size below.
+
+    `tone` colors the line and fill the same way the dial above it already
+    reads (`ring_gauge`, `MeterTone`): a problem worth a warn or danger dial
+    is worth the same color in the trend beneath it, not a neutral accent
+    that reads as "everything is fine" in the one place a reader is looking
+    for confirmation it might not be."""
+    line_color = {"ok": T['ok'], "warn": T['warn'], "danger": T['danger']}[tone]
+    fill_color = {"ok": T['oksoft'], "warn": T['warnsoft'], "danger": T['dangersoft']}[tone]
+    width, height = 900, 108
+    n = len(values)
+    step = width / (n - 1)
+    def y(v):
+        return height - max(0.0, min(1.0, v)) * height
+    pts = " ".join(f"{i * step:.1f},{y(v):.1f}" for i, v in enumerate(values))
+    area = f"0,{height} {pts} {width},{height}"
+    chart = f"""<svg viewBox="0 0 {width} {height}" preserveAspectRatio="none" style="width: 100%; height: {height}px; display: block; color: {line_color};">
+          <line x1="0" y1="0" x2="{width}" y2="0" stroke="{T['line']}" stroke-width="1"></line>
+          <line x1="0" y1="{height / 2:.1f}" x2="{width}" y2="{height / 2:.1f}" stroke="{T['line']}" stroke-width="1"></line>
+          <polygon points="{area}" fill="{fill_color}"></polygon>
+          <polyline points="{pts}" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></polyline>
+        </svg>"""
+    return f"""<div style="border: 1px solid {T['line']}; background: {T['chrome']}; border-radius: 6px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px;">
+      <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px;">
+        <span style="font-size: 13px; font-weight: 600; color: {T['ink2']};">{title}</span>
+        <span class="mono" style="font-size: 18px; font-weight: 700; color: {T['ink']};">{value}</span>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <div class="mono" style="width: 34px; flex: none; display: flex; flex-direction: column; justify-content: space-between; padding: 2px 0; text-align: right; font-size: 9.5px; color: {T['faint']};">
+          <span>{max_label}</span><span>{mid_label}</span><span>{zero_label}</span>
+        </div>
+        {chart}
+      </div>
+      <div style="display: flex; justify-content: space-between; padding-left: 42px; font-size: 9.5px; color: {T['faint']};">
+        <span>{start_time}</span><span>{end_time}</span>
+      </div>
+    </div>"""
+
+def process_row(pid, user, cpu, mem, command):
+    return f"""<div style="display: flex; align-items: center; gap: 10px; border-bottom: 1px solid {T['line']}; padding: 6px 12px;">
+        <span class="mono" style="width: 48px; flex: none; text-align: right; font-size: 11px; color: {T['faint']};">{pid}</span>
+        <span class="mono" style="width: 80px; flex: none; font-size: 11.5px; color: {T['ink2']}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{user}</span>
+        <span class="mono" style="width: 48px; flex: none; text-align: right; font-size: 11.5px; color: {T['ink']};">{cpu}</span>
+        <span class="mono" style="width: 48px; flex: none; text-align: right; font-size: 11.5px; color: {T['ink']};">{mem}</span>
+        <span class="mono" style="flex: 1; min-width: 0; font-size: 11.5px; color: {T['faint']}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{command}</span>
+      </div>"""
+
+def process_header_row():
+    def col(label, width, right=False, accent=False):
+        align = "text-align: right;" if right else ""
+        color = T['ink'] if accent else T['faint']
+        return (f'<span style="width: {width}px; flex: none; {align} font-size: 10.5px; font-weight: 700;'
+                f' letter-spacing: 0.08em; text-transform: uppercase; color: {color};">{label}</span>')
+    return f"""      <div style="display: flex; align-items: center; gap: 10px; border-bottom: 1px solid {T['line']}; padding: 6px 12px;">
+        {col("PID", 48, right=True)}
+        {col("User", 80)}
+        {col("CPU", 48, right=True, accent=True)}
+        {col("Mem", 48, right=True)}
+        <span style="flex: 1; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: {T['faint']};">Command</span>
+      </div>"""
+
+def build_monitor_processes():
+    """The Processes tab beside Home and Systemd: the host's own busiest
+    thirty processes, one `ps` over the connection already open. CPU is the
+    sort column lit here, matching the host's own default order
+    (`ss::processes::command`'s `--sort=-pcpu`); clicking Mem instead
+    re-sorts the same list client-side, no second round trip."""
+    sidebar = monitor_sidebar(active="web-01")
+    rows = "\n".join([
+        process_row(1102, "postgres", "4.1%", "12.6%", "postgres: writer process"),
+        process_row(1180, "www-data", "2.2%", "3.8%", "nginx: worker process"),
+        process_row(760, "root", "0.3%", "0.4%", "/usr/sbin/sshd -D"),
+        process_row(1, "root", "0.0%", "0.1%", "/sbin/init"),
+    ])
+    body = f"""{monitor_pane_header("web-01", "deploy@10.4.1.20")}
+{monitor_tabs("processes")}
+{filter_input("Filter by command or user")}
+{process_header_row()}
+      <div style="flex: 1; overflow-y: auto;">
+{rows}
+      </div>"""
+    st = status(stat_text("web-01", T['muted'], mono=False), stat_text("6 hosts saved", T['faint']))
+    write("MonitorProcesses.dc.html", page(body, sidebar, home_rail(workspace="monitor"), st, show_shapes=False))
+
+def port_row(protocol, address_port, process):
+    return f"""<div style="display: flex; align-items: center; gap: 10px; border-bottom: 1px solid {T['line']}; padding: 6px 12px;">
+        <span class="mono" style="width: 36px; flex: none; text-align: right; text-transform: uppercase; font-size: 11px; color: {T['faint']};">{protocol}</span>
+        <span class="mono" style="width: 170px; flex: none; font-size: 11.5px; color: {T['ink2']}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{address_port}</span>
+        <span class="mono" style="flex: 1; min-width: 0; font-size: 11.5px; color: {T['faint']}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{process}</span>
+      </div>"""
+
+def build_monitor_ports():
+    """The Ports tab: every listening TCP/UDP socket, one `ss -tulnpH` over
+    the connection already open. The process column is `ss`'s own raw
+    text, empty wherever the session lacks privilege to see who owns a
+    socket belonging to another user (the UDP row here), the same shape
+    `ps` already degrades to for a process it cannot fully see."""
+    sidebar = monitor_sidebar(active="web-01")
+    rows = "\n".join([
+        port_row("tcp", "0.0.0.0:22", 'users:(("sshd",pid=760,fd=3))'),
+        port_row("tcp", "[::]:22", 'users:(("sshd",pid=760,fd=4))'),
+        port_row("tcp", "127.0.0.1:5432", 'users:(("postgres",pid=1102,fd=5))'),
+        port_row("udp", "0.0.0.0:68", "&#8212;"),
+    ])
+    body = f"""{monitor_pane_header("web-01", "deploy@10.4.1.20")}
+{monitor_tabs("ports")}
+{filter_input("Filter by process, address or port")}
+      <div style="flex: 1; overflow-y: auto;">
+{rows}
+      </div>"""
+    st = status(stat_text("web-01", T['muted'], mono=False), stat_text("6 hosts saved", T['faint']))
+    write("MonitorPorts.dc.html", page(body, sidebar, home_rail(workspace="monitor"), st, show_shapes=False))
+
+def unit_row(name, description, tone="ok", selected=False):
+    dot_style = {"ok": f"background: {T['ok']};",
+                 "warn": f"border: 1.5px solid {T['warn']}; box-sizing: border-box;",
+                 "muted": f"background: {T['off']};"}[tone]
+    bg = f"background: {T['raised']};" if selected else ""
+    return f"""<div style="display: flex; align-items: center; gap: 10px; border-bottom: 1px solid {T['line']}; padding: 6px 12px; {bg}">
+        <span class="dot" style="{dot_style} flex: none;"></span>
+        <span class="mono" style="width: 220px; flex: none; font-size: 11.5px; color: {T['ink2']}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{name}</span>
+        <span style="flex: 1; min-width: 0; font-size: 11.5px; color: {T['faint']}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{description}</span>
+      </div>"""
+
+def journal_pane(unit, lines):
+    """`JournalPane` as it actually ships: 30% of the tab's own height, an
+    explicit close button beside the unit name (clicking the row again does
+    the same thing), the last lines `journalctl` printed below."""
+    close = (f'<svg viewBox="0 0 10 10" style="width: 8px; height: 8px; color: {T["faint"]};" fill="none"'
+             f' stroke="currentColor" stroke-width="1.4"><path d="M0.5 0.5l9 9M9.5 0.5l-9 9"></path></svg>')
+    lines_html = "\n".join(
+        f'<p class="mono" style="font-size: 10.5px; color: {T["faint"]}; margin: 0; overflow: hidden;'
+        f' text-overflow: ellipsis; white-space: nowrap;">{l}</p>'
+        for l in lines
+    )
+    return f"""<div style="height: 30%; flex: none; border-top: 1px solid {T['line']}; background: {T['base']}; display: flex; flex-direction: column;">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid {T['line']}; padding: 6px 12px;">
+            <span class="mono" style="font-size: 11px; font-weight: 600; color: {T['ink2']}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{unit}</span>
+            <div style="width: 16px; height: 16px; border-radius: 4px; display: flex; align-items: center; justify-content: center; flex: none;">{close}</div>
+          </div>
+          <div style="flex: 1; overflow-y: auto; padding: 6px 12px;">
+{lines_html}
+          </div>
+        </div>"""
+
+def build_monitor_systemd():
+    """The Systemd tab: read-only units (no start/stop/reload, a later,
+    separate decision), plus a selected one's own recent journal lines at
+    the bottom. `nginx.service` is the one selected here, its row lit the
+    same way an active tab is lit elsewhere."""
+    sidebar = monitor_sidebar(active="web-01")
+    rows = "\n".join([
+        unit_row("cron.service", "Regular background program processing daemon", "ok"),
+        unit_row("nginx.service", "A high performance web server", "ok", selected=True),
+        unit_row("postgresql.service", "PostgreSQL RDBMS", "ok"),
+        unit_row("fail2ban.service", "Fail2Ban Service", "warn"),
+        unit_row("bluetooth.service", "Bluetooth service", "muted"),
+    ])
+    lines = [
+        "2026-09-07T15:12:02+00:00 nginx[1180]: worker process started",
+        "2026-09-07T15:12:02+00:00 nginx[1180]: using the epoll event method",
+        "2026-09-07T16:40:11+00:00 nginx[1180]: signal 1 (SIGHUP) received, reconfiguring",
+        "2026-09-07T16:40:11+00:00 nginx[1180]: reconfiguring",
+    ]
+    body = f"""{monitor_pane_header("web-01", "deploy@10.4.1.20")}
+{monitor_tabs("systemd")}
+      <div style="flex: 1; min-height: 0; display: flex; flex-direction: column;">
+{filter_input("Filter by name or description")}
+        <div style="flex: 1; min-height: 0; overflow-y: auto;">
+{rows}
+        </div>
+        {journal_pane("nginx.service", lines)}
+      </div>"""
+    st = status(stat_text("web-01", T['muted'], mono=False), stat_text("6 hosts saved", T['faint']))
+    write("MonitorSystemd.dc.html", page(body, sidebar, home_rail(workspace="monitor"), st, show_shapes=False))
+
+def build_monitor_hosts_empty():
+    """The other half of the Monitor workspace: nothing picked yet.
+    `EmptyPanel`'s own `panel` variant, the full brand mark and app name,
+    not `group` (the small faded rune for one empty rectangle inside a
+    split): Monitor is a single view, the same shape Sessions' own
+    truly-empty landing is, not a rectangle among several. Fixed the day
+    after shipping (it drew `group` at first); this artboard is drawn
+    against that fix, not the bug."""
+    sidebar = monitor_sidebar(active=None)
+    body = f"""      <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 40px; padding: 40px;">
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none">
+            <circle cx="9.5" cy="12" r="7" stroke="{T['bstart']}" stroke-width="1.2"></circle>
+            <circle cx="14.5" cy="12" r="7" stroke="{T['bend']}" stroke-width="1.2"></circle>
+            <path d="M12 6.5v11M12 10l3-2.5M12 14l3 2.5M12 12l-2.6-2.2" stroke="{T['brune']}" stroke-width="1.2" stroke-linecap="round"></path>
+          </svg>
+          <span style="font-size: 27px; font-weight: 800; color: {T['ink']}; letter-spacing: -0.01em;">Runic SSH</span>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 7px;">
+          <span style="font-size: 14px; font-weight: 600; color: {T['ink2']};">Nothing selected</span>
+          <span style="font-size: 12.5px; color: {T['faint']};">Pick a saved host on the left. One not already open connects first.</span>
+        </div>
+      </div>"""
+    st = status(stat_text("No host selected", T['faint']), stat_text("6 hosts saved", T['faint']))
+    write("MonitorHostsEmpty.dc.html", page(body, sidebar, home_rail(workspace="monitor"), st, show_shapes=False))
 
 # ============================================================ SYSTEM SHEETS
 
@@ -2985,7 +3507,9 @@ else:
                build_sessions_proposal, build_sessions_proposal_broadcast,
                build_sessions_proposal_broadcast_multi,
                build_home_hosts, build_home_hosts_common_case, build_home_hosts_empty, build_home_collapsed, build_home_delete_confirm,
-               build_home_hosts_credential, build_home_hosts_topology,
+               build_home_hosts_credential, build_home_hosts_unknown_key, build_home_hosts_topology,
+               build_monitor, build_monitor_processes, build_monitor_ports,
+               build_monitor_systemd, build_monitor_hosts_empty,
                build_anatomy, build_tokens,
                build_hostkeychanged, build_failure, build_paste, build_palette):
         fn()

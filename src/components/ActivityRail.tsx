@@ -92,7 +92,7 @@ function RailSlot({
 }
 
 /** Which main area the window is showing. */
-export type Workspace = 'home' | 'sessions' | 'sftp';
+export type Workspace = 'home' | 'sessions' | 'sftp' | 'monitor';
 
 interface ActivityRailProps {
   /** Which workspace is showing right now. */
@@ -172,6 +172,31 @@ export function ActivityRail({
         >
           <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
           <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+        </svg>
+      </RailSlot>
+
+      {/* One host's own vital signs, drilled into. Held shut while armed for
+          the same reason Home and SFTP are: there is nothing here to
+          receive a keystroke either, and browsing away from a broadcast in
+          progress is not what someone reaching for the rail meant to do. */}
+      <RailSlot
+        on={workspace === 'monitor'}
+        tone={armed ? 'warn' : 'accent'}
+        locked={armed}
+        label={i18n.t(armed ? 'rail.monitor.locked' : 'rail.monitor')}
+        onClick={() => onChoose('monitor')}
+      >
+        <svg
+          viewBox="0 0 24 24"
+          className="h-[21px] w-[21px]"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M3 13h4l2 6 4-14 2 8h6" />
         </svg>
       </RailSlot>
 
