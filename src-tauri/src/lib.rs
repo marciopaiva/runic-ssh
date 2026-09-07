@@ -109,6 +109,7 @@ pub fn run() -> tauri::Result<()> {
             commands::terminal::session_stats,
             commands::monitor::session_monitor,
             commands::processes::session_processes,
+            commands::ports::session_ports,
             commands::systemd::session_systemd_units,
             commands::journal::session_unit_journal,
             commands::sysinfo::session_system_info,

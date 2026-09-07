@@ -1,8 +1,10 @@
 export { meterTone } from './meter';
 export type { MeterTone } from './meter';
+export { filterPorts } from './ports';
 export { filterProcesses, sortProcesses } from './processes';
 export type { ProcessSort } from './processes';
 export { niceMax } from './scale';
+export { usePorts } from './use-ports';
 export { useProcesses } from './use-processes';
 export { useStatsHistory } from './use-stats-history';
 export type { Sample, StatsHistory } from './use-stats-history';

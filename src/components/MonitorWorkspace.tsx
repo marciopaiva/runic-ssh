@@ -2,12 +2,14 @@ import { useState } from 'react';
 import type { JSX } from 'react';
 
 import {
+  filterPorts,
   filterProcesses,
   filterUnits,
   meterTone,
   niceMax,
   sortProcesses,
   unitTone,
+  usePorts,
   useProcesses,
   useStatsHistory,
   useSystemdUnits,
@@ -18,7 +20,7 @@ import type { MeterTone, ProcessSort, Sample, UnitTone } from '../features/monit
 import { useTranslator } from '../features/settings';
 import { formatUptime } from '../features/status';
 import type { GroupLabel } from '../features/terminal';
-import type { Filesystem, Process, SessionHandle, SystemdUnit, SystemStats } from '../ipc';
+import type { Filesystem, ListeningSocket, Process, SessionHandle, SystemdUnit, SystemStats } from '../ipc';
 
 interface MonitorWorkspaceProps {
   readonly identity: GroupLabel;
@@ -26,13 +28,14 @@ interface MonitorWorkspaceProps {
   readonly stats: SystemStats;
 }
 
-type DetailTab = 'home' | 'processes' | 'systemd';
+type DetailTab = 'home' | 'processes' | 'ports' | 'systemd';
 
 /* `as const satisfies` rather than an annotated `Record<DetailTab, string>`:
    an explicit `string` annotation would widen each value past the literal
    key `i18n.t` needs to resolve whether a message takes parameters. */
 const TAB_LABEL = {
   home: 'monitor.tab.home',
+  ports: 'monitor.tab.ports',
   processes: 'monitor.tab.processes',
   systemd: 'monitor.tab.systemd',
 } as const satisfies Record<DetailTab, string>;
@@ -361,6 +364,59 @@ function ProcessesTab({ handle, active }: { readonly handle: SessionHandle; read
   );
 }
 
+function PortRow({ port }: { readonly port: ListeningSocket }): JSX.Element {
+  return (
+    <div className="border-line-subtle flex items-center gap-2.5 border-b px-3 py-1.5">
+      <span className="text-ink-faint w-10 shrink-0 text-right font-mono text-[11px] uppercase">
+        {port.protocol}
+      </span>
+      <span className="text-ink-secondary w-44 shrink-0 truncate font-mono text-[11.5px]">
+        {port.address}:{port.port}
+      </span>
+      <span className="text-ink-faint truncate font-mono text-[11.5px]">{port.process || '—'}</span>
+    </div>
+  );
+}
+
+/**
+ * The host's own listening TCP/UDP sockets. `ss` needs privilege to name
+ * the owning process for a socket that belongs to another user; a session
+ * connected as a non-root user still sees every address and port, just
+ * with a dash where the process would be.
+ */
+function PortsTab({ handle, active }: { readonly handle: SessionHandle; readonly active: boolean }): JSX.Element {
+  const i18n = useTranslator();
+  const ports = usePorts(active ? handle : null);
+  const [query, setQuery] = useState('');
+  const sorted = [...ports].sort((a, b) => a.port - b.port);
+  const filtered = filterPorts(sorted, query);
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="border-line-subtle border-b p-2">
+        <input
+          type="text"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={i18n.t('monitor.ports.filter')}
+          className="bg-surface-base border-line-subtle text-ink w-full rounded border px-2 py-1 text-[12px]"
+        />
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        {filtered.length === 0 ? (
+          <p className="text-ink-faint p-3 text-[12px]">
+            {ports.length === 0 ? i18n.t('monitor.ports.none') : i18n.t('monitor.ports.noMatch')}
+          </p>
+        ) : (
+          filtered.map((port) => (
+            <PortRow key={`${port.protocol}-${port.address}-${String(port.port)}`} port={port} />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 /**
  * A generic machine glyph, deliberately not a distro logo.
  *
@@ -611,7 +667,7 @@ export function MonitorWorkspace({ identity, handle, stats }: MonitorWorkspacePr
       </div>
 
       <div className="border-line-subtle flex items-center gap-1 border-b px-3">
-        {(['home', 'processes', 'systemd'] as const).map((candidate) => (
+        {(['home', 'processes', 'ports', 'systemd'] as const).map((candidate) => (
           <button
             key={candidate}
             type="button"
@@ -632,6 +688,8 @@ export function MonitorWorkspace({ identity, handle, stats }: MonitorWorkspacePr
           <HomeTab handle={handle} stats={stats} />
         ) : tab === 'processes' ? (
           <ProcessesTab handle={handle} active={tab === 'processes'} />
+        ) : tab === 'ports' ? (
+          <PortsTab handle={handle} active={tab === 'ports'} />
         ) : (
           <SystemdTab handle={handle} active={tab === 'systemd'} />
         )}

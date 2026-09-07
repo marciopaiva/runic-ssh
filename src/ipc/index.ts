@@ -27,6 +27,8 @@ export {
 export type { ForwardHandle } from './forward';
 export { getSettings, setLocale, setTheme } from './settings';
 export { sessionUnitJournal } from './journal';
+export { sessionPorts } from './ports';
+export type { ListeningSocket } from './ports';
 export { sessionProcesses } from './processes';
 export type { Process } from './processes';
 export { sessionSystemInfo } from './sysinfo';

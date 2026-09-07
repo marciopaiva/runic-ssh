@@ -605,6 +605,28 @@ async fn a_host_with_busybox_ps_reports_no_processes_rather_than_failing() {
 
 #[tokio::test]
 #[ignore = "needs the test container; see the module comment"]
+async fn a_host_with_no_ss_reports_no_listening_sockets_rather_than_failing() {
+    /* The fixture container has no `ss` at all, which makes it exactly the
+    host this behavior exists for: a real "not found" shell error rather
+    than a canned string. */
+    let known = trusting(offered_key().await);
+    let mut connection = connect(endpoint(), known).await.expect("connects");
+
+    connection
+        .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
+        .await
+        .expect("authenticates");
+
+    let output = connection
+        .run_command(runic_ssh::ssh::ports::command())
+        .await
+        .expect("the command runs even though ss does not exist");
+
+    assert_eq!(runic_ssh::ssh::ports::parse(&output.stdout), Vec::new());
+}
+
+#[tokio::test]
+#[ignore = "needs the test container; see the module comment"]
 async fn a_host_with_no_journalctl_reports_no_journal_lines_rather_than_failing() {
     /* The fixture container has no `journalctl` at all, which makes it
     exactly the host this behavior exists for: a real "not found" shell

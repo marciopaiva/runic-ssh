@@ -10,6 +10,7 @@ pub mod journal;
 pub mod known_hosts;
 pub mod monitor;
 pub mod pending;
+pub mod ports;
 pub mod processes;
 pub mod registry;
 pub mod socks;
