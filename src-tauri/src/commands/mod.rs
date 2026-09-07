@@ -9,6 +9,7 @@ pub mod app;
 pub mod chrome;
 pub mod credential;
 pub mod forward;
+pub mod journal;
 pub mod monitor;
 pub mod processes;
 pub mod sessions;

@@ -26,6 +26,7 @@ export {
 } from './forward';
 export type { ForwardHandle } from './forward';
 export { getSettings, setLocale, setTheme } from './settings';
+export { sessionUnitJournal } from './journal';
 export { sessionProcesses } from './processes';
 export type { Process } from './processes';
 export { sessionSystemInfo } from './sysinfo';

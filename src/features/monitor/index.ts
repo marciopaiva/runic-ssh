@@ -8,5 +8,6 @@ export { useStatsHistory } from './use-stats-history';
 export type { Sample, StatsHistory } from './use-stats-history';
 export { useSystemInfo } from './use-system-info';
 export { useSystemdUnits } from './use-systemd-units';
+export { useUnitJournal } from './use-unit-journal';
 export { filterUnits, unitTone } from './units';
 export type { UnitTone } from './units';

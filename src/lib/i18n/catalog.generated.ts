@@ -179,6 +179,7 @@ export const SOURCE_CATALOG = {
   "monitor.processes.user": "User",
   "monitor.system.unknown": "Unknown system",
   "monitor.systemd.filter": "Filter by name or description",
+  "monitor.systemd.journal.none": "No recent journal entries",
   "monitor.systemd.noMatch": "Nothing matches",
   "monitor.systemd.none": "No systemd units found on this host",
   "monitor.tab.home": "Home",

@@ -110,6 +110,7 @@ pub fn run() -> tauri::Result<()> {
             commands::monitor::session_monitor,
             commands::processes::session_processes,
             commands::systemd::session_systemd_units,
+            commands::journal::session_unit_journal,
             commands::sysinfo::session_system_info,
             commands::sftp::sftp_list,
             commands::sftp::local_list_directory,

@@ -173,6 +173,7 @@
   "monitor.processes.user": "Usuario",
   "monitor.system.unknown": "Sistema desconocido",
   "monitor.systemd.filter": "Filtrar por nombre o descripción",
+  "monitor.systemd.journal.none": "Sin entradas recientes en el journal",
   "monitor.systemd.noMatch": "Nada coincide",
   "monitor.systemd.none": "No se encontraron unidades systemd en este host",
   "monitor.tab.home": "Inicio",

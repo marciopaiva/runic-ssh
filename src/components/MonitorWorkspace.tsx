@@ -12,6 +12,7 @@ import {
   useStatsHistory,
   useSystemdUnits,
   useSystemInfo,
+  useUnitJournal,
 } from '../features/monitor';
 import type { MeterTone, ProcessSort, Sample, UnitTone } from '../features/monitor';
 import { useTranslator } from '../features/settings';
@@ -155,10 +156,24 @@ const UNIT_TONE_FILL: Readonly<Record<UnitTone, string>> = {
   muted: 'bg-ink-faint',
 };
 
-function UnitRow({ unit }: { readonly unit: SystemdUnit }): JSX.Element {
+function UnitRow({
+  unit,
+  selected,
+  onSelect,
+}: {
+  readonly unit: SystemdUnit;
+  readonly selected: boolean;
+  readonly onSelect: () => void;
+}): JSX.Element {
   const tone = unitTone(unit);
   return (
-    <div className="border-line-subtle flex items-center gap-2.5 border-b px-3 py-1.5">
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`border-line-subtle flex w-full items-center gap-2.5 border-b px-3 py-1.5 text-left ${
+        selected ? 'bg-surface-chrome' : 'hover:bg-surface-chrome/60'
+      }`}
+    >
       <span
         aria-hidden="true"
         className={`h-1.5 w-1.5 shrink-0 rounded-full ${UNIT_TONE_FILL[tone]}`}
@@ -168,14 +183,52 @@ function UnitRow({ unit }: { readonly unit: SystemdUnit }): JSX.Element {
         {unit.name}
       </span>
       <span className="text-ink-faint truncate text-[11.5px]">{unit.description}</span>
+    </button>
+  );
+}
+
+function JournalPane({
+  handle,
+  unit,
+}: {
+  readonly handle: SessionHandle | null;
+  readonly unit: string | null;
+}): JSX.Element | null {
+  const i18n = useTranslator();
+  const lines = useUnitJournal(handle, unit);
+
+  if (unit === null) return null;
+
+  return (
+    <div className="border-line-subtle bg-surface-base flex h-40 shrink-0 flex-col border-t">
+      <span className="text-ink-secondary border-line-subtle truncate border-b px-3 py-1.5 font-mono text-[11px] font-semibold">
+        {unit}
+      </span>
+      <div className="flex-1 overflow-y-auto px-3 py-1.5">
+        {lines.length === 0 ? (
+          <p className="text-ink-faint text-[11px]">{i18n.t('monitor.systemd.journal.none')}</p>
+        ) : (
+          lines.map((line, index) => (
+            <p key={index} className="text-ink-faint truncate font-mono text-[10.5px]">
+              {line}
+            </p>
+          ))
+        )}
+      </div>
     </div>
   );
 }
 
+/**
+ * Read-only systemd units, plus a selected one's own recent journal lines
+ * at the bottom: clicking a row again deselects it, the same toggle a
+ * filter's own empty query already reads as "show everything again."
+ */
 function SystemdTab({ handle, active }: { readonly handle: SessionHandle; readonly active: boolean }): JSX.Element {
   const i18n = useTranslator();
   const units = useSystemdUnits(active ? handle : null);
   const [query, setQuery] = useState('');
+  const [selected, setSelected] = useState<string | null>(null);
   const filtered = filterUnits(units, query);
 
   return (
@@ -189,15 +242,23 @@ function SystemdTab({ handle, active }: { readonly handle: SessionHandle; readon
           className="bg-surface-base border-line-subtle text-ink w-full rounded border px-2 py-1 text-[12px]"
         />
       </div>
-      <div className="flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         {filtered.length === 0 ? (
           <p className="text-ink-faint p-3 text-[12px]">
             {units.length === 0 ? i18n.t('monitor.systemd.none') : i18n.t('monitor.systemd.noMatch')}
           </p>
         ) : (
-          filtered.map((unit) => <UnitRow key={unit.name} unit={unit} />)
+          filtered.map((unit) => (
+            <UnitRow
+              key={unit.name}
+              unit={unit}
+              selected={unit.name === selected}
+              onSelect={() => setSelected((current) => (current === unit.name ? null : unit.name))}
+            />
+          ))
         )}
       </div>
+      <JournalPane handle={active ? handle : null} unit={active ? selected : null} />
     </div>
   );
 }

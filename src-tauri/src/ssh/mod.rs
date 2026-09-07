@@ -6,6 +6,7 @@
 pub mod connection;
 pub mod credentials;
 pub mod forward;
+pub mod journal;
 pub mod known_hosts;
 pub mod monitor;
 pub mod pending;

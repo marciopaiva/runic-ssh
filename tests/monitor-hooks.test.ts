@@ -4,12 +4,12 @@
 // `status-teardown.test.ts` for why.
 
 /**
- * Three of the hooks behind the monitor workspace's detail panel.
- * `use-systemd-units.ts` and `use-processes.ts` are both polling loops and
- * need the same teardown proof every other probe in this codebase gets
- * (section 6). `use-stats-history.ts` has no timer to leak, but it does have
- * a rule worth pinning: history resets on a host switch and never records a
- * reading that was not actually taken.
+ * Four of the hooks behind the monitor workspace's detail panel.
+ * `use-systemd-units.ts`, `use-processes.ts` and `use-unit-journal.ts` are
+ * all polling loops and need the same teardown proof every other probe in
+ * this codebase gets (section 6). `use-stats-history.ts` has no timer to
+ * leak, but it does have a rule worth pinning: history resets on a host
+ * switch and never records a reading that was not actually taken.
  */
 
 import { act, createElement } from 'react';
@@ -41,10 +41,13 @@ const PROCESS = {
   command: '/usr/sbin/sshd -D',
 };
 
+const JOURNAL_LINE = '2026-09-07T15:12:02+00:00 sshd-session[2995]: Accepted password for deploy';
+
 const ipc = vi.hoisted(() => ({
   sessionSystemdUnits: vi.fn(async () => [UNIT]),
   sessionSystemInfo: vi.fn(async () => INFO),
   sessionProcesses: vi.fn(async () => [PROCESS]),
+  sessionUnitJournal: vi.fn(async () => [JOURNAL_LINE]),
 }));
 
 vi.mock('../src/ipc', () => ipc);
@@ -53,6 +56,7 @@ const { useSystemdUnits } = await import('../src/features/monitor/use-systemd-un
 const { useStatsHistory } = await import('../src/features/monitor/use-stats-history');
 const { useSystemInfo } = await import('../src/features/monitor/use-system-info');
 const { useProcesses } = await import('../src/features/monitor/use-processes');
+const { useUnitJournal } = await import('../src/features/monitor/use-unit-journal');
 
 let renders: unknown[] = [];
 
@@ -68,6 +72,11 @@ function UnitsProbe(props: { handle: number | null }): null {
 
 function ProcessesProbe(props: { handle: number | null }): null {
   renders.push(useProcesses(props.handle));
+  return null;
+}
+
+function JournalProbe(props: { handle: number | null; unit: string | null }): null {
+  renders.push(useUnitJournal(props.handle, props.unit));
   return null;
 }
 
@@ -114,6 +123,7 @@ afterEach(() => {
   ipc.sessionSystemdUnits.mockClear();
   ipc.sessionSystemInfo.mockClear();
   ipc.sessionProcesses.mockClear();
+  ipc.sessionUnitJournal.mockClear();
 });
 
 describe('a selected host\'s own identity', () => {
@@ -221,6 +231,68 @@ describe('polling the process list', () => {
     const timer = setIntervalSpy.mock.results[0]?.value;
 
     await probe.rerender(createElement(ProcessesProbe, { handle: null }));
+
+    expect(clearIntervalSpy).toHaveBeenCalledWith(timer);
+    expect(renders.at(-1)).toEqual([]);
+
+    await probe.unmount();
+  });
+});
+
+describe("polling a unit's own journal", () => {
+  it('reads the journal while both a handle and a unit are given', async () => {
+    const probe = await mount(createElement(JournalProbe, { handle: 4, unit: 'ssh.service' }));
+
+    expect(renders.at(-1)).toEqual([JOURNAL_LINE]);
+    expect(ipc.sessionUnitJournal).toHaveBeenCalledWith(4, 'ssh.service');
+
+    await probe.unmount();
+  });
+
+  it('polls nothing with no unit selected, even with a handle', async () => {
+    const probe = await mount(createElement(JournalProbe, { handle: 4, unit: null }));
+
+    expect(ipc.sessionUnitJournal).not.toHaveBeenCalled();
+    expect(setIntervalSpy).not.toHaveBeenCalled();
+
+    await probe.unmount();
+  });
+
+  it('polls nothing with no handle, even with a unit selected', async () => {
+    const probe = await mount(createElement(JournalProbe, { handle: null, unit: 'ssh.service' }));
+
+    expect(ipc.sessionUnitJournal).not.toHaveBeenCalled();
+    expect(setIntervalSpy).not.toHaveBeenCalled();
+
+    await probe.unmount();
+  });
+
+  it('clears its interval on unmount', async () => {
+    const probe = await mount(createElement(JournalProbe, { handle: 1, unit: 'ssh.service' }));
+    const timer = setIntervalSpy.mock.results[0]?.value;
+
+    await probe.unmount();
+
+    expect(clearIntervalSpy).toHaveBeenCalledWith(timer);
+  });
+
+  it('re-fetches and clears the old interval when the selected unit changes', async () => {
+    const probe = await mount(createElement(JournalProbe, { handle: 1, unit: 'ssh.service' }));
+    const firstTimer = setIntervalSpy.mock.results[0]?.value;
+
+    await probe.rerender(createElement(JournalProbe, { handle: 1, unit: 'cron.service' }));
+
+    expect(clearIntervalSpy).toHaveBeenCalledWith(firstTimer);
+    expect(ipc.sessionUnitJournal).toHaveBeenCalledWith(1, 'cron.service');
+
+    await probe.unmount();
+  });
+
+  it('stops polling once the unit is deselected', async () => {
+    const probe = await mount(createElement(JournalProbe, { handle: 1, unit: 'ssh.service' }));
+    const timer = setIntervalSpy.mock.results[0]?.value;
+
+    await probe.rerender(createElement(JournalProbe, { handle: 1, unit: null }));
 
     expect(clearIntervalSpy).toHaveBeenCalledWith(timer);
     expect(renders.at(-1)).toEqual([]);
