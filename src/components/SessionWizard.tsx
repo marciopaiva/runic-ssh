@@ -14,6 +14,7 @@ import { HostGeneralFields } from './HostGeneralFields';
 import { HOST_KIND_LABEL, HostKindIcon } from './HostKindIcon';
 import { HostTopologyFields } from './HostTopologyFields';
 import { InlineCredentialForm } from './InlineCredentialForm';
+import { InlineHostKeyChallenge } from './InlineHostKeyChallenge';
 import { MethodPicker } from './MethodPicker';
 
 interface SessionWizardProps {
@@ -124,6 +125,24 @@ interface SessionWizardProps {
    */
   readonly testSurface: ReactNode | null;
   /**
+   * The plain unknown-key decision, answered inside Access rather than
+   * through `testSurface` above it: reported live, 2026-09-07, that the
+   * card `testSurface` drew for it had never been fit to this panel
+   * ("nao incluimos esse card no fluxo"). `null` whenever nothing is
+   * asking, or when the pending decision is `HostKeyBlocked`'s or
+   * `HostKeyRefused`'s own (still `testSurface`'s, until they get the same
+   * pass). See `InlineHostKeyChallenge`.
+   */
+  readonly hostKeyDecision: {
+    readonly host: string;
+    readonly port: number;
+    readonly keyType: string;
+    readonly fingerprint: string;
+    readonly hop: Hop;
+    readonly onTrust: () => void;
+    readonly onCancel: () => void;
+  } | null;
+  /**
    * Why the target's own credential test failed, or `null` before one has
    * or once it has not. Reported live: a wrong password used to open a
    * whole different card ("O host recusou a credencial") rather than
@@ -196,6 +215,7 @@ export function SessionWizard({
   onAutoFinish,
   lastOutcome,
   testSurface,
+  hostKeyDecision,
   testFailure,
   bastionCredential,
   onConfirmDiscard,
@@ -287,7 +307,14 @@ export function SessionWizard({
      What `startProving` read off the Access section is in
      `pendingCredential`, not in a dependency here, for the same reason. */
   useEffect(() => {
-    if (proving && !attempted && failure === null && testSurface === null && bastionCredential === null) {
+    if (
+      proving &&
+      !attempted &&
+      failure === null &&
+      testSurface === null &&
+      bastionCredential === null &&
+      hostKeyDecision === null
+    ) {
       setAttempted(true);
       const credential = pendingCredential.current;
       pendingCredential.current = null;
@@ -325,7 +352,7 @@ export function SessionWizard({
      superseded cleanly by `useConnect`'s own generation counter, the same
      protection a slow double click anywhere else in this app already
      relies on. */
-  const busy = testSurface !== null || bastionCredential !== null;
+  const busy = testSurface !== null || bastionCredential !== null || hostKeyDecision !== null;
 
   /**
    * Reads the Access section's own credential fields, ADR-0057, the same way
@@ -598,6 +625,18 @@ export function SessionWizard({
                 <p>{i18n.t(describeFailure(testFailure.code, testFailure.hop).body)}</p>
               </div>
             )}
+
+            {hostKeyDecision !== null && (
+              <InlineHostKeyChallenge
+                host={hostKeyDecision.host}
+                port={hostKeyDecision.port}
+                keyType={hostKeyDecision.keyType}
+                fingerprint={hostKeyDecision.fingerprint}
+                hop={hostKeyDecision.hop}
+                onTrust={hostKeyDecision.onTrust}
+                onCancel={hostKeyDecision.onCancel}
+              />
+            )}
           </FormSection>
           {/* ADR-0061: `ForwardsFields` already renders nothing but its own
               "+ Add forward" link for an empty list; the only change here
@@ -640,7 +679,11 @@ export function SessionWizard({
           disabled={busy || (needsCredential && canRemember === undefined)}
           className="bg-accent text-surface-base rounded px-3 py-1.5 text-[12px] font-semibold disabled:opacity-50"
         >
-          {i18n.t(busy && testSurface !== null ? 'wizard.phase.proving' : 'session.editor.save')}
+          {i18n.t(
+            busy && (testSurface !== null || hostKeyDecision !== null)
+              ? 'wizard.phase.proving'
+              : 'session.editor.save',
+          )}
         </button>
       </div>
     </div>

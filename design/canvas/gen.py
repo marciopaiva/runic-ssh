@@ -2495,6 +2495,88 @@ def build_home_hosts_credential():
     write("HomeHostsCredential.dc.html", HEAD + page_html + FOOT)
 
 
+def build_home_hosts_unknown_key():
+    """The gap `design/canvas/README.md` named directly: 'the host key
+    artboards used to be standalone cards... They are drawn in place here'.
+    That is true of `HostKey.dc.html` inside a Sessions group, never true of
+    the same decision inside Home's own editor. ADR-0058 moved
+    `HostKeyPrompt` into this panel without redrawing it there, so the
+    shipped screen carries content nobody had drawn against General/Access's
+    current borders, spacing or type scale: reported live, 2026-09-07,
+    against the fixture at 127.0.0.1:2227: 'fizemos todo o fluxo de
+    cadastro e alteracao do host, mas nao incluimos esse card no fluxo'.
+
+    First draft put this in `banner_html`, full panel width, the same slot
+    `HomeDeleteConfirm.dc.html` uses. Redirected on review: Access is
+    already 'how you get into this host', and the key decision is the same
+    question one step earlier, so it reads as one card rather than two.
+    The stored-credential note stays visible above it, a divider, then the
+    challenge, inside Access's own border rather than a second box floating
+    above the whole form. The fields stack instead of sitting beside the
+    randomart, the shape `build_hostkey()`'s wider floating card used: this
+    card is roughly half the panel's width, and a fingerprint wrapped
+    beside a fixed-width art block reads worse than fields that each get
+    the full column to themselves.
+
+    General/Topology/Forwarding stay exactly as `host_detail_panel` already
+    draws them: ADR-0058 disables Save/Cancel/Delete while a decision is
+    pending, not the fields themselves. Warn-toned rather than
+    `HomeDeleteConfirm`'s danger: this is the unknown-key case, the one
+    Trust actually answers, not the blocked changed-key refusal
+    `HostKeyChanged.dc.html` already draws its own way."""
+    art = "\n".join(RANDOMART)
+    stored_note = f"""<div style="display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: {T['raised']}; border-radius: 6px;">
+        <svg viewBox="0 0 24 24" style="width: 14px; height: 14px; color: {T['ok']}; flex: none;" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 11V7a7 7 0 0114 0v4M5 11h14v9H5z"></path></svg>
+        <span style="font-size: 11.5px; color: {T['ink2']}; flex: 1; line-height: 1.4;">One is stored in the system keychain. Never shown here, never sent to this window.</span>
+      </div>
+      <div style="margin-top: 8px;"><span style="font-size: 12px; color: {T['danger']};">Forget it</span></div>"""
+    challenge = f"""<div style="border-top: 1px solid {T['line']}; margin-top: 16px; padding-top: 16px;">
+        <div style="display: flex; align-items: center; gap: 9px;">
+          <svg class="ic" viewBox="0 0 24 24" style="width: 15px; height: 15px; color: {T['warn']};">{ICON['shield']}</svg>
+          <span style="font-size: 12.5px; font-weight: 700;">Unknown host key</span>
+        </div>
+        <div style="font-size: 11.5px; color: {T['ink2']}; line-height: 1.6; margin-top: 7px;">Runic SSH has never connected to 127.0.0.1 before. Confirm the fingerprint through a channel you already trust, not through this connection.</div>
+        <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 14px;">
+          <div><div style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.11em; color: {T['faint']};">HOST</div>
+          <div class="mono" style="font-size: 12px; color: {T['ink']}; margin-top: 4px;">127.0.0.1:2227</div></div>
+          <div><div style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.11em; color: {T['faint']};">KEY TYPE</div>
+          <div class="mono" style="font-size: 12px; color: {T['ink']}; margin-top: 4px;">ssh-ed25519</div></div>
+          <div><div style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.11em; color: {T['faint']};">SHA256 FINGERPRINT</div>
+          <div class="mono" style="font-size: 12px; color: {T['accent2']}; margin-top: 4px; word-break: break-all;">SHA256:dD3AgWFOWojBT99stT9P1RURg+DaX/uz4lj0iBn+UJ4</div></div>
+          <div>
+            <div style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.11em; color: {T['faint']};">RANDOMART</div>
+            <pre class="mono" style="margin: 4px 0 0; font-size: 10px; line-height: 1.25; color: {T['muted']}; background: {T['terminal']}; border: 1px solid {T['line']}; border-radius: 6px; padding: 8px 10px; display: inline-block;">{art}</pre>
+          </div>
+        </div>
+        <div style="display: flex; align-items: flex-start; gap: 10px; margin-top: 14px; padding: 11px 13px; background: {T['base']}; border: 1px solid {T['line']}; border-radius: 8px;">
+          <span style="width: 15px; height: 15px; border: 1.5px solid {T['line2']}; border-radius: 4px; flex: none; margin-top: 1px;"></span>
+          <div><div style="font-size: 11.5px; color: {T['ink2']}; font-weight: 600;">I verified this fingerprint out of band</div>
+          <div style="font-size: 10.5px; color: {T['faint']}; margin-top: 3px; line-height: 1.4;">From the provider console, a configuration repository, or someone who runs the host.</div></div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; margin-top: 14px; flex-wrap: wrap;">
+          <span style="font-size: 10.5px; color: {T['faint']};">Saved to known_hosts</span>
+          <div style="flex: 1;"></div>
+          <span style="font-size: 12px; color: {T['muted']};">Cancel</span>
+          <span style="font-size: 12px; font-weight: 600; color: {T['off']}; background: {T['raised']}; border-radius: 6px; padding: 7px 16px;">Trust and connect</span>
+        </div>
+      </div>"""
+    rows = home_hosts_rows(active="runic-target-a")
+    body = hosts_shell(rows, host_detail_panel(access_html=stored_note + challenge), show_filter=True)
+    st = status(stat_text("runic-target-a", T['muted'], mono=False), stat_text("11 hosts", T['faint']))
+    page_html = f"""
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{plain_titlebar()}
+{toolbar_row(right_html=theme_language_toolbar_controls())}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{home_rail(workspace="home")}
+{body}
+  </div>
+{st}
+</div>
+"""
+    write("HomeHostsUnknownKey.dc.html", HEAD + page_html + FOOT)
+
+
 def toolbar_group_divider():
     """ADR-0062: the same hairline `ThemeLanguageControls` already draws
     between its own two folds, reused here between a workspace's own
@@ -2985,7 +3067,7 @@ else:
                build_sessions_proposal, build_sessions_proposal_broadcast,
                build_sessions_proposal_broadcast_multi,
                build_home_hosts, build_home_hosts_common_case, build_home_hosts_empty, build_home_collapsed, build_home_delete_confirm,
-               build_home_hosts_credential, build_home_hosts_topology,
+               build_home_hosts_credential, build_home_hosts_unknown_key, build_home_hosts_topology,
                build_anatomy, build_tokens,
                build_hostkeychanged, build_failure, build_paste, build_palette):
         fn()

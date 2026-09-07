@@ -66,6 +66,7 @@ ADR-0020 exists to stop.
 | `HomeCollapsed.dc.html` | Home, its own host list hidden, the rail's Home icon toggling it the same way Sessions' and SFTP's already do |
 | `HomeDeleteConfirm.dc.html` | Home, the one question Delete now always asks first |
 | `HomeHostsCredential.dc.html` | Home, the credential field itself, in Access, before Save (ADR-0057) |
+| `HomeHostsUnknownKey.dc.html` | Home, an unknown host key inline in the editor's own banner slot, redrawn against General/Access's current borders (ADR-0058) |
 | `HomeHostsTopology.dc.html` | Home, the host book organized by topology: bastions expandable and collapsible, a `group` tag riding on its own row (ADR-0060) |
 | `TerminalMotd.dc.html` | The brand banner, printed into the terminal on connect (ADR-0051) |
 | `SftpWorkspace.dc.html` | SFTP's own workspace, nothing picked yet (ADR-0044) |

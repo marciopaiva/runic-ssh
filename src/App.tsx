@@ -2331,13 +2331,41 @@ export function App(): JSX.Element {
                     )
                   );
                 })();
+              /* The plain unknown-key decision, read as data rather than
+                 through `attemptSurface`'s own rendered card: reported
+                 live, 2026-09-07, that card had never been fit to Access's
+                 width ("nao incluimos esse card no fluxo"). `HostKeyBlocked`
+                 and `HostKeyRefused` are untouched, still `testSurface`'s,
+                 below. */
+              const hostKeyDecision =
+                attempt !== null &&
+                editingId !== null &&
+                attempt.sessionId === editingId &&
+                attempt.stage.stage === 'deciding' &&
+                attempt.decision !== null &&
+                isOverridable(attempt.decision.verdict) &&
+                !needsConfirmation(attempt.decision.verdict)
+                  ? {
+                      host: attempt.decision.host,
+                      port: attempt.decision.port,
+                      keyType: attempt.decision.keyType,
+                      fingerprint: attempt.decision.offered,
+                      hop: attempt.decision.hop,
+                      onTrust: () => void trust(),
+                      onCancel: abandon,
+                    }
+                  : null;
               /* ADR-0030: the same host key and credential screens Sessions
                  shows over a group's terminal, found here when the attempt
                  in flight is this host's own. The surface that makes
                  staying in Home possible to watch, for the wizard's own
-                 proof phase. */
+                 proof phase. Not shown when `hostKeyDecision` already
+                 covers it. */
               const testSurface =
-                attempt !== null && editingId !== null && attempt.sessionId === editingId
+                attempt !== null &&
+                editingId !== null &&
+                attempt.sessionId === editingId &&
+                hostKeyDecision === null
                   ? attemptSurface
                   : null;
               /* The same failed attempt `attemptSurface` itself refuses to
@@ -2447,6 +2475,7 @@ export function App(): JSX.Element {
                           finishWizard(target);
                         }}
                         testSurface={testSurface}
+                        hostKeyDecision={hostKeyDecision}
                         testFailure={testFailure}
                         lastOutcome={editingId !== null ? (testOutcome.get(editingId) ?? null) : null}
                         bastionCredential={bastionCredential}
