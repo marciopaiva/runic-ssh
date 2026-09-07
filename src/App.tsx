@@ -15,6 +15,7 @@ import { HostKeyBlocked } from './components/HostKeyBlocked';
 import { ConnectionFailure } from './components/ConnectionFailure';
 import { HostKeyPrompt } from './components/HostKeyPrompt';
 import { HostKeyRefused } from './components/HostKeyRefused';
+import { MonitorWorkspace } from './components/MonitorWorkspace';
 import { PasteConfirm } from './components/PasteConfirm';
 import { SessionMenu } from './components/SessionMenu';
 import { SessionWizard } from './components/SessionWizard';
@@ -287,6 +288,13 @@ export function App(): JSX.Element {
      renders from this, `onOpened` only needs whatever it was most recently
      told. */
   const sftpConnectTargets = useRef<Map<string, SftpTarget>>(new Map());
+  /* Which saved host the monitor workspace asked `connect` for, the same
+     idea `sftpConnectTargets` carries for a pane: `onOpened` checks this to
+     decide a freshly connected session is Monitor's pick rather than a
+     focused shell in Sessions. A single id rather than a map: Monitor shows
+     one host at a time, so a second pick before the first resolves simply
+     replaces which one `onOpened` is waiting for. */
+  const monitorConnectTarget = useRef<string | null>(null);
   /* Which sessions Sessions itself has actually asked a shell for, ADR-0053.
      A connection opened for SFTP shares its handle with Sessions (one SSH
      transport, multiplexed channels), which used to be read as "Sessions
@@ -481,9 +489,16 @@ export function App(): JSX.Element {
       /* ADR-0045: a connection `assignSftpEndpoint` started lands in the
          pane it was asked for instead of a focused shell, the one place
          this shared success handler has to ask who wanted this connection
-         rather than assuming it was Sessions. */
+         rather than assuming it was Sessions. The monitor workspace's own
+         pick is checked the same way, first: a session id is only ever the
+         current target of one of the two at a time, but checking in a fixed
+         order reads as the deliberate order it is rather than one that
+         happens to work. Neither wants `wantTerminal`/`setFocus` below,
+         since neither is asking for a tab in Sessions. */
       const sftpTarget = sftpConnectTargets.current.get(sessionId);
-      if (sftpTarget !== undefined) {
+      if (monitorConnectTarget.current === sessionId) {
+        monitorConnectTarget.current = null;
+      } else if (sftpTarget !== undefined) {
         sftpConnectTargets.current.delete(sessionId);
         const endpoint: Endpoint = { kind: 'remote', sessionId, handle };
         if (sftpTarget.kind === 'source') fanout.setSource(endpoint);
@@ -513,6 +528,7 @@ export function App(): JSX.Element {
        user closed are three different things, and the marker says which. */
     onFailed: (sessionId, code) => {
       sftpConnectTargets.current.delete(sessionId);
+      if (monitorConnectTarget.current === sessionId) monitorConnectTarget.current = null;
       setState(sessionId, stateAfterFailure(code));
       setTestOutcome((current) => new Map(current).set(sessionId, 'failed'));
     },
@@ -523,6 +539,7 @@ export function App(): JSX.Element {
        *previous* attempt's result showing on this one. */
     onAbandoned: (sessionId, settled) => {
       sftpConnectTargets.current.delete(sessionId);
+      if (monitorConnectTarget.current === sessionId) monitorConnectTarget.current = null;
       /* Nothing is left to show a tab for once an attempt is walked away
          from, ADR-0053: no handle, no attempt, and (for one Sessions itself
          started) no failure surface left to keep a panel open for either. */
@@ -1614,6 +1631,44 @@ export function App(): JSX.Element {
     [sessions],
   );
 
+  /* The monitor workspace's own pick, by session id rather than handle: a
+     saved host not yet open has no handle to hold, and the sidebar row it
+     picked is still worth remembering while `connect` runs. Resolved against
+     `sessions` below rather than duplicated, the same reason `selected`
+     (Sessions' own equivalent) is not copied into a second piece of state. */
+  const [selectedMonitorSessionId, setSelectedMonitorSessionId] = useState<string | null>(null);
+  const selectedMonitorSession =
+    selectedMonitorSessionId === null
+      ? null
+      : (sessions.find((live) => live.session.id === selectedMonitorSessionId) ?? null);
+  /* `null` whenever this is not the workspace on screen, or nothing picked
+     yet has a connection: polling because a host merely happens to be
+     selected, on a workspace nobody is looking at, would defeat the whole
+     reason this reads one host at a time rather than every open one. */
+  const monitorHandle =
+    workspace === 'monitor' && selectedMonitorSession !== null ? selectedMonitorSession.handle : null;
+  const monitorStats = useSystemStats(monitorHandle);
+
+  /* Picks a saved host for the monitor workspace, connecting first if it is
+     not already open: the same shape `assignSftpEndpoint` gives SFTP, minus
+     the pane/slot concept, since Monitor shows one host rather than fanning
+     out to several. Selecting is immediate either way, so the sidebar and
+     the detail panel agree on which row is current from the first render,
+     before `connect` (when it runs at all) has anywhere near resolved. */
+  const selectMonitorHost = useCallback(
+    (sessionId: string): void => {
+      setSelectedMonitorSessionId(sessionId);
+
+      const live = sessions.find((entry) => entry.session.id === sessionId);
+      if (live === undefined || live.handle !== null) return;
+
+      monitorConnectTarget.current = sessionId;
+      if (attempt !== null && attempt.sessionId === sessionId && isInProgress(attempt.stage)) return;
+      void connect(sessionId);
+    },
+    [connect, sessions, attempt],
+  );
+
   /* What a group's menu offers, built where the state is rather than inside
      the menu, which is handed a list and knows nothing about groups. */
   const groupMenuItems = useMemo<readonly GroupMenuItem[]>(() => {
@@ -1798,6 +1853,18 @@ export function App(): JSX.Element {
           }
         />
       )}
+      {workspace === 'monitor' && (
+        <Toolbar
+          trailing={
+            <ThemeLanguageControls
+              theme={theme}
+              onChooseTheme={(next) => void chooseTheme(next)}
+              chosenLocale={chosen}
+              onChooseLocale={(locale) => void choose(locale)}
+            />
+          }
+        />
+      )}
 
       <div className="flex min-h-0 flex-1">
         <ActivityRail
@@ -1870,6 +1937,23 @@ export function App(): JSX.Element {
               if (sessionId === null) setSftpDropOver(null);
             }}
             onSelect={(sessionId) => assignSftpEndpoint({ kind: 'host', sessionId }, { kind: 'source' })}
+          />
+        )}
+
+        {/* The same saved host book Sessions and SFTP already show, with
+            `selectMonitorHost` in place of `activate`/`assignSftpEndpoint`:
+            picking a host not yet open connects it, the same as either of
+            those, rather than requiring a Sessions tab to exist first. No
+            drag target of its own, so `onDrag` is a no-op. */}
+        {workspace === 'monitor' && sidebarOpen && (
+          <SessionsSidebar
+            title={i18n.t('rail.monitor')}
+            emptyTitle={i18n.t('sessions.empty.title')}
+            emptyBody={i18n.t('sessions.empty.body')}
+            sessions={sessions}
+            selectedId={selectedMonitorSessionId}
+            onDrag={() => {}}
+            onSelect={selectMonitorHost}
           />
         )}
 
@@ -2490,6 +2574,41 @@ export function App(): JSX.Element {
             })()}
           </div>
         </main>
+        )}
+
+        {workspace === 'monitor' && (
+          <main className="bg-surface-base relative flex min-w-0 flex-1 flex-col overflow-hidden">
+            {selectedMonitorSession === null ? (
+              <EmptyPanel
+                modifier={chrome?.commandModifier ?? 'control'}
+                variant="group"
+                title={i18n.t('monitor.pick.title')}
+                body={i18n.t('monitor.pick.body')}
+              />
+            ) : selectedMonitorSession.handle !== null ? (
+              <MonitorWorkspace
+                identity={
+                  paneLabels.get(selectedMonitorSession.session.id) ?? {
+                    name: selectedMonitorSession.session.name,
+                    where: '',
+                  }
+                }
+                handle={selectedMonitorSession.handle}
+                stats={monitorStats}
+              />
+            ) : (
+              /* Picked but not yet open: `selectMonitorHost` already called
+                 `connect`, and `attempt`/`attemptSurface` carry the host key,
+                 credential or failure surface for it, the same "Reaching
+                 <host>…" through a failed attempt sequence Sessions and SFTP
+                 both show for their own picks. Full-area, the same reason
+                 SFTP's own version of this is: a narrower column clips a host
+                 key prompt's Trust button below the fold. */
+              attempt !== null &&
+              attempt.sessionId === selectedMonitorSession.session.id &&
+              attemptSurface !== null && <div className="absolute inset-0">{attemptSurface}</div>
+            )}
+          </main>
         )}
       </div>
 

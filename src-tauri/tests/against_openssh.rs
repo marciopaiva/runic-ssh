@@ -527,11 +527,72 @@ async fn the_monitor_command_parses_against_a_real_linux_host() {
         "no memory reading from a real /proc/meminfo: {stats:?}"
     );
     assert!(
+        stats.swap.is_some(),
+        "no swap reading from a real /proc/meminfo: {stats:?}"
+    );
+    assert!(
         stats.disk.is_some(),
         "no disk reading from a real df -P /: {stats:?}"
     );
     assert!(
         stats.uptime_seconds.is_some(),
         "no uptime reading from a real /proc/uptime: {stats:?}"
+    );
+    assert!(
+        stats.load_average.is_some(),
+        "no load average from a real /proc/loadavg: {stats:?}"
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs the test container; see the module comment"]
+async fn a_host_with_no_systemd_reports_no_units_rather_than_failing() {
+    /* The fixture container is BusyBox-based and has no `systemctl` at all,
+    which makes it exactly the host this behavior exists for: real command
+    execution against a real "not found" shell error, not a canned string. */
+    let known = trusting(offered_key().await);
+    let mut connection = connect(endpoint(), known).await.expect("connects");
+
+    connection
+        .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
+        .await
+        .expect("authenticates");
+
+    let output = connection
+        .run_command(runic_ssh::ssh::systemd::list_units_command())
+        .await
+        .expect("the command runs even though systemctl does not exist");
+
+    assert_eq!(
+        runic_ssh::ssh::systemd::parse_units(&output.stdout),
+        Vec::new()
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs the test container; see the module comment"]
+async fn the_sysinfo_command_parses_against_a_real_linux_host() {
+    let known = trusting(offered_key().await);
+    let mut connection = connect(endpoint(), known).await.expect("connects");
+
+    connection
+        .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
+        .await
+        .expect("authenticates");
+
+    let output = connection
+        .run_command(&runic_ssh::ssh::sysinfo::command())
+        .await
+        .expect("the sysinfo command runs");
+
+    let info = runic_ssh::ssh::sysinfo::parse(&output.stdout);
+
+    assert!(
+        info.kernel.is_some(),
+        "no kernel reading from a real uname -srm: {info:?}"
+    );
+    assert!(
+        info.hostname.is_some(),
+        "no hostname reading from a real host: {info:?}"
     );
 }

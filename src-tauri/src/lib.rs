@@ -108,6 +108,8 @@ pub fn run() -> tauri::Result<()> {
             commands::terminal::resize_terminal,
             commands::terminal::session_stats,
             commands::monitor::session_monitor,
+            commands::systemd::session_systemd_units,
+            commands::sysinfo::session_system_info,
             commands::sftp::sftp_list,
             commands::sftp::local_list_directory,
             commands::sftp::sftp_download,

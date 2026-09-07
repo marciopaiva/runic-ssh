@@ -12,5 +12,7 @@ pub mod pending;
 pub mod registry;
 pub mod socks;
 pub mod stats;
+pub mod sysinfo;
+pub mod systemd;
 pub mod terminal;
 pub mod trust;

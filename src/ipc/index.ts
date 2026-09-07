@@ -26,6 +26,10 @@ export {
 } from './forward';
 export type { ForwardHandle } from './forward';
 export { getSettings, setLocale, setTheme } from './settings';
+export { sessionSystemInfo } from './sysinfo';
+export type { SystemInfo } from './sysinfo';
+export { sessionSystemdUnits } from './systemd';
+export type { SystemdUnit } from './systemd';
 export {
   authenticateSession,
   authenticateWithSaved,
@@ -65,7 +69,7 @@ export {
   sessionStats,
   watchTerminal,
 } from './terminal';
-export type { SessionStats, SystemStats, Usage } from './terminal';
+export type { LoadAverage, SessionStats, SystemStats, Usage } from './terminal';
 export type { SettingsView, Theme } from './settings';
 export {
   FINISHED_EVENT as SFTP_FINISHED_EVENT,

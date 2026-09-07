@@ -13,4 +13,6 @@ pub mod monitor;
 pub mod sessions;
 pub mod settings;
 pub mod sftp;
+pub mod sysinfo;
+pub mod systemd;
 pub mod terminal;

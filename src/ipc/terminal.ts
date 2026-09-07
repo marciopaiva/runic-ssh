@@ -243,18 +243,31 @@ export interface Usage {
 }
 
 /**
+ * The scheduler load averages Linux keeps, over one, five and fifteen
+ * minutes. Unbounded, unlike every other reading here: a host with sixteen
+ * cores comfortably runs at a load of 12.
+ */
+export interface LoadAverage {
+  readonly one: number;
+  readonly five: number;
+  readonly fifteen: number;
+}
+
+/**
  * A host's own vital signs, read over the connection already open.
  *
  * Every field is independent and `null` on its own when it could not be
  * read. A host that is not Linux, or one whose `df`/`free`/`uptime` output
- * did not parse, still reports whichever of the four this did understand.
+ * did not parse, still reports whichever of these this did understand.
  * See `ssh/monitor.rs`.
  */
 export interface SystemStats {
   readonly cpuPercent: number | null;
   readonly memory: Usage | null;
+  readonly swap: Usage | null;
   readonly disk: Usage | null;
   readonly uptimeSeconds: number | null;
+  readonly loadAverage: LoadAverage | null;
 }
 
 /** Runs the monitor command over `handle`'s connection and parses it. */

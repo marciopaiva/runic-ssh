@@ -36,7 +36,7 @@ pub fn command() -> String {
     format!(
         "cat /proc/stat; echo {marker}; sleep {interval}; cat /proc/stat; echo {marker}; \
          cat /proc/meminfo; echo {marker}; df -k -P / 2>/dev/null; echo {marker}; \
-         cat /proc/uptime",
+         cat /proc/uptime; echo {marker}; cat /proc/loadavg",
         marker = SECTION_MARKER,
         interval = CPU_SAMPLE_INTERVAL_SECONDS,
     )
@@ -50,6 +50,18 @@ pub struct Usage {
     pub total_kb: u64,
 }
 
+/// The three scheduler load averages Linux keeps, over one, five and fifteen
+/// minutes. Unbounded, unlike every other reading here: a host with sixteen
+/// cores comfortably runs at a load of 12, so this is read as a trend against
+/// itself rather than against a fixed ceiling.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoadAverage {
+    pub one: f64,
+    pub five: f64,
+    pub fifteen: f64,
+}
+
 /// A host's vital signs at the moment it was asked. Every field is
 /// independent: one failing to parse says nothing about the others.
 #[derive(Debug, Clone, Copy, Default, PartialEq, serde::Serialize)]
@@ -57,8 +69,10 @@ pub struct Usage {
 pub struct SystemStats {
     pub cpu_percent: Option<f64>,
     pub memory: Option<Usage>,
+    pub swap: Option<Usage>,
     pub disk: Option<Usage>,
     pub uptime_seconds: Option<u64>,
+    pub load_average: Option<LoadAverage>,
 }
 
 /// Parses [`command`]'s combined output into [`SystemStats`].
@@ -76,12 +90,15 @@ pub fn parse(stdout: &[u8]) -> SystemStats {
     let meminfo = sections.next().unwrap_or_default();
     let disk = sections.next().unwrap_or_default();
     let uptime = sections.next().unwrap_or_default();
+    let loadavg = sections.next().unwrap_or_default();
 
     SystemStats {
         cpu_percent: cpu_percent(before, after),
         memory: memory(meminfo),
+        swap: swap(meminfo),
         disk: disk_usage(disk),
         uptime_seconds: uptime_seconds(uptime),
+        load_average: load_average(loadavg),
     }
 }
 
@@ -152,6 +169,18 @@ fn memory(meminfo: &str) -> Option<Usage> {
     Some(Usage { used_kb, total_kb })
 }
 
+/// A host with no swap configured (common on a cloud instance or a
+/// container) reports `SwapTotal: 0`, which parses fine and is worth
+/// keeping: `Usage { used_kb: 0, total_kb: 0 }` is a real answer, "this
+/// host has no swap," not a parse failure to hide behind `None`.
+fn swap(meminfo: &str) -> Option<Usage> {
+    let total_kb = meminfo_field(meminfo, "SwapTotal:")?;
+    let free_kb = meminfo_field(meminfo, "SwapFree:")?;
+    let used_kb = total_kb.saturating_sub(free_kb);
+
+    Some(Usage { used_kb, total_kb })
+}
+
 fn disk_usage(df: &str) -> Option<Usage> {
     /* `df -k -P`'s header, then one data line: filesystem, 1K-blocks, used,
     available, capacity, mounted-on. `-P` is what guarantees the data is one
@@ -168,6 +197,18 @@ fn disk_usage(df: &str) -> Option<Usage> {
     let used_kb = fields.get(2)?.parse().ok()?;
 
     Some(Usage { used_kb, total_kb })
+}
+
+/// `/proc/loadavg`'s first three fields: `0.42 0.35 0.30 2/456 12345`. The
+/// last two (running/total processes, and the most recently created pid) are
+/// not read here; nothing in this module needs them.
+fn load_average(loadavg: &str) -> Option<LoadAverage> {
+    let mut fields = loadavg.split_whitespace();
+    let one = fields.next()?.parse().ok()?;
+    let five = fields.next()?.parse().ok()?;
+    let fifteen = fields.next()?.parse().ok()?;
+
+    Some(LoadAverage { one, five, fifteen })
 }
 
 fn uptime_seconds(uptime: &str) -> Option<u64> {
@@ -188,13 +229,16 @@ mod tests {
     const STAT_AFTER: &str = "cpu  1100 0 550 8850 0 0 0 0 0 0\ncpu0 1100 0 550 8850 0 0 0 0 0 0\n";
 
     const MEMINFO: &str = "MemTotal:       16000000 kB\nMemFree:         2000000 kB\n\
-                            MemAvailable:    8000000 kB\nBuffers:          500000 kB\n";
+                            MemAvailable:    8000000 kB\nBuffers:          500000 kB\n\
+                            SwapTotal:       4000000 kB\nSwapFree:        1500000 kB\n";
 
     const DF: &str =
         "Filesystem                 1024-blocks     Used Available Capacity Mounted on\n\
                        /dev/mapper/vg0-root         103080160 42123456  56000000      43% /\n";
 
     const UPTIME: &str = "123456.78 987654.32\n";
+
+    const LOADAVG: &str = "0.42 0.35 0.30 2/456 12345\n";
 
     /// Builds the same shape [`command`]'s real stdout has, `echo`'s own
     /// newline included: a `\n` lands right after every marker, which is
@@ -204,7 +248,7 @@ mod tests {
     /// while failing against a real host.
     fn combined() -> Vec<u8> {
         format!(
-            "{STAT_BEFORE}{SECTION_MARKER}\n{STAT_AFTER}{SECTION_MARKER}\n{MEMINFO}{SECTION_MARKER}\n{DF}{SECTION_MARKER}\n{UPTIME}"
+            "{STAT_BEFORE}{SECTION_MARKER}\n{STAT_AFTER}{SECTION_MARKER}\n{MEMINFO}{SECTION_MARKER}\n{DF}{SECTION_MARKER}\n{UPTIME}{SECTION_MARKER}\n{LOADAVG}"
         )
         .into_bytes()
     }
@@ -224,6 +268,13 @@ mod tests {
             })
         );
         assert_eq!(
+            stats.swap,
+            Some(Usage {
+                used_kb: 2_500_000,
+                total_kb: 4_000_000
+            })
+        );
+        assert_eq!(
             stats.disk,
             Some(Usage {
                 used_kb: 42_123_456,
@@ -231,6 +282,19 @@ mod tests {
             })
         );
         assert_eq!(stats.uptime_seconds, Some(123_456));
+        assert_eq!(
+            stats.load_average,
+            Some(LoadAverage {
+                one: 0.42,
+                five: 0.35,
+                fifteen: 0.30,
+            })
+        );
+    }
+
+    #[test]
+    fn a_load_average_missing_a_field_is_left_unknown_rather_than_partial() {
+        assert_eq!(load_average("0.42 0.35\n"), None);
     }
 
     #[test]
@@ -265,14 +329,28 @@ mod tests {
     }
 
     #[test]
+    fn no_swap_configured_reports_a_real_zero_not_unknown() {
+        let meminfo = "MemTotal:  16000000 kB\nSwapTotal: 0 kB\nSwapFree: 0 kB\n";
+        assert_eq!(
+            swap(meminfo),
+            Some(Usage {
+                used_kb: 0,
+                total_kb: 0
+            })
+        );
+    }
+
+    #[test]
     fn a_missing_section_leaves_only_its_own_field_unknown() {
         let partial = format!("{STAT_BEFORE}{SECTION_MARKER}{STAT_AFTER}{SECTION_MARKER}garbage");
         let stats = parse(partial.as_bytes());
 
         assert_eq!(stats.cpu_percent, Some(30.0));
         assert_eq!(stats.memory, None);
+        assert_eq!(stats.swap, None);
         assert_eq!(stats.disk, None);
         assert_eq!(stats.uptime_seconds, None);
+        assert_eq!(stats.load_average, None);
     }
 
     #[test]
@@ -284,11 +362,20 @@ mod tests {
                     used_kb: 100,
                     total_kb: 200
                 }),
+                swap: Some(Usage {
+                    used_kb: 0,
+                    total_kb: 4_000_000
+                }),
                 disk: None,
                 uptime_seconds: Some(60),
+                load_average: Some(LoadAverage {
+                    one: 0.1,
+                    five: 0.2,
+                    fifteen: 0.3,
+                }),
             })
             .expect("serializes"),
-            r#"{"cpuPercent":12.5,"memory":{"usedKb":100,"totalKb":200},"disk":null,"uptimeSeconds":60}"#
+            r#"{"cpuPercent":12.5,"memory":{"usedKb":100,"totalKb":200},"swap":{"usedKb":0,"totalKb":4000000},"disk":null,"uptimeSeconds":60,"loadAverage":{"one":0.1,"five":0.2,"fifteen":0.3}}"#
         );
     }
 }

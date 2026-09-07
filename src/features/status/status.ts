@@ -101,8 +101,10 @@ export const MONITOR_INTERVAL_MS = 15000;
 export const NO_SYSTEM_STATS: SystemStats = {
   cpuPercent: null,
   memory: null,
+  swap: null,
   disk: null,
   uptimeSeconds: null,
+  loadAverage: null,
 };
 
 /**
