@@ -3029,14 +3029,23 @@ def build_monitor_systemd():
     write("MonitorSystemd.dc.html", page(body, sidebar, home_rail(workspace="monitor"), st, show_shapes=False))
 
 def build_monitor_logs():
-    """The Monitor workspace's fifth tab: a user-typed absolute path
-    tailed like a systemd unit's own journal, for a service that logs to
-    a plain file instead of (or as well as) the journal, Apache/nginx
-    being the case that started this. Same tail-and-poll shape
-    `journal_pane` already draws for a unit, at full height rather than a
-    30% dock, since there is no unit list sharing the tab here. No path
-    history in this v1: retyping and submitting a new path forgets the
-    last one, the same as `JournalPane` already does for a unit today."""
+    """The Monitor workspace's fifth tab: a path tailed like a systemd
+    unit's own journal, for a service that logs to a plain file instead of
+    (or as well as) the journal, Apache/nginx being the case that started
+    this. Same tail-and-poll shape `journal_pane` already draws for a unit,
+    at full height rather than a 30% dock, since there is no unit list
+    sharing the tab here.
+
+    The field is a real `<input list>`/`<datalist>` in the shipped
+    component, not the custom dropdown this flat drawing has no native way
+    to render; the chevron here stands for that combo behavior; picking a
+    suggestion or typing a path outside it both submit the same way. The
+    suggestions themselves are files `find` actually located under
+    `/var/log` on this host, not a guess from a service's name, so a host
+    with nothing recognizable there leaves the list empty and the field
+    still plain free text. No path history beyond that in this v1:
+    submitting a new path forgets the last one, the same as `JournalPane`
+    already does for a unit today."""
     sidebar = monitor_sidebar(active="web-01")
     lines = [
         "10.4.1.9 - - [07/Sep/2026:15:12:02 +0000] \"GET /health HTTP/1.1\" 200 12",
@@ -3045,6 +3054,8 @@ def build_monitor_logs():
     ]
     close = (f'<svg viewBox="0 0 10 10" style="width: 8px; height: 8px; color: {T["faint"]};" fill="none"'
              f' stroke="currentColor" stroke-width="1.4"><path d="M0.5 0.5l9 9M9.5 0.5l-9 9"></path></svg>')
+    chevron = (f'<svg viewBox="0 0 10 6" style="width: 9px; height: 6px; color: {T["faint"]}; flex: none;" fill="none"'
+               f' stroke="currentColor" stroke-width="1.4"><path d="M1 1l4 4 4-4"></path></svg>')
     lines_html = "\n".join(
         f'<p class="mono" style="font-size: 11px; color: {T["faint"]}; margin: 0; overflow: hidden;'
         f' text-overflow: ellipsis; white-space: nowrap;">{l}</p>'
@@ -3054,8 +3065,9 @@ def build_monitor_logs():
 {monitor_tabs("logs")}
       <div style="flex: 1; min-height: 0; display: flex; flex-direction: column;">
         <div style="border-bottom: 1px solid {T['line']}; padding: 8px 12px;">
-          <div style="height: 30px; background: {T['input']}; border: 1px solid {T['accent']}; border-radius: 5px; display: flex; align-items: center; padding: 0 10px;">
+          <div style="height: 30px; background: {T['input']}; border: 1px solid {T['accent']}; border-radius: 5px; display: flex; align-items: center; justify-content: space-between; padding: 0 10px;">
             <span class="mono" style="font-size: 12px; color: {T['ink']};">/var/log/nginx/access.log</span>
+            {chevron}
           </div>
         </div>
         <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid {T['line']}; padding: 6px 12px;">

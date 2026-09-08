@@ -5,10 +5,11 @@
 /// each one trimmed of trailing whitespace. Never fails: a host with
 /// nothing to report yields an empty list rather than an error.
 ///
-/// Shared rather than repeated once a second caller wanted the exact same
-/// logic ([`crate::ssh::journal::parse`] and [`crate::ssh::tail::parse`]):
-/// both commands are read-only and ask for the whole of a different kind
-/// of file, but both want the same "one line is one item, blank lines are
+/// Shared rather than repeated once a third caller wanted it
+/// ([`crate::ssh::journal::parse`], [`crate::ssh::tail::parse`] and
+/// [`crate::ssh::candidate_logs::parse`]): each of the three commands this
+/// backs is read-only and asks for the whole of a different kind of file,
+/// but all three want the same "one line is one item, blank lines are
 /// noise" answer.
 #[must_use]
 pub fn non_empty_lines(stdout: &[u8]) -> Vec<String> {

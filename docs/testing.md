@@ -674,6 +674,30 @@ would be the same kind of real-host gap `ssh::monitor`'s disk-I/O section
 above already names for its own partition-exclusion path, if it is ever
 worth closing.
 
+### Monitor's Logs tab: suggestions from a real `/var/log`
+
+Confirmed on Linux on 2026-09-08, against `runic-diskio@127.0.0.1:2228`,
+headlessly on the same private `Xvfb` display. The path field is a real
+`<input list>`/`<datalist>`, and WebKitGTK renders it exactly as any other
+native combo: clicking the empty field opened a dropdown of thirteen
+paths, precisely the ones `ssh::candidate_logs::command`'s own `find` and
+`grep` pipeline reports on this host, in the same order. `/var/log/journal/`
+holding around a hundred binary journal segments on this Ubuntu 24.04 host
+was the reason the exclusion filter needed a second pass: the first
+version listed all of them ahead of `syslog` and the rest, which would
+have made the combo worse than typing. Picking `/var/log/dpkg.log` from
+the list rendered real `dpkg` history immediately. Picking `/var/log/syslog`
+rendered `monitor.logs.none`, not because it is missing, but because it is
+owned `syslog:adm 640` and this fixture's own user is not in `adm` (verified
+directly: `tail: cannot open '/var/log/syslog' for reading: Permission
+denied`), the same permission ambiguity `ssh::tail` already documents.
+Free-text entry outside the suggested list still works unchanged.
+
+Not driven by this pass: WebView2 and WKWebView's own rendering of
+`<datalist>`. Native controls have differed between engines before in this
+project (docs/testing.md's own capability-verification table); nothing
+here has been checked on either.
+
 ### Port forwarding (ADR-0054)
 
 A saved forward starts the instant its own session connects, no separate

@@ -6,6 +6,7 @@
 //! a webview or an app handle.
 
 pub mod app;
+pub mod candidate_logs;
 pub mod chrome;
 pub mod credential;
 pub mod forward;

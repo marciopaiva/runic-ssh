@@ -4,13 +4,13 @@
 // `status-teardown.test.ts` for why.
 
 /**
- * Six of the hooks behind the monitor workspace's detail panel.
+ * Seven of the hooks behind the monitor workspace's detail panel.
  * `use-systemd-units.ts`, `use-processes.ts`, `use-ports.ts`,
- * `use-unit-journal.ts` and `use-file-tail.ts` are all polling loops and
- * need the same teardown proof every other probe in this codebase gets
- * (section 6). `use-stats-history.ts` has no timer to leak, but it does
- * have a rule worth pinning: history resets on a host switch and never
- * records a reading that was not actually taken.
+ * `use-unit-journal.ts`, `use-file-tail.ts` and `use-candidate-logs.ts` are
+ * all polling loops and need the same teardown proof every other probe in
+ * this codebase gets (section 6). `use-stats-history.ts` has no timer to
+ * leak, but it does have a rule worth pinning: history resets on a host
+ * switch and never records a reading that was not actually taken.
  */
 
 import { act, createElement } from 'react';
@@ -46,6 +46,8 @@ const JOURNAL_LINE = '2026-09-07T15:12:02+00:00 sshd-session[2995]: Accepted pas
 
 const TAIL_LINE = '10.4.1.9 - - [07/Sep/2026:15:12:02 +0000] "GET /health HTTP/1.1" 200 12';
 
+const CANDIDATE_LOG = '/var/log/nginx/access.log';
+
 const PORT = {
   protocol: 'tcp',
   state: 'LISTEN',
@@ -60,6 +62,7 @@ const ipc = vi.hoisted(() => ({
   sessionProcesses: vi.fn(async () => [PROCESS]),
   sessionUnitJournal: vi.fn(async () => [JOURNAL_LINE]),
   sessionTailFile: vi.fn(async () => [TAIL_LINE]),
+  sessionCandidateLogs: vi.fn(async () => [CANDIDATE_LOG]),
   sessionPorts: vi.fn(async () => [PORT]),
 }));
 
@@ -71,6 +74,7 @@ const { useSystemInfo } = await import('../src/features/monitor/use-system-info'
 const { useProcesses } = await import('../src/features/monitor/use-processes');
 const { useUnitJournal } = await import('../src/features/monitor/use-unit-journal');
 const { useFileTail } = await import('../src/features/monitor/use-file-tail');
+const { useCandidateLogs } = await import('../src/features/monitor/use-candidate-logs');
 const { usePorts } = await import('../src/features/monitor/use-ports');
 
 let renders: unknown[] = [];
@@ -97,6 +101,11 @@ function JournalProbe(props: { handle: number | null; unit: string | null }): nu
 
 function TailProbe(props: { handle: number | null; path: string | null }): null {
   renders.push(useFileTail(props.handle, props.path));
+  return null;
+}
+
+function CandidateLogsProbe(props: { handle: number | null }): null {
+  renders.push(useCandidateLogs(props.handle));
   return null;
 }
 
@@ -150,6 +159,7 @@ afterEach(() => {
   ipc.sessionProcesses.mockClear();
   ipc.sessionUnitJournal.mockClear();
   ipc.sessionTailFile.mockClear();
+  ipc.sessionCandidateLogs.mockClear();
   ipc.sessionPorts.mockClear();
 });
 
@@ -217,6 +227,47 @@ describe('polling systemd units', () => {
     const timer = setIntervalSpy.mock.results[0]?.value;
 
     await probe.rerender(createElement(UnitsProbe, { handle: null }));
+
+    expect(clearIntervalSpy).toHaveBeenCalledWith(timer);
+    expect(renders.at(-1)).toEqual([]);
+
+    await probe.unmount();
+  });
+});
+
+describe("polling the Logs tab's own path suggestions", () => {
+  it('reads the candidate list while a handle is given', async () => {
+    const probe = await mount(createElement(CandidateLogsProbe, { handle: 4 }));
+
+    expect(renders.at(-1)).toEqual([CANDIDATE_LOG]);
+    expect(ipc.sessionCandidateLogs).toHaveBeenCalledWith(4);
+
+    await probe.unmount();
+  });
+
+  it('polls nothing with no handle, the tab-not-visible convention', async () => {
+    const probe = await mount(createElement(CandidateLogsProbe, { handle: null }));
+
+    expect(ipc.sessionCandidateLogs).not.toHaveBeenCalled();
+    expect(setIntervalSpy).not.toHaveBeenCalled();
+
+    await probe.unmount();
+  });
+
+  it('clears its interval on unmount', async () => {
+    const probe = await mount(createElement(CandidateLogsProbe, { handle: 1 }));
+    const timer = setIntervalSpy.mock.results[0]?.value;
+
+    await probe.unmount();
+
+    expect(clearIntervalSpy).toHaveBeenCalledWith(timer);
+  });
+
+  it('stops polling once the handle goes back to null', async () => {
+    const probe = await mount(createElement(CandidateLogsProbe, { handle: 1 }));
+    const timer = setIntervalSpy.mock.results[0]?.value;
+
+    await probe.rerender(createElement(CandidateLogsProbe, { handle: null }));
 
     expect(clearIntervalSpy).toHaveBeenCalledWith(timer);
     expect(renders.at(-1)).toEqual([]);

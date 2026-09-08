@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import type { JSX } from 'react';
 
 import {
@@ -9,6 +9,7 @@ import {
   niceMax,
   sortProcesses,
   unitTone,
+  useCandidateLogs,
   useFileTail,
   usePorts,
   useProcesses,
@@ -404,6 +405,8 @@ function FileTailPane({
  */
 function LogsTab({ handle, active }: { readonly handle: SessionHandle; readonly active: boolean }): JSX.Element {
   const i18n = useTranslator();
+  const candidates = useCandidateLogs(active ? handle : null);
+  const listId = useId();
   const [draft, setDraft] = useState('');
   const [path, setPath] = useState<string | null>(null);
 
@@ -417,6 +420,7 @@ function LogsTab({ handle, active }: { readonly handle: SessionHandle; readonly 
       <div className="border-line-subtle border-b p-2">
         <input
           type="text"
+          list={listId}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
@@ -425,6 +429,14 @@ function LogsTab({ handle, active }: { readonly handle: SessionHandle; readonly 
           placeholder={i18n.t('monitor.logs.placeholder')}
           className="bg-surface-base border-line-subtle text-ink w-full rounded border px-2 py-1 text-[12px]"
         />
+        {/* Suggestions only: files `find` actually located under `/var/log`
+           on this host. Typing anything else, including a path outside
+           `/var/log`, still submits on Enter. */}
+        <datalist id={listId}>
+          {candidates.map((candidate) => (
+            <option key={candidate} value={candidate} />
+          ))}
+        </datalist>
       </div>
       {path === null ? (
         <div className="flex flex-1 items-center justify-center p-3">

@@ -1,5 +1,6 @@
 export { asIpcError } from './errors';
 export { appVersion } from './app';
+export { sessionCandidateLogs } from './candidate-logs';
 export { deleteMacro, listMacros, saveMacro } from './macros';
 export type { Macro, MacroDraft } from './macros';
 export {
