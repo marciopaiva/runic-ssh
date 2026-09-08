@@ -6,10 +6,10 @@ interface MacroGlyphProps {
 
 /**
  * The macro glyph: a small terminal window with a prompt arrow, drawn
- * wherever "this is about a saved macro" is answered: the toolbar's own
- * `MacrosButton` and `MacroConfirm`'s icon. One shape for the concept
- * everywhere it appears, the same reasoning `BroadcastGlyph` already
- * follows for "does this receive a broadcast."
+ * wherever "this is about a saved macro" is answered, currently just the
+ * toolbar's own `MacrosButton`. Its own component rather than inlined
+ * there, the same reasoning `BroadcastGlyph` follows for "does this receive
+ * a broadcast", so a second place that needs it draws the same shape.
  */
 export function MacroGlyph({ className }: MacroGlyphProps): JSX.Element {
   return (

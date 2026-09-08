@@ -33,9 +33,3 @@ export function applyVariables(text: string, session: MacroVariables): string {
     .replace(/\$port\b/g, String(session.port))
     .replace(/\$username\b/g, session.user);
 }
-
-/** Whether a macro's text reads any of the three variables, which is exactly
-    when a broadcast run resolves to a different command on each host. */
-export function usesVariables(text: string): boolean {
-  return /\$(host|port|username)\b/.test(text);
-}

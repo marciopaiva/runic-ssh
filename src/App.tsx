@@ -15,7 +15,6 @@ import { HostKeyBlocked } from './components/HostKeyBlocked';
 import { ConnectionFailure } from './components/ConnectionFailure';
 import { HostKeyPrompt } from './components/HostKeyPrompt';
 import { HostKeyRefused } from './components/HostKeyRefused';
-import { MacroConfirm } from './components/MacroConfirm';
 import { MacrosButton } from './components/MacrosButton';
 import { MacrosSidebar } from './components/MacrosSidebar';
 import { MonitorWorkspace } from './components/MonitorWorkspace';
@@ -35,7 +34,7 @@ import { Toolbar } from './components/Toolbar';
 import { TransfersBar } from './components/TransfersBar';
 import { actionCommands, macroCommands, sessionCommands, usePalette } from './features/commands';
 import type { CommandContext } from './features/commands';
-import { applyVariables, useMacros, usesVariables } from './features/macros';
+import { applyVariables, useMacros } from './features/macros';
 import {
   focusAfter,
   focusAfterClosing,
@@ -391,19 +390,6 @@ export function App(): JSX.Element {
   const [pendingPaste, setPendingPaste] = useState<{
     readonly sessionId: string;
     readonly text: string;
-  } | null>(null);
-  /* A macro held back for a broadcast to confirm, the same reason and the
-     same shape as `pendingPaste`: a single target runs it immediately (see
-     `runMacro`), and this only ever holds one that would reach more than
-     one host. */
-  const [pendingMacro, setPendingMacro] = useState<{
-    readonly sessionId: string;
-    readonly name: string;
-    /** This host's own version, for the preview: each entry below may read
-        differently once `$host`/`$port`/`$username` are resolved per host. */
-    readonly text: string;
-    readonly varies: boolean;
-    readonly entries: readonly { readonly sessionId: string; readonly text: string }[];
   } | null>(null);
   const [macrosOpen, setMacrosOpen] = useState(false);
   /* How the area is divided, and what each group holds. What is held is a hint
@@ -824,9 +810,9 @@ export function App(): JSX.Element {
      reach, so `$host`/`$port`/`$username` name that host rather than
      whichever session was focused. Sent the same way a confirmed paste
      already is, with newlines turned into the carriage return a terminal
-     expects (`preparePaste`). A single target runs immediately; more than
-     one holds for `pendingMacro`'s own confirmation, the same reason
-     `pendingPaste` already asks before a paste reaches several hosts. */
+     expects (`preparePaste`). Runs immediately, on every host sync reaches:
+     picking a macro is already the deliberate act, the same way running any
+     other saved command is. */
   const runMacro = useCallback(
     (macro: Macro): void => {
       if (activeId === null) return;
@@ -843,18 +829,6 @@ export function App(): JSX.Element {
           ? []
           : [{ sessionId, text: applyVariables(macro.text, target) }];
       });
-
-      if (entries.length > 1) {
-        const anchor = entries.find((entry) => entry.sessionId === activeId);
-        setPendingMacro({
-          sessionId: activeId,
-          name: macro.name,
-          text: anchor?.text ?? applyVariables(macro.text, session),
-          varies: usesVariables(macro.text),
-          entries,
-        });
-        return;
-      }
 
       sendEach(
         entries.map((entry) => ({
@@ -1873,8 +1847,6 @@ export function App(): JSX.Element {
 
   const pasteBox =
     pendingPaste === null ? null : boxOf({ kind: 'session', sessionId: pendingPaste.sessionId });
-  const macroBox =
-    pendingMacro === null ? null : boxOf({ kind: 'session', sessionId: pendingMacro.sessionId });
   const attemptBox =
     attempt === null ? null : boxOf({ kind: 'session', sessionId: attempt.sessionId });
 
@@ -2239,30 +2211,6 @@ export function App(): JSX.Element {
                     new TextEncoder().encode(preparePaste(pendingPaste.text)),
                   );
                   setPendingPaste(null);
-                }}
-              />
-            </div>
-          )}
-
-          {/* A macro waiting on an answer before it reaches more than one
-              host, the same shape and the same place as a pending paste. */}
-          {pendingMacro !== null && macroBox !== null && (
-            <div className="absolute" style={bodyStyle(macroBox)}>
-              <MacroConfirm
-                name={pendingMacro.name}
-                text={pendingMacro.text}
-                hosts={pendingMacro.entries.length}
-                varies={pendingMacro.varies}
-                onCancel={() => setPendingMacro(null)}
-                onConfirm={() => {
-                  sendEach(
-                    pendingMacro.entries.map((entry) => ({
-                      sessionId: entry.sessionId,
-                      bytes: new TextEncoder().encode(preparePaste(entry.text)),
-                    })),
-                  );
-                  setPendingMacro(null);
-                  focusTerminal(pendingMacro.sessionId);
                 }}
               />
             </div>
