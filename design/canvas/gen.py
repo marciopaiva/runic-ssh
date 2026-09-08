@@ -2642,7 +2642,7 @@ def monitor_pane_header(name, where):
       </div>"""
 
 def monitor_tabs(active="home"):
-    labels = [("home", "Home"), ("processes", "Processes"), ("ports", "Ports"), ("systemd", "Systemd")]
+    labels = [("home", "Home"), ("processes", "Processes"), ("ports", "Ports"), ("systemd", "Systemd"), ("logs", "Logs")]
     out = []
     for key, label in labels:
         on = key == active
@@ -3027,6 +3027,47 @@ def build_monitor_systemd():
       </div>"""
     st = status(stat_text("web-01", T['muted'], mono=False), stat_text("6 hosts saved", T['faint']))
     write("MonitorSystemd.dc.html", page(body, sidebar, home_rail(workspace="monitor"), st, show_shapes=False))
+
+def build_monitor_logs():
+    """The Monitor workspace's fifth tab: a user-typed absolute path
+    tailed like a systemd unit's own journal, for a service that logs to
+    a plain file instead of (or as well as) the journal, Apache/nginx
+    being the case that started this. Same tail-and-poll shape
+    `journal_pane` already draws for a unit, at full height rather than a
+    30% dock, since there is no unit list sharing the tab here. No path
+    history in this v1: retyping and submitting a new path forgets the
+    last one, the same as `JournalPane` already does for a unit today."""
+    sidebar = monitor_sidebar(active="web-01")
+    lines = [
+        "10.4.1.9 - - [07/Sep/2026:15:12:02 +0000] \"GET /health HTTP/1.1\" 200 12",
+        "10.4.1.9 - - [07/Sep/2026:15:12:05 +0000] \"GET /api/status HTTP/1.1\" 200 143",
+        "10.4.1.44 - - [07/Sep/2026:16:40:11 +0000] \"POST /api/login HTTP/1.1\" 401 27",
+    ]
+    close = (f'<svg viewBox="0 0 10 10" style="width: 8px; height: 8px; color: {T["faint"]};" fill="none"'
+             f' stroke="currentColor" stroke-width="1.4"><path d="M0.5 0.5l9 9M9.5 0.5l-9 9"></path></svg>')
+    lines_html = "\n".join(
+        f'<p class="mono" style="font-size: 11px; color: {T["faint"]}; margin: 0; overflow: hidden;'
+        f' text-overflow: ellipsis; white-space: nowrap;">{l}</p>'
+        for l in lines
+    )
+    body = f"""{monitor_pane_header("web-01", "deploy@10.4.1.20")}
+{monitor_tabs("logs")}
+      <div style="flex: 1; min-height: 0; display: flex; flex-direction: column;">
+        <div style="border-bottom: 1px solid {T['line']}; padding: 8px 12px;">
+          <div style="height: 30px; background: {T['input']}; border: 1px solid {T['accent']}; border-radius: 5px; display: flex; align-items: center; padding: 0 10px;">
+            <span class="mono" style="font-size: 12px; color: {T['ink']};">/var/log/nginx/access.log</span>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid {T['line']}; padding: 6px 12px;">
+          <span class="mono" style="font-size: 11px; font-weight: 600; color: {T['ink2']};">/var/log/nginx/access.log</span>
+          <div style="width: 16px; height: 16px; border-radius: 4px; display: flex; align-items: center; justify-content: center; flex: none;">{close}</div>
+        </div>
+        <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 8px 12px;">
+{lines_html}
+        </div>
+      </div>"""
+    st = status(stat_text("web-01", T['muted'], mono=False), stat_text("6 hosts saved", T['faint']))
+    write("MonitorLogs.dc.html", page(body, sidebar, home_rail(workspace="monitor"), st, show_shapes=False))
 
 def build_monitor_hosts_empty():
     """The other half of the Monitor workspace: nothing picked yet.
@@ -3515,7 +3556,7 @@ else:
                build_home_hosts, build_home_hosts_common_case, build_home_hosts_empty, build_home_collapsed, build_home_delete_confirm,
                build_home_hosts_credential, build_home_hosts_unknown_key, build_home_hosts_topology,
                build_monitor, build_monitor_processes, build_monitor_ports,
-               build_monitor_systemd, build_monitor_hosts_empty,
+               build_monitor_systemd, build_monitor_logs, build_monitor_hosts_empty,
                build_anatomy, build_tokens,
                build_hostkeychanged, build_failure, build_paste, build_palette):
         fn()

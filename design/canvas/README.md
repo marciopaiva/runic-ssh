@@ -72,6 +72,7 @@ ADR-0020 exists to stop.
 | `MonitorProcesses.dc.html` | Monitor, the host's own busiest processes: pid, user, CPU, memory and command, sortable by either reading client-side |
 | `MonitorPorts.dc.html` | Monitor, every listening TCP/UDP socket: protocol, address, port and the owning process where the session has privilege to see it |
 | `MonitorSystemd.dc.html` | Monitor, read-only systemd units with a selected one's own recent journal lines open at the bottom |
+| `MonitorLogs.dc.html` | Monitor, a user-typed absolute path tailed the same way, for a service that logs to a plain file instead of (or as well as) the journal |
 | `MonitorHostsEmpty.dc.html` | Monitor, nothing picked yet, the same brand mark Sessions' own empty state carries |
 | `TerminalMotd.dc.html` | The brand banner, printed into the terminal on connect (ADR-0051) |
 | `SftpWorkspace.dc.html` | SFTP's own workspace, nothing picked yet (ADR-0044) |

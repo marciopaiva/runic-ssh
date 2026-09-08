@@ -37,6 +37,7 @@ export { sessionSystemInfo } from './sysinfo';
 export type { SystemInfo } from './sysinfo';
 export { sessionSystemdUnits } from './systemd';
 export type { SystemdUnit } from './systemd';
+export { sessionTailFile } from './tail';
 export {
   authenticateSession,
   authenticateWithSaved,

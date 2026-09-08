@@ -653,6 +653,27 @@ own tests): this fixture's four disks carry no partitions, so the
 exclusion logic passing this live check proves the plumbing end to end,
 not the exclusion rule against a real partitioned device.
 
+### Monitor's Logs tab: an arbitrary file's own tail
+
+Confirmed on Linux on 2026-09-08, against `runic-diskio@127.0.0.1:2228`,
+headlessly on a private `Xvfb` display: a small file written by hand at
+`/home/runic-diskio/fake-nginx/access.log` (two lines mimicking an nginx
+access log), typed into the Logs tab's own input and submitted with
+Enter, rendered both lines. A third line appended to the file on the host
+appeared on its own after the next poll (`MONITOR_INTERVAL_MS`, ~15s),
+proving this is a live tail and not a one-shot read. A path that does not
+exist on the host (`/nonexistent/path.log`) rendered `monitor.logs.none`
+rather than an error, the same "nothing to report" shape `ssh::tail::parse`
+answers a permission error or a missing file with. The pane's close button
+returned the tab to its empty state and named the path it was closing in
+its own tooltip.
+
+Not driven by this pass: a path containing a space or a single quote. The
+unit tests in `ssh::tail` cover the quoting itself (`shell_quote`); this
+would be the same kind of real-host gap `ssh::monitor`'s disk-I/O section
+above already names for its own partition-exclusion path, if it is ever
+worth closing.
+
 ### Port forwarding (ADR-0054)
 
 A saved forward starts the instant its own session connects, no separate

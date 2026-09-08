@@ -19,4 +19,5 @@ pub mod settings;
 pub mod sftp;
 pub mod sysinfo;
 pub mod systemd;
+pub mod tail;
 pub mod terminal;

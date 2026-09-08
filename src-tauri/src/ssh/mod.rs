@@ -17,5 +17,6 @@ pub mod socks;
 pub mod stats;
 pub mod sysinfo;
 pub mod systemd;
+pub mod tail;
 pub mod terminal;
 pub mod trust;
