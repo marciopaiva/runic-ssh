@@ -65,8 +65,14 @@ export function MacrosSidebar({
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
   const panel = useRef<HTMLDivElement>(null);
   const text = useRef<HTMLTextAreaElement>(null);
+
+  /* Trimmed and lower-cased once here rather than per row: the same shape
+     `filterGroups` already uses for the sessions list. */
+  const needle = query.trim().toLowerCase();
+  const shown = needle === '' ? macros : macros.filter((macro) => macro.name.toLowerCase().includes(needle));
 
   /* Nothing inside starts focused, and a keydown fired on `document.body`
      never bubbles down into this panel: without moving focus here on
@@ -184,12 +190,48 @@ export function MacrosSidebar({
         </div>
       </div>
 
+      {mode.kind === 'list' && macros.length > 0 && (
+        <div className="relative px-3.5 pt-2.5 pb-1.5">
+          <svg
+            viewBox="0 0 24 24"
+            className="text-ink-faint pointer-events-none absolute top-1/2 left-6 h-3.5 w-3.5 -translate-y-1/2"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            aria-hidden="true"
+          >
+            <circle cx="10.5" cy="10.5" r="6" />
+            <path d="M15 15l4.5 4.5" />
+          </svg>
+          <input
+            type="text"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={i18n.t('macros.sidebar.filter')}
+            aria-label={i18n.t('macros.sidebar.filter')}
+            autoComplete="off"
+            spellCheck={false}
+            className="bg-surface-input border-line-subtle text-ink placeholder:text-ink-faint focus:border-line-strong w-full rounded border py-1 pr-2 pl-7 text-[12px] outline-none"
+          />
+        </div>
+      )}
+
       {mode.kind === 'list' ? (
         <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-2">
           {macros.length === 0 ? (
             <p className="text-ink-faint p-2 text-[12px]">{i18n.t('macros.editor.empty')}</p>
+          ) : shown.length === 0 ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-1.5 px-4 py-8 text-center">
+              <p className="text-ink-secondary text-[12.5px] font-semibold">
+                {i18n.t('macros.sidebar.filter.empty.title')}
+              </p>
+              <p className="text-ink-faint text-[11.5px] leading-snug text-pretty">
+                {i18n.t('macros.sidebar.filter.empty.body')}
+              </p>
+            </div>
           ) : (
-            macros.map((macro) => (
+            shown.map((macro) => (
               <div
                 key={macro.id}
                 className="hover:bg-surface-raised flex items-center gap-1 rounded"
