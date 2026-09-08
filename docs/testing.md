@@ -698,6 +698,106 @@ Not driven by this pass: WebView2 and WKWebView's own rendering of
 project (docs/testing.md's own capability-verification table); nothing
 here has been checked on either.
 
+### A host with systemd
+
+Every `runic-test-sshd` container is Alpine with BusyBox, which is exactly
+the host Monitor's Processes, Ports and Systemd tabs have nothing to say
+about: BusyBox's `ps` refuses `--sort`, and `ss`, `systemctl` and
+`journalctl` are not installed. Proving those three tabs show something
+needs a host running systemd as PID 1, which a container only does when it
+is allowed to:
+
+```sh
+podman run -d --name runic-test-systemd --privileged -p 2227:22 \
+  docker.io/mpaivabarbosa/molecule-systemd-debian:13
+podman exec runic-test-systemd sh -c 'echo ansible:runic-systemd | chpasswd'
+```
+
+The image ships `sshd` with password authentication on and a user with no
+password set, so the second line is what makes it reachable. `--privileged`
+is what lets systemd own the cgroup tree; without it the container starts
+and exits.
+
+| | |
+| --- | --- |
+| host | `127.0.0.1:2227` |
+| user | `ansible` |
+| password | `runic-systemd` |
+| groups | `sudo`; not `systemd-journal`, not `adm` |
+
+The last row is deliberate and worth keeping as it is: a user who can list
+units but cannot read the system journal is the common case on a real host,
+and it is the case Monitor's journal pane has to degrade well on.
+
+### Monitor, on a host with systemd
+
+| Do this | Expect |
+| --- | --- |
+| Pick the host above in Monitor | Home: `Debian GNU/Linux 13 (trixie)`, the container id as hostname, the WSL2 kernel string, uptime, the two ring gauges, and every card below filling with a line after two polls |
+| Processes | a table sorted by CPU, `systemd --user`, `systemd-logind`, PID 1 and `sshd` among the rows; the poll's own `sh -c ... ps ... | head` pipeline appears in it, since it is a process on the host at the moment `ps` runs |
+| Click the **Mem** header | the same rows re-sorted client side, no new poll |
+| Ports | `TCP 0.0.0.0:22` and `TCP [::]:22`, the owning process shown as `—` because `ss -p` only names sockets the session's own user owns |
+| Systemd | the unit list with a state dot per row; type `ssh` in the filter and it narrows to `ssh.service`, `sshd-keygen.service`, `sshd@sshd-keygen.service` |
+| Click `ssh.service` | its journal pane opens at the bottom reading `-- No entries --` |
+
+Confirmed on Linux on 2026-09-08, headlessly on a private `Xvfb` display,
+every row as written. The last row is the degradation, not a failure:
+`journalctl -u ssh.service` as `ansible` answers with a hint about the
+`systemd-journal` group on stderr and nothing on stdout, and `ssh::journal`
+drops stderr on purpose, so the pane says there are no entries rather than
+why. That is the same permission ambiguity the Logs tab section above
+records for `/var/log/syslog`; a person who needs the answer adds the user
+to `systemd-journal` on the host, which is not this application's decision
+to make.
+
+### Monitor, on a host without `ps -eo`, `ss` or `systemd`
+
+| Do this | Expect |
+| --- | --- |
+| Pick `runic-test-sshd` (`deploy@127.0.0.1:2222`) in Monitor | Home fills normally: `/proc`, `df` and `uptime` are the kernel's and BusyBox's, not procps's |
+| Processes | "No processes reported by this host" |
+| Ports | "No listening sockets reported by this host" |
+| Systemd | "No systemd units found on this host" |
+| Switch back to the systemd host | its three tabs are populated again; nothing about the empty host leaked across |
+
+Confirmed on Linux on 2026-09-08 on the same display, immediately after the
+table above and against the same connections. Each empty tab is one
+command exiting non-zero (`ps: unrecognized option: sort=-pcpu`) or not
+found, parsed on this side as an empty list, and nothing else in the poll
+noticed. This is the guarantee the v0.5.0 changelog claims and the reason
+the two fixtures are driven back to back.
+
+### Macros
+
+One saved host connected, in Sessions. The macros sidebar opens from the
+toolbar icon beside Broadcast; the same list is under **Snippets** in the
+command palette.
+
+| Do this | Expect |
+| --- | --- |
+| Toolbar icon | a docked panel on the right, "No macros saved yet", a `+` in its header |
+| `+`, then Name `where am i`, Text `echo target=`, click the `$host` chip, type `:`, click `$port`, type ` as `, click `$username`, press Return, Save | the list shows `where am i`; `macros.json` in the config dir holds exactly `"echo target=$host:$port as $username\n"` |
+| Click the macro's name | the focused terminal runs `echo target=127.0.0.1:2227 as ansible` and prints it; the cursor is back in the terminal, no click needed |
+| Split into two columns, drag the second session's tab into the empty group, arm Broadcast, click the macro again | both terminals run it at once, each with its own values: `127.0.0.1:2227 as ansible` on one, `127.0.0.1:2222 as deploy` on the other; no confirmation in between |
+| Close the sidebar, `Ctrl+Shift+P`, type `where` | the palette opens with `where am i` under Snippets |
+
+Confirmed on Linux on 2026-09-08, headlessly on a private `Xvfb` display,
+against `runic-test-systemd` and `runic-test-sshd`, every row as written.
+Two things found on the way, neither of which the rows above depend on:
+
+* **The palette's shortcut does nothing while the sidebar is open** (#352).
+  `usePalette` still takes the `suspended` flag #347 added for the
+  full-screen editor that #348 replaced with this docked panel. With a
+  terminal focused the keystroke falls through to the shell. The last row
+  above closes the sidebar first for that reason, and the row is written
+  that way on purpose until #352 lands.
+* The tab drag in the fourth row needs real steps, not a jump, exactly as
+  "What synthetic input can and cannot drive" below already says; a
+  single-jump attempt left the tab where it was and the row looked like
+  a webview ignoring the gesture. Clicking a host in the sidebar with the
+  empty group selected opens it in the focused group, not the selected
+  one, so the drag is the only scripted way to fill a second group.
+
 ### Port forwarding (ADR-0054)
 
 A saved forward starts the instant its own session connects, no separate

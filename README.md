@@ -62,12 +62,13 @@ carries your keys.
   with its fingerprint and will not arm the trust button until you confirm you
   checked it somewhere else; a changed key blocks and wants the host name typed
   back; `@revoked` and `@cert-authority` refuse with no override.
-- **Credentials collected in a window of their own**, resolved against the OS
-  keychain at the moment of use, never crossing toward the interface in plain
-  text. Password or private key, and three answers to how long to keep it: used
-  once, held until the application closes, or written to the keychain. The
-  middle one needs no keychain, so a machine without one is not left with only
-  the two answers it cannot use.
+- **Credentials collected in the host's own editor**, in its Access column,
+  resolved against the OS keychain at the moment of use and never crossing
+  toward the interface in plain text (ADR-0039, ADR-0057). Password or
+  private key, and three answers to how long to keep it: used once, held
+  until the application closes, or written to the keychain. The middle one
+  needs no keychain, so a machine without one is not left with only the two
+  answers it cannot use.
 - **A terminal per session** (xterm.js), kept alive across tab switches, with
   scrollback and a status bar carrying latency and bytes moved.
 - **Copy and paste.** Ctrl-C copies a selection and interrupts when there is
@@ -90,9 +91,10 @@ carries your keys.
   nobody can reason about.
 - **Groups**, from two rectangles to nine. Every rectangle is a
   strip of tabs over the body of whichever tab it is showing, so six sessions
-  in four rectangles is an ordinary thing to have. A terminal, a host form and
-  the settings page are all tabs, and a session's questions, the host key
-  prompt included, are drawn inside the group showing that session.
+  in four rectangles is an ordinary thing to have. A session's questions, the
+  host key prompt included, are drawn inside the group showing that session;
+  the host editor lives on Home and the settings in every toolbar, not in a
+  tab of their own (ADR-0052, ADR-0062).
 - **Typing into every group at once**, off by default, reaching the active tab
   of each one. Any group is spared with the check box on the tab that would
   receive. While it is armed the status bar's top edge, every receiving group,
@@ -143,8 +145,9 @@ carries your keys.
 - **Macros.** A name and a block of text sent to a session's terminal
   exactly as saved, `$host`, `$port` and `$username` resolved against
   the session it runs in. Run from the command palette or a docked
-  sidebar; a macro reaching a broadcast group asks first, the same way
-  a confirmed paste already does.
+  sidebar; with typing synchronised, every receiving session resolves
+  its own variables and gets its own bytes the moment the macro is
+  picked, no second question asked.
 
 Not yet: **session import** from OpenSSH and PuTTY, and a signed
 installer of any kind. Those are the roadmap further down, not this list. A
