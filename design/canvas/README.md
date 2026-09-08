@@ -68,7 +68,7 @@ ADR-0020 exists to stop.
 | `HomeHostsCredential.dc.html` | Home, the credential field itself, in Access, before Save (ADR-0057) |
 | `HomeHostsUnknownKey.dc.html` | Home, an unknown host key inline in the editor's own banner slot, redrawn against General/Access's current borders (ADR-0058) |
 | `HomeHostsTopology.dc.html` | Home, the host book organized by topology: bastions expandable and collapsible, a `group` tag riding on its own row (ADR-0060) |
-| `Monitor.dc.html` | Monitor, one host's own vital signs, no agent installed: system info, uptime and CPU/memory dials in one card, full-width area charts for CPU and memory, swap/disk and load/network as a compact pair each, filesystems below (v0.5.0) |
+| `Monitor.dc.html` | Monitor, one host's own vital signs, no agent installed: system info, uptime and CPU/memory dials in one card, CPU and memory as a side-by-side pair of hero area charts, swap/load/network as a row of three, disk usage/disk I/O as a pair, filesystems below (v0.5.0) |
 | `MonitorProcesses.dc.html` | Monitor, the host's own busiest processes: pid, user, CPU, memory and command, sortable by either reading client-side |
 | `MonitorPorts.dc.html` | Monitor, every listening TCP/UDP socket: protocol, address, port and the owning process where the session has privilege to see it |
 | `MonitorSystemd.dc.html` | Monitor, read-only systemd units with a selected one's own recent journal lines open at the bottom |

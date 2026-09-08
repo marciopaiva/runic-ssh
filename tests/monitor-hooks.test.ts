@@ -366,6 +366,7 @@ const NO_STATS: SystemStats = {
   disk: null,
   filesystems: [],
   network: null,
+  diskIo: null,
   uptimeSeconds: null,
   loadAverage: null,
 };
@@ -398,6 +399,7 @@ describe('a host\'s own rolling history', () => {
           disk: null,
           filesystems: [],
           network: null,
+          diskIo: null,
           uptimeSeconds: null,
           loadAverage: null,
         },
@@ -420,6 +422,7 @@ describe('a host\'s own rolling history', () => {
           disk: null,
           filesystems: [],
           network: null,
+          diskIo: null,
           uptimeSeconds: null,
           loadAverage: null,
         },

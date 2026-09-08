@@ -639,6 +639,20 @@ runic-diskio`, removing `/etc/ssh/sshd_config.d/runic-diskio.conf`, and
 `sudo systemctl disable --now ssh.service` (re-enabling `ssh.socket` first if
 ordinary SSH access to this machine is wanted back).
 
+### Monitor's Home tab: Disk I/O
+
+Confirmed on Linux on 2026-09-08, against `runic-diskio@127.0.0.1:2228`
+(this file's own fixture above), driven headlessly on a private `Xvfb`
+display rather than the maintainer's own running `pnpm tauri dev`: the
+Home tab's Disk I/O card rendered its own full-width row below Load
+average/Network, reading `↓0 B/s ↑65.5 KB/s` with a real, rising area
+chart, both numbers moving between successive polls rather than sitting
+flat at zero. `ssh::monitor::disk_io_rate`'s partition-exclusion path
+itself is still only covered by a synthetic unit test (see the module's
+own tests): this fixture's four disks carry no partitions, so the
+exclusion logic passing this live check proves the plumbing end to end,
+not the exclusion rule against a real partitioned device.
+
 ### Port forwarding (ADR-0054)
 
 A saved forward starts the instant its own session connects, no separate

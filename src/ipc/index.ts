@@ -76,7 +76,7 @@ export {
   sessionStats,
   watchTerminal,
 } from './terminal';
-export type { Filesystem, LoadAverage, NetworkRate, SessionStats, SystemStats, Usage } from './terminal';
+export type { DiskIoRate, Filesystem, LoadAverage, NetworkRate, SessionStats, SystemStats, Usage } from './terminal';
 export type { SettingsView, Theme } from './settings';
 export {
   FINISHED_EVENT as SFTP_FINISHED_EVENT,

@@ -3,17 +3,19 @@
 //! No agent, no new dependency: everything here comes from text a Linux
 //! server already prints for `top`, `free`, `df` and `uptime`, gathered in
 //! one [`Connection::run_command`](crate::ssh::connection::Connection::run_command)
-//! call so a poll costs one channel rather than four. CPU percent needs two
-//! samples of `/proc/stat` a moment apart, so the command takes both itself
-//! rather than this module holding a sample between polls. The parser stays
-//! a pure function of one command's output, testable with no session, no
-//! registry, and no fixture container.
+//! call so a poll costs one channel rather than four. CPU percent and disk
+//! I/O both need two samples a moment apart, so the command takes both
+//! itself rather than this module holding a sample between polls. The parser
+//! stays a pure function of one command's output, testable with no session,
+//! no registry, and no fixture container.
 //!
 //! Each field degrades on its own. A host that is not Linux, or a command
 //! whose output does not parse, yields `None` for the fields that failed to
 //! read rather than failing the whole struct. That is the same reasoning
 //! `commands::terminal::session_stats` already applies to a lost latency
 //! probe.
+
+use std::collections::{HashMap, HashSet};
 
 /// The interval between the two `/proc/stat` samples the command takes.
 /// Long enough that jiffy rounding does not dominate the delta, short enough
@@ -35,18 +37,29 @@ const SECTION_MARKER: &str = "@@RUNIC-MONITOR@@";
 /// since only exit status and stdout cross [`Connection::run_command`] at
 /// all.
 ///
-/// `/proc/net/dev` rides in the same before/after samples `/proc/stat` uses
-/// for the CPU delta: neither file's own lines contain a colon except a
-/// network interface's own (`eth0: 123 456 ...`), so both parse out of one
-/// combined blob with no marker of their own needed between them, and a
-/// network rate costs no extra channel round trip over the CPU delta it
-/// already paid for.
+/// `/proc/net/dev` and `/proc/diskstats` both ride in the same before/after
+/// samples `/proc/stat` uses for the CPU delta. Neither file's own lines
+/// collide with the other two's: a network interface's line always has a
+/// colon (`eth0: 123 456 ...`) and nothing else in the blob does, and a
+/// diskstats line always opens with two plain integers (major, minor) where
+/// `/proc/stat`'s own lines open with a word and a colon-bearing interface
+/// line's first token fails that parse. All three read out of one combined
+/// blob with no marker of their own needed between them, so a disk I/O rate
+/// costs no extra channel round trip over the CPU delta it already paid for.
+///
+/// The trailing `for` loop lists which device names are partitions, by the
+/// same file the kernel itself uses to tell a partition from a disk
+/// (`/sys/class/block/<dev>/partition` exists only for a partition). That is
+/// the signal [`disk_io_rate`] excludes from its sum, so a partitioned
+/// disk's own I/O is not counted twice, once under its own name and once
+/// again folded into its parent disk's line.
 pub fn command() -> String {
     format!(
-        "cat /proc/stat; cat /proc/net/dev; echo {marker}; sleep {interval}; \
-         cat /proc/stat; cat /proc/net/dev; echo {marker}; \
+        "cat /proc/stat; cat /proc/net/dev; cat /proc/diskstats; echo {marker}; sleep {interval}; \
+         cat /proc/stat; cat /proc/net/dev; cat /proc/diskstats; echo {marker}; \
          cat /proc/meminfo; echo {marker}; df -k -P -T 2>/dev/null; echo {marker}; \
-         cat /proc/uptime; echo {marker}; cat /proc/loadavg",
+         cat /proc/uptime; echo {marker}; cat /proc/loadavg; echo {marker}; \
+         for d in /sys/class/block/*; do [ -f \"$d/partition\" ] && basename \"$d\"; done",
         marker = SECTION_MARKER,
         interval = CPU_SAMPLE_INTERVAL_SECONDS,
     )
@@ -92,6 +105,19 @@ pub struct NetworkRate {
     pub transmit_bytes_per_sec: f64,
 }
 
+/// How fast bytes are moving across every real disk, one number each way
+/// rather than a reading per device: the same "is this host busier than
+/// usual" question [`NetworkRate`] already answers for the network, not
+/// "which of its disks." A partition never contributes its own line; its
+/// I/O is already inside its parent disk's counters, and [`disk_io_rate`]
+/// excludes it by name so neither is counted twice.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiskIoRate {
+    pub read_bytes_per_sec: f64,
+    pub write_bytes_per_sec: f64,
+}
+
 /// A host's vital signs at the moment it was asked. Every field is
 /// independent: one failing to parse says nothing about the others.
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize)]
@@ -113,6 +139,7 @@ pub struct SystemStats {
     /// applies to a host with no `systemd`.
     pub filesystems: Vec<Filesystem>,
     pub network: Option<NetworkRate>,
+    pub disk_io: Option<DiskIoRate>,
     pub uptime_seconds: Option<u64>,
     pub load_average: Option<LoadAverage>,
 }
@@ -133,6 +160,7 @@ pub fn parse(stdout: &[u8]) -> SystemStats {
     let df = sections.next().unwrap_or_default();
     let uptime = sections.next().unwrap_or_default();
     let loadavg = sections.next().unwrap_or_default();
+    let partitions = sections.next().unwrap_or_default();
 
     let filesystems = filesystems(df);
     let disk = filesystems
@@ -147,6 +175,12 @@ pub fn parse(stdout: &[u8]) -> SystemStats {
         disk,
         filesystems,
         network: network_rate(before, after, f64::from(CPU_SAMPLE_INTERVAL_SECONDS)),
+        disk_io: disk_io_rate(
+            before,
+            after,
+            partitions,
+            f64::from(CPU_SAMPLE_INTERVAL_SECONDS),
+        ),
         uptime_seconds: uptime_seconds(uptime),
         load_average: load_average(loadavg),
     }
@@ -343,6 +377,90 @@ fn network_rate(before: &str, after: &str, elapsed_seconds: f64) -> Option<Netwo
     })
 }
 
+/// One `/proc/diskstats` section's own device name to (sectors read,
+/// sectors written), keyed by name so [`disk_io_rate`] can pair a device
+/// between the before and after samples even if the kernel printed them in
+/// a different order the second time.
+///
+/// A diskstats line is `major minor name <11 counters>`; `major` and
+/// `minor` are always plain integers, which is what tells this line apart
+/// from `/proc/stat`'s own (opens with a word) and `/proc/net/dev`'s own
+/// (opens with `name:`, and a colon never parses as an integer) sharing the
+/// same section (see [`command`]'s own doc comment). Sector counts are
+/// fields 3 and 7 after the name, 1-indexed: reads completed, reads merged,
+/// *sectors read*, ms reading, writes completed, writes merged, *sectors
+/// written*, ms writing, ios in progress, ms doing io, weighted ms.
+fn disk_stats(section: &str) -> HashMap<String, (u64, u64)> {
+    let mut result = HashMap::new();
+
+    for line in section.lines() {
+        let fields: Vec<&str> = line.split_whitespace().collect();
+        if fields.len() < 10
+            || fields[0].parse::<u32>().is_err()
+            || fields[1].parse::<u32>().is_err()
+        {
+            continue;
+        }
+
+        let (Ok(sectors_read), Ok(sectors_written)) = (fields[5].parse(), fields[9].parse()) else {
+            continue;
+        };
+
+        result.insert(fields[2].to_owned(), (sectors_read, sectors_written));
+    }
+
+    result
+}
+
+/// Bytes moved across every disk that is not a partition, summed rather
+/// than kept per device (see [`DiskIoRate`]'s own doc comment). A device
+/// missing from either sample, or from `partitions`' own parse, is simply
+/// not counted rather than failing the whole reading: a disk that appeared
+/// or vanished between the two samples (unlikely, but not impossible on a
+/// host with hot-pluggable storage) contributes nothing rather than a
+/// bogus delta against a counter that was never actually read twice.
+fn disk_io_rate(
+    before: &str,
+    after: &str,
+    partitions: &str,
+    elapsed_seconds: f64,
+) -> Option<DiskIoRate> {
+    let before = disk_stats(before);
+    let after = disk_stats(after);
+    if before.is_empty() || after.is_empty() {
+        return None;
+    }
+
+    let excluded: HashSet<&str> = partitions
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect();
+
+    let mut read_sectors = 0u64;
+    let mut write_sectors = 0u64;
+    for (name, &(read_after, write_after)) in &after {
+        if excluded.contains(name.as_str()) {
+            continue;
+        }
+        let Some(&(read_before, write_before)) = before.get(name) else {
+            continue;
+        };
+
+        read_sectors = read_sectors.saturating_add(read_after.saturating_sub(read_before));
+        write_sectors = write_sectors.saturating_add(write_after.saturating_sub(write_before));
+    }
+
+    /* Every kernel that has published this file counts in 512-byte
+    sectors, regardless of the device's own physical block size. */
+    const SECTOR_BYTES: f64 = 512.0;
+
+    Some(DiskIoRate {
+        read_bytes_per_sec: read_sectors as f64 * SECTOR_BYTES / elapsed_seconds,
+        write_bytes_per_sec: write_sectors as f64 * SECTOR_BYTES / elapsed_seconds,
+    })
+}
+
 /// `/proc/loadavg`'s first three fields: `0.42 0.35 0.30 2/456 12345`. The
 /// last two (running/total processes, and the most recently created pid) are
 /// not read here; nothing in this module needs them.
@@ -397,6 +515,17 @@ mod tests {
 
     const LOADAVG: &str = "0.42 0.35 0.30 2/456 12345\n";
 
+    /// A whole disk (`sda`) and its own partition (`sda1`), so the fixture
+    /// can prove exclusion rather than assume it: `sda1` advances by 400
+    /// sectors read and 200 written, and must contribute none of that once
+    /// `PARTITIONS` below names it.
+    const DISK_BEFORE: &str = "   8       0 sda 100 0 2000 10 50 0 1000 5 0 20 15\n\
+                                8       1 sda1 40 0 800 4 20 0 400 2 0 8 6\n";
+    const DISK_AFTER: &str = "   8       0 sda 150 0 3000 15 80 0 1600 8 0 30 25\n\
+                               8       1 sda1 60 0 1200 6 30 0 600 3 0 12 9\n";
+
+    const PARTITIONS: &str = "sda1\n";
+
     /// Builds the same shape [`command`]'s real stdout has, `echo`'s own
     /// newline included: a `\n` lands right after every marker, which is
     /// what makes the section *after* each one start with a blank line.
@@ -405,7 +534,7 @@ mod tests {
     /// while failing against a real host.
     fn combined() -> Vec<u8> {
         format!(
-            "{STAT_BEFORE}{NET_BEFORE}{SECTION_MARKER}\n{STAT_AFTER}{NET_AFTER}{SECTION_MARKER}\n{MEMINFO}{SECTION_MARKER}\n{DF}{SECTION_MARKER}\n{UPTIME}{SECTION_MARKER}\n{LOADAVG}"
+            "{STAT_BEFORE}{NET_BEFORE}{DISK_BEFORE}{SECTION_MARKER}\n{STAT_AFTER}{NET_AFTER}{DISK_AFTER}{SECTION_MARKER}\n{MEMINFO}{SECTION_MARKER}\n{DF}{SECTION_MARKER}\n{UPTIME}{SECTION_MARKER}\n{LOADAVG}{SECTION_MARKER}\n{PARTITIONS}"
         )
         .into_bytes()
     }
@@ -466,6 +595,15 @@ mod tests {
             Some(NetworkRate {
                 receive_bytes_per_sec: 500.0,
                 transmit_bytes_per_sec: 300.0,
+            })
+        );
+        /* sda alone: 1000 sectors read, 600 written; sda1's own 400/200 are
+        excluded by PARTITIONS and must not be added on top. */
+        assert_eq!(
+            stats.disk_io,
+            Some(DiskIoRate {
+                read_bytes_per_sec: 512_000.0,
+                write_bytes_per_sec: 307_200.0,
             })
         );
         assert_eq!(stats.uptime_seconds, Some(123_456));
@@ -538,8 +676,56 @@ mod tests {
         assert_eq!(stats.disk, None);
         assert_eq!(stats.filesystems, Vec::new());
         assert_eq!(stats.network, None);
+        assert_eq!(stats.disk_io, None);
         assert_eq!(stats.uptime_seconds, None);
         assert_eq!(stats.load_average, None);
+    }
+
+    #[test]
+    fn a_partitions_own_io_is_not_added_on_top_of_its_disk() {
+        assert_eq!(
+            disk_io_rate(DISK_BEFORE, DISK_AFTER, PARTITIONS, 1.0),
+            Some(DiskIoRate {
+                read_bytes_per_sec: 512_000.0,
+                write_bytes_per_sec: 307_200.0,
+            })
+        );
+    }
+
+    #[test]
+    fn with_no_partitions_named_every_device_counts() {
+        /* sda's own 1000/600 plus sda1's own 400/200, since nothing here
+        says sda1 is a partition of sda: 1400 sectors read, 800 written.
+        This is the double-counting Option C in the proposal rejected: a
+        host that never gets a partition list back reports roughly what a
+        partitioned disk's total already covers twice over. */
+        assert_eq!(
+            disk_io_rate(DISK_BEFORE, DISK_AFTER, "", 1.0),
+            Some(DiskIoRate {
+                read_bytes_per_sec: 716_800.0,
+                write_bytes_per_sec: 409_600.0,
+            })
+        );
+    }
+
+    #[test]
+    fn no_recognizable_diskstats_line_reports_no_disk_io() {
+        assert_eq!(
+            disk_io_rate("not diskstats", "not diskstats", "", 1.0),
+            None
+        );
+    }
+
+    #[test]
+    fn disk_stats_ignores_lines_that_are_not_its_own_shape() {
+        /* A `/proc/stat` line opens with a word, and a `/proc/net/dev`
+        interface line's first token carries a colon: neither parses as
+        the plain integer a diskstats line's major number always is. */
+        let mixed = "cpu 1 2 3 4\neth0: 5 6 7 8\n   8       0 sda 1 2 3 4 5 6 7 8 9 10 11\n";
+        assert_eq!(
+            disk_stats(mixed),
+            HashMap::from([("sda".to_owned(), (3, 7))])
+        );
     }
 
     #[test]
@@ -567,6 +753,10 @@ mod tests {
                     receive_bytes_per_sec: 500.0,
                     transmit_bytes_per_sec: 300.0,
                 }),
+                disk_io: Some(DiskIoRate {
+                    read_bytes_per_sec: 1000.0,
+                    write_bytes_per_sec: 2000.0,
+                }),
                 uptime_seconds: Some(60),
                 load_average: Some(LoadAverage {
                     one: 0.1,
@@ -575,7 +765,7 @@ mod tests {
                 }),
             })
             .expect("serializes"),
-            r#"{"cpuPercent":12.5,"memory":{"usedKb":100,"totalKb":200},"swap":{"usedKb":0,"totalKb":4000000},"disk":null,"filesystems":[{"mount":"/","usage":{"usedKb":1,"totalKb":2}}],"network":{"receiveBytesPerSec":500.0,"transmitBytesPerSec":300.0},"uptimeSeconds":60,"loadAverage":{"one":0.1,"five":0.2,"fifteen":0.3}}"#
+            r#"{"cpuPercent":12.5,"memory":{"usedKb":100,"totalKb":200},"swap":{"usedKb":0,"totalKb":4000000},"disk":null,"filesystems":[{"mount":"/","usage":{"usedKb":1,"totalKb":2}}],"network":{"receiveBytesPerSec":500.0,"transmitBytesPerSec":300.0},"diskIo":{"readBytesPerSec":1000.0,"writeBytesPerSec":2000.0},"uptimeSeconds":60,"loadAverage":{"one":0.1,"five":0.2,"fifteen":0.3}}"#
         );
     }
 

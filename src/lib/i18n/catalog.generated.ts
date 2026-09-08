@@ -389,6 +389,7 @@ export const SOURCE_CATALOG = {
   "status.latency.unknown": "Latency: not measured",
   "status.monitor.cpu": "CPU usage",
   "status.monitor.disk": "Disk usage",
+  "status.monitor.diskIo": "Disk I/O",
   "status.monitor.load": "Load average",
   "status.monitor.memory": "Memory usage",
   "status.monitor.network": "Network",

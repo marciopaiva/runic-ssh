@@ -383,6 +383,7 @@
   "status.latency.unknown": "Latencia: sin medir",
   "status.monitor.cpu": "Uso de CPU",
   "status.monitor.disk": "Uso de disco",
+  "status.monitor.diskIo": "I/O de disco",
   "status.monitor.load": "Carga promedio",
   "status.monitor.memory": "Uso de memoria",
   "status.monitor.network": "Red",

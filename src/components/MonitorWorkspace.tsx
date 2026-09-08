@@ -699,6 +699,8 @@ function HomeTab({ handle, stats }: { readonly handle: SessionHandle; readonly s
   const loadMax = niceMax(loadPeak);
   const networkPeak = Math.max(1, ...history.networkBytesPerSec.map((sample) => sample.value));
   const networkMax = niceMax(networkPeak);
+  const diskIoPeak = Math.max(1, ...history.diskIoBytesPerSec.map((sample) => sample.value));
+  const diskIoMax = niceMax(diskIoPeak);
   const memPercent = stats.memory === null ? null : (stats.memory.usedKb / stats.memory.totalKb) * 100;
   const cpuTone: MeterTone = stats.cpuPercent === null ? 'ok' : meterTone(stats.cpuPercent);
   const memTone: MeterTone = memPercent === null ? 'ok' : meterTone(memPercent);
@@ -717,25 +719,27 @@ function HomeTab({ handle, stats }: { readonly handle: SessionHandle; readonly s
           i18n={i18n}
         />
 
-        <HeroMetricCard
-          title={i18n.t('status.monitor.cpu')}
-          value={percentValue(stats.cpuPercent)}
-          samples={history.cpu}
-          max={100}
-          formatValue={formatPercentAxis}
-          tone={cpuTone}
-        />
-
-        <HeroMetricCard
-          title={i18n.t('status.monitor.memory')}
-          value={percentValue(memPercent)}
-          samples={history.ramPercent}
-          max={100}
-          formatValue={formatPercentAxis}
-          tone={memTone}
-        />
-
         <div className="grid grid-cols-1 gap-3 min-[520px]:grid-cols-2">
+          <HeroMetricCard
+            title={i18n.t('status.monitor.cpu')}
+            value={percentValue(stats.cpuPercent)}
+            samples={history.cpu}
+            max={100}
+            formatValue={formatPercentAxis}
+            tone={cpuTone}
+          />
+
+          <HeroMetricCard
+            title={i18n.t('status.monitor.memory')}
+            value={percentValue(memPercent)}
+            samples={history.ramPercent}
+            max={100}
+            formatValue={formatPercentAxis}
+            tone={memTone}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 min-[780px]:grid-cols-3">
           {stats.swap !== null && stats.swap.totalKb > 0 && (
             <MetricCard
               title={i18n.t('status.monitor.swap')}
@@ -749,21 +753,6 @@ function HomeTab({ handle, stats }: { readonly handle: SessionHandle; readonly s
             />
           )}
 
-          {stats.disk !== null && (
-            <MetricCard
-              title={i18n.t('status.monitor.disk')}
-              value={i18n.number(stats.disk.usedKb / stats.disk.totalKb, {
-                style: 'percent',
-                maximumFractionDigits: 0,
-              })}
-              samples={history.diskPercent}
-              max={100}
-              formatValue={formatPercentAxis}
-            />
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 min-[520px]:grid-cols-2">
           {stats.loadAverage !== null && (
             <MetricCard
               title={i18n.t('status.monitor.load')}
@@ -785,6 +774,31 @@ function HomeTab({ handle, stats }: { readonly handle: SessionHandle; readonly s
           )}
         </div>
 
+        <div className="grid grid-cols-1 gap-3 min-[520px]:grid-cols-2">
+          {stats.disk !== null && (
+            <MetricCard
+              title={i18n.t('status.monitor.disk')}
+              value={i18n.number(stats.disk.usedKb / stats.disk.totalKb, {
+                style: 'percent',
+                maximumFractionDigits: 0,
+              })}
+              samples={history.diskPercent}
+              max={100}
+              formatValue={formatPercentAxis}
+            />
+          )}
+
+          {stats.diskIo !== null && (
+            <MetricCard
+              title={i18n.t('status.monitor.diskIo')}
+              value={`↓${formatRate(stats.diskIo.readBytesPerSec, i18n)} ↑${formatRate(stats.diskIo.writeBytesPerSec, i18n)}`}
+              samples={history.diskIoBytesPerSec}
+              max={diskIoMax}
+              formatValue={(value) => formatRate(value, i18n)}
+            />
+          )}
+        </div>
+
         <FilesystemsCard filesystems={stats.filesystems} />
 
         {stats.cpuPercent === null &&
@@ -792,6 +806,7 @@ function HomeTab({ handle, stats }: { readonly handle: SessionHandle; readonly s
           stats.disk === null &&
           stats.filesystems.length === 0 &&
           stats.network === null &&
+          stats.diskIo === null &&
           stats.uptimeSeconds === null &&
           stats.loadAverage === null && (
             <p className="text-ink-faint text-[12px]">{i18n.t('monitor.unavailable')}</p>

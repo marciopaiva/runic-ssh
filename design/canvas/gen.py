@@ -2730,9 +2730,15 @@ def build_monitor():
     """The Monitor workspace's Home tab (v0.5.0), redrawn against the
     maintainer's own Grafana screenshot ("Windows Host Overview") and
     shipped the same day: one card for identity, uptime and the CPU/memory
-    dials, full-width area charts for CPU and memory (the two Grafana gives
-    the most room), swap/disk and load/network as a compact pair each, and
-    every mounted filesystem as a usage bar at the bottom.
+    dials, CPU and memory as a side-by-side pair of hero area charts (the
+    two Grafana gives the most room; put on one line rather than stacked
+    per the maintainer's own request once both were built and visibly
+    taking two full-width rows), swap/load/network as a row of three and
+    disk usage/disk I/O as a pair below it (regrouped the same way, once
+    disk I/O existed as a card of its own and made "one pair, then another
+    pair, then a lone card" read as arbitrary rather than as two disk
+    readings sitting apart from each other), and every mounted filesystem
+    as a usage bar at the bottom.
 
     Deliberately absent: processor queue length, context switches, system
     calls and handle counts, all Windows perf counters with no portable
@@ -2751,25 +2757,25 @@ def build_monitor():
       <div style="flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px;">
         {identity_overview_card("Debian GNU/Linux 13 (trixie)", "web-01", "Linux 6.6.87.2 x86_64", "Intel(R) Xeon(R) CPU E5-2670 v3", "14d 6h", 34, "ok", 62, "warn")}
         <div style="display: flex; flex-direction: column; gap: 6px;">
-          {section_label("CPU")}
-          {hero_chart("CPU usage", "34%", [0.2, 0.5, 0.3, 0.6, 0.4, 0.7, 0.34], "100%", "50%", "0%", "4:02 PM", "4:04 PM", tone="ok")}
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 6px;">
-          {section_label("Memory")}
-          {hero_chart("Memory usage", "62%", [0.5, 0.55, 0.6, 0.58, 0.63, 0.6, 0.62], "100%", "50%", "0%", "4:02 PM", "4:04 PM", tone="warn")}
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 6px;">
-          {section_label("Swap & disk")}
+          {section_label("CPU & memory")}
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-            {metric_card("Swap usage", "4%", [0.02, 0.03, 0.05, 0.04, 0.04, 0.05, 0.04], "100%", "50%")}
-            {metric_card("Disk usage", "46%", [0.4, 0.42, 0.44, 0.45, 0.45, 0.46, 0.46], "100%", "50%")}
+            {hero_chart("CPU usage", "34%", [0.2, 0.5, 0.3, 0.6, 0.4, 0.7, 0.34], "100%", "50%", "0%", "4:02 PM", "4:04 PM", tone="ok")}
+            {hero_chart("Memory usage", "62%", [0.5, 0.55, 0.6, 0.58, 0.63, 0.6, 0.62], "100%", "50%", "0%", "4:02 PM", "4:04 PM", tone="warn")}
           </div>
         </div>
         <div style="display: flex; flex-direction: column; gap: 6px;">
-          {section_label("Load & network")}
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          {section_label("Swap, load & network")}
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+            {metric_card("Swap usage", "4%", [0.02, 0.03, 0.05, 0.04, 0.04, 0.05, 0.04], "100%", "50%")}
             {metric_card("Load average", "1.84", [0.3, 0.4, 0.6, 0.5, 0.7, 0.55, 0.46], "4.00", "2.00", zero_label="0.00")}
             {metric_card("Network", "&#8595;12.4 KB/s &#8593;3.1 KB/s", [0.1, 0.4, 0.2, 0.6, 0.3, 0.5, 0.31], "40 KB/s", "20 KB/s", zero_label="0 KB/s")}
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          {section_label("Disk usage & I/O")}
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            {metric_card("Disk usage", "46%", [0.4, 0.42, 0.44, 0.45, 0.45, 0.46, 0.46], "100%", "50%")}
+            {metric_card("Disk I/O", "&#8595;4.2 MB/s &#8593;890 KB/s", [0.2, 0.5, 0.35, 0.8, 0.4, 0.6, 0.42], "10 MB/s", "5 MB/s", zero_label="0 MB/s")}
           </div>
         </div>
         {filesystems_card(fs_rows)}
