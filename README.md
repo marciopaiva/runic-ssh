@@ -153,22 +153,21 @@ thing this project would rather not do.
 
 ## 📸 What it looks like
 
-Every capture below is of the release build, the same binary the installers
-carry, connected to a real SSH server. None are mockups, and none are the
-design canvas. GitHub's own README rendering has no carousel, script-driven
-or otherwise, so this is a sequence rather than one: the first shows what is
-new in v0.4.0, the rest fold under **Older screens** further down rather
-than force a scroll past what has not changed.
+Every capture below is of the running application, connected to a real SSH
+server against this project's own fixtures. None are mockups, and none are
+the design canvas.
 
-**The host book, organized by how hosts actually connect (v0.4.0).** A
-bastion nests what it carries directly beneath it in the sidebar; this one
-is also mid-edit, Topology open because it rides one, a local forward
-already saved and ready to start on connect.
+**The four workspaces, v0.5.0.** Clockwise from top left: the host book, a
+bastion carrying a nested target host with the target's own editor open
+beside the list; Monitor, a host's own CPU, memory, swap, load, network and
+disk read live over the connection already open; two sessions side by side
+in Sessions, the MOTD fresh in a shell that just connected; SFTP browsing a
+host's own files.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-hostbook-dark.png">
-  <source media="(prefers-color-scheme: light)" srcset="assets/screenshot-hostbook-light.png">
-  <img src="assets/screenshot-hostbook-dark.png" alt="The Home host book: a JumpServers section with a bastion carrying a nested target host, a Direct section below it, and the target's own editor open beside the list showing General, an expanded Topology naming the bastion it is reached through, Access, and a saved local forward under Forwarding" width="880">
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-grid-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="assets/screenshot-grid-light.png">
+  <img src="assets/screenshot-grid-dark.png" alt="Four workspaces of Runic SSH in one grid: the Home host book with a bastion carrying a nested target host and its editor open; Monitor showing a host's own CPU, memory, swap, load, network and disk usage; two sessions open side by side in Sessions with the MOTD printed into a fresh shell; SFTP browsing a host's own files" width="880">
 </picture>
 
 <details>
@@ -178,12 +177,6 @@ already saved and ready to start on connect.
 Each fingerprint shown below was checked against `ssh-keyscan` before the
 picture was taken; the hosts are invented, the fingerprints, the shells and
 the output are not.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-main-dark.png">
-  <source media="(prefers-color-scheme: light)" srcset="assets/screenshot-main-light.png">
-  <img src="assets/screenshot-main-dark.png" alt="Runic SSH with two hosts open side by side: the activity rail, saved hosts grouped in the sidebar, two groups each with its own strip of tabs, and a status bar naming the focused host" width="880">
-</picture>
 
 **An unknown host key.** The primary button starts inert and stays that way
 until you confirm you checked the fingerprint somewhere other than the
