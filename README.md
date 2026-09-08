@@ -14,7 +14,7 @@
 <p align="center">
   <!-- Every tag lands as a pre-release, because package.yml passes
        --prerelease unconditionally. So include_prereleases is required or the
-       badge reads "no releases" on a project that has shipped three, and the
+       badge reads "no releases" on a project that has shipped seven, and the
        link goes to /releases rather than /releases/latest, which GitHub
        resolves by the same rule and would bounce to the list anyway. -->
   <a href="https://github.com/marciopaiva/runic-ssh/releases"><img src="https://img.shields.io/github/v/release/marciopaiva/runic-ssh?include_prereleases&label=pre-release&color=blue" alt="Latest pre-release"></a>
@@ -24,7 +24,7 @@
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey" alt="Platform">
 </p>
 
-## 🎯 Why this exists
+## Why this exists
 
 Connecting to a server is something a sysadmin does fifty times a day, and the
 tools for it are either twenty years old or expensive. The good parts of the
@@ -32,140 +32,22 @@ expensive ones are not hard problems: a session manager that is pleasant to use,
 SFTP beside the terminal, tunnels that are not a command line argument. They are
 just behind a licence.
 
-**Runic SSH is an attempt to put those in something free, small enough to audit,
-and owned by the people who use it.** It is built for the sysadmins, DevOps
-engineers and developers who need a tool that is mature where it matters and can
-grow where the community needs it to.
+**Runic SSH puts those in something free, small enough to audit, and owned by
+the people who use it.** Rust and Tauri 2.0 in the core, React in the webview,
+`russh` in process rather than an OpenSSH binary, and the OS keychain for
+secrets. Every architectural decision has a record saying what was chosen,
+what it cost, and what it rules out, so somebody who did not write this can
+still change it.
 
-It is also built to be handed over. Every architectural decision has a record
-saying what was chosen, what it cost, and what it rules out; the working
-agreement is written down; the checks that gate a change are five commands
-anyone can run. That scaffolding exists so somebody who did not write this can
-still change it. See **Contributing**, below.
+The name is the runic alphabets: carved symbols used to write, to remember, and
+to cross distances. A rune fits in the hand. So should the tool that carries
+your keys.
 
-## 🧭 Why "Runic"
+## What it looks like
 
-The name comes from the runic alphabets. They are the carved symbols used
-across Northern Europe to write, to remember, and to cross distances.
-
-An SSH session is not so different: a small string of characters typed into a
-terminal that opens a door to a machine somewhere else. The protocol is the
-rune. The connection is the crossing.
-
-It is also a reminder of the project's other promise: to be small enough to
-read, to audit, and to trust. A rune fits in the hand. So should the tool that
-carries your keys.
-
-## ✅ What works today
-
-- **SSH sessions** with the host key actually verified. An unknown key prompts
-  with its fingerprint and will not arm the trust button until you confirm you
-  checked it somewhere else; a changed key blocks and wants the host name typed
-  back; `@revoked` and `@cert-authority` refuse with no override.
-- **Credentials collected in the host's own editor**, in its Access column,
-  resolved against the OS keychain at the moment of use and never crossing
-  toward the interface in plain text (ADR-0039, ADR-0057). Password or
-  private key, and three answers to how long to keep it: used once, held
-  until the application closes, or written to the keychain. The middle one
-  needs no keychain, so a machine without one is not left with only the two
-  answers it cannot use.
-- **A terminal per session** (xterm.js), kept alive across tab switches, with
-  scrollback and a status bar carrying latency and bytes moved.
-- **Copy and paste.** Ctrl-C copies a selection and interrupts when there is
-  none; Ctrl-V pastes; Ctrl-Shift-C and Ctrl-Shift-V always mean the clipboard.
-  A multi-line paste the remote shell has not bracketed is shown to you first,
-  because a shell runs each line as it arrives.
-- **One window with an anatomy**, decided once and written down (ADR-0020). A
-  rail of activities that never closes, the session list beside it that does,
-  and a main area of groups. Splitting, broadcasting and a host key prompt
-  never swap the window for a different product.
-- **Hosts reached through a bastion.** A saved session names another saved
-  session as the host it is reached through, rather than repeating its address,
-  because a bastion has its own key to verify and its own credential to answer.
-  Both keys are verified and both hops authenticate end to end, so the bastion
-  forwards ciphertext it cannot read and never sees the far host's credential.
-  A bastion you already have open is ridden rather than opened a second time,
-  and it stays up until the last session on it leaves. The sidebar says which
-  hosts are carrying somebody else's session and the status bar says which
-  machine yours travels through, because a connection nothing admits to is one
-  nobody can reason about.
-- **Groups**, from two rectangles to nine. Every rectangle is a
-  strip of tabs over the body of whichever tab it is showing, so six sessions
-  in four rectangles is an ordinary thing to have. A session's questions, the
-  host key prompt included, are drawn inside the group showing that session;
-  the host editor lives on Home and the settings in every toolbar, not in a
-  tab of their own (ADR-0052, ADR-0062).
-- **Typing into every group at once**, off by default, reaching the active tab
-  of each one. Any group is spared with the check box on the tab that would
-  receive. While it is armed the status bar's top edge, every receiving group,
-  every receiving tab and the host list all say so, because the switch is a
-  safety decision and not a convenience.
-- **The fingerprint drawn as randomart**, the same picture `ssh-keygen -lv`
-  draws, so a check against something you already trust is a check and not a
-  comparison of two different pictures.
-- **A saved host book organized by how hosts actually connect**, not by a
-  free-text label. A host that carries another nests what it carries
-  directly beneath it; everything else sits flat, direct (ADR-0060). One
-  host is edited at a time, in a form beside the list rather than a tab of
-  its own: General, Topology, Access and Forwarding together, the
-  password saved by testing it in the same click that saves everything
-  else. Topology and Forwarding each fold to one line when a host uses
-  neither, and open on their own the instant it does (ADR-0056, ADR-0057,
-  ADR-0061).
-- **Port forwarding over the connection that is already open.** Local,
-  remote and dynamic (SOCKS) forwards, saved per host and started the
-  moment it connects, no separate command to remember. The status bar
-  says how many are running for the session in front of you (ADR-0054).
-- **A command palette** on `Ctrl+Shift+P`.
-- **Light and dark, reachable from every workspace.** One token set, one
-  fold showing the current choice in Sessions', SFTP's and Home's own
-  toolbar alike, chosen or left to follow the system (ADR-0059, ADR-0062).
-- **English, Brazilian Portuguese and Spanish.** Spanish was held out of the
-  selector from the first release until a native speaker read the copy that
-  describes a security decision, which happened for v0.2.1.
-- **SFTP, beside the terminal rather than instead of it.** Its own workspace,
-  reached from the activity rail: one source and up to four destinations,
-  each dragged in from the same saved-hosts list Sessions uses, `localhost`
-  included on either side. A file sent from the source lands in every
-  occupied destination at once; a folder copies recursively and keeps going
-  past a single file's failure rather than aborting the whole tree. Create,
-  rename and delete are here too, and every name a server sends is checked
-  before it is trusted the same way a host key is (ADR-0041, ADR-0044
-  through ADR-0049).
-
-- **Monitor, a host's own vital signs, no agent installed anywhere.**
-  System info, uptime, CPU, memory, swap, disk usage, disk I/O, network
-  throughput and every mounted filesystem on the Home tab, the host's
-  busiest processes, every listening TCP/UDP socket, a read-only systemd
-  unit list with a selected unit's own recent journal lines, and a Logs
-  tab tailing a plain file such as an Apache or nginx log, typed or
-  picked from files actually found under `/var/log`. Everything here is
-  a standard command's output parsed on this side of the connection
-  that is already open; Monitor reads and does not act.
-- **Macros.** A name and a block of text sent to a session's terminal
-  exactly as saved, `$host`, `$port` and `$username` resolved against
-  the session it runs in. Run from the command palette or a docked
-  sidebar; with typing synchronised, every receiving session resolves
-  its own variables and gets its own bytes the moment the macro is
-  picked, no second question asked.
-
-Not yet: **session import** from OpenSSH and PuTTY, and a signed
-installer of any kind. Those are the roadmap further down, not this list. A
-features section describing software that does not exist is the kind of
-thing this project would rather not do.
-
-## 📸 What it looks like
-
-Every capture below is of the running application, connected to a real SSH
-server against this project's own fixtures. None are mockups, and none are
-the design canvas.
-
-**The four workspaces, v0.5.0.** Clockwise from top left: the host book, a
-bastion carrying a nested target host with the target's own editor open
-beside the list; Monitor, a host's own CPU, memory, swap, load, network and
-disk read live over the connection already open; two sessions side by side
-in Sessions, the MOTD fresh in a shell that just connected; SFTP browsing a
-host's own files.
+The running application, connected to this project's own SSH fixtures. Not a
+mockup, not the design canvas. Clockwise from top left: the host book, Monitor,
+two sessions side by side, SFTP.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-grid-dark.png">
@@ -173,61 +55,32 @@ host's own files.
   <img src="assets/screenshot-grid-dark.png" alt="Four workspaces of Runic SSH in one grid: the Home host book with a bastion carrying a nested target host and its editor open; Monitor showing a host's own CPU, memory, swap, load, network and disk usage; two sessions open side by side in Sessions with the MOTD printed into a fresh shell; SFTP browsing a host's own files" width="880">
 </picture>
 
-<details>
-<summary><strong>Older screens</strong> (unchanged since v0.3.0)</summary>
-<br>
+## What works today
 
-Each fingerprint shown below was checked against `ssh-keyscan` before the
-picture was taken; the hosts are invented, the fingerprints, the shells and
-the output are not.
+Each line is a feature that ships; the record behind it is one click away.
 
-**An unknown host key.** The primary button starts inert and stays that way
-until you confirm you checked the fingerprint somewhere other than the
-connection asking to be trusted. Clicking through is the failure this screen
-exists to prevent, so it is not one click away.
+- **Host keys verified, always.** An unknown key prompts with its fingerprint and randomart and will not arm the trust button until you say you checked it elsewhere; a changed key blocks; `@revoked` and `@cert-authority` refuse with no override ([ADR-0009](docs/adr/0009-parse-known-hosts-ourselves.md)).
+- **Credentials never reach the interface in plain text.** Typed in the host's own editor, resolved against the OS keychain at the moment of use, kept once, for the run, or for good ([ADR-0004](docs/adr/0004-store-credentials-in-the-os-keychain.md), [ADR-0025](docs/adr/0025-keep-a-credential-for-the-life-of-the-run.md), [ADR-0057](docs/adr/0057-collect-the-target-credential-before-save.md)).
+- **A host book organized by how hosts connect.** A bastion nests what it carries; General, Topology, Access and Forwarding are one screen ([ADR-0056](docs/adr/0056-retire-the-two-step-host-wizard.md), [ADR-0060](docs/adr/0060-organize-the-host-book-by-topology-not-a-free-text-group.md)).
+- **Hosts reached through a bastion**, both keys verified, both hops authenticated end to end, the bastion never seeing the far host's credential ([ADR-0023](docs/adr/0023-carry-a-session-on-a-channel-through-a-bastion.md)).
+- **Port forwarding**, local, remote and dynamic (SOCKS), saved per host and started when it connects ([ADR-0054](docs/adr/0054-forward-ports-local-remote-and-dynamic.md)).
+- **Groups**, two to nine rectangles of tabs, and **typing into all of them at once**, off by default and loud when on ([ADR-0019](docs/adr/0019-split-the-panel-into-panes-and-type-into-all-of-them.md), [ADR-0020](docs/adr/0020-put-the-tabs-in-groups-and-the-activities-in-a-rail.md)).
+- **A terminal per session** (xterm.js) with copy and paste that shows you a multi-line paste before a shell runs it ([ADR-0018](docs/adr/0018-copy-and-paste-through-the-browsers-own-clipboard-events.md)).
+- **Monitor**: a host's own CPU, memory, disk, network, processes, listening sockets, systemd units and a log file's tail, read over the connection already open, no agent installed anywhere. Read only, by design.
+- **Macros**: a name and a block of text sent as typed, `$host`, `$port` and `$username` resolved per session, from the palette or a docked sidebar.
+- **SFTP beside the terminal**: one source, up to four destinations, folders copied recursively, every name a server sends checked before it is trusted ([ADR-0041](docs/adr/0041-use-russh-sftp-instead-of-writing-the-protocol.md) through [ADR-0050](docs/adr/0050-select-sftp-rows-like-a-file-manager.md)).
+- **A command palette** on `Ctrl+Shift+P`; **light and dark** from every toolbar; **English, Brazilian Portuguese and Spanish**, the security copy read by a native speaker before a language is offered ([ADR-0007](docs/adr/0007-localize-in-the-frontend-from-typed-error-codes.md)).
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-hostkey-dark.png">
-  <source media="(prefers-color-scheme: light)" srcset="assets/screenshot-hostkey-light.png">
-  <img src="assets/screenshot-hostkey-dark.png" alt="The unknown host key screen, showing the host, key type and SHA256 fingerprint, with the trust button disabled until an out-of-band verification checkbox is ticked" width="880">
-</picture>
+Not yet: session import from OpenSSH and PuTTY, and a signed installer of any
+kind. Those are the roadmap, not this list. What each release still does not
+do is in [`CHANGELOG.md`](CHANGELOG.md), under *Known limitations*, on purpose.
 
-</details>
-
-## 🚦 Status
-
-**Pre-alpha, and it connects.** v0.1.0 and v0.1.1 shipped on 2026-08-23, v0.2.0
-on 2026-08-26 with groups and jump hosts, v0.2.1 the same day finishing what
-that release said it did, v0.3.0 on 2026-09-01 with SFTP, v0.4.0 on
-2026-09-04 opened the ground v0.3.0's own roadmap named next, port
-forwarding and the host book reorganized around how a saved host actually
-connects, and v0.5.0 on 2026-09-08 adds the ground v0.4.0 named next in
-turn: a live system monitor per host, plus macros. On Linux and on
-Windows 11 a packaged build was installed and driven end to end: it verified
-an unknown host key against its real fingerprint, asked for a password, opened
-a shell and ran commands in it.
-
-**macOS has never been opened by anyone.** The `.dmg` builds on every run and
-that is all anyone can say about it. `docs/installing.md` tracks which packages
-a human has actually installed, per platform, which is not the same list as the
-one CI produces. The Linux `.deb` has now been downloaded from a release,
-checked against its hash, installed and driven at every release through
-v0.3.0, including as an upgrade over the version already on the machine, which
-is the only path where somebody has run the same file a stranger would. On
-Windows the newest package anyone has installed is a v0.1.1 build, and it came
-off a developer's machine rather than a release; `docs/installing.md` has the
-exact state per platform, kept current there rather than duplicated here.
-
-Work is tracked in [issues](https://github.com/marciopaiva/runic-ssh/issues) and
-the decisions behind it in [`docs/adr/`](docs/adr/).
-
-## ⬇️ Downloads
+## Downloads
 
 Installers for all three platforms are attached to each
 [release](https://github.com/marciopaiva/runic-ssh/releases), with a
-`SHA256SUMS` covering every file. The table below links straight to the
-latest one, currently
-[v0.5.0](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.5.0).
+`SHA256SUMS` covering every file. Currently
+[v0.5.0](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.5.0):
 
 | Platform | Download |
 | --- | --- |
@@ -235,154 +88,72 @@ latest one, currently
 | macOS | [`.dmg`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.5.0/Runic-SSH_0.5.0_aarch64.dmg), Apple Silicon only |
 | Linux | [`.deb`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.5.0/Runic-SSH_0.5.0_amd64.deb), [`.rpm`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.5.0/Runic-SSH-0.5.0-1.x86_64.rpm), [`.AppImage`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.5.0/Runic-SSH_0.5.0_amd64.AppImage) |
 
-Each link names the tag directly rather than GitHub's `latest/download`
-path: every release here ships `--prerelease`, per the badge comment above,
-and GitHub's own "latest" excludes a prerelease, so that path 404s on this
-repository. Tauri's bundler also writes the version into every asset name, so
-both the tag and the six filenames need updating at the same time
-`docs/installing.md`'s example filenames do.
-
-**Nothing here is code-signed.** Windows shows SmartScreen, macOS says the
-application is damaged. Neither is a malfunction: they are what an operating
-system says about a binary whose author it cannot verify.
-[`docs/installing.md`](docs/installing.md) has the exact commands for each
-platform, and the reason this project would rather explain the warning than
-teach you to click through it.
-
-That page also tracks **which packages a human has actually installed**, which
-is not the same list as the one the build produces. Check it before assuming a
-platform has been exercised.
+**Nothing is code-signed.** Windows shows SmartScreen, macOS says the
+application is damaged; both are what an operating system says about a binary
+whose author it cannot verify. [`docs/installing.md`](docs/installing.md) has
+the exact commands per platform, and tracks **which packages a human has
+actually installed**, which is a shorter list than the one the build produces.
+macOS is on neither list yet.
 
 ```sh
 sha256sum -c SHA256SUMS --ignore-missing   # before installing anything
 ```
 
-## 🛠️ Tech Stack
+## Roadmap
 
-- **Core:** Rust and Tauri 2.0
-- **Frontend:** React, TypeScript, TailwindCSS
-- **Terminal:** xterm.js, DOM renderer, no GPU path ([ADR-0011](docs/adr/0011-drop-the-webgl-renderer.md))
-- **SSH:** the `russh` crate, in process, no OpenSSH binary ([ADR-0003](docs/adr/0003-use-russh-instead-of-openssh.md))
-- **SFTP:** the `russh-sftp` crate, over a fresh subsystem channel per call ([ADR-0041](docs/adr/0041-use-russh-sftp-instead-of-writing-the-protocol.md))
-- **Secrets:** the OS keychain, referenced by opaque id ([ADR-0004](docs/adr/0004-store-credentials-in-the-os-keychain.md))
-- **Languages:** English, Brazilian Portuguese and Spanish, each with its security copy read by a native speaker before being offered ([ADR-0007](docs/adr/0007-localize-in-the-frontend-from-typed-error-codes.md))
+- [x] **v0.1.0**: SSH with host key verification, saved sessions, a working terminal. *2026-08-23*
+- [x] **v0.1.1**: copy and paste. *2026-08-23*
+- [x] **v0.2.0**: bastions, groups, typing into all of them at once. *2026-08-26*
+- [x] **v0.2.1**: finishing what v0.2.0 claimed. *2026-08-26*
+- [x] **v0.3.0**: SFTP. *2026-09-01*
+- [x] **v0.4.0**: port forwarding, the host book by topology, theme and language everywhere. *2026-09-04*
+- [x] **v0.5.0**: Monitor, no agent installed, and macros. *2026-09-08*
+- [ ] **v0.6.0**: session import from OpenSSH and PuTTY.
+- [ ] **v1.0.0**: production grade stability, and a signed installer on every platform.
 
-## 🧑‍💻 Building it
+A direction, not a promise. What a tool like this should do next is better
+decided by the people running it fifty times a day than by whoever wrote the
+roadmap: [open an issue](https://github.com/marciopaiva/runic-ssh/issues/new).
 
-**Prerequisites:** [Rust](https://rustup.rs) (the version in
-`rust-toolchain.toml` installs itself), Node 22 or newer, and pnpm via
-`corepack enable`.
+## Building it
 
-Linux also needs the webview and its GTK stack. On Ubuntu 24.04:
+`pnpm install`, then `pnpm tauri dev` to run it and `pnpm tauri build` to
+package it. Rust installs itself from `rust-toolchain.toml`; Node 22 and pnpm
+via `corepack enable`; Linux also needs the WebKitGTK stack.
+[`docs/building.md`](docs/building.md) has the per-platform prerequisites and
+the traps, and `pnpm gate` runs the five checks CI runs.
 
-```bash
-sudo apt install libwebkit2gtk-4.1-dev libdbus-1-dev libssl-dev \
-  libayatana-appindicator3-dev librsvg2-dev libxdo-dev \
-  build-essential curl wget file pkg-config patchelf
-```
-
-Then:
-
-```bash
-pnpm install
-pnpm tauri dev      # run it
-pnpm tauri build    # package it
-```
-
-### The gate
-
-Five commands have to pass before any change is done. CI runs them on Linux,
-macOS, and Windows, and a pull request cannot merge until they are green.
-
-```bash
-cd src-tauri && cargo fmt --all -- --check
-cd src-tauri && cargo clippy --all-targets --all-features -- -D warnings
-cd src-tauri && cargo test
-pnpm typecheck
-pnpm test
-```
-
-`pnpm gate` runs the same five quietly, for the loop between edits, and re-runs
-the first failure in full. It is a check rather than evidence: a claim that
-something was verified cites the loud form above.
-
-`pnpm prose` is a sixth thing, and CI runs it as its own job beside the five.
-It checks the two rules in [CLAUDE.md](CLAUDE.md) a machine can decide, the long
-dash and the commit subject, against what your branch adds rather than against
-the tree. Five green commands and a red pull request is what happens without it.
-
-## 🗺️ Roadmap
-
-- [x] **v0.1.0 (MVP):** SSH connections with host key verification, saved sessions, and a working terminal. [Released 2026-08-23](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.1.0).
-- [x] **v0.1.1:** copy and paste in the terminal. [Released 2026-08-23](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.1.1).
-- [x] **v0.2.0:** reaching a host through a bastion, a main area divided into groups, and typing into all of them at once. [Released 2026-08-26](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.2.0).
-- [x] **v0.2.1:** finishing what v0.2.0 claimed: a jump host that asks for its own credential, a password saved from a host's own form, and a bastion that admits it is carrying somebody else's session. [Released 2026-08-26](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.2.1).
-- [x] **v0.3.0:** SFTP, upload and download over the connection that is already open. [Released 2026-09-01](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.3.0).
-- [x] **v0.4.0:** port forwarding (local, remote and dynamic), the host book reorganized around how a saved host actually connects, and theme and language reachable from every workspace. [Released 2026-09-04](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.4.0).
-- [x] **v0.5.0:** a live system monitor per host, CPU, RAM, disk and uptime, read over the SSH connection already open, no agent installed on the server, plus macros. [Released 2026-09-08](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.5.0).
-- [ ] **v0.6.0:** session import from OpenSSH and PuTTY.
-- [ ] **v1.0.0:** production grade stability, and a signed installer on every platform.
-
-The versions after v0.1.0 are a direction, not a promise. If you need something
-that is not on this list, [open an issue](https://github.com/marciopaiva/runic-ssh/issues/new).
-What a tool like this should do next is better decided by the people running it
-fifty times a day than by whoever wrote the roadmap.
-
-## 📚 Documentation
+## Documentation
 
 - [Changelog](CHANGELOG.md): what changed, and what each release does not do yet
+- [Installing](docs/installing.md): the unsigned-binary warnings per platform, and which packages a person has actually run
+- [Building](docs/building.md): prerequisites and the gate
+- [Testing](docs/testing.md): the SSH fixtures, and how every feature was driven against them
 - [Architecture](docs/architecture.md): how the Rust core and the webview fit together
 - [Security model](docs/security-model.md): threat model and the rules that follow from it
-- [Decision records](docs/adr/): why the stack looks the way it does
-- [CLAUDE.md](CLAUDE.md): working agreement for contributors and AI assistants
+- [Decision records](docs/adr/): why the stack looks the way it does, reversals included
+- [CLAUDE.md](CLAUDE.md): the working agreement, for contributors and AI assistants alike
 
-## 🤝 Contributing
+## Contributing
 
-Contributions are very welcome, and the repository is arranged on the assumption
-that whoever writes the next change did not write the last one.
+The repository assumes whoever writes the next change did not write the last
+one: every decision has a record, the process is written down, and the
+repetitive workflows are encoded in `.claude/skills/` as plain markdown. This
+project is built with AI assistance and says so here rather than in its commit
+messages, where [CLAUDE.md](CLAUDE.md) forbids it: what matters in a history
+is what changed and why, not what typed it.
 
-**Every decision has a record.** `docs/adr/` says what was chosen, what it cost,
-and what it forecloses, including the ones that were later reversed, because
-the record of a reversal is what stops it being made again. If you wonder why
-the terminal has no GPU path, or why RSA private keys are refused, the answer is
-a file rather than an archaeology expedition through the log.
+Branch as `feat/<slug>` or `fix/<slug>`, write the test with the code, run the
+gate, commit conventionally, one logical change per commit. Anything touching
+credentials, host key verification, logging or the Tauri capability set needs
+a decision record before the code. [CLAUDE.md](CLAUDE.md) is the contract;
+read it before the code.
 
-**The process is written down.** [CLAUDE.md](CLAUDE.md) is the working
-agreement: how a change moves from analysis to a proposal to code, when to stop
-and ask, and the five commands that gate it. It is short, and it is the contract. Read it before the code.
+## License
 
-**The repetitive parts are encoded.** `.claude/skills/` holds the workflows this
-project runs often: `/feature` drives a change through its phases, `/adr` writes
-a decision record, `/tauri-cmd` adds an IPC command end to end. They are plain
-markdown and describe the steps whether or not you use an assistant to follow
-them.
-
-That last part is deliberate. This project is built with AI assistance and says
-so here rather than in its commit messages, where
-[CLAUDE.md](CLAUDE.md) forbids it: what matters in a history is what changed and
-why, not what typed it. The scaffolding is there so that a contribution, whether
-yours alone or one you worked out with an assistant, can meet the same bar
-without anyone having to explain the bar first.
-
-1. Fork the project and branch as `feat/<short-slug>` or `fix/<short-slug>`.
-2. Write the test alongside the code, not after it.
-3. Run the gate above. Every command, not the convenient ones.
-4. Commit with [conventional commits](https://www.conventionalcommits.org):
-   `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`. One logical change
-   per commit.
-5. Open a pull request describing what you built, what you tested, and what you
-   deliberately left out.
-
-Anything touching credential storage, host key verification, logging, or the
-Tauri capability set needs a proposal and a decision record before the code.
-See section 5 of [CLAUDE.md](CLAUDE.md) and use the `/adr` skill.
-
-## 📜 License
-
-Distributed under the **MIT** license. See `LICENSE` for more information.
-
-Bundled typefaces (Manrope, JetBrains Mono) ship under the SIL Open Font
-License 1.1; see [`src/styles/fonts/`](src/styles/fonts/).
+Distributed under the **MIT** license. See `LICENSE`. Bundled typefaces
+(Manrope, JetBrains Mono) ship under the SIL Open Font License 1.1; see
+[`src/styles/fonts/`](src/styles/fonts/).
 
 ---
 *Made with ❤️ and Rust.*
