@@ -11,6 +11,102 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-09-08
+
+Opens the ground v0.4.0's own roadmap named next: a live system monitor per
+host, CPU, RAM, disk and uptime, read over the SSH connection already open,
+no agent installed on the server. Macros, the maintainer's own top request,
+shipped in the same window and is not held back for a release of its own,
+the way v0.4.0 bundled the host book's topology reorganization alongside the
+forwarding it was named for. Session import carried this release's own
+milestone name until now; it did not ship and moves to v0.6.0 rather than
+holding a shipped monitor and macros back for it (#128).
+
+### Added
+
+- **A fourth workspace, Monitor: a host's own vital signs, no agent
+  installed anywhere, ever** (#346, #349). Everything it shows is a
+  standard command's output, `/proc`, `ps`, `ss`, `journalctl`, `find`,
+  parsed on this side of the connection that is already open.
+  - **Home**, system info, uptime and CPU/memory as ring gauges in one
+    card, full-width CPU and memory trend charts colored by the same
+    ok/warn/danger tone as the gauges, swap/load/network grouped as a
+    row of three, disk usage and disk I/O throughput paired beside each
+    other, every mounted filesystem as a usage bar below. Disk I/O
+    aggregates every real disk the way network throughput already
+    aggregates interfaces, partitions excluded by the kernel's own
+    `/sys/class/block` marker rather than a name guess.
+  - **Processes**, the host's busiest processes, sortable by CPU or
+    memory client side from one poll.
+  - **Ports**, every listening TCP/UDP socket, with the owning process
+    where the session has privilege to see it.
+  - **Systemd**, a read-only, filterable unit list, a selected unit's
+    own recent journal lines open in a collapsible pane below.
+  - **Logs**, a path tailed the same way as a systemd unit's own
+    journal, for a service such as Apache, nginx or Postgres that logs
+    to a plain file instead of, or as well as, the journal. The path
+    field suggests files `find` actually located under `/var/log` on
+    the connected host rather than a per-service, per-distro guess;
+    typing any absolute path still works for anything the scan misses.
+  - Every reading degrades independently: a host missing one tool, a
+    BusyBox `ps` or `ss` with no `systemd`, reports nothing for that
+    reading rather than failing the whole poll, verified against a real
+    BusyBox fixture carrying none of these tools and, for disk I/O,
+    against a new fixture running directly on the WSL2 host with real,
+    moving disk counters rather than the container fixtures' zeroed
+    ones.
+  - Starting, stopping or signaling anything Monitor shows is
+    deliberately not here. Monitor reads; it does not act. That is a
+    later, separate decision needing its own confirmation and
+    privilege story, not an oversight in this one.
+
+- **Macros** (#347, #348): a name and a block of text, sent to a
+  session's terminal exactly as saved, as though typed, with `$host`,
+  `$port` and `$username` resolved against the session it runs in.
+  Reached from the command palette's own Snippets section, reserved
+  there since the palette was built, and from a toolbar icon beside
+  Broadcast that opens a docked sidebar rather than a modal, so running
+  one does not interrupt whatever else is on screen. A macro reaching a
+  broadcast group holds for a confirmation first, the same reasoning
+  `PasteConfirm` already applies to the same risk: the wrong pane
+  having focus, not a shell running a line unexpectedly. Storage
+  mirrors `SessionStore` exactly, `macros.json`, a tmp-file-then-rename
+  write, a missing file reading as no macros rather than a failure.
+
+- **The MOTD art redrawn as plain dashes, no colour** (ADR-0051): a
+  smaller, sixteen-row conversion of the brand mark using only dashes
+  and spaces, replacing the shaded Unicode block characters an earlier
+  version used. Closes ADR-0051's own risk that those characters are
+  not guaranteed to sit in a given terminal font at a clean single-row
+  height.
+
+### Fixed
+
+- **The unknown-host-key decision moved inline into the Access section**
+  of the Home host editor; ADR-0058 moved the flow there in v0.4.0 but
+  left the card itself in its old standalone-banner shape, reported
+  live against a fixture: "fizemos todo o fluxo de cadastro e alteracao
+  do host, mas nao incluimos esse card no fluxo." A changed or blocked
+  host key still shows through the old banner slot; only the plain
+  unknown-key case moved.
+- A second full-screen overlay, the macros editor, exposed two focus
+  bugs that only exist once there are two: Escape presses that never
+  reached the editor because nothing inside it took focus on open, and
+  the palette's own shortcut stacking a second overlay instead of
+  reaching the first already open.
+
+### Known limitations
+
+- **Session import from OpenSSH and PuTTY still has not shipped**,
+  despite carrying this release's own milestone name until now. Moved
+  to v0.6.0 (#128); nothing about this window's work narrows what it
+  will still need to do.
+- Everything v0.4.0 listed that is not named above is still true,
+  including remote and dynamic port forwards proven only by unit tests
+  rather than the same live, driven confirmation local forwarding got
+  (#344), and the local-port field in the Forwarding row reading as a
+  fourth segmented option rather than a distinct input (#334).
+
 ## [0.4.0] — 2026-09-04
 
 Opens the ground v0.3.0's roadmap named next: port forwarding. Everything
