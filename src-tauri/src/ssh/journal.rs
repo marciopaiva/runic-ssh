@@ -49,12 +49,7 @@ pub fn command(unit: &str) -> Option<String> {
 /// journal for this unit, or no `journalctl` at all) yields an empty list.
 #[must_use]
 pub fn parse(stdout: &[u8]) -> Vec<String> {
-    String::from_utf8_lossy(stdout)
-        .lines()
-        .map(str::trim_end)
-        .filter(|line| !line.is_empty())
-        .map(str::to_owned)
-        .collect()
+    super::text::non_empty_lines(stdout)
 }
 
 #[cfg(test)]

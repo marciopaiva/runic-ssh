@@ -69,12 +69,12 @@ pub fn command(path: &str) -> Option<String> {
 }
 
 /// Parses [`command`]'s own output: every non-empty line, in the order the
-/// host printed them. Shares `ssh::journal::parse`'s own logic exactly (a
-/// log file's blank lines are as uninteresting as a journal's), so this
-/// calls it directly rather than repeating it.
+/// host printed them. Shares [`super::text::non_empty_lines`] with
+/// `ssh::journal` rather than repeating it: a log file's blank lines are
+/// as uninteresting as a journal's.
 #[must_use]
 pub fn parse(stdout: &[u8]) -> Vec<String> {
-    super::journal::parse(stdout)
+    super::text::non_empty_lines(stdout)
 }
 
 #[cfg(test)]
