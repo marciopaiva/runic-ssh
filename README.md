@@ -131,7 +131,22 @@ carries your keys.
   before it is trusted the same way a host key is (ADR-0041, ADR-0044
   through ADR-0049).
 
-Not yet: **session import** from OpenSSH and PuTTY, snippets, and a signed
+- **Monitor, a host's own vital signs, no agent installed anywhere.**
+  System info, uptime, CPU, memory, swap, disk usage, disk I/O, network
+  throughput and every mounted filesystem on the Home tab, the host's
+  busiest processes, every listening TCP/UDP socket, a read-only systemd
+  unit list with a selected unit's own recent journal lines, and a Logs
+  tab tailing a plain file such as an Apache or nginx log, typed or
+  picked from files actually found under `/var/log`. Everything here is
+  a standard command's output parsed on this side of the connection
+  that is already open; Monitor reads and does not act.
+- **Macros.** A name and a block of text sent to a session's terminal
+  exactly as saved, `$host`, `$port` and `$username` resolved against
+  the session it runs in. Run from the command palette or a docked
+  sidebar; a macro reaching a broadcast group asks first, the same way
+  a confirmed paste already does.
+
+Not yet: **session import** from OpenSSH and PuTTY, and a signed
 installer of any kind. Those are the roadmap further down, not this list. A
 features section describing software that does not exist is the kind of
 thing this project would rather not do.
@@ -187,9 +202,11 @@ exists to prevent, so it is not one click away.
 
 **Pre-alpha, and it connects.** v0.1.0 and v0.1.1 shipped on 2026-08-23, v0.2.0
 on 2026-08-26 with groups and jump hosts, v0.2.1 the same day finishing what
-that release said it did, v0.3.0 on 2026-09-01 with SFTP, and v0.4.0 opens the
-ground v0.3.0's own roadmap named next: port forwarding, and the host book
-reorganized around how a saved host actually connects. On Linux and on
+that release said it did, v0.3.0 on 2026-09-01 with SFTP, v0.4.0 on
+2026-09-04 opened the ground v0.3.0's own roadmap named next, port
+forwarding and the host book reorganized around how a saved host actually
+connects, and v0.5.0 on 2026-09-08 adds the ground v0.4.0 named next in
+turn: a live system monitor per host, plus macros. On Linux and on
 Windows 11 a packaged build was installed and driven end to end: it verified
 an unknown host key against its real fingerprint, asked for a password, opened
 a shell and ran commands in it.
@@ -214,13 +231,13 @@ Installers for all three platforms are attached to each
 [release](https://github.com/marciopaiva/runic-ssh/releases), with a
 `SHA256SUMS` covering every file. The table below links straight to the
 latest one, currently
-[v0.4.0](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.4.0).
+[v0.5.0](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.5.0).
 
 | Platform | Download |
 | --- | --- |
-| Windows | [`.msi`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.4.0/Runic-SSH_0.4.0_x64_en-US.msi) (WiX) or [`.exe`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.4.0/Runic-SSH_0.4.0_x64-setup.exe) (NSIS) |
-| macOS | [`.dmg`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.4.0/Runic-SSH_0.4.0_aarch64.dmg), Apple Silicon only |
-| Linux | [`.deb`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.4.0/Runic-SSH_0.4.0_amd64.deb), [`.rpm`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.4.0/Runic-SSH-0.4.0-1.x86_64.rpm), [`.AppImage`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.4.0/Runic-SSH_0.4.0_amd64.AppImage) |
+| Windows | [`.msi`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.5.0/Runic-SSH_0.5.0_x64_en-US.msi) (WiX) or [`.exe`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.5.0/Runic-SSH_0.5.0_x64-setup.exe) (NSIS) |
+| macOS | [`.dmg`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.5.0/Runic-SSH_0.5.0_aarch64.dmg), Apple Silicon only |
+| Linux | [`.deb`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.5.0/Runic-SSH_0.5.0_amd64.deb), [`.rpm`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.5.0/Runic-SSH-0.5.0-1.x86_64.rpm), [`.AppImage`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.5.0/Runic-SSH_0.5.0_amd64.AppImage) |
 
 Each link names the tag directly rather than GitHub's `latest/download`
 path: every release here ships `--prerelease`, per the badge comment above,
@@ -306,7 +323,7 @@ the tree. Five green commands and a red pull request is what happens without it.
 - [x] **v0.2.1:** finishing what v0.2.0 claimed: a jump host that asks for its own credential, a password saved from a host's own form, and a bastion that admits it is carrying somebody else's session. [Released 2026-08-26](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.2.1).
 - [x] **v0.3.0:** SFTP, upload and download over the connection that is already open. [Released 2026-09-01](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.3.0).
 - [x] **v0.4.0:** port forwarding (local, remote and dynamic), the host book reorganized around how a saved host actually connects, and theme and language reachable from every workspace. [Released 2026-09-04](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.4.0).
-- [ ] **v0.5.0:** a live system monitor per host, CPU, RAM, disk and uptime, read over the SSH connection already open, no agent installed on the server.
+- [x] **v0.5.0:** a live system monitor per host, CPU, RAM, disk and uptime, read over the SSH connection already open, no agent installed on the server, plus macros. [Released 2026-09-08](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.5.0).
 - [ ] **v0.6.0:** session import from OpenSSH and PuTTY.
 - [ ] **v1.0.0:** production grade stability, and a signed installer on every platform.
 
