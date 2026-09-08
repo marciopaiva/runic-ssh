@@ -15,8 +15,8 @@ import { HostKeyBlocked } from './components/HostKeyBlocked';
 import { ConnectionFailure } from './components/ConnectionFailure';
 import { HostKeyPrompt } from './components/HostKeyPrompt';
 import { HostKeyRefused } from './components/HostKeyRefused';
-import { MacroConfirm } from './components/MacroConfirm';
-import { MacrosEditor } from './components/MacrosEditor';
+import { MacrosButton } from './components/MacrosButton';
+import { MacrosSidebar } from './components/MacrosSidebar';
 import { MonitorWorkspace } from './components/MonitorWorkspace';
 import { PasteConfirm } from './components/PasteConfirm';
 import { SessionMenu } from './components/SessionMenu';
@@ -90,7 +90,7 @@ import type {
   OpenEditor,
   SessionAction,
 } from './features/sessions';
-import { preparePaste } from './features/terminal/clipboard';
+import { isCursorPositionReport, preparePaste } from './features/terminal/clipboard';
 import {
   appVersion,
   asIpcError,
@@ -389,15 +389,6 @@ export function App(): JSX.Element {
      way every other question does, per ADR-0015. */
   const [pendingPaste, setPendingPaste] = useState<{
     readonly sessionId: string;
-    readonly text: string;
-  } | null>(null);
-  /* A macro held back for a broadcast to confirm, the same reason and the
-     same shape as `pendingPaste`: a single target runs it immediately (see
-     `runMacro`), and this only ever holds one that would reach more than
-     one host. */
-  const [pendingMacro, setPendingMacro] = useState<{
-    readonly sessionId: string;
-    readonly name: string;
     readonly text: string;
   } | null>(null);
   const [macrosOpen, setMacrosOpen] = useState(false);
@@ -772,7 +763,14 @@ export function App(): JSX.Element {
   /* Where a keystroke goes, resolved for the terminal that produced it. */
   const broadcast = useCallback(
     (from: string, bytes: Uint8Array): void => {
-      for (const sessionId of inputTargets(groups, from, sync, muted)) {
+      /* xterm answering the remote shell's own cursor position query stays
+         on the channel that asked: broadcasting it is how a bare
+         `<row>;<col>R` ends up sitting in every other synced prompt. See
+         `isCursorPositionReport`. */
+      const targets = isCursorPositionReport(new TextDecoder().decode(bytes))
+        ? [from]
+        : inputTargets(groups, from, sync, muted);
+      for (const sessionId of targets) {
         const target = mounted.find((candidate) => candidate.sessionId === sessionId);
         if (target === undefined) continue;
         /* Rejections are caught and dropped on purpose. The input is split to
@@ -785,29 +783,64 @@ export function App(): JSX.Element {
     [groups, sync, muted, mounted],
   );
 
-  /* A macro's own text, resolved against the session it is about to run in
-     and sent the same way a confirmed paste already is: through `broadcast`,
-     with newlines turned into the carriage return a terminal expects
-     (`preparePaste`). A single target runs immediately; more than one holds
-     for `pendingMacro`'s own confirmation, the same reason `pendingPaste`
-     already asks before a paste reaches several hosts. */
+  /* One payload per target rather than one shared with `broadcast`: a
+     macro's own text can read differently host to host once
+     `$host`/`$port`/`$username` are in it, which identical bytes cannot
+     express. */
+  const sendEach = useCallback(
+    (entries: readonly { readonly sessionId: string; readonly bytes: Uint8Array }[]): void => {
+      for (const entry of entries) {
+        const target = mounted.find((candidate) => candidate.sessionId === entry.sessionId);
+        if (target === undefined) continue;
+        void sendInput(target.handle, entry.bytes).catch(() => {});
+      }
+    },
+    [mounted],
+  );
+
+  /* Keyed by session id rather than held as one function, since more than
+     one terminal is mounted at a time (ADR-0014) and only the active one is
+     the right target for a macro run. */
+  const focusFns = useRef(new Map<string, () => void>());
+  const focusTerminal = useCallback((sessionId: string): void => {
+    focusFns.current.get(sessionId)?.();
+  }, []);
+
+  /* A macro's own text, resolved separately against each host it is about to
+     reach, so `$host`/`$port`/`$username` name that host rather than
+     whichever session was focused. Sent the same way a confirmed paste
+     already is, with newlines turned into the carriage return a terminal
+     expects (`preparePaste`). Runs immediately, on every host sync reaches:
+     picking a macro is already the deliberate act, the same way running any
+     other saved command is. */
   const runMacro = useCallback(
     (macro: Macro): void => {
       if (activeId === null) return;
       const session = sessions.find((live) => live.session.id === activeId)?.session;
       if (session === undefined) return;
 
-      const text = applyVariables(macro.text, session);
       const targets = inputTargets(groups, activeId, sync, muted);
+      const entries = targets.flatMap((sessionId) => {
+        const target =
+          sessionId === activeId
+            ? session
+            : sessions.find((live) => live.session.id === sessionId)?.session;
+        return target === undefined
+          ? []
+          : [{ sessionId, text: applyVariables(macro.text, target) }];
+      });
 
-      if (targets.length > 1) {
-        setPendingMacro({ sessionId: activeId, name: macro.name, text });
-        return;
-      }
-
-      broadcast(activeId, new TextEncoder().encode(preparePaste(text)));
+      sendEach(
+        entries.map((entry) => ({
+          sessionId: entry.sessionId,
+          bytes: new TextEncoder().encode(preparePaste(entry.text)),
+        })),
+      );
+      /* Run from the sidebar, so the keyboard is sitting on a button there
+         until this hands it back to the shell the macro just spoke to. */
+      focusTerminal(activeId);
     },
-    [activeId, sessions, groups, sync, muted, broadcast],
+    [activeId, sessions, groups, sync, muted, sendEach, focusTerminal],
   );
 
   /* Which rectangle a session's surfaces belong in, or `null` when it is not
@@ -1814,8 +1847,6 @@ export function App(): JSX.Element {
 
   const pasteBox =
     pendingPaste === null ? null : boxOf({ kind: 'session', sessionId: pendingPaste.sessionId });
-  const macroBox =
-    pendingMacro === null ? null : boxOf({ kind: 'session', sessionId: pendingMacro.sessionId });
   const attemptBox =
     attempt === null ? null : boxOf({ kind: 'session', sessionId: attempt.sessionId });
 
@@ -1852,6 +1883,7 @@ export function App(): JSX.Element {
                   setSync((on) => !on);
                 }}
               />
+              <MacrosButton open={macrosOpen} onToggle={() => setMacrosOpen((open) => !open)} />
               <ShapeControl layout={layout} onChoose={chooseLayout} />
               <span className="bg-line-subtle h-4 w-px shrink-0" aria-hidden="true" />
               <ThemeLanguageControls
@@ -2150,6 +2182,7 @@ export function App(): JSX.Element {
                 labelledBy={tabElementId(mine)}
                 onPaneFocus={() => focusOn(mine)}
                 onSize={setSize}
+                onFocusHandle={(focus) => focusFns.current.set(terminal.sessionId, focus)}
                 modifier={chrome?.commandModifier ?? 'control'}
                 onPasteNeedsConfirming={(text) =>
                   setPendingPaste({ sessionId: terminal.sessionId, text })
@@ -2178,26 +2211,6 @@ export function App(): JSX.Element {
                     new TextEncoder().encode(preparePaste(pendingPaste.text)),
                   );
                   setPendingPaste(null);
-                }}
-              />
-            </div>
-          )}
-
-          {/* A macro waiting on an answer before it reaches more than one
-              host, the same shape and the same place as a pending paste. */}
-          {pendingMacro !== null && macroBox !== null && (
-            <div className="absolute" style={bodyStyle(macroBox)}>
-              <MacroConfirm
-                name={pendingMacro.name}
-                text={pendingMacro.text}
-                hosts={inputTargets(groups, pendingMacro.sessionId, sync, muted).length}
-                onCancel={() => setPendingMacro(null)}
-                onConfirm={() => {
-                  broadcast(
-                    pendingMacro.sessionId,
-                    new TextEncoder().encode(preparePaste(pendingMacro.text)),
-                  );
-                  setPendingMacro(null);
                 }}
               />
             </div>
@@ -2248,6 +2261,21 @@ export function App(): JSX.Element {
             </div>
           )}
         </main>
+        )}
+
+        {/* A flex sibling of the terminal area, not an overlay: ADR-0014's
+            `Box` percentages and the `ResizeObserver` that reads them already
+            react to a container resize, so this panel opening or closing
+            reflows the terminals the same way `SessionsSidebar` always has,
+            rather than floating over them. */}
+        {workspace === 'sessions' && macrosOpen && (
+          <MacrosSidebar
+            macros={macros}
+            onRun={runMacro}
+            onSave={saveMacroDraft}
+            onDelete={removeMacro}
+            onClose={() => setMacrosOpen(false)}
+          />
         )}
 
         {/* ADR-0045: source in its own column, destinations fanning out into
@@ -2747,15 +2775,6 @@ export function App(): JSX.Element {
         onRun={palette.run}
         onDismiss={palette.dismiss}
       />
-
-      {macrosOpen && (
-        <MacrosEditor
-          macros={macros}
-          onSave={saveMacroDraft}
-          onDelete={removeMacro}
-          onClose={() => setMacrosOpen(false)}
-        />
-      )}
     </div>
   );
 }

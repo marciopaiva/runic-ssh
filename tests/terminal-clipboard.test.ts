@@ -11,6 +11,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  isCursorPositionReport,
   keyIntent,
   pasteLines,
   pasteNeedsConfirming,
@@ -197,5 +198,32 @@ describe('what a confirmed paste actually sends', () => {
 
   it('changes nothing in a single line', () => {
     expect(preparePaste('ls -la')).toBe('ls -la');
+  });
+});
+
+describe("xterm answering a shell's own cursor position query", () => {
+  it('recognises a cursor position report', () => {
+    /* BusyBox `ash` sends `ESC[6n` on every prompt; this is xterm's reply,
+       one row and one column, both plain decimal. */
+    expect(isCursorPositionReport('\x1b[15;17R')).toBe(true);
+    expect(isCursorPositionReport('\x1b[1;1R')).toBe(true);
+  });
+
+  it('says nothing about ordinary typed text, even text ending in R', () => {
+    expect(isCursorPositionReport('echo leftpane\r')).toBe(false);
+    expect(isCursorPositionReport('R')).toBe(false);
+    expect(isCursorPositionReport('17R')).toBe(false);
+  });
+
+  it('says nothing about a report with extra text around it', () => {
+    /* Only an onData event that is nothing but the report counts: one that
+       merely contains it, mixed with real keystrokes, is not this. */
+    expect(isCursorPositionReport('\x1b[15;17Rls')).toBe(false);
+    expect(isCursorPositionReport('a\x1b[15;17R')).toBe(false);
+  });
+
+  it('says nothing about a related but different escape sequence', () => {
+    expect(isCursorPositionReport('\x1b[?2004h')).toBe(false);
+    expect(isCursorPositionReport('\x1b[6n')).toBe(false);
   });
 });
