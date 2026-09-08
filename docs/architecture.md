@@ -5,10 +5,10 @@ sit where they do. It is the map; `security-model.md` is the set of rules that
 map has to satisfy.
 
 Status: built. `commands/`, `ssh/`, `sftp/`, `vault/`, `config/` and the whole
-frontend exist and are what the application runs on. One thing in the tables
-below is still the target rather than the tree: tunnels, listed under what
-`ssh/` owns. It is marked where it appears. Decisions that are already binding
-are recorded in `adr/`.
+frontend exist and are what the application runs on. Tunnels, the one row the
+tables below carried as a target for four releases, shipped in v0.4.0
+(ADR-0054); nothing below is ahead of the tree now. Decisions that are already
+binding are recorded in `adr/`.
 
 This document has twice said the tree was behind where it actually was: once
 about the source tree overall, and once about the credential window below,
@@ -64,10 +64,10 @@ same thing without the history attached.
 | Module | Owns | Never does |
 | --- | --- | --- |
 | `commands/` | Input validation, delegation, error mapping | Business logic |
-| `ssh/` | Connection lifecycle, auth, channels, tunnels (tunnels: target) | Talk to the webview |
+| `ssh/` | Connection lifecycle, auth, channels, port forwards (ADR-0054); and Monitor's readings: one fixed, read-only command per poll (`/proc`, `ps`, `ss`, `systemctl list-units`, `journalctl`, `tail`, `find`) run over the connection already open and parsed here, never on the host | Talk to the webview; start, stop or signal anything Monitor shows |
 | `sftp/` | Directory listing, upload, download, remote-to-remote transfer, recursive folder copy (ADR-0041, ADR-0045, ADR-0049) | Talk to the webview; resume an interrupted transfer, which nothing here does yet |
 | `vault/` | Credential storage: the OS keychain, and the run-lifetime store beside it | Return plaintext across IPC |
-| `config/` | Session and app settings persistence | Store secrets |
+| `config/` | Session, macro and app settings persistence | Store secrets |
 
 `commands/` is the only module that knows Tauri exists. Everything else is a
 plain Rust library that can be unit tested with no webview and no app handle.
@@ -78,7 +78,7 @@ That constraint is what keeps the test suite fast and the logic reviewable.
 | Directory | Owns |
 | --- | --- |
 | `ipc/` | Typed wrappers over commands. The only place `invoke` appears. |
-| `features/` | State and effects per feature slice: sessions, terminal, chrome, commands, settings, status, sftp |
+| `features/` | State and effects per feature slice: sessions, terminal, chrome, commands, settings, status, sftp, monitor, macros |
 | `components/` | Presentational components. Props in, markup out. |
 | `lib/` | Framework-free helpers |
 
@@ -151,9 +151,17 @@ a time.
 | Credentials | OS keychain | Opaque, keyed by session id |
 | Credentials kept for the run | Core process memory only | Written nowhere, gone on exit (ADR-0025) |
 | Known hosts | Platform config dir | OpenSSH `known_hosts` format |
+| Macros | Platform config dir, `macros.json` | JSON: a name and the text sent as typed, at most 4000 bytes each; written the same tmp-then-rename way sessions are |
+| Which bastions are folded shut in the host book | The webview's `localStorage` | A session id and a boolean per bastion, nothing else (ADR-0060) |
 
 Using the OpenSSH format for known hosts is deliberate: the user can inspect it
 with tools they already trust, and import from an existing setup.
+
+A macro is not a secret by design, and nothing stops a person from typing one
+into it. `docs/security-model.md`, "What a macro carries", is where that is
+weighed; here it is enough to say the file is plain JSON beside `sessions.json`
+and gets the same protection, which is the config directory's own permissions
+and nothing more.
 
 ## What is deliberately not here
 

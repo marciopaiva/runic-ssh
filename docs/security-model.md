@@ -14,6 +14,7 @@ we are protecting, from whom, and the rules that follow.
 | Session inventory | Names and addresses of infrastructure; useful to an attacker even without credentials |
 | Terminal contents | Frequently contains tokens, dumps, and customer data in transit |
 | A live session on a bastion | An authenticated foothold in front of everything behind it, held open by us and not asked for directly by anybody |
+| Saved macros | Commands a person runs often enough to save; whatever they pasted into one, a token included, sits in plain JSON beside the session inventory |
 
 ## Adversaries we design against
 
@@ -270,6 +271,60 @@ carries. Rule 1 ("credentials never cross IPC toward the frontend") is
 what actually protects a secret; this note exists so a future review does
 not have to rediscover that `localStorage` is now a place this frontend
 writes to at all.
+
+## What Monitor runs on a host
+
+Monitor is the first surface that executes commands on a remote host that the
+person did not type. Each poll opens one exec channel over the connection
+already authenticated and runs one fixed string: `cat` over `/proc` files and
+`df` for the Home tab, `ps -eo ... | head -n N` for processes, `ss -tulnpH`
+for ports, `systemctl list-units ... --no-pager` for units, `journalctl -u
+<unit> -n 50` for a unit's journal, `tail -n 50 <path>` for a log file, and
+`find /var/log -maxdepth 3 -type f | ... | head -n 200` for the suggestions
+beside that path. Every one reads; none of them starts, stops, signals or
+writes anything, and the core refuses to grow that list without its own
+decision (`docs/architecture.md`, `ssh/`'s "never does" column). The
+commands are strings the core owns, not strings the frontend sends: the IPC
+surface takes a session id, a unit name or a path, never a command.
+
+Two of those inputs come from the person, and both are constrained before
+they touch a shell. A unit name is refused unless it ends in `.service`,
+starts with something other than `-`, and contains only the characters
+`systemd.unit(5)` allows, which is also exactly the set that is safe to
+interpolate unquoted. A path is refused unless it is absolute, and is then
+single-quoted with the one escaping POSIX shells agree on; starting with `/`
+also means it can never be read as a flag by `tail`. Nothing else the person
+can type reaches a command.
+
+What comes back is adversary 1's output and is treated the way terminal
+output already is: parsed on this side, rendered as text, never interpolated
+into markup. Every reading is bounded before it leaves the host (`head -n`,
+`-n 50`), so a host cannot answer a poll with an unbounded listing. A host
+missing a tool answers with nothing for that reading rather than an error
+for the poll, which is deliberate: the cheapest hostile answer to a probe is
+silence, and silence here costs one empty card.
+
+## What a macro carries
+
+A macro (`config/macros.rs`) is a name and up to 4000 bytes of text, sent to a
+session's terminal exactly as saved, through the same path a confirmed paste
+already uses. It is not a credential and is not stored like one: `macros.json`
+sits beside `sessions.json`, in plain JSON, with the config directory's own
+permissions and nothing more. Rule 1 does not apply to it because nothing
+about it is meant to be secret.
+
+That is the exposure worth writing down. Nothing stops a person from saving a
+token, a password or an `export SECRET=...` line as a macro, and if they do,
+adversary 3 reads it from disk as easily as it reads the session inventory.
+The application does not scan macro text for secrets, because a check that
+guesses what a secret looks like is wrong often enough to be ignored and
+right often enough to be trusted; the honest position is that a macro is as
+private as a shell history file, and a person who would not put a value in
+`~/.bash_history` should not put it in a macro either.
+
+A macro reaching a broadcast group holds for a confirmation first, the same
+reasoning `PasteConfirm` applies to a multi-line paste: the risk is the wrong
+pane having focus, not the text itself.
 
 ## Reviewing a change
 

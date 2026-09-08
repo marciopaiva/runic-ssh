@@ -142,3 +142,15 @@ and `src/App.tsx` (threading host/port/user/via down, the same way
 `TerminalMotdProposal.dc.html` get promoted into `canvas.json` once the
 implementation matches the artboard, the same way ADR-0048 promoted
 `SftpFileOps.dc.html`.
+
+**Amended, 2026-09-08.** The follow-up above shipped in v0.4.0 (#294), and
+`TerminalMotd.dc.html` is in `canvas.json`. The "Bad" paragraph's own risk,
+that `≈`/`∞`/`≠` might not sit in the terminal font at a clean single-row
+height, was then retired rather than checked: #350 (v0.5.0) replaced the
+shaded art with a sixteen-row conversion of the mark using only dashes and
+spaces, no colour, after the maintainer saw the shaded version live and
+found it both too tall and not worth the font dependency. Option B's
+side-by-side-or-stacked layout is unchanged; only the glyphs are. The
+canvas's `MOTD_ART` and `src/features/terminal/motd.ts`'s `ART` are kept
+byte for byte in step, which is the convention this ADR set and the one the
+change kept.

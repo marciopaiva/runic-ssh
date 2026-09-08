@@ -12,7 +12,7 @@ editing it.
 
 `gen.py` builds every surface from one skeleton. The top strip, the rail, the
 sidebar, a group and the status bar are functions, so the anatomy is written
-once and thirteen screens inherit it. Two artboards cannot drift apart by hand,
+once and every screen inherits it. Two artboards cannot drift apart by hand,
 which is the failure the old canvas had: a pane header drawn in one file and a
 tab strip drawn in another, both naming a session, neither aware of the other.
 
@@ -40,7 +40,7 @@ ADR-0020 exists to stop.
 | Page | What is on it |
 | --- | --- |
 | `System` | The anatomy and its seven rules, and the token, type, density and marker sheet |
-| `Surfaces` | Twenty-five screens |
+| `Surfaces` | Thirty-two screens |
 | `Variants` | Light, and the same window in pt-BR and neutral es |
 
 ## Files
