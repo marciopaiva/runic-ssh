@@ -593,6 +593,52 @@ The last row is the only way a broken session gets repaired, so it is worth
 building one: write the `proxyJump` into `sessions.json` by hand on a host that
 already carries others, and open the form.
 
+### A host with real disk I/O
+
+Every fixture above is a `runic-test-sshd` container, and every one of them
+reports `/proc/diskstats` as `ram0` through `ram15`, all zero. That is enough
+for a shell and a filesystem, but useless for Monitor's disk-I/O reading: no
+throughput ever moves, and there is nothing to tell a whole disk apart from
+one of its own partitions.
+
+WSL2 itself is not a container. It is a lightweight VM with its own kernel, so
+the host underneath the containers has a real block layer. `sshd` runs there
+directly, on a loopback-only port, as a dedicated user with no `sudo`:
+
+```sh
+sudo systemctl stop ssh.socket ssh.service
+sudo systemctl disable ssh.socket   # do not run sshd on 0.0.0.0:22
+sudo useradd -m -s /bin/bash -c "Runic SSH disk-io test fixture" runic-diskio
+echo "runic-diskio:runic-diskio" | sudo chpasswd
+# /etc/ssh/sshd_config.d/runic-diskio.conf: Port 2228, ListenAddress 127.0.0.1,
+# PermitRootLogin no, and password auth scoped to this one user
+sudo systemctl enable --now ssh.service
+```
+
+| | |
+| --- | --- |
+| host | `127.0.0.1:2228` |
+| user | `runic-diskio` |
+| password | `runic-diskio` |
+| sudo | none |
+
+Confirmed on 2026-09-08: `runic-diskio@127.0.0.1:2228` reports real, moving
+counters for `sda`, `sdb`, `sdc` and `sdd` rather than zeroed `ram*` devices.
+
+**What this still does not cover.** None of the four devices above is
+partitioned (`sda`, not `sda1`), so separating a whole disk from its own
+partitions is still untested against a real host. This fixture answers "is
+there non-zero, changing I/O to sample," not "does the whole-disk/partition
+split hold." A VM with a partitioned virtual disk is the next thing to reach
+for if that split needs its own real-host pass.
+
+**This is the WSL2 host itself, not a disposable container.** `podman rm` does
+not apply; disabling `ssh.socket` was deliberate, so nothing here reopens port
+22. Tearing the fixture down, should that ever be wanted, is `sudo userdel -r
+runic-diskio`, removing `/etc/ssh/sshd_config.d/runic-diskio.conf`, and
+`sudo systemctl disable --now ssh.service` (re-enabling `ssh.socket` first if
+ordinary SSH access to this machine is wanted back).
+
 ### Port forwarding (ADR-0054)
 
 A saved forward starts the instant its own session connects, no separate
