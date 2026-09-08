@@ -322,9 +322,14 @@ right often enough to be trusted; the honest position is that a macro is as
 private as a shell history file, and a person who would not put a value in
 `~/.bash_history` should not put it in a macro either.
 
-A macro reaching a broadcast group holds for a confirmation first, the same
-reasoning `PasteConfirm` applies to a multi-line paste: the risk is the wrong
-pane having focus, not the text itself.
+A macro picked while typing is synchronised goes to every receiving session
+at once, each resolving `$host`, `$port` and `$username` for itself, with no
+confirmation in between: picking a macro by name is already the deliberate
+act, and the "typing into every group at once" section above is where the
+protection against the wrong pane receiving actually lives. What a macro
+does not get is the multi-line paste check, and it does not need it: a
+person saved that text on purpose, newline included, which is the opposite
+of a clipboard whose contents they may not have looked at.
 
 ## Reviewing a change
 

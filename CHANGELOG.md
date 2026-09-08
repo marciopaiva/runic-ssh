@@ -66,12 +66,13 @@ holding a shipped monitor and macros back for it (#128).
   Reached from the command palette's own Snippets section, reserved
   there since the palette was built, and from a toolbar icon beside
   Broadcast that opens a docked sidebar rather than a modal, so running
-  one does not interrupt whatever else is on screen. A macro reaching a
-  broadcast group holds for a confirmation first, the same reasoning
-  `PasteConfirm` already applies to the same risk: the wrong pane
-  having focus, not a shell running a line unexpectedly. Storage
-  mirrors `SessionStore` exactly, `macros.json`, a tmp-file-then-rename
-  write, a missing file reading as no macros rather than a failure.
+  one does not interrupt whatever else is on screen. With typing
+  synchronised, every receiving session resolves its own variables and
+  gets its own bytes the moment the macro is picked: picking it was
+  already the deliberate act, and a "run on N hosts?" step in between
+  added a click without adding a decision. Storage mirrors
+  `SessionStore` exactly, `macros.json`, a tmp-file-then-rename write,
+  a missing file reading as no macros rather than a failure.
 
 - **The MOTD art redrawn as plain dashes, no colour** (ADR-0051): a
   smaller, sixteen-row conversion of the brand mark using only dashes
@@ -101,6 +102,11 @@ holding a shipped monitor and macros back for it (#128).
   despite carrying this release's own milestone name until now. Moved
   to v0.6.0 (#128); nothing about this window's work narrows what it
   will still need to do.
+- **The command palette's shortcut is suspended while the macros sidebar
+  is docked** (#352). `usePalette` still takes the flag #347 added for
+  the full-screen editor #348 retired; close the sidebar and the same
+  key opens the palette. The palette's own Snippets section is
+  unaffected once it is open.
 - Everything v0.4.0 listed that is not named above is still true,
   including remote and dynamic port forwards proven only by unit tests
   rather than the same live, driven confirmation local forwarding got

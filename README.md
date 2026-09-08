@@ -145,8 +145,9 @@ carries your keys.
 - **Macros.** A name and a block of text sent to a session's terminal
   exactly as saved, `$host`, `$port` and `$username` resolved against
   the session it runs in. Run from the command palette or a docked
-  sidebar; a macro reaching a broadcast group asks first, the same way
-  a confirmed paste already does.
+  sidebar; with typing synchronised, every receiving session resolves
+  its own variables and gets its own bytes the moment the macro is
+  picked, no second question asked.
 
 Not yet: **session import** from OpenSSH and PuTTY, and a signed
 installer of any kind. Those are the roadmap further down, not this list. A
