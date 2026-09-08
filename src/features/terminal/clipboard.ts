@@ -89,6 +89,24 @@ export function pasteNeedsConfirming(
   return /[\r\n]/.test(text.replace(/[\r\n]+$/, ''));
 }
 
+/**
+ * Whether this is xterm answering a remote shell's own cursor position
+ * query (`ESC[6n`), not something a person typed.
+ *
+ * xterm sends that answer back over the same channel a real keystroke
+ * travels, since both are simply data this terminal has for its host. A
+ * shell asks this to find out where its own cursor already sits, most
+ * commonly a prompt working out whether it is at the start of a line before
+ * drawing itself; BusyBox's `ash` does this on every prompt, which is why a
+ * synced pane next to one is the way this is normally noticed. Broadcasting
+ * the reply to every session in sync with the one that asked leaves a bare
+ * `<row>;<col>R` sitting in each of their prompts, since none of them raised
+ * the question xterm is holding an answer to.
+ */
+export function isCursorPositionReport(data: string): boolean {
+  return /^\x1b\[\d+;\d+R$/.test(data);
+}
+
 /** How the confirmation describes what is about to run. */
 export function pasteLines(text: string): readonly string[] {
   return text.replace(/[\r\n]+$/, '').split(/\r\n|\r|\n/);

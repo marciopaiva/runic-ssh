@@ -91,7 +91,7 @@ import type {
   OpenEditor,
   SessionAction,
 } from './features/sessions';
-import { preparePaste } from './features/terminal/clipboard';
+import { isCursorPositionReport, preparePaste } from './features/terminal/clipboard';
 import {
   appVersion,
   asIpcError,
@@ -777,7 +777,14 @@ export function App(): JSX.Element {
   /* Where a keystroke goes, resolved for the terminal that produced it. */
   const broadcast = useCallback(
     (from: string, bytes: Uint8Array): void => {
-      for (const sessionId of inputTargets(groups, from, sync, muted)) {
+      /* xterm answering the remote shell's own cursor position query stays
+         on the channel that asked: broadcasting it is how a bare
+         `<row>;<col>R` ends up sitting in every other synced prompt. See
+         `isCursorPositionReport`. */
+      const targets = isCursorPositionReport(new TextDecoder().decode(bytes))
+        ? [from]
+        : inputTargets(groups, from, sync, muted);
+      for (const sessionId of targets) {
         const target = mounted.find((candidate) => candidate.sessionId === sessionId);
         if (target === undefined) continue;
         /* Rejections are caught and dropped on purpose. The input is split to
