@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import type { JSX } from 'react';
 
 import {
@@ -9,6 +9,8 @@ import {
   niceMax,
   sortProcesses,
   unitTone,
+  useCandidateLogs,
+  useFileTail,
   usePorts,
   useProcesses,
   useStatsHistory,
@@ -28,13 +30,14 @@ interface MonitorWorkspaceProps {
   readonly stats: SystemStats;
 }
 
-type DetailTab = 'home' | 'processes' | 'ports' | 'systemd';
+type DetailTab = 'home' | 'processes' | 'ports' | 'systemd' | 'logs';
 
 /* `as const satisfies` rather than an annotated `Record<DetailTab, string>`:
    an explicit `string` annotation would widen each value past the literal
    key `i18n.t` needs to resolve whether a message takes parameters. */
 const TAB_LABEL = {
   home: 'monitor.tab.home',
+  logs: 'monitor.tab.logs',
   ports: 'monitor.tab.ports',
   processes: 'monitor.tab.processes',
   systemd: 'monitor.tab.systemd',
@@ -337,6 +340,111 @@ function SystemdTab({ handle, active }: { readonly handle: SessionHandle; readon
         unit={active ? selected : null}
         onClose={() => setSelected(null)}
       />
+    </div>
+  );
+}
+
+/**
+ * The same shape `JournalPane` draws, at full height rather than a 30%
+ * dock: there is no unit list sharing this tab, so the tail is the whole
+ * of what it shows once a path is submitted.
+ */
+function FileTailPane({
+  handle,
+  path,
+  onClose,
+}: {
+  readonly handle: SessionHandle | null;
+  readonly path: string | null;
+  readonly onClose: () => void;
+}): JSX.Element | null {
+  const i18n = useTranslator();
+  const lines = useFileTail(handle, path);
+
+  if (path === null) return null;
+
+  const closeLabel = i18n.t('tabs.close', { name: path });
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="border-line-subtle flex items-center justify-between gap-2 border-b px-3 py-1.5">
+        <span className="text-ink-secondary truncate font-mono text-[11px] font-semibold">{path}</span>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label={closeLabel}
+          title={closeLabel}
+          className="text-ink-faint hover:text-ink flex h-4 w-4 shrink-0 items-center justify-center rounded"
+        >
+          <svg viewBox="0 0 10 10" className="h-2 w-2" fill="none" aria-hidden="true">
+            <path d="M0.5 0.5l9 9M9.5 0.5l-9 9" stroke="currentColor" strokeWidth="1.4" />
+          </svg>
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto px-3 py-1.5">
+        {lines.length === 0 ? (
+          <p className="text-ink-faint text-[11px]">{i18n.t('monitor.logs.none')}</p>
+        ) : (
+          lines.map((line, index) => (
+            <p key={index} className="text-ink-faint truncate font-mono text-[10.5px]">
+              {line}
+            </p>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A user-typed absolute path, tailed the same way `SystemdTab` tails a
+ * unit's own journal: for a service that logs to a plain file instead of,
+ * or as well as, the journal. No path history in this v1: submitting a new
+ * path forgets the last one, the same as picking a different unit already
+ * does in `SystemdTab`.
+ */
+function LogsTab({ handle, active }: { readonly handle: SessionHandle; readonly active: boolean }): JSX.Element {
+  const i18n = useTranslator();
+  const candidates = useCandidateLogs(active ? handle : null);
+  const listId = useId();
+  const [draft, setDraft] = useState('');
+  const [path, setPath] = useState<string | null>(null);
+
+  const submit = (): void => {
+    const trimmed = draft.trim();
+    if (trimmed.length > 0) setPath(trimmed);
+  };
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="border-line-subtle border-b p-2">
+        <input
+          type="text"
+          list={listId}
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') submit();
+          }}
+          placeholder={i18n.t('monitor.logs.placeholder')}
+          className="bg-surface-base border-line-subtle text-ink w-full rounded border px-2 py-1 text-[12px]"
+        />
+        {/* Suggestions only: files `find` actually located under `/var/log`
+           on this host. Typing anything else, including a path outside
+           `/var/log`, still submits on Enter. */}
+        <datalist id={listId}>
+          {candidates.map((candidate) => (
+            <option key={candidate} value={candidate} />
+          ))}
+        </datalist>
+      </div>
+      {path === null ? (
+        <div className="flex flex-1 items-center justify-center p-3">
+          <p className="text-ink-faint text-[12px]">{i18n.t('monitor.logs.empty')}</p>
+        </div>
+      ) : (
+        <FileTailPane handle={active ? handle : null} path={active ? path : null} onClose={() => setPath(null)} />
+      )}
     </div>
   );
 }
@@ -699,6 +807,8 @@ function HomeTab({ handle, stats }: { readonly handle: SessionHandle; readonly s
   const loadMax = niceMax(loadPeak);
   const networkPeak = Math.max(1, ...history.networkBytesPerSec.map((sample) => sample.value));
   const networkMax = niceMax(networkPeak);
+  const diskIoPeak = Math.max(1, ...history.diskIoBytesPerSec.map((sample) => sample.value));
+  const diskIoMax = niceMax(diskIoPeak);
   const memPercent = stats.memory === null ? null : (stats.memory.usedKb / stats.memory.totalKb) * 100;
   const cpuTone: MeterTone = stats.cpuPercent === null ? 'ok' : meterTone(stats.cpuPercent);
   const memTone: MeterTone = memPercent === null ? 'ok' : meterTone(memPercent);
@@ -717,25 +827,27 @@ function HomeTab({ handle, stats }: { readonly handle: SessionHandle; readonly s
           i18n={i18n}
         />
 
-        <HeroMetricCard
-          title={i18n.t('status.monitor.cpu')}
-          value={percentValue(stats.cpuPercent)}
-          samples={history.cpu}
-          max={100}
-          formatValue={formatPercentAxis}
-          tone={cpuTone}
-        />
-
-        <HeroMetricCard
-          title={i18n.t('status.monitor.memory')}
-          value={percentValue(memPercent)}
-          samples={history.ramPercent}
-          max={100}
-          formatValue={formatPercentAxis}
-          tone={memTone}
-        />
-
         <div className="grid grid-cols-1 gap-3 min-[520px]:grid-cols-2">
+          <HeroMetricCard
+            title={i18n.t('status.monitor.cpu')}
+            value={percentValue(stats.cpuPercent)}
+            samples={history.cpu}
+            max={100}
+            formatValue={formatPercentAxis}
+            tone={cpuTone}
+          />
+
+          <HeroMetricCard
+            title={i18n.t('status.monitor.memory')}
+            value={percentValue(memPercent)}
+            samples={history.ramPercent}
+            max={100}
+            formatValue={formatPercentAxis}
+            tone={memTone}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 min-[780px]:grid-cols-3">
           {stats.swap !== null && stats.swap.totalKb > 0 && (
             <MetricCard
               title={i18n.t('status.monitor.swap')}
@@ -749,21 +861,6 @@ function HomeTab({ handle, stats }: { readonly handle: SessionHandle; readonly s
             />
           )}
 
-          {stats.disk !== null && (
-            <MetricCard
-              title={i18n.t('status.monitor.disk')}
-              value={i18n.number(stats.disk.usedKb / stats.disk.totalKb, {
-                style: 'percent',
-                maximumFractionDigits: 0,
-              })}
-              samples={history.diskPercent}
-              max={100}
-              formatValue={formatPercentAxis}
-            />
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 min-[520px]:grid-cols-2">
           {stats.loadAverage !== null && (
             <MetricCard
               title={i18n.t('status.monitor.load')}
@@ -785,6 +882,31 @@ function HomeTab({ handle, stats }: { readonly handle: SessionHandle; readonly s
           )}
         </div>
 
+        <div className="grid grid-cols-1 gap-3 min-[520px]:grid-cols-2">
+          {stats.disk !== null && (
+            <MetricCard
+              title={i18n.t('status.monitor.disk')}
+              value={i18n.number(stats.disk.usedKb / stats.disk.totalKb, {
+                style: 'percent',
+                maximumFractionDigits: 0,
+              })}
+              samples={history.diskPercent}
+              max={100}
+              formatValue={formatPercentAxis}
+            />
+          )}
+
+          {stats.diskIo !== null && (
+            <MetricCard
+              title={i18n.t('status.monitor.diskIo')}
+              value={`↓${formatRate(stats.diskIo.readBytesPerSec, i18n)} ↑${formatRate(stats.diskIo.writeBytesPerSec, i18n)}`}
+              samples={history.diskIoBytesPerSec}
+              max={diskIoMax}
+              formatValue={(value) => formatRate(value, i18n)}
+            />
+          )}
+        </div>
+
         <FilesystemsCard filesystems={stats.filesystems} />
 
         {stats.cpuPercent === null &&
@@ -792,6 +914,7 @@ function HomeTab({ handle, stats }: { readonly handle: SessionHandle; readonly s
           stats.disk === null &&
           stats.filesystems.length === 0 &&
           stats.network === null &&
+          stats.diskIo === null &&
           stats.uptimeSeconds === null &&
           stats.loadAverage === null && (
             <p className="text-ink-faint text-[12px]">{i18n.t('monitor.unavailable')}</p>
@@ -823,7 +946,7 @@ export function MonitorWorkspace({ identity, handle, stats }: MonitorWorkspacePr
       </div>
 
       <div className="border-line-subtle flex items-center gap-1 border-b px-3">
-        {(['home', 'processes', 'ports', 'systemd'] as const).map((candidate) => (
+        {(['home', 'processes', 'ports', 'systemd', 'logs'] as const).map((candidate) => (
           <button
             key={candidate}
             type="button"
@@ -846,8 +969,10 @@ export function MonitorWorkspace({ identity, handle, stats }: MonitorWorkspacePr
           <ProcessesTab handle={handle} active={tab === 'processes'} />
         ) : tab === 'ports' ? (
           <PortsTab handle={handle} active={tab === 'ports'} />
-        ) : (
+        ) : tab === 'systemd' ? (
           <SystemdTab handle={handle} active={tab === 'systemd'} />
+        ) : (
+          <LogsTab handle={handle} active={tab === 'logs'} />
         )}
       </div>
     </div>

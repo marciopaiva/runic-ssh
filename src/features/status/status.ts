@@ -105,6 +105,7 @@ export const NO_SYSTEM_STATS: SystemStats = {
   disk: null,
   filesystems: [],
   network: null,
+  diskIo: null,
   uptimeSeconds: null,
   loadAverage: null,
 };

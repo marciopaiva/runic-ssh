@@ -1,5 +1,6 @@
 export { asIpcError } from './errors';
 export { appVersion } from './app';
+export { sessionCandidateLogs } from './candidate-logs';
 export { deleteMacro, listMacros, saveMacro } from './macros';
 export type { Macro, MacroDraft } from './macros';
 export {
@@ -37,6 +38,7 @@ export { sessionSystemInfo } from './sysinfo';
 export type { SystemInfo } from './sysinfo';
 export { sessionSystemdUnits } from './systemd';
 export type { SystemdUnit } from './systemd';
+export { sessionTailFile } from './tail';
 export {
   authenticateSession,
   authenticateWithSaved,
@@ -76,7 +78,7 @@ export {
   sessionStats,
   watchTerminal,
 } from './terminal';
-export type { Filesystem, LoadAverage, NetworkRate, SessionStats, SystemStats, Usage } from './terminal';
+export type { DiskIoRate, Filesystem, LoadAverage, NetworkRate, SessionStats, SystemStats, Usage } from './terminal';
 export type { SettingsView, Theme } from './settings';
 export {
   FINISHED_EVENT as SFTP_FINISHED_EVENT,

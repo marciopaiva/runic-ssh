@@ -2642,7 +2642,7 @@ def monitor_pane_header(name, where):
       </div>"""
 
 def monitor_tabs(active="home"):
-    labels = [("home", "Home"), ("processes", "Processes"), ("ports", "Ports"), ("systemd", "Systemd")]
+    labels = [("home", "Home"), ("processes", "Processes"), ("ports", "Ports"), ("systemd", "Systemd"), ("logs", "Logs")]
     out = []
     for key, label in labels:
         on = key == active
@@ -2730,9 +2730,15 @@ def build_monitor():
     """The Monitor workspace's Home tab (v0.5.0), redrawn against the
     maintainer's own Grafana screenshot ("Windows Host Overview") and
     shipped the same day: one card for identity, uptime and the CPU/memory
-    dials, full-width area charts for CPU and memory (the two Grafana gives
-    the most room), swap/disk and load/network as a compact pair each, and
-    every mounted filesystem as a usage bar at the bottom.
+    dials, CPU and memory as a side-by-side pair of hero area charts (the
+    two Grafana gives the most room; put on one line rather than stacked
+    per the maintainer's own request once both were built and visibly
+    taking two full-width rows), swap/load/network as a row of three and
+    disk usage/disk I/O as a pair below it (regrouped the same way, once
+    disk I/O existed as a card of its own and made "one pair, then another
+    pair, then a lone card" read as arbitrary rather than as two disk
+    readings sitting apart from each other), and every mounted filesystem
+    as a usage bar at the bottom.
 
     Deliberately absent: processor queue length, context switches, system
     calls and handle counts, all Windows perf counters with no portable
@@ -2751,25 +2757,25 @@ def build_monitor():
       <div style="flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px;">
         {identity_overview_card("Debian GNU/Linux 13 (trixie)", "web-01", "Linux 6.6.87.2 x86_64", "Intel(R) Xeon(R) CPU E5-2670 v3", "14d 6h", 34, "ok", 62, "warn")}
         <div style="display: flex; flex-direction: column; gap: 6px;">
-          {section_label("CPU")}
-          {hero_chart("CPU usage", "34%", [0.2, 0.5, 0.3, 0.6, 0.4, 0.7, 0.34], "100%", "50%", "0%", "4:02 PM", "4:04 PM", tone="ok")}
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 6px;">
-          {section_label("Memory")}
-          {hero_chart("Memory usage", "62%", [0.5, 0.55, 0.6, 0.58, 0.63, 0.6, 0.62], "100%", "50%", "0%", "4:02 PM", "4:04 PM", tone="warn")}
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 6px;">
-          {section_label("Swap & disk")}
+          {section_label("CPU & memory")}
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-            {metric_card("Swap usage", "4%", [0.02, 0.03, 0.05, 0.04, 0.04, 0.05, 0.04], "100%", "50%")}
-            {metric_card("Disk usage", "46%", [0.4, 0.42, 0.44, 0.45, 0.45, 0.46, 0.46], "100%", "50%")}
+            {hero_chart("CPU usage", "34%", [0.2, 0.5, 0.3, 0.6, 0.4, 0.7, 0.34], "100%", "50%", "0%", "4:02 PM", "4:04 PM", tone="ok")}
+            {hero_chart("Memory usage", "62%", [0.5, 0.55, 0.6, 0.58, 0.63, 0.6, 0.62], "100%", "50%", "0%", "4:02 PM", "4:04 PM", tone="warn")}
           </div>
         </div>
         <div style="display: flex; flex-direction: column; gap: 6px;">
-          {section_label("Load & network")}
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          {section_label("Swap, load & network")}
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+            {metric_card("Swap usage", "4%", [0.02, 0.03, 0.05, 0.04, 0.04, 0.05, 0.04], "100%", "50%")}
             {metric_card("Load average", "1.84", [0.3, 0.4, 0.6, 0.5, 0.7, 0.55, 0.46], "4.00", "2.00", zero_label="0.00")}
             {metric_card("Network", "&#8595;12.4 KB/s &#8593;3.1 KB/s", [0.1, 0.4, 0.2, 0.6, 0.3, 0.5, 0.31], "40 KB/s", "20 KB/s", zero_label="0 KB/s")}
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          {section_label("Disk usage & I/O")}
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            {metric_card("Disk usage", "46%", [0.4, 0.42, 0.44, 0.45, 0.45, 0.46, 0.46], "100%", "50%")}
+            {metric_card("Disk I/O", "&#8595;4.2 MB/s &#8593;890 KB/s", [0.2, 0.5, 0.35, 0.8, 0.4, 0.6, 0.42], "10 MB/s", "5 MB/s", zero_label="0 MB/s")}
           </div>
         </div>
         {filesystems_card(fs_rows)}
@@ -3021,6 +3027,59 @@ def build_monitor_systemd():
       </div>"""
     st = status(stat_text("web-01", T['muted'], mono=False), stat_text("6 hosts saved", T['faint']))
     write("MonitorSystemd.dc.html", page(body, sidebar, home_rail(workspace="monitor"), st, show_shapes=False))
+
+def build_monitor_logs():
+    """The Monitor workspace's fifth tab: a path tailed like a systemd
+    unit's own journal, for a service that logs to a plain file instead of
+    (or as well as) the journal, Apache/nginx being the case that started
+    this. Same tail-and-poll shape `journal_pane` already draws for a unit,
+    at full height rather than a 30% dock, since there is no unit list
+    sharing the tab here.
+
+    The field is a real `<input list>`/`<datalist>` in the shipped
+    component, not the custom dropdown this flat drawing has no native way
+    to render; the chevron here stands for that combo behavior; picking a
+    suggestion or typing a path outside it both submit the same way. The
+    suggestions themselves are files `find` actually located under
+    `/var/log` on this host, not a guess from a service's name, so a host
+    with nothing recognizable there leaves the list empty and the field
+    still plain free text. No path history beyond that in this v1:
+    submitting a new path forgets the last one, the same as `JournalPane`
+    already does for a unit today."""
+    sidebar = monitor_sidebar(active="web-01")
+    lines = [
+        "10.4.1.9 - - [07/Sep/2026:15:12:02 +0000] \"GET /health HTTP/1.1\" 200 12",
+        "10.4.1.9 - - [07/Sep/2026:15:12:05 +0000] \"GET /api/status HTTP/1.1\" 200 143",
+        "10.4.1.44 - - [07/Sep/2026:16:40:11 +0000] \"POST /api/login HTTP/1.1\" 401 27",
+    ]
+    close = (f'<svg viewBox="0 0 10 10" style="width: 8px; height: 8px; color: {T["faint"]};" fill="none"'
+             f' stroke="currentColor" stroke-width="1.4"><path d="M0.5 0.5l9 9M9.5 0.5l-9 9"></path></svg>')
+    chevron = (f'<svg viewBox="0 0 10 6" style="width: 9px; height: 6px; color: {T["faint"]}; flex: none;" fill="none"'
+               f' stroke="currentColor" stroke-width="1.4"><path d="M1 1l4 4 4-4"></path></svg>')
+    lines_html = "\n".join(
+        f'<p class="mono" style="font-size: 11px; color: {T["faint"]}; margin: 0; overflow: hidden;'
+        f' text-overflow: ellipsis; white-space: nowrap;">{l}</p>'
+        for l in lines
+    )
+    body = f"""{monitor_pane_header("web-01", "deploy@10.4.1.20")}
+{monitor_tabs("logs")}
+      <div style="flex: 1; min-height: 0; display: flex; flex-direction: column;">
+        <div style="border-bottom: 1px solid {T['line']}; padding: 8px 12px;">
+          <div style="height: 30px; background: {T['input']}; border: 1px solid {T['accent']}; border-radius: 5px; display: flex; align-items: center; justify-content: space-between; padding: 0 10px;">
+            <span class="mono" style="font-size: 12px; color: {T['ink']};">/var/log/nginx/access.log</span>
+            {chevron}
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid {T['line']}; padding: 6px 12px;">
+          <span class="mono" style="font-size: 11px; font-weight: 600; color: {T['ink2']};">/var/log/nginx/access.log</span>
+          <div style="width: 16px; height: 16px; border-radius: 4px; display: flex; align-items: center; justify-content: center; flex: none;">{close}</div>
+        </div>
+        <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 8px 12px;">
+{lines_html}
+        </div>
+      </div>"""
+    st = status(stat_text("web-01", T['muted'], mono=False), stat_text("6 hosts saved", T['faint']))
+    write("MonitorLogs.dc.html", page(body, sidebar, home_rail(workspace="monitor"), st, show_shapes=False))
 
 def build_monitor_hosts_empty():
     """The other half of the Monitor workspace: nothing picked yet.
@@ -3509,7 +3568,7 @@ else:
                build_home_hosts, build_home_hosts_common_case, build_home_hosts_empty, build_home_collapsed, build_home_delete_confirm,
                build_home_hosts_credential, build_home_hosts_unknown_key, build_home_hosts_topology,
                build_monitor, build_monitor_processes, build_monitor_ports,
-               build_monitor_systemd, build_monitor_hosts_empty,
+               build_monitor_systemd, build_monitor_logs, build_monitor_hosts_empty,
                build_anatomy, build_tokens,
                build_hostkeychanged, build_failure, build_paste, build_palette):
         fn()

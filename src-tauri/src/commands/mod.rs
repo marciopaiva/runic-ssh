@@ -6,6 +6,7 @@
 //! a webview or an app handle.
 
 pub mod app;
+pub mod candidate_logs;
 pub mod chrome;
 pub mod credential;
 pub mod forward;
@@ -19,4 +20,5 @@ pub mod settings;
 pub mod sftp;
 pub mod sysinfo;
 pub mod systemd;
+pub mod tail;
 pub mod terminal;

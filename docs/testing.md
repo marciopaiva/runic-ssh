@@ -593,6 +593,111 @@ The last row is the only way a broken session gets repaired, so it is worth
 building one: write the `proxyJump` into `sessions.json` by hand on a host that
 already carries others, and open the form.
 
+### A host with real disk I/O
+
+Every fixture above is a `runic-test-sshd` container, and every one of them
+reports `/proc/diskstats` as `ram0` through `ram15`, all zero. That is enough
+for a shell and a filesystem, but useless for Monitor's disk-I/O reading: no
+throughput ever moves, and there is nothing to tell a whole disk apart from
+one of its own partitions.
+
+WSL2 itself is not a container. It is a lightweight VM with its own kernel, so
+the host underneath the containers has a real block layer. `sshd` runs there
+directly, on a loopback-only port, as a dedicated user with no `sudo`:
+
+```sh
+sudo systemctl stop ssh.socket ssh.service
+sudo systemctl disable ssh.socket   # do not run sshd on 0.0.0.0:22
+sudo useradd -m -s /bin/bash -c "Runic SSH disk-io test fixture" runic-diskio
+echo "runic-diskio:runic-diskio" | sudo chpasswd
+# /etc/ssh/sshd_config.d/runic-diskio.conf: Port 2228, ListenAddress 127.0.0.1,
+# PermitRootLogin no, and password auth scoped to this one user
+sudo systemctl enable --now ssh.service
+```
+
+| | |
+| --- | --- |
+| host | `127.0.0.1:2228` |
+| user | `runic-diskio` |
+| password | `runic-diskio` |
+| sudo | none |
+
+Confirmed on 2026-09-08: `runic-diskio@127.0.0.1:2228` reports real, moving
+counters for `sda`, `sdb`, `sdc` and `sdd` rather than zeroed `ram*` devices.
+
+**What this still does not cover.** None of the four devices above is
+partitioned (`sda`, not `sda1`), so separating a whole disk from its own
+partitions is still untested against a real host. This fixture answers "is
+there non-zero, changing I/O to sample," not "does the whole-disk/partition
+split hold." A VM with a partitioned virtual disk is the next thing to reach
+for if that split needs its own real-host pass.
+
+**This is the WSL2 host itself, not a disposable container.** `podman rm` does
+not apply; disabling `ssh.socket` was deliberate, so nothing here reopens port
+22. Tearing the fixture down, should that ever be wanted, is `sudo userdel -r
+runic-diskio`, removing `/etc/ssh/sshd_config.d/runic-diskio.conf`, and
+`sudo systemctl disable --now ssh.service` (re-enabling `ssh.socket` first if
+ordinary SSH access to this machine is wanted back).
+
+### Monitor's Home tab: Disk I/O
+
+Confirmed on Linux on 2026-09-08, against `runic-diskio@127.0.0.1:2228`
+(this file's own fixture above), driven headlessly on a private `Xvfb`
+display rather than the maintainer's own running `pnpm tauri dev`: the
+Home tab's Disk I/O card rendered its own full-width row below Load
+average/Network, reading `↓0 B/s ↑65.5 KB/s` with a real, rising area
+chart, both numbers moving between successive polls rather than sitting
+flat at zero. `ssh::monitor::disk_io_rate`'s partition-exclusion path
+itself is still only covered by a synthetic unit test (see the module's
+own tests): this fixture's four disks carry no partitions, so the
+exclusion logic passing this live check proves the plumbing end to end,
+not the exclusion rule against a real partitioned device.
+
+### Monitor's Logs tab: an arbitrary file's own tail
+
+Confirmed on Linux on 2026-09-08, against `runic-diskio@127.0.0.1:2228`,
+headlessly on a private `Xvfb` display: a small file written by hand at
+`/home/runic-diskio/fake-nginx/access.log` (two lines mimicking an nginx
+access log), typed into the Logs tab's own input and submitted with
+Enter, rendered both lines. A third line appended to the file on the host
+appeared on its own after the next poll (`MONITOR_INTERVAL_MS`, ~15s),
+proving this is a live tail and not a one-shot read. A path that does not
+exist on the host (`/nonexistent/path.log`) rendered `monitor.logs.none`
+rather than an error, the same "nothing to report" shape `ssh::tail::parse`
+answers a permission error or a missing file with. The pane's close button
+returned the tab to its empty state and named the path it was closing in
+its own tooltip.
+
+Not driven by this pass: a path containing a space or a single quote. The
+unit tests in `ssh::tail` cover the quoting itself (`shell_quote`); this
+would be the same kind of real-host gap `ssh::monitor`'s disk-I/O section
+above already names for its own partition-exclusion path, if it is ever
+worth closing.
+
+### Monitor's Logs tab: suggestions from a real `/var/log`
+
+Confirmed on Linux on 2026-09-08, against `runic-diskio@127.0.0.1:2228`,
+headlessly on the same private `Xvfb` display. The path field is a real
+`<input list>`/`<datalist>`, and WebKitGTK renders it exactly as any other
+native combo: clicking the empty field opened a dropdown of thirteen
+paths, precisely the ones `ssh::candidate_logs::command`'s own `find` and
+`grep` pipeline reports on this host, in the same order. `/var/log/journal/`
+holding around a hundred binary journal segments on this Ubuntu 24.04 host
+was the reason the exclusion filter needed a second pass: the first
+version listed all of them ahead of `syslog` and the rest, which would
+have made the combo worse than typing. Picking `/var/log/dpkg.log` from
+the list rendered real `dpkg` history immediately. Picking `/var/log/syslog`
+rendered `monitor.logs.none`, not because it is missing, but because it is
+owned `syslog:adm 640` and this fixture's own user is not in `adm` (verified
+directly: `tail: cannot open '/var/log/syslog' for reading: Permission
+denied`), the same permission ambiguity `ssh::tail` already documents.
+Free-text entry outside the suggested list still works unchanged.
+
+Not driven by this pass: WebView2 and WKWebView's own rendering of
+`<datalist>`. Native controls have differed between engines before in this
+project (docs/testing.md's own capability-verification table); nothing
+here has been checked on either.
+
 ### Port forwarding (ADR-0054)
 
 A saved forward starts the instant its own session connects, no separate

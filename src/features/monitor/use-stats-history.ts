@@ -34,6 +34,9 @@ export interface StatsHistory {
   /** Receive plus transmit, in bytes/sec: one line answering "how busy is
    * this host's network right now," not which direction. */
   readonly networkBytesPerSec: readonly Sample[];
+  /** Read plus write, in bytes/sec, across every disk: the same
+   * one-line-not-two-directions choice `networkBytesPerSec` already makes. */
+  readonly diskIoBytesPerSec: readonly Sample[];
 }
 
 const EMPTY_HISTORY: StatsHistory = {
@@ -43,6 +46,7 @@ const EMPTY_HISTORY: StatsHistory = {
   diskPercent: [],
   loadAverage: [],
   networkBytesPerSec: [],
+  diskIoBytesPerSec: [],
 };
 
 function append(history: readonly Sample[], value: number | null, at: number): readonly Sample[] {
@@ -102,6 +106,11 @@ export function useStatsHistory(handle: SessionHandle | null, stats: SystemStats
             : stats.network.receiveBytesPerSec + stats.network.transmitBytesPerSec,
           at,
         ),
+        diskIoBytesPerSec: append(
+          current.diskIoBytesPerSec,
+          stats.diskIo === null ? null : stats.diskIo.readBytesPerSec + stats.diskIo.writeBytesPerSec,
+          at,
+        ),
       };
 
       const unchanged =
@@ -110,7 +119,8 @@ export function useStatsHistory(handle: SessionHandle | null, stats: SystemStats
         next.swapPercent === current.swapPercent &&
         next.diskPercent === current.diskPercent &&
         next.loadAverage === current.loadAverage &&
-        next.networkBytesPerSec === current.networkBytesPerSec;
+        next.networkBytesPerSec === current.networkBytesPerSec &&
+        next.diskIoBytesPerSec === current.diskIoBytesPerSec;
 
       return unchanged ? current : next;
     });

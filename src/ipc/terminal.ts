@@ -269,6 +269,18 @@ export interface NetworkRate {
 }
 
 /**
+ * How fast bytes are moving across every real disk, summed rather than kept
+ * per device: the same "busier than usual" question `NetworkRate` already
+ * answers for the network. A partition's own I/O is folded into its parent
+ * disk's counters already, so `ssh/monitor.rs` excludes it from this sum
+ * rather than counting it twice.
+ */
+export interface DiskIoRate {
+  readonly readBytesPerSec: number;
+  readonly writeBytesPerSec: number;
+}
+
+/**
  * A host's own vital signs, read over the connection already open.
  *
  * Every field is independent and `null` (or, for `filesystems`, empty) on
@@ -283,6 +295,7 @@ export interface SystemStats {
   readonly disk: Usage | null;
   readonly filesystems: readonly Filesystem[];
   readonly network: NetworkRate | null;
+  readonly diskIo: DiskIoRate | null;
   readonly uptimeSeconds: number | null;
   readonly loadAverage: LoadAverage | null;
 }
