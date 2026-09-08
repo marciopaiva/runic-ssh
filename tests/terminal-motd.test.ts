@@ -72,7 +72,7 @@ describe('side by side versus stacked (ADR-0051, Option B)', () => {
     const banner = motdBanner(session('web', { name: 'web-01' }), [], 200, i18n);
     const lines = banner.split('\r\n');
 
-    expect(stripAnsi(lines[0] ?? '')).toContain('≈');
+    expect(stripAnsi(lines[0] ?? '')).toContain('-');
     expect(stripAnsi(lines[0] ?? '')).toContain('Runic SSH');
   });
 
@@ -82,7 +82,7 @@ describe('side by side versus stacked (ADR-0051, Option B)', () => {
 
     /* The art's own rows never carry field text once stacked: nothing after
        the art ends fits its own row width to have shared one before. */
-    const artRowCount = 13;
+    const artRowCount = 16;
     for (const line of lines.slice(0, artRowCount)) {
       expect(stripAnsi(line)).not.toContain('Runic SSH');
     }

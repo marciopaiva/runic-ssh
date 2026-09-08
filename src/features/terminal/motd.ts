@@ -12,28 +12,34 @@ import type { Session } from '../../ipc';
 import { bastionName } from '../sessions/jump';
 
 /**
- * The maintainer's own conversion of the brand mark through asciiart.eu's
- * image-to-ascii tool, `≈` for the shaded body of the two overlapping
- * circles and `∞`/`≠` for the brighter points where the tool's own
- * conversion marks the rune crossing them. Kept verbatim, byte for byte,
- * with `design/canvas/gen.py`'s `MOTD_ART`: the shading technique has no
- * equivalent in path data, so a future resize starts from the same source
- * image and tool rather than a second, independent conversion.
+ * The maintainer's own plain dash-and-space conversion of the brand mark.
+ * Kept verbatim, byte for byte, with `design/canvas/gen.py`'s `MOTD_ART`,
+ * so a future resize starts from the same source image and tool rather
+ * than a second, independent conversion. Printed with no colour of its
+ * own (the maintainer's own call, after seeing an earlier blue/magenta
+ * version): plain dashes in the terminal's own default foreground, same
+ * as the shell text around them. That also closes ADR-0051's own "Bad"
+ * risk about an earlier conversion's three special characters not being
+ * guaranteed to sit in JetBrains Mono at a clean single-row height; a
+ * plain dash is not at risk of a font fallback either.
  */
 const ART: readonly string[] = [
-  '              ≈≈≈≈≈≈≈≈≈≈≈≈   ≈≈≈≈≈≈≈≈≈≈≈≈',
-  '           ≈≈≈≈≈        ≈≈≈≈≈≈≈  ≈≈≈   ≠≈≈≈≈',
-  '         ≈≈≈≈           ≈≈≈≈≈≈≈≈≈≈  ≈≈≈   ≈≈≈≈',
-  '        ≈≈≈           ≈≈≈≈   ≈≈≈≈ ≈≈≈≈      ≈≈≈',
-  '       ≈≈≈          ≈≈≈≈≈  ≈≈≈≈≈≈≈≈≈         ≈≈≈',
-  '       ≈≈≈        ≈≈≈≈≈≈≈≈≈≈≈≈ ≈≈ ≈≈≈≈        ≈≈≈',
-  '       ≈≈       ≈≈≈≈  ≈≈≈≈≈ ≈≈∞≈≈  ≈≈≈≈       ≈≈≈',
-  '       ≈≈≈        ≈≈≈≈≈≈≈≈≈≈≈≈ ≈≈ ≈≈≈≈        ≈≈≈',
-  '       ≈≈≈         ≈≈≈≈≈≈≈ ≈≈≈≈≈≈≈≈≈         ≈≠≠',
-  '        ≈≈≈       ≈≈≈≈≈≈≈≈   ≈≈≈≈≈          ≈≈≈',
-  '         ≠≈≈≈    ≈≈≈ ≈≈≈≈≈≈≈≈≈≈           ≈≈≈≈',
-  '           ≈≈≈≈≈   ≈≈≈≈  ≈≈≈≈∞≈         ≈≈≠≈',
-  '              ≈≈≈≈≈≈≈≈≈≈≈≈    ≈≈≈≈≈≈≈≈≈≠≠',
+  '                  -----           -----',
+  '             --------------  --------------',
+  '           ----            ---   ---      ----',
+  '         ---             --- ------  ---     --',
+  '        --             ---    ---   ---       ---',
+  '       --            ----   ---------          ---',
+  '       --          --- --  ---  -----           --',
+  '      ---        ---  ------ -- --  ----        --',
+  '      ---        ---  ------ -- --  ----        --',
+  '       --          --- --  ---  -- ---          --',
+  '       ---          ------   -------           ---',
+  '        ---       ---  ---    ----            ---',
+  '         ---     --   ------ ---             ---',
+  '           ----     ----  ----            ----',
+  '             --------------- --------------',
+  '                  -----           -----',
 ];
 
 const ART_WIDTH = Math.max(...ART.map((line) => line.length));
@@ -44,38 +50,13 @@ const GAP = 2;
 /* Plain SGR codes into the terminal's own existing ANSI palette slots
    (`terminalTheme()`), not truecolor: xterm.js re-renders already-printed
    text in a new palette the instant the theme changes, which a truecolor
-   escape would not. Blue is `--rs-accent`, cyan is `--rs-accent-bright`,
-   magenta is `--rs-brand-end`; the left ring and right ring of the mark
-   split blue/magenta the same way `motd_art_lines_html()` splits
-   `bstart`/`bend`, and a crossing point (`∞`/`≠`) takes cyan, the
-   brightest of the three, as the highlight `brune` reads on the canvas
-   itself. Bright black is `--rs-text-faint`, for a label dim enough not to
-   compete with its own value. */
+   escape would not. Only the info column carries any weight or colour at
+   all now that the art itself prints plain: bold for the title, bright
+   black (`--rs-text-faint`) for a label dim enough not to compete with
+   its own value. */
 const RESET = '\x1b[0m';
 const BOLD = '\x1b[1m';
-const BLUE = '\x1b[34m';
-const CYAN = '\x1b[36m';
-const MAGENTA = '\x1b[35m';
 const FAINT = '\x1b[90m';
-
-function colorArtLine(line: string): string {
-  const center = ART_WIDTH / 2;
-  let colored = '';
-  let current: string | null = null;
-  let index = 0;
-
-  for (const ch of line) {
-    const color = ch === '∞' || ch === '≠' ? CYAN : index < center ? BLUE : MAGENTA;
-    if (color !== current) {
-      colored += color;
-      current = color;
-    }
-    colored += ch;
-    index += 1;
-  }
-
-  return `${colored}${RESET}`;
-}
 
 interface Fields {
   readonly host: string;
@@ -127,8 +108,8 @@ function infoRows(fields: Fields, i18n: Translator): readonly InfoRow[] {
  *
  * Side by side (ADR-0051, Option B) once `columns` is wide enough for the art
  * and the widest field row together; stacked, art first, below that. A
- * terminal narrower than the stacked art itself (49 columns) still overflows,
- * a named and accepted limit rather than one guarded here.
+ * terminal narrower than the stacked art itself (50 columns) still
+ * overflows, a named and accepted limit rather than one guarded here.
  */
 export function motdBanner(
   session: Session,
@@ -144,9 +125,9 @@ export function motdBanner(
     columns >= sideBySideWidth
       ? ART.map((artLine, index) => {
           const pad = ' '.repeat(Math.max(0, ART_WIDTH + GAP - artLine.length));
-          return `${colorArtLine(artLine)}${pad}${info[index]?.colored ?? ''}`;
+          return `${artLine}${pad}${info[index]?.colored ?? ''}`;
         })
-      : [...ART.map(colorArtLine), '', ...info.map((row) => row.colored)];
+      : [...ART, '', ...info.map((row) => row.colored)];
 
   return `${lines.join('\r\n')}\r\n\r\n`;
 }

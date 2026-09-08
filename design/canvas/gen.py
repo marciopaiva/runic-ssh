@@ -3430,59 +3430,40 @@ def build_palette():
 
 # ---------- the terminal's own MOTD, printed once when a shell connects
 MOTD_ART = [
-    '              ≈≈≈≈≈≈≈≈≈≈≈≈   ≈≈≈≈≈≈≈≈≈≈≈≈',
-    '           ≈≈≈≈≈        ≈≈≈≈≈≈≈  ≈≈≈   ≠≈≈≈≈',
-    '         ≈≈≈≈           ≈≈≈≈≈≈≈≈≈≈  ≈≈≈   ≈≈≈≈',
-    '        ≈≈≈           ≈≈≈≈   ≈≈≈≈ ≈≈≈≈      ≈≈≈',
-    '       ≈≈≈          ≈≈≈≈≈  ≈≈≈≈≈≈≈≈≈         ≈≈≈',
-    '       ≈≈≈        ≈≈≈≈≈≈≈≈≈≈≈≈ ≈≈ ≈≈≈≈        ≈≈≈',
-    '       ≈≈       ≈≈≈≈  ≈≈≈≈≈ ≈≈∞≈≈  ≈≈≈≈       ≈≈≈',
-    '       ≈≈≈        ≈≈≈≈≈≈≈≈≈≈≈≈ ≈≈ ≈≈≈≈        ≈≈≈',
-    '       ≈≈≈         ≈≈≈≈≈≈≈ ≈≈≈≈≈≈≈≈≈         ≈≠≠',
-    '        ≈≈≈       ≈≈≈≈≈≈≈≈   ≈≈≈≈≈          ≈≈≈',
-    '         ≠≈≈≈    ≈≈≈ ≈≈≈≈≈≈≈≈≈≈           ≈≈≈≈',
-    '           ≈≈≈≈≈   ≈≈≈≈  ≈≈≈≈∞≈         ≈≈≠≈',
-    '              ≈≈≈≈≈≈≈≈≈≈≈≈    ≈≈≈≈≈≈≈≈≈≠≠',
+    '                  -----           -----',
+    '             --------------  --------------',
+    '           ----            ---   ---      ----',
+    '         ---             --- ------  ---     --',
+    '        --             ---    ---   ---       ---',
+    '       --            ----   ---------          ---',
+    '       --          --- --  ---  -----           --',
+    '      ---        ---  ------ -- --  ----        --',
+    '      ---        ---  ------ -- --  ----        --',
+    '       --          --- --  ---  -- ---          --',
+    '       ---          ------   -------           ---',
+    '        ---       ---  ---    ----            ---',
+    '         ---     --   ------ ---             ---',
+    '           ----     ----  ----            ----',
+    '             --------------- --------------',
+    '                  -----           -----',
 ]
-# The maintainer's own conversion, via asciiart.eu/image-to-ascii, of the
-# brand mark. Kept verbatim (not re-traced from the SVG paths the way
-# `MARK`/`KIND_ICON` above are) since the shading technique, density of `≈`
-# standing in for the two circles' overlap, is not something the path data
-# gives for free; recorded here so a future resize starts from the same
-# source image and tool rather than guessing at a second conversion.
+# The maintainer's own plain dash-and-space conversion of the brand mark.
+# Kept verbatim with `src/features/terminal/motd.ts`'s own `ART`, so a
+# future resize starts from the same source image and tool rather than a
+# second, independent conversion. Printed with no colour of its own (the
+# maintainer's own call, after seeing an earlier blue/magenta version):
+# plain dashes in the terminal's own default foreground.
 
 MOTD_WIDTH = max(len(line) for line in MOTD_ART)
 
 def motd_art_lines_html():
-    """Colours `MOTD_ART` by column rather than by circle: there is no
-    per-character record of which of the two source circles a given `≈`
-    belonged to, only the finished raster. Left of centre reads as circle
-    A (`bstart`, the same cyan `MARK`'s left ring already strokes), right
-    of centre as circle B (`bend`, the same purple), and every `∞`/`≠`,
-    the asciiart.eu conversion's own way of marking a brighter crossing
-    point, in `brune`, the rune line's own colour in `MARK` and
-    `KIND_ICON` alike. A per-character split is cruder than the real
-    stroke boundary, but the source has no sharper line to cut along.
-    Returns one HTML string per row, not one joined block: `motd_row()`
-    below pairs each against its own line of the info column."""
-    center = MOTD_WIDTH / 2
-    rows = []
-    for line in MOTD_ART:
-        segments = []
-        color = None
-        text = ''
-        for i, ch in enumerate(line):
-            this_color = T['brune'] if ch in '∞≠' else (T['bstart'] if i < center else T['bend'])
-            if this_color != color:
-                if text:
-                    segments.append((color, text))
-                color, text = this_color, ch
-            else:
-                text += ch
-        if text:
-            segments.append((color, text))
-        rows.append(''.join(f'<span style="color: {c};">{t}</span>' for c, t in segments))
-    return rows
+    """`MOTD_ART`, HTML-escaped but otherwise unstyled: the art carries no
+    colour of its own since the maintainer moved away from an earlier
+    coloured conversion, so this is a plain pass-through rather than the
+    per-column colouring an earlier version of this function did. Returns
+    one string per row, not one joined block: `motd_row()` below pairs
+    each against its own line of the info column."""
+    return list(MOTD_ART)
 
 def motd_field(label, value):
     return (f'<span style="color: {T["faint"]};">{label:<9}</span>'
@@ -3520,13 +3501,10 @@ def build_terminal_motd():
     "say nothing rather than say none" rule `bastionName` already returns
     `null` for.
 
-    Colour: `motd_art_lines_html()`'s `bstart`/`bend`/`brune` are the exact
-    three colours `MARK` already strokes the real mark with, so the banner
-    reads as the same brand identity already drawn everywhere else, not a
-    fourth palette invented for the terminal alone. The shipped write uses
-    the terminal's own existing ANSI slots instead (blue/cyan/magenta),
-    which repaint for free on a theme change; this artboard, like the rest
-    of the canvas, is still drawn from the design tokens directly."""
+    Colour: the art itself carries none, plain dashes in the terminal's
+    own default foreground; only the info column has any weight or colour
+    (bold title, dim labels), the maintainer's own call after seeing an
+    earlier blue/magenta conversion of the art."""
     art_rows = motd_art_lines_html()
     info_rows = [
         f'<span style="color: {T["ink"]}; font-weight: 700;">Runic SSH</span>',
