@@ -46,12 +46,31 @@ workflow produced, and it is the answer to "is this usable yet".
 
 | Platform | Installed and driven | Version | Where the file came from |
 | --- | --- | --- | --- |
-| Linux, `.deb` | **yes**, 2026-09-04 | 0.4.0 | **downloaded from the release** |
+| Linux, `.deb` | **yes**, 2026-09-08 | 0.5.0 | **downloaded from the release** |
 | Linux, `.rpm` | no | | no RPM distribution to hand |
 | Linux, `.AppImage` | no | | discouraged anyway, see below |
 | Windows, `.exe` (NSIS) | **yes**, 2026-08-26 | 0.1.1 | **a workflow artifact, copied in through WSL** |
 | Windows, `.msi` (WiX) | built, not installed | | the NSIS package was the one exercised |
 | macOS, `.dmg` | **no** | | needs an Apple Silicon Mac |
+
+**The 0.5.0 `.deb` was downloaded from the release**, checked against
+`SHA256SUMS` (six lines, one per file on the page, every one covered), and
+installed over the 0.4.0 package already on this machine with `apt install
+./Runic-SSH_0.5.0_amd64.deb`, an upgrade rather than a fresh install. Driven
+as the installed `/usr/bin/runic-ssh` on an isolated display, on a fresh
+`XDG_CONFIG_HOME` seeded with two saved hosts and no `known_hosts`: an
+unknown host key on `runic-test-sshd`, its fingerprint matching
+`ssh-keyscan` character for character, trusted; the credential typed into
+the editor's Access column and saved by testing it; a shell opened with the
+plain-dash MOTD (#350) printing into it and `uname -a` run with its output
+read back; Monitor's Home tab on the same host, every card populated and
+disk I/O moving (`↑41.0 KB/s`); a macro created from the sidebar with the
+three variable chips, `macros.json` written beside `sessions.json`, and run,
+`$host:$port as $username` resolving to `127.0.0.1:2222 as deploy` in the
+shell. This is the first time this table records Monitor or macros being
+driven on a packaged build at all. Port forwarding and SFTP were not
+re-driven this pass; the 0.4.0 and 0.3.0 paragraphs below still stand for
+them.
 
 **The 0.4.0 `.deb` was downloaded from the release**, checked against
 `SHA256SUMS`, and installed over the 0.3.0 package already on this machine
