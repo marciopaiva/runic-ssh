@@ -56,8 +56,8 @@
   --rs-brand-end: #b961e6;
   --rs-brand-rune: #dbe7f5;
 
-  /* State is never carried by colour alone in this interface, but when colour
-     is present it comes from here. */
+/* State is never carried by colour alone in this interface, but when colour
+   is present it comes from here. */
   --rs-state-ok: #2fc49e;
   --rs-state-ok-soft: #0e1c18;
   --rs-state-warn: #e8b04a;
@@ -65,6 +65,40 @@
   --rs-state-danger: #ff5f6b;
   --rs-state-danger-text: #ff8a92;
   --rs-state-danger-soft: #24141a;
+
+  /* Motion: durations and easings for consistent animation language.
+     Fast = micro-interactions (hover, press), Normal = transitions, Slow = orchestration. */
+  --rs-duration-fast: 100ms;
+  --rs-duration-normal: 200ms;
+  --rs-duration-slow: 300ms;
+
+  --rs-easing-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --rs-easing-emphasized: cubic-bezier(0.4, 0, 1, 1);
+  --rs-easing-decelerated: cubic-bezier(0, 0, 0.2, 1);
+
+  /* Shadow scale: elevation layers for depth. 1=subtle, 5=modal/toast. */
+  --rs-shadow-1: 0 1px 2px 0 rgb(0 0 0 / 0.05), 0 1px 3px 1px rgb(0 0 0 / 0.1);
+  --rs-shadow-2: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --rs-shadow-3: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --rs-shadow-4: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --rs-shadow-5: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+
+  /* Radius scale: consistent rounding across components. */
+  --rs-radius-sm: 4px;
+  --rs-radius-md: 8px;
+  --rs-radius-lg: 12px;
+  --rs-radius-xl: 16px;
+  --rs-radius-full: 9999px;
+
+  /* Z-index scale: layering hierarchy. */
+  --rs-z-dropdown: 100;
+  --rs-z-tooltip: 200;
+  --rs-z-modal: 300;
+  --rs-z-toast: 400;
+
+  /* Glass/blur: for overlays, backdrops, elevated surfaces. */
+  --rs-glass-blur: 8px;
+  --rs-glass-opacity: 0.08;
 }
 
 /* A viewer who has asked their system for light, and has not overridden it
@@ -104,6 +138,41 @@
     --rs-state-danger: #c91e2c;
     --rs-state-danger-text: #9e101c;
     --rs-state-danger-soft: #fceaea;
+
+    /* Motion: durations and easings for consistent animation language.
+       Fast = micro-interactions (hover, press), Normal = transitions, Slow = orchestration. */
+    --rs-duration-fast: 100ms;
+    --rs-duration-normal: 200ms;
+    --rs-duration-slow: 300ms;
+
+    --rs-easing-standard: cubic-bezier(0.4, 0, 0.2, 1);
+    --rs-easing-emphasized: cubic-bezier(0.4, 0, 1, 1);
+    --rs-easing-decelerated: cubic-bezier(0, 0, 0.2, 1);
+
+    /* Shadow scale: elevation layers for depth. 1=subtle, 5=modal/toast.
+       Light theme uses lighter shadows. */
+    --rs-shadow-1: 0 1px 2px 0 rgb(0 0 0 / 0.03), 0 1px 3px 1px rgb(0 0 0 / 0.06);
+    --rs-shadow-2: 0 4px 6px -1px rgb(0 0 0 / 0.06), 0 2px 4px -2px rgb(0 0 0 / 0.06);
+    --rs-shadow-3: 0 10px 15px -3px rgb(0 0 0 / 0.06), 0 4px 6px -4px rgb(0 0 0 / 0.06);
+    --rs-shadow-4: 0 20px 25px -5px rgb(0 0 0 / 0.06), 0 8px 10px -6px rgb(0 0 0 / 0.06);
+    --rs-shadow-5: 0 25px 50px -12px rgb(0 0 0 / 0.15);
+
+    /* Radius scale: consistent rounding across components. */
+    --rs-radius-sm: 4px;
+    --rs-radius-md: 8px;
+    --rs-radius-lg: 12px;
+    --rs-radius-xl: 16px;
+    --rs-radius-full: 9999px;
+
+    /* Z-index scale: layering hierarchy. */
+    --rs-z-dropdown: 100;
+    --rs-z-tooltip: 200;
+    --rs-z-modal: 300;
+    --rs-z-toast: 400;
+
+    /* Glass/blur: for overlays, backdrops, elevated surfaces. */
+    --rs-glass-blur: 8px;
+    --rs-glass-opacity: 0.06;
   }
 }
 
@@ -143,4 +212,39 @@
   --rs-state-danger: #c91e2c;
   --rs-state-danger-text: #9e101c;
   --rs-state-danger-soft: #fceaea;
+
+  /* Motion: durations and easings for consistent animation language.
+     Fast = micro-interactions (hover, press), Normal = transitions, Slow = orchestration. */
+  --rs-duration-fast: 100ms;
+  --rs-duration-normal: 200ms;
+  --rs-duration-slow: 300ms;
+
+  --rs-easing-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --rs-easing-emphasized: cubic-bezier(0.4, 0, 1, 1);
+  --rs-easing-decelerated: cubic-bezier(0, 0, 0.2, 1);
+
+  /* Shadow scale: elevation layers for depth. 1=subtle, 5=modal/toast.
+     Light theme uses lighter shadows. */
+  --rs-shadow-1: 0 1px 2px 0 rgb(0 0 0 / 0.03), 0 1px 3px 1px rgb(0 0 0 / 0.06);
+  --rs-shadow-2: 0 4px 6px -1px rgb(0 0 0 / 0.06), 0 2px 4px -2px rgb(0 0 0 / 0.06);
+  --rs-shadow-3: 0 10px 15px -3px rgb(0 0 0 / 0.06), 0 4px 6px -4px rgb(0 0 0 / 0.06);
+  --rs-shadow-4: 0 20px 25px -5px rgb(0 0 0 / 0.06), 0 8px 10px -6px rgb(0 0 0 / 0.06);
+  --rs-shadow-5: 0 25px 50px -12px rgb(0 0 0 / 0.15);
+
+  /* Radius scale: consistent rounding across components. */
+  --rs-radius-sm: 4px;
+  --rs-radius-md: 8px;
+  --rs-radius-lg: 12px;
+  --rs-radius-xl: 16px;
+  --rs-radius-full: 9999px;
+
+  /* Z-index scale: layering hierarchy. */
+  --rs-z-dropdown: 100;
+  --rs-z-tooltip: 200;
+  --rs-z-modal: 300;
+  --rs-z-toast: 400;
+
+  /* Glass/blur: for overlays, backdrops, elevated surfaces. */
+    --rs-glass-blur: 8px;
+  --rs-glass-opacity: 0.06;
 }

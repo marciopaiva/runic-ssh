@@ -10,6 +10,8 @@ import { useTranslator } from '../features/settings';
 import { SessionMarker } from './SessionMarker';
 import { SyncToggle } from './SyncToggle';
 import type { SyncState } from './SyncToggle';
+import { Button } from './ui/Button';
+import { XIcon } from './ui/icons';
 
 /** What a tab says it is, for a session, a host form or the settings page. */
 export interface EditorTab {
@@ -198,17 +200,16 @@ export function GroupStrip({
 
         {sync !== null && <SyncToggle state={sync} onToggle={onToggleSync} />}
 
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={() => onClose(solo)}
           aria-label={closeLabel}
           title={closeLabel}
-          className="text-ink-faint hover:text-ink flex h-4 w-4 shrink-0 items-center justify-center rounded"
+          className="h-4 w-4"
         >
-          <svg viewBox="0 0 10 10" className="h-2 w-2" fill="none" aria-hidden="true">
-            <path d="M0.5 0.5l9 9M9.5 0.5l-9 9" stroke="currentColor" strokeWidth="1.4" />
-          </svg>
-        </button>
+          <XIcon className="h-2 w-2" />
+        </Button>
       </div>
     );
   }
@@ -343,17 +344,18 @@ export function GroupStrip({
               )}
             </button>
 
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => onClose(entry)}
               aria-label={closeLabel}
               title={closeLabel}
-              className="text-ink-faint hover:text-ink flex h-4 w-4 shrink-0 items-center justify-center rounded"
+              className="h-4 w-4"
             >
               <svg viewBox="0 0 10 10" className="h-2 w-2" fill="none" aria-hidden="true">
                 <path d="M0.5 0.5l9 9M9.5 0.5l-9 9" stroke="currentColor" strokeWidth="1.4" />
               </svg>
-            </button>
+            </Button>
 
             {hasKeyboard && sync === 'on' && (
               /* Which rectangle the status bar is describing, spelled out

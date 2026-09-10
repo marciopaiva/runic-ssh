@@ -13,6 +13,21 @@ T = dict(
     bstart="#2bb0e8", bend="#b961e6", brune="#dbe7f5",
     ok="#2fc49e", oksoft="#0e1c18", warn="#e8b04a", warnsoft="#241c0e",
     danger="#ff5f6b", dangertext="#ff8a92", dangersoft="#24141a",
+    # Motion
+    duration_fast="100ms", duration_normal="200ms", duration_slow="300ms",
+    easing_standard="cubic-bezier(0.4, 0, 0.2, 1)", easing_emphasized="cubic-bezier(0.4, 0, 1, 1)", easing_decelerated="cubic-bezier(0, 0, 0.2, 1)",
+    # Shadow scale
+    shadow_1="0 1px 2px 0 rgb(0 0 0 / 0.05), 0 1px 3px 1px rgb(0 0 0 / 0.1)",
+    shadow_2="0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
+    shadow_3="0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)",
+    shadow_4="0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)",
+    shadow_5="0 25px 50px -12px rgb(0 0 0 / 0.25)",
+    # Radius scale
+    radius_sm="4px", radius_md="8px", radius_lg="12px", radius_xl="16px", radius_full="9999px",
+    # Z-index scale
+    z_dropdown="100", z_tooltip="200", z_modal="300", z_toast="400",
+    # Glass/blur
+    glass_blur="8px", glass_opacity="0.08",
 )
 
 # The same token names with the values swapped, straight from the light blocks
@@ -27,6 +42,21 @@ LIGHT = dict(
     bstart="#1f9fd4", bend="#a04fd0", brune="#1a2735",
     ok="#12855f", oksoft="#e4f5ee", warn="#8a5e08", warnsoft="#faf0dc",
     danger="#c91e2c", dangertext="#9e101c", dangersoft="#fceaea",
+    # Motion (same values)
+    duration_fast="100ms", duration_normal="200ms", duration_slow="300ms",
+    easing_standard="cubic-bezier(0.4, 0, 0.2, 1)", easing_emphasized="cubic-bezier(0.4, 0, 1, 1)", easing_decelerated="cubic-bezier(0, 0, 0.2, 1)",
+    # Shadow scale (lighter for light theme)
+    shadow_1="0 1px 2px 0 rgb(0 0 0 / 0.03), 0 1px 3px 1px rgb(0 0 0 / 0.06)",
+    shadow_2="0 4px 6px -1px rgb(0 0 0 / 0.06), 0 2px 4px -2px rgb(0 0 0 / 0.06)",
+    shadow_3="0 10px 15px -3px rgb(0 0 0 / 0.06), 0 4px 6px -4px rgb(0 0 0 / 0.06)",
+    shadow_4="0 20px 25px -5px rgb(0 0 0 / 0.06), 0 8px 10px -6px rgb(0 0 0 / 0.06)",
+    shadow_5="0 25px 50px -12px rgb(0 0 0 / 0.15)",
+    # Radius scale (same values)
+    radius_sm="4px", radius_md="8px", radius_lg="12px", radius_xl="16px", radius_full="9999px",
+    # Z-index scale (same values)
+    z_dropdown="100", z_tooltip="200", z_modal="300", z_toast="400",
+    # Glass/blur (slightly lower opacity for light)
+    glass_blur="8px", glass_opacity="0.06",
 )
 
 import sys

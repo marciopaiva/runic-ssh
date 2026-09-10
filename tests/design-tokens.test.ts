@@ -28,6 +28,10 @@ const entryFile = join(repoRoot, 'src/main.tsx');
  * that true, and for a while it was not: the canvas was rebuilt from the
  * refined values while the tree still carried the ones before them, so the
  * record and the application disagreed about what colour the interface is.
+ *
+ * Non-colour tokens (motion, shadows, radius, z-index, glass) are included
+ * here for parity checking but are not validated by the hex regex below;
+ * they are checked by the full token parity test instead.
  */
 const CANVAS_NAMES: Readonly<Record<string, string>> = {
   base: 'surface-base',
@@ -57,6 +61,33 @@ const CANVAS_NAMES: Readonly<Record<string, string>> = {
   danger: 'state-danger',
   dangertext: 'state-danger-text',
   dangersoft: 'state-danger-soft',
+  // Motion
+  duration_fast: 'duration-fast',
+  duration_normal: 'duration-normal',
+  duration_slow: 'duration-slow',
+  easing_standard: 'easing-standard',
+  easing_emphasized: 'easing-emphasized',
+  easing_decelerated: 'easing-decelerated',
+  // Shadow scale
+  shadow_1: 'shadow-1',
+  shadow_2: 'shadow-2',
+  shadow_3: 'shadow-3',
+  shadow_4: 'shadow-4',
+  shadow_5: 'shadow-5',
+  // Radius scale
+  radius_sm: 'radius-sm',
+  radius_md: 'radius-md',
+  radius_lg: 'radius-lg',
+  radius_xl: 'radius-xl',
+  radius_full: 'radius-full',
+  // Z-index scale
+  z_dropdown: 'z-dropdown',
+  z_tooltip: 'z-tooltip',
+  z_modal: 'z-modal',
+  z_toast: 'z-toast',
+  // Glass/blur
+  glass_blur: 'glass-blur',
+  glass_opacity: 'glass-opacity',
 };
 
 /** One of `gen.py`'s palette dictionaries, as token name to value. */
@@ -65,10 +96,26 @@ function canvasPalette(name: 'T' | 'LIGHT'): Map<string, string> {
   const start = source.indexOf(`${name} = dict(`);
   expect(start, `gen.py has no ${name} palette`).toBeGreaterThan(-1);
 
-  const body = source.slice(start, source.indexOf(')', start));
+  // Find the matching closing paren (handles nested parens in shadow values)
+  let depth = 0;
+  let end = start;
+  for (let i = start; i < source.length; i++) {
+    if (source[i] === '(') depth++;
+    else if (source[i] === ')') {
+      depth--;
+      if (depth === 0) {
+        end = i;
+        break;
+      }
+    }
+  }
+  expect(depth, `gen.py ${name} palette has unmatched parens`).toBe(0);
+
+  const body = source.slice(start, end + 1);
   const found = new Map<string, string>();
 
-  for (const [, short, value] of body.matchAll(/(\w+)="(#[0-9a-f]{6})"/g)) {
+  // Match both hex colours and other quoted values (durations, cubic-bezier, shadows, etc.)
+  for (const [, short, value] of body.matchAll(/(\w+)="([^"]+)"/g)) {
     const token = short === undefined ? undefined : CANVAS_NAMES[short];
     if (token !== undefined && value !== undefined) found.set(`--rs-${token}`, value);
   }

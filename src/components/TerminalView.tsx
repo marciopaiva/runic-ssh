@@ -6,6 +6,8 @@ import { useTerminal } from '../features/terminal/use-terminal';
 import type { TerminalSize } from '../features/terminal/use-terminal';
 import { useTranslator } from '../features/settings';
 
+import { Card } from './ui/Card';
+
 interface TerminalViewProps {
   readonly handle: SessionHandle | null;
   /** For the ADR-0051 MOTD banner: the session this terminal belongs to
@@ -136,11 +138,13 @@ export function TerminalView({
       </div>
 
       {closed && (
-        <p className="text-ink-muted border-line-subtle border-t px-3 py-1.5 font-mono text-xs">
-          {exitStatus === null
-            ? i18n.t('terminal.endedUnknown')
-            : i18n.t('terminal.ended', { status: String(exitStatus) })}
-        </p>
+        <Card variant="filled" padding="sm" className="border-t border-line-subtle">
+          <p className="text-ink-muted border-line-subtle border-t px-3 py-1.5 font-mono text-xs">
+            {exitStatus === null
+              ? i18n.t('terminal.endedUnknown')
+              : i18n.t('terminal.ended', { status: String(exitStatus) })}
+          </p>
+        </Card>
       )}
     </section>
   );

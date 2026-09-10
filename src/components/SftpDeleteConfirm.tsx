@@ -2,7 +2,7 @@ import type { JSX } from 'react';
 
 import { useTranslator } from '../features/settings';
 
-import { FileIcon, FolderIcon } from './SftpPane';
+import { FileIcon, FolderIcon } from './ui/icons';
 import { SessionSurface, SurfaceAction } from './SessionSurface';
 
 interface SftpDeleteConfirmProps {

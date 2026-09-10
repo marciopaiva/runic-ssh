@@ -6,7 +6,8 @@ import { useTranslator } from '../features/settings';
 import type { TransferHandle } from '../ipc';
 import type { ParameterlessKey, Translator } from '../lib/i18n';
 
-import { FolderIcon, formatSize } from './SftpPane';
+import { FolderIcon } from './ui/icons';
+import { formatSize } from './SftpPane';
 
 interface TransfersBarProps {
   readonly transfers: readonly TransferState[];

@@ -20,11 +20,15 @@
     "prose": "node scripts/prose.mjs"
   },
   "dependencies": {
+    "@headlessui/react": "^2.2.10",
     "@tauri-apps/api": "^2.11.1",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
+    "clsx": "^2.1.1",
+    "framer-motion": "^13.2.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",

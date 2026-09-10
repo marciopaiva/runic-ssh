@@ -44,6 +44,39 @@
   --color-danger-text: var(--rs-state-danger-text);
   --color-danger-soft: var(--rs-state-danger-soft);
 
+  /* Motion tokens */
+  --duration-fast: var(--rs-duration-fast);
+  --duration-normal: var(--rs-duration-normal);
+  --duration-slow: var(--rs-duration-slow);
+
+  --easing-standard: var(--rs-easing-standard);
+  --easing-emphasized: var(--rs-easing-emphasized);
+  --easing-decelerated: var(--rs-easing-decelerated);
+
+  /* Shadow scale */
+  --shadow-1: var(--rs-shadow-1);
+  --shadow-2: var(--rs-shadow-2);
+  --shadow-3: var(--rs-shadow-3);
+  --shadow-4: var(--rs-shadow-4);
+  --shadow-5: var(--rs-shadow-5);
+
+  /* Radius scale */
+  --radius-sm: var(--rs-radius-sm);
+  --radius-md: var(--rs-radius-md);
+  --radius-lg: var(--rs-radius-lg);
+  --radius-xl: var(--rs-radius-xl);
+  --radius-full: var(--rs-radius-full);
+
+  /* Z-index scale */
+  --z-dropdown: var(--rs-z-dropdown);
+  --z-tooltip: var(--rs-z-tooltip);
+  --z-modal: var(--rs-z-modal);
+  --z-toast: var(--rs-z-toast);
+
+  /* Glass/blur */
+  --glass-blur: var(--rs-glass-blur);
+  --glass-opacity: var(--rs-glass-opacity);
+
   /* Both faces ship in the bundle, declared in styles/fonts.css. The fallbacks
      stay because the bundled subsets cover latin and latin-ext only. */
   --font-sans: 'Manrope', 'Segoe UI', system-ui, sans-serif;
