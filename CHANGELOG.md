@@ -9,7 +9,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 versions follow [semantic versioning](https://semver.org/spec/v2.0.0.html),
 with the caveat that anything below 1.0 may break, and this project intends to.
 
-## [Unreleased]
+## [0.6.0] — 2026-09-10
 
 Opens the spatial map the 1.0 line is built on (`docs/plans/map.md`): a fifth
 workspace on the rail where a saved host becomes a component, an icon that
@@ -49,6 +49,20 @@ roadmap rather than moved again (#128 stays open, unscheduled).
   workspace would, but opens no tab there; the connection lives in the
   component's window and survives the window being minimized (ADR-0014,
   ADR-0053).
+- The interface now builds on Headless UI and Framer Motion (ADR-0063):
+  shared primitives under `src/components/ui/`, and motion, shadow, radius
+  and layering tokens in every theme beside the colours. Ten existing
+  components moved onto the primitives without changing what they show;
+  the map is the first surface drawn on them. Motion respects
+  `prefers-reduced-motion`, where every transition becomes a cut.
+
+### Fixed
+
+- A connection redirected to the host editor for a missing credential left
+  the attempt running, so the editor's Save stayed on "Proving" and no other
+  connection could start until the application was restarted. The attempt
+  now ends the moment the redirect happens, from Sessions and from the map
+  alike (#358).
 
 ### Known limitations
 
@@ -58,6 +72,12 @@ roadmap rather than moved again (#128 stays open, unscheduled).
   workspace rather than in the shared toolbar row, unlike the other four.
 - Nothing on the map is reachable from the keyboard alone yet beyond the
   context menu; the radial is a pointer gesture.
+- The host popup over the map holds the editor's inline credential field
+  while the map's terminals stay mounted underneath it, which is the
+  document ADR-0032 checked was never shared. Editing a host from Home
+  keeps that guarantee; the map's popup does not, until ADR-0032 is
+  revisited with the v0.9.0 cut (#360). `docs/security-model.md`, "What
+  the map stores", says what still holds.
 
 ## [0.5.0] — 2026-09-08
 
@@ -916,6 +936,10 @@ deliberately labelled one.
 - A connection gives up after twenty seconds (ADR-0016). That number is a
   choice, not a measurement, and there is no setting for it yet.
 
+[0.6.0]: https://github.com/marciopaiva/runic-ssh/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/marciopaiva/runic-ssh/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/marciopaiva/runic-ssh/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/marciopaiva/runic-ssh/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/marciopaiva/runic-ssh/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/marciopaiva/runic-ssh/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/marciopaiva/runic-ssh/compare/v0.1.0...v0.1.1

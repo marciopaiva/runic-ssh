@@ -67,7 +67,7 @@ same thing without the history attached.
 | `ssh/` | Connection lifecycle, auth, channels, port forwards (ADR-0054); and Monitor's readings: one fixed, read-only command per poll (`/proc`, `ps`, `ss`, `systemctl list-units`, `journalctl`, `tail`, `find`) run over the connection already open and parsed here, never on the host | Talk to the webview; start, stop or signal anything Monitor shows |
 | `sftp/` | Directory listing, upload, download, remote-to-remote transfer, recursive folder copy (ADR-0041, ADR-0045, ADR-0049) | Talk to the webview; resume an interrupted transfer, which nothing here does yet |
 | `vault/` | Credential storage: the OS keychain, and the run-lifetime store beside it | Return plaintext across IPC |
-| `config/` | Session, macro and app settings persistence | Store secrets |
+| `config/` | Session, macro, map and app settings persistence | Store secrets |
 
 `commands/` is the only module that knows Tauri exists. Everything else is a
 plain Rust library that can be unit tested with no webview and no app handle.
@@ -152,6 +152,7 @@ a time.
 | Credentials kept for the run | Core process memory only | Written nowhere, gone on exit (ADR-0025) |
 | Known hosts | Platform config dir | OpenSSH `known_hosts` format |
 | Macros | Platform config dir, `macros.json` | JSON: a name and the text sent as typed, at most 4000 bytes each; written the same tmp-then-rename way sessions are |
+| The map | Platform config dir, `workspace.json` | JSON: components as a host id, a kind, a position and a size, nothing a host book row does not already reveal (ADR-0064); written tmp-then-rename like sessions, and pruned on load of any host that left the book |
 | Which bastions are folded shut in the host book | The webview's `localStorage` | A session id and a boolean per bastion, nothing else (ADR-0060) |
 
 Using the OpenSSH format for known hosts is deliberate: the user can inspect it

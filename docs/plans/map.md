@@ -51,6 +51,8 @@ die in v0.9.0. That is cheap.
 
 ### v0.6.0 Components
 
+Shipped on 2026-09-10 (PR #359), tagged `v0.6.0`.
+
 **Ships:** the Map workspace with components. Hold the rune to create an SSH
 terminal, an SFTP browser or a monitor for a saved host; click expands the
 icon into its window in place; the window behaves like a Windows window
