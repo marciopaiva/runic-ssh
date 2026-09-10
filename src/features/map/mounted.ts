@@ -28,7 +28,7 @@ export function mapTerminals(
 ): readonly MountedTerminal[] {
   const mounted: MountedTerminal[] = [];
   for (const component of components) {
-    if (component.kind !== 'ssh') continue;
+    if (component.kind !== 'ssh' || component.host === undefined) continue;
     const handle = handles.get(component.host);
     if (handle === undefined) continue;
     mounted.push({ sessionId: component.host, handle });

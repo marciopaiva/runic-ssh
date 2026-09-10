@@ -11,9 +11,10 @@ import { invoke } from '@tauri-apps/api/core';
  * Which surface a component opens on its host.
  *
  * Only `'ssh'` ever asks the core for a shell; `'sftp'` and `'monitor'` share
- * the host's one connection without one (ADR-0053).
+ * the host's one connection without one (ADR-0053). `'local'` is the file
+ * browser of this machine (ADR-0065): no host, no connection, one per layer.
  */
-export type ComponentKind = 'ssh' | 'sftp' | 'monitor';
+export type ComponentKind = 'ssh' | 'sftp' | 'monitor' | 'local';
 
 /** A place on the map, in map pixels at 100%. */
 export interface Point {
@@ -32,8 +33,9 @@ export interface Component {
   /** Stable for the life of the component; what a line or a vision names. */
   readonly id: string;
   readonly kind: ComponentKind;
-  /** The saved session this opens on, by id. */
-  readonly host: string;
+  /** The saved session this opens on, by id; absent on `'local'`, the one
+      kind with no session, and present on every other. */
+  readonly host?: string;
   /** The layer this sits in; absent on the outermost map. */
   readonly layer?: string;
   /** Where the user left it; absent to let the map place it. */
@@ -42,7 +44,11 @@ export interface Component {
   readonly size?: Size;
 }
 
-/** A line between two components of the same kind (v0.7.0). */
+/**
+ * A line between two components of one family (ADR-0065). Between file
+ * browsers the order is the direction: `a` the origin, `b` the destination.
+ * Between terminals the order carries nothing.
+ */
 export interface Link {
   readonly a: string;
   readonly b: string;

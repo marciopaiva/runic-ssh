@@ -17,7 +17,7 @@
  * reaching a host nobody armed, and nothing shows it until it has.
  */
 
-import type { Component, ComponentKind, Link, Workspace } from '../../ipc';
+import type { ComponentKind, Link, Workspace } from '../../ipc';
 
 import { findComponent } from './model';
 
@@ -30,6 +30,7 @@ export function familyOf(kind: ComponentKind): Family | null {
     case 'ssh':
       return 'terminal';
     case 'sftp':
+    case 'local':
       return 'files';
     case 'monitor':
       return null;
@@ -40,6 +41,8 @@ export type LinkRefusal =
   | { readonly reason: 'unknown' }
   | { readonly reason: 'self' }
   | { readonly reason: 'family' }
+  /** This machine to itself: there is nowhere for a file to go. */
+  | { readonly reason: 'local' }
   | { readonly reason: 'duplicate' };
 
 export type LinkOutcome =
@@ -69,6 +72,7 @@ export function canLink(workspace: Workspace, a: string, b: string): LinkRefusal
   if (from === undefined || to === undefined) return { reason: 'unknown' };
   const family = familyOf(from.kind);
   if (family === null || family !== familyOf(to.kind)) return { reason: 'family' };
+  if (from.kind === 'local' && to.kind === 'local') return { reason: 'local' };
   const taken =
     family === 'terminal'
       ? workspace.links.some((link) => sameLine(link, a, b))
@@ -87,6 +91,14 @@ export function addLink(workspace: Workspace, a: string, b: string): LinkOutcome
 /** Removes the line between `a` and `b`, whichever way it was drawn. */
 export function removeLink(workspace: Workspace, a: string, b: string): Workspace {
   return { ...workspace, links: workspace.links.filter((link) => !sameLine(link, a, b)) };
+}
+
+/**
+ * Where a file browser's lines go: the components it is the origin of, in
+ * the order the lines were drawn (ADR-0065 rule 2: `a` is the origin).
+ */
+export function destinationsOf(workspace: Workspace, id: string): readonly string[] {
+  return workspace.links.filter((link) => link.a === id).map((link) => link.b);
 }
 
 function terminalLinks(workspace: Workspace): readonly Link[] {
@@ -195,7 +207,6 @@ export function mapInputTargets(
   const set = new Set(linkedSet(workspace, from.id));
   return receiving
     .filter((id) => set.has(id))
-    .map((id) => findComponent(workspace, id))
-    .filter((component): component is Component => component !== undefined)
-    .map((component) => component.host);
+    .map((id) => findComponent(workspace, id)?.host)
+    .filter((host): host is string => host !== undefined);
 }
