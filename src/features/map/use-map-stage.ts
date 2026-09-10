@@ -209,11 +209,16 @@ export function useMapStage({ workspace, components, onChange, radialOptions, on
     }
   }, []);
 
+  /* Captured on the element pressed, never on the stage (#363). The window
+     listeners below do the tracking either way; what capture decides is
+     where the browser sends the `click` and `dblclick` that follow the
+     release, which is the common ancestor of the press target and the
+     capturing element. Captured on the stage, a strip's double-click landed
+     on the stage and fitted the view. jsdom has no pointer capture; an
+     element without it still tracks, only less politely. */
   const capture = useCallback((event: ReactPointerEvent): void => {
-    const element = stageRef.current;
-    /* jsdom has no pointer capture; a stage without it still tracks the
-       pointer through the window listeners below, only less politely. */
-    if (element !== null && typeof element.setPointerCapture === 'function') element.setPointerCapture(event.pointerId);
+    const element = event.currentTarget as Element | null | undefined;
+    if (typeof element?.setPointerCapture === 'function') element.setPointerCapture(event.pointerId);
   }, []);
 
   const focus = useCallback((id: string): void => setFocused(id), []);

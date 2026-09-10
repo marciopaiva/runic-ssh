@@ -9,6 +9,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 versions follow [semantic versioning](https://semver.org/spec/v2.0.0.html),
 with the caveat that anything below 1.0 may break, and this project intends to.
 
+## [Unreleased]
+
+### Fixed
+
+- Double-click on a map window's strip maximizes the window, as 0.6.0 said
+  it did; it fitted the whole map to the view instead, because the press was
+  captured on the stage and the browser sent the click there (#363).
+- A map window's name no longer wraps onto two lines in the strip when the
+  map is zoomed out; the address gives way first, then the name truncates
+  (#364).
+
 ## [0.6.0] — 2026-09-10
 
 Opens the spatial map the 1.0 line is built on (`docs/plans/map.md`): a fifth
