@@ -963,6 +963,21 @@ it is walked by clicking folders, or scrolled. A download (a line from a
 host to this machine) and a folder are in the code and nobody has driven
 them on the map yet.
 
+The terminal window's own menu (#115). Right-click inside a terminal on
+the map; Sessions' panes keep the webview's menu until v0.9.0.
+
+| Do this | Expect |
+| --- | --- |
+| Right-click inside a terminal window with nothing selected | a menu titled with the host: "Copy" greyed with its shortcut beside it, "Paste" with its shortcut; "Broadcast" when another terminal is free to join; "Spare this window" or "Include this window again" only on an armed line |
+| Drag over some text, right-click | "Copy" is live. Pick it: on a desktop the selection is in the clipboard; on the headless display nothing can read it back, see the measurement |
+| Put text in the clipboard, right-click, "Paste" | on Linux nothing happens: WebKitGTK refuses a paste asked by a script, even from a click (`docs/measurements/terminal-menu-clipboard.md`). Ctrl-Shift-V pastes it. The entry is where a person learns that key exists |
+| Right-click, "Broadcast" | the same line in hand as the icon's menu gives |
+
+Confirmed on Linux on 2026-09-10, headlessly the same way, in the dev
+build against `runic-test-sshd` on 2222: the menu, its entries per state,
+the paste result above; the Broadcast entry was seen and not taken from
+this menu. Nothing on WebView2.
+
 ### SFTP
 
 ADR-0044 through ADR-0049. One fixture on 2222 is enough for browsing,
