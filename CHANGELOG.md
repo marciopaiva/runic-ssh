@@ -11,6 +11,54 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 
 ## [Unreleased]
 
+Opens the spatial map the 1.0 line is built on (`docs/plans/map.md`): a fifth
+workspace on the rail where a saved host becomes a component, an icon that
+expands into a window in place. This release ships the component alone;
+lines, visions and layers follow in their own releases, and the Sessions,
+SFTP and Monitor workspaces stay exactly as they were until v0.9.0 cuts them.
+Session import, which carried this milestone's name, is dropped from the
+roadmap rather than moved again (#128 stays open, unscheduled).
+
+### Added
+
+- A Map workspace, fifth on the rail. Hold the centre mark or right-click
+  the floor to create an SSH terminal, an SFTP browser or a monitor on a
+  saved host; components sit in a ring around the mark and are joined to it
+  by a wire. Click an icon and it expands into its window where it stands;
+  the window drags, resizes on any edge, snaps to the stage's left, right or
+  whole, maximizes on double-click, and minimizes back to its icon with the
+  session still open. Right-click and hold on a component give the same
+  actions: open, change host, edit the host's details, reset position,
+  remove. The map pans by drag with inertia, zooms with the wheel, and
+  double-click on the floor fits everything in view.
+- The map is saved in `workspace.json` beside `sessions.json`, one component
+  per host and kind; a component whose host is deleted from the book is
+  dropped on the next load (ADR-0064).
+- Glass, depth and map surface tokens in `tokens.css`, in every theme.
+- Registering or changing a host from the map happens over the map: the
+  picker's "Register" row, a window's title and the component's context
+  menu open Home's own host editor in a glass popup on the stage, without
+  the Group field. A host saved for a component lands on the map as that
+  component the moment its proof settles, and a connection the map asked
+  for that finds no credential is answered in the same popup and resumes
+  in its window (#357).
+
+### Changed
+
+- A terminal opened from the map connects the same session the Sessions
+  workspace would, but opens no tab there; the connection lives in the
+  component's window and survives the window being minimized (ADR-0014,
+  ADR-0053).
+
+### Known limitations
+
+- A terminal in a window below 75% zoom is drawn as a thumbnail and takes no
+  input until zoomed back in (`docs/measurements/terminal-under-zoom.md`).
+- The map's own toolbar (crumb, search, zoom, recenter) sits inside the
+  workspace rather than in the shared toolbar row, unlike the other four.
+- Nothing on the map is reachable from the keyboard alone yet beyond the
+  context menu; the radial is a pointer gesture.
+
 ## [0.5.0] — 2026-09-08
 
 Opens the ground v0.4.0's own roadmap named next: a live system monitor per

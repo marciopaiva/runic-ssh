@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties, DragEvent, JSX } from 'react';
+import type { CSSProperties, DragEvent, JSX, ReactNode } from 'react';
 
 import { ActivityRail } from './components/ActivityRail';
 import type { Workspace } from './components/ActivityRail';
@@ -18,6 +18,9 @@ import { HostKeyRefused } from './components/HostKeyRefused';
 import { MacrosButton } from './components/MacrosButton';
 import { MacrosSidebar } from './components/MacrosSidebar';
 import { MonitorWorkspace } from './components/MonitorWorkspace';
+import { MapStage } from './components/map/MapStage';
+import type { HostPopupState } from './components/map/MapStage';
+import { MonitorBody } from './components/map/MonitorBody';
 import { PasteConfirm } from './components/PasteConfirm';
 import { SessionMenu } from './components/SessionMenu';
 import { SessionWizard } from './components/SessionWizard';
@@ -96,15 +99,21 @@ import {
   asIpcError,
   deleteSession,
   disconnectSession,
+  EMPTY_WORKSPACE,
   forgetCredential,
   internalVaultStatus,
+  loadWorkspace,
   saveSession,
+  saveWorkspace,
   sendInput,
   sessionCredentialKept,
   stopForward,
   submitCredential,
 } from './ipc';
-import type { Keep, Macro, Secret, Session, SessionDraft, SuggestedMethod } from './ipc';
+import type { Keep, Macro, Secret, Session, SessionDraft, SessionHandle, SuggestedMethod } from './ipc';
+import type { Workspace as MapWorkspaceModel } from './ipc';
+import { mapTerminals, placeSavedHost } from './features/map';
+import type { HostAsk } from './features/map';
 import { useLocale, useTheme } from './features/settings';
 import { visibleDestinationRows } from './features/sftp/browser';
 import { endpointKey } from './features/sftp/endpoint';
@@ -299,6 +308,10 @@ export function App(): JSX.Element {
      one host at a time, so a second pick before the first resolves simply
      replaces which one `onOpened` is waiting for. */
   const monitorConnectTarget = useRef<string | null>(null);
+  /* ADR-0064: sessions the map asked for. Checked first in `onOpened`, the
+     same way the monitor's own target is: a map component wants its window
+     filled, not a tab in Sessions. */
+  const mapConnectTargets = useRef<Set<string>>(new Set());
   /* Which sessions Sessions itself has actually asked a shell for, ADR-0053.
      A connection opened for SFTP shares its handle with Sessions (one SSH
      transport, multiplexed channels), which used to be read as "Sessions
@@ -439,6 +452,15 @@ export function App(): JSX.Element {
      (`dismissOpenedFor`) opts out of that retry too, on the same "cleared on
      the next action in that editor" lifecycle this already had. */
   const [editorOpenedFor, setEditorOpenedFor] = useState<ReadonlyMap<string, string>>(new Map());
+  /* #357: the editor the map opened over itself, held by the form's stable
+     id rather than its target, since a new host's target changes the moment
+     Save gives it an id; and what the map asked for, so the host lands
+     where it was asked once the editor concludes. */
+  const [mapEditor, setMapEditor] = useState<{ readonly formId: string; readonly ask: HostAsk } | null>(null);
+  /* Written by `finishWizard` when an editor concluded with its host on
+     disk, read by the effect beside the map's own state, which is declared
+     further down and is what the placing needs. */
+  const [mapEditorDone, setMapEditorDone] = useState<{ readonly formId: string; readonly sessionId: string } | null>(null);
   /* What the wizard's own settled row says happened, keyed by session id.
      `CredentialSaved`/`ConnectionFailure` already state the outcome once,
      the moment it happens; dismissing either clears `attempt` and lands on
@@ -501,7 +523,9 @@ export function App(): JSX.Element {
          happens to work. Neither wants `wantTerminal`/`setFocus` below,
          since neither is asking for a tab in Sessions. */
       const sftpTarget = sftpConnectTargets.current.get(sessionId);
-      if (monitorConnectTarget.current === sessionId) {
+      if (mapConnectTargets.current.has(sessionId)) {
+        mapConnectTargets.current.delete(sessionId);
+      } else if (monitorConnectTarget.current === sessionId) {
         monitorConnectTarget.current = null;
       } else if (sftpTarget !== undefined) {
         sftpConnectTargets.current.delete(sessionId);
@@ -533,6 +557,7 @@ export function App(): JSX.Element {
        user closed are three different things, and the marker says which. */
     onFailed: (sessionId, code) => {
       sftpConnectTargets.current.delete(sessionId);
+      mapConnectTargets.current.delete(sessionId);
       if (monitorConnectTarget.current === sessionId) monitorConnectTarget.current = null;
       setState(sessionId, stateAfterFailure(code));
       setTestOutcome((current) => new Map(current).set(sessionId, 'failed'));
@@ -544,6 +569,7 @@ export function App(): JSX.Element {
        *previous* attempt's result showing on this one. */
     onAbandoned: (sessionId, settled) => {
       sftpConnectTargets.current.delete(sessionId);
+      mapConnectTargets.current.delete(sessionId);
       if (monitorConnectTarget.current === sessionId) monitorConnectTarget.current = null;
       /* Nothing is left to show a tab for once an attempt is walked away
          from, ADR-0053: no handle, no attempt, and (for one Sessions itself
@@ -592,7 +618,14 @@ export function App(): JSX.Element {
       const target = credentialRedirectTarget(sessionId, hop, savedRef.current);
       if (target === null) return;
 
-      openEditor({ kind: 'existing', sessionId: target });
+      /* #357: a connection the map asked for is answered over the map, the
+         same editor in a popup, rather than by switching the workspace out
+         from under the click. */
+      if (mapConnectTargets.current.has(sessionId)) {
+        openEditorOnMap({ kind: 'existing', sessionId: target }, { kind: null, changing: null });
+      } else {
+        openEditor({ kind: 'existing', sessionId: target });
+      }
       setEditorOpenedFor((current) =>
         new Map(current).set(editorKey({ kind: 'existing', sessionId: target }), sessionId),
       );
@@ -1504,6 +1537,10 @@ export function App(): JSX.Element {
     (target: EditorTarget): void => {
       if (target.kind === 'existing') {
         provisional.current.delete(target.sessionId);
+        /* #357: whichever editor this was, the map is told; it acts only on
+           the one it opened. Read before the editor is removed below. */
+        const finished = findEditor(editorsRef.current, target);
+        if (finished !== null) setMapEditorDone({ formId: finished.formId, sessionId: target.sessionId });
 
         const key = editorKey(target);
         const redirectedFrom = editorOpenedFor.get(key);
@@ -1516,6 +1553,13 @@ export function App(): JSX.Element {
           });
         }
         if (resumeId !== null) {
+          /* #357: the editor the map opened resumes the map's own attempt.
+             `onAbandoned` cleared the mark when the wizard's proof was
+             walked away from, a moment ago, and without it the retry would
+             land as a Sessions tab beside the window (ADR-0053). */
+          if (finished !== null && mapEditor !== null && mapEditor.formId === finished.formId) {
+            mapConnectTargets.current.add(resumeId);
+          }
           void connect(resumeId);
         } else if (redirectedFrom !== undefined) {
           /* Abandoned or failed: no retry is coming, so an SFTP pane
@@ -1530,7 +1574,7 @@ export function App(): JSX.Element {
       forgetHome({ kind: 'editor', target });
       setEditors((current) => withoutEditor(current, target));
     },
-    [forgetHome, connect, editorOpenedFor, testOutcome],
+    [forgetHome, connect, editorOpenedFor, testOutcome, mapEditor],
   );
 
   /* ADR-0056: the check `wizardNext` used to run before the Host-to-Access
@@ -1623,6 +1667,21 @@ export function App(): JSX.Element {
     setEditors((current) => withEditor(current, target, savedRef.current));
     setHomeFocus({ kind: 'editor', target });
     setWorkspace('home');
+  }, []);
+
+  /* #357: the same editor, opened over the map instead of in Home. The
+     workspace stays; the popup follows the form by its id until it closes
+     through any of the editor's own doors. `name` is what the picker's
+     filter held when nothing matched it, typed in so it is not typed twice. */
+  const openEditorOnMap = useCallback((target: EditorTarget, ask: HostAsk, name?: string): void => {
+    const next = withEditor(editorsRef.current, target, savedRef.current);
+    const opened = findEditor(next, target);
+    if (opened === null) return;
+    const trimmed = name?.trim() ?? '';
+    setEditors(
+      trimmed === '' ? next : updateEditor(next, target, (editor) => typedInto(editor, 'name', trimmed)),
+    );
+    setMapEditor({ formId: opened.formId, ask });
   }, []);
 
   const chooseFromMenu = useCallback(
@@ -1831,6 +1890,144 @@ export function App(): JSX.Element {
     [sessions, i18n],
   );
 
+  /* ADR-0064: the map's own state. Loaded once, held whole, written whole a
+     moment after the last change, so a drag is one write and not sixty. */
+  const [mapWorkspace, setMapWorkspace] = useState<MapWorkspaceModel>(EMPTY_WORKSPACE);
+  useEffect(() => {
+    let live = true;
+    void loadWorkspace()
+      .then((loaded) => {
+        if (live) setMapWorkspace(loaded);
+      })
+      .catch(() => {
+        /* A malformed file is reported by the core the next time the map is
+           written, on the save that fails; until then the map starts empty
+           rather than the workspace refusing to open. */
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+  const mapSave = useRef<{ timer: ReturnType<typeof setTimeout> | null; pending: MapWorkspaceModel | null }>({
+    timer: null,
+    pending: null,
+  });
+  const changeMap = useCallback((next: MapWorkspaceModel): void => {
+    setMapWorkspace(next);
+    const state = mapSave.current;
+    state.pending = next;
+    if (state.timer !== null) clearTimeout(state.timer);
+    state.timer = setTimeout(() => {
+      state.timer = null;
+      const pending = state.pending;
+      state.pending = null;
+      if (pending !== null) void saveWorkspace(pending).catch(() => {});
+    }, 300);
+  }, []);
+  useEffect(
+    () => () => {
+      const state = mapSave.current;
+      if (state.timer !== null) clearTimeout(state.timer);
+      if (state.pending !== null) void saveWorkspace(state.pending).catch(() => {});
+    },
+    [],
+  );
+
+  /* #357: the popup lives exactly as long as its editor. Any door the
+     editor leaves through (finish, cancel, discard, delete) is seen here as
+     the form leaving `editors`, one place rather than one per door. */
+  useEffect(() => {
+    if (mapEditor === null) return;
+    if (editors.some((editor) => editor.formId === mapEditor.formId)) return;
+    setMapEditor(null);
+  }, [editors, mapEditor]);
+
+  /* #357: an editor that concluded with its host on disk. Only the one the
+     map opened is acted on, and what the map asked for is what happens:
+     a new component, a component re-aimed, or nothing. A refusal here is
+     the picker's own (the host already sits on the map in that kind) and
+     is left to the picker to say the next time it is opened. */
+  useEffect(() => {
+    if (mapEditorDone === null) return;
+    setMapEditorDone(null);
+    if (mapEditor === null || mapEditor.formId !== mapEditorDone.formId) return;
+    const placed = placeSavedHost(mapWorkspace, mapEditor.ask, mapEditorDone.sessionId, savedRef.current);
+    if (placed !== null && placed !== mapWorkspace) changeMap(placed);
+    setMapEditor(null);
+  }, [mapEditorDone, mapEditor, mapWorkspace, changeMap]);
+
+  const mapHandles = useMemo(() => {
+    const handles = new Map<string, SessionHandle>();
+    for (const live of sessions) if (live.handle !== null) handles.set(live.session.id, live.handle);
+    return handles;
+  }, [sessions]);
+
+  const connectFromMap = useCallback(
+    (sessionId: string): void => {
+      const live = sessions.find((entry) => entry.session.id === sessionId);
+      if (live === undefined || live.handle !== null) return;
+      mapConnectTargets.current.add(sessionId);
+      if (attempt !== null && attempt.sessionId === sessionId && isInProgress(attempt.stage)) return;
+      void connect(sessionId);
+    },
+    [connect, sessions, attempt],
+  );
+
+  const mapAttemptSurface = useCallback(
+    (sessionId: string): JSX.Element | null =>
+      attempt !== null && attempt.sessionId === sessionId ? attemptSurface : null,
+    [attempt, attemptSurface],
+  );
+
+  /* One terminal per SSH component whose host is connected. The stack itself
+     is `MapTerminals`, inside the map's own main (ADR-0014, ADR-0032); this
+     is what the shell wires into each of them, the same things Sessions'
+     stack gets. */
+  const mapMounted = useMemo(() => mapTerminals(mapWorkspace.components, mapHandles), [mapWorkspace, mapHandles]);
+  const mapTerminalWiring = useMemo(
+    () => ({
+      mounted: mapMounted,
+      sessions: saved,
+      modifier: chrome?.commandModifier ?? 'control',
+      onSize: setSize,
+      onFocusHandle: (sessionId: string, focus: () => void) => focusFns.current.set(sessionId, focus),
+      onPasteNeedsConfirming: (sessionId: string, text: string) => setPendingPaste({ sessionId, text }),
+      onInput: (sessionId: string, bytes: Uint8Array) => {
+        const target = mapMounted.find((candidate) => candidate.sessionId === sessionId);
+        if (target === undefined) return;
+        void sendInput(target.handle, bytes).catch(() => {});
+      },
+    }),
+    [mapMounted, saved, chrome],
+  );
+
+  const renderMapSftp = useCallback(
+    (session: Session, handle: SessionHandle, onClose: () => void): ReactNode => {
+      const endpoint: Endpoint = { kind: 'remote', sessionId: session.id, handle };
+      return (
+        <SftpPane
+          endpoint={endpoint}
+          paneId={`map-sftp-${session.id}`}
+          label={session.name}
+          identity={sftpIdentity(endpoint)}
+          onReport={() => {}}
+          onSend={null}
+          onClear={onClose}
+          receiving={null}
+          onToggleReceiving={null}
+          onDragEntriesStart={null}
+          onDragEntriesEnd={null}
+        />
+      );
+    },
+    [sftpIdentity],
+  );
+
+  const renderMapMonitor = useCallback(
+    (session: Session, handle: SessionHandle): ReactNode => <MonitorBody session={session} handle={handle} />,
+    [],
+  );
+
   /* Where a drag lands. A tab moves, a host from the list opens: `openHere`
      already knows that one of those is a connection it has to make and the
      other is one it must not make twice. */
@@ -1854,6 +2051,238 @@ export function App(): JSX.Element {
      rather than reinvented: `groupSyncState` refuses the identical shape
      (`layout === '1x1' || filled < 2`) for the exact same reason. */
   const broadcastAvailable = layout !== '1x1' && filled >= 2;
+
+  /* #357: the same wizard, wherever it is asked for. Home renders it in
+     `HostsSection`'s detail; the map renders it in a popup over the stage.
+     Everything it needs is derived from the target here, once, so the
+     two places cannot drift. */
+  const wizardFor = (target: EditorTarget, onMap: boolean): JSX.Element | null => {
+    const open = findEditor(editors, target);
+    const editingId = target?.kind === 'existing' ? target.sessionId : null;
+    const jump =
+      open === null ? null : jumpHostChoice(saved, editingId, open.values.proxyJump);
+    const duplicate =
+      open === null
+        ? null
+        : duplicateOf(
+            saved,
+            editingId,
+            open.values.host,
+            parsePort(open.values.port),
+            open.values.user,
+            open.values.proxyJump,
+          );
+    const storedCredential =
+      target === null ? false : (() => {
+        const session = targetSession(target, saved);
+        return session !== null && hasStoredCredential(session);
+      })();
+    /* ADR-0036: nothing that could invalidate the stored
+       credential changed, so Access has nothing left to prove.
+       `open` rather than `target` for the values themselves:
+       `target` only names which session, `open` is the draft
+       actually on screen. */
+    const skipTest =
+      target === null || open === null ? false : (() => {
+        const session = targetSession(target, saved);
+        return (
+          session !== null &&
+          hasStoredCredential(session) &&
+          accessUnchanged(
+            session,
+            open.values.host,
+            parsePort(open.values.port),
+            open.values.user,
+          )
+        );
+      })();
+    /* The plain unknown-key decision, read as data rather than
+       through `attemptSurface`'s own rendered card: reported
+       live, 2026-09-07, that card had never been fit to Access's
+       width ("nao incluimos esse card no fluxo"). `HostKeyBlocked`
+       and `HostKeyRefused` are untouched, still `testSurface`'s,
+       below. */
+    const hostKeyDecision =
+      attempt !== null &&
+      editingId !== null &&
+      attempt.sessionId === editingId &&
+      attempt.stage.stage === 'deciding' &&
+      attempt.decision !== null &&
+      isOverridable(attempt.decision.verdict) &&
+      !needsConfirmation(attempt.decision.verdict)
+        ? {
+            host: attempt.decision.host,
+            port: attempt.decision.port,
+            keyType: attempt.decision.keyType,
+            fingerprint: attempt.decision.offered,
+            hop: attempt.decision.hop,
+            onTrust: () => void trust(),
+            onCancel: abandon,
+          }
+        : null;
+    /* ADR-0030: the same host key and credential screens Sessions
+       shows over a group's terminal, found here when the attempt
+       in flight is this host's own. The surface that makes
+       staying in Home possible to watch, for the wizard's own
+       proof phase. Not shown when `hostKeyDecision` already
+       covers it. */
+    const testSurface =
+      attempt !== null &&
+      editingId !== null &&
+      attempt.sessionId === editingId &&
+      hostKeyDecision === null
+        ? attemptSurface
+        : null;
+    /* The same failed attempt `attemptSurface` itself refuses to
+       show a card for, `intent === 'inline'` and reached here.
+       Handed to the wizard as data rather than a `ReactNode`: it
+       renders this next to the credential field it is about, not
+       as a card of its own. */
+    const testFailure =
+      attempt !== null &&
+      editingId !== null &&
+      attempt.sessionId === editingId &&
+      attempt.stage.stage === 'failed'
+        ? { code: attempt.stage.code, hop: attempt.stage.hop }
+        : null;
+    /* ADR-0033: the bastion's own field. A session behind
+       a jump host authenticates it first. `submitCredential` is
+       the same command the separate window already answers
+       through; nothing about answering a request was ever
+       window-specific, only opening one was. */
+    const bastionStage =
+      attempt !== null &&
+      editingId !== null &&
+      attempt.sessionId === editingId &&
+      attempt.stage.stage === 'awaitingBastionCredential'
+        ? attempt.stage
+        : null;
+    const bastionCredential =
+      bastionStage === null
+        ? null
+        : {
+            prompt: bastionStage.prompt,
+            onSubmit: (secret: Secret, keep: Keep) => {
+              const wire =
+                'password' in secret
+                  ? { password: secret.password }
+                  : { privateKey: secret.privateKey, passphrase: secret.passphrase ?? null };
+              void submitCredential(bastionStage.request, wire, keep);
+            },
+            onCancel: abandon,
+          };
+    const panelTitle =
+      target === null
+        ? ''
+        : (editorTabs.find((candidate) =>
+            sameFocus({ kind: 'editor', target: candidate.target }, {
+              kind: 'editor',
+              target,
+            }),
+          )?.title ?? '');
+    const availableGroups = groupNames(sessions);
+
+    if (open === null || jump === null) return null;
+    return (
+<SessionWizard
+      /* This tab's own stable id, not `editorKey(target)`:
+         a brand-new draft's key changes the instant Save
+         gives it a real one, and remounting mid-save wiped
+         the local proving/attempted state the credential
+         prompt depends on. See `OpenEditor.formId`. */
+      key={open.formId}
+      title={panelTitle}
+      values={open.values}
+      wrong={open.wrong}
+      discarding={open.discarding}
+      failure={editorFailed.get(editorKey(target)) ?? null}
+      onDismissFailure={() => clearFailure(target)}
+      missingCredential={editorOpenedFor.has(editorKey(target))}
+      onDismissMissingCredential={() => dismissOpenedFor(target)}
+      onChange={(field, value) => changeIn(target, field, value)}
+      onChangeForwards={(forwards) => changeForwardsIn(target, forwards)}
+      jumpHosts={jump.offered}
+      carried={jump.carried}
+      duplicate={duplicate}
+      groupNames={availableGroups}
+      storedCredential={storedCredential}
+      keptCredential={editingId !== null && (keptCredentials.get(editingId) ?? false)}
+      skipTest={skipTest}
+      onSkipTest={() => {
+        submitIn(target);
+        /* ADR-0036's own path never opens `testSurface`, so
+           nothing else marks this settled: the same map
+           `onCredentialSettled` writes, written here for
+           the same reason, since a save with nothing
+           invalidated is exactly what "saved" means. */
+        if (editingId !== null) {
+          setTestOutcome((current) => new Map(current).set(editingId, 'saved'));
+        }
+      }}
+      onForget={editingId === null ? null : () => forgetPassword(target)}
+      onDelete={target.kind === 'new' ? null : () => requestDelete(target)}
+      deleting={open.deleting}
+      onConfirmDelete={() => removeIn(target)}
+      onCancelDelete={() => cancelDelete(target)}
+      onSave={() => hostFieldsValid(target)}
+      onTest={(method, credential) => testInWizard(target, method, credential)}
+      onAutoFinish={() => {
+        abandon();
+        finishWizard(target);
+      }}
+      testSurface={testSurface}
+      hostKeyDecision={hostKeyDecision}
+      testFailure={testFailure}
+      lastOutcome={editingId !== null ? (testOutcome.get(editingId) ?? null) : null}
+      bastionCredential={bastionCredential}
+      onConfirmDiscard={() => discardIn(target, true)}
+      onCancelDiscard={() => discardIn(target, false)}
+      onCancel={() => cancelEditing(target)}
+      showGroup={!onMap}
+    />
+    );
+  };
+
+  const homeEditorTarget = resolvedHomeFocus?.kind === 'editor' ? resolvedHomeFocus.target : null;
+
+  /* #357: the editor the map opened, framed for the stage. The title says
+     which of the two things this is; the line under it says how far a
+     change reaches, since one host can sit on the map in three kinds. */
+  const mapEditorTarget =
+    mapEditor === null ? null : (editors.find((editor) => editor.formId === mapEditor.formId)?.target ?? null);
+  const mapHostPopup: HostPopupState | null = (() => {
+    if (mapEditor === null || mapEditorTarget === null) return null;
+    const element = wizardFor(mapEditorTarget, true);
+    if (element === null) return null;
+    const kindLabel = (kind: 'ssh' | 'sftp' | 'monitor'): string =>
+      i18n.t(kind === 'ssh' ? 'map.create.ssh' : kind === 'sftp' ? 'map.create.sftp' : 'map.create.monitor');
+    /* A host being registered for a component stays "New host" after Save
+       gives it an id: the popup is about the component it was asked for,
+       and it closes on its own once the proof settles. */
+    const creating = mapEditorTarget.kind === 'new' || mapEditor.ask.kind !== null;
+    let detail: string;
+    if (creating) {
+      detail =
+        mapEditor.ask.kind !== null
+          ? i18n.t('map.popup.new.detail', { kind: kindLabel(mapEditor.ask.kind) })
+          : i18n.t('map.popup.usedBy.one');
+    } else {
+      const usedBy = mapWorkspace.components.filter((component) => component.host === mapEditorTarget.sessionId).length;
+      detail =
+        usedBy === 0
+          ? i18n.t('map.popup.usedBy.none')
+          : usedBy === 1
+            ? i18n.t('map.popup.usedBy.one')
+            : i18n.t('map.popup.usedBy.other', { count: String(usedBy) });
+    }
+    const target = mapEditorTarget;
+    return {
+      title: i18n.t(creating ? 'map.popup.title.new' : 'map.popup.title.change'),
+      detail,
+      element,
+      onClose: () => cancelEditing(target),
+    };
+  })();
 
   return (
     <div className="flex h-full flex-col">
@@ -1929,6 +2358,19 @@ export function App(): JSX.Element {
         />
       )}
       {workspace === 'monitor' && (
+        <Toolbar
+          trailing={
+            <ThemeLanguageControls
+              theme={theme}
+              onChooseTheme={(next) => void chooseTheme(next)}
+              chosenLocale={chosen}
+              onChooseLocale={(locale) => void choose(locale)}
+            />
+          }
+        />
+      )}
+
+      {workspace === 'map' && (
         <Toolbar
           trailing={
             <ThemeLanguageControls
@@ -2465,201 +2907,16 @@ export function App(): JSX.Element {
         <main className="bg-surface-base relative flex min-w-0 flex-1 flex-col overflow-hidden">
           <div className="min-h-0 flex-1 overflow-hidden">
             {(() => {
-              const target =
-                resolvedHomeFocus?.kind === 'editor' ? resolvedHomeFocus.target : null;
-              const open = target === null ? null : findEditor(editors, target);
-              const editingId = target?.kind === 'existing' ? target.sessionId : null;
-              const jump =
-                open === null ? null : jumpHostChoice(saved, editingId, open.values.proxyJump);
-              const duplicate =
-                open === null
-                  ? null
-                  : duplicateOf(
-                      saved,
-                      editingId,
-                      open.values.host,
-                      parsePort(open.values.port),
-                      open.values.user,
-                      open.values.proxyJump,
-                    );
-              const storedCredential =
-                target === null ? false : (() => {
-                  const session = targetSession(target, saved);
-                  return session !== null && hasStoredCredential(session);
-                })();
-              /* ADR-0036: nothing that could invalidate the stored
-                 credential changed, so Access has nothing left to prove.
-                 `open` rather than `target` for the values themselves:
-                 `target` only names which session, `open` is the draft
-                 actually on screen. */
-              const skipTest =
-                target === null || open === null ? false : (() => {
-                  const session = targetSession(target, saved);
-                  return (
-                    session !== null &&
-                    hasStoredCredential(session) &&
-                    accessUnchanged(
-                      session,
-                      open.values.host,
-                      parsePort(open.values.port),
-                      open.values.user,
-                    )
-                  );
-                })();
-              /* The plain unknown-key decision, read as data rather than
-                 through `attemptSurface`'s own rendered card: reported
-                 live, 2026-09-07, that card had never been fit to Access's
-                 width ("nao incluimos esse card no fluxo"). `HostKeyBlocked`
-                 and `HostKeyRefused` are untouched, still `testSurface`'s,
-                 below. */
-              const hostKeyDecision =
-                attempt !== null &&
-                editingId !== null &&
-                attempt.sessionId === editingId &&
-                attempt.stage.stage === 'deciding' &&
-                attempt.decision !== null &&
-                isOverridable(attempt.decision.verdict) &&
-                !needsConfirmation(attempt.decision.verdict)
-                  ? {
-                      host: attempt.decision.host,
-                      port: attempt.decision.port,
-                      keyType: attempt.decision.keyType,
-                      fingerprint: attempt.decision.offered,
-                      hop: attempt.decision.hop,
-                      onTrust: () => void trust(),
-                      onCancel: abandon,
-                    }
-                  : null;
-              /* ADR-0030: the same host key and credential screens Sessions
-                 shows over a group's terminal, found here when the attempt
-                 in flight is this host's own. The surface that makes
-                 staying in Home possible to watch, for the wizard's own
-                 proof phase. Not shown when `hostKeyDecision` already
-                 covers it. */
-              const testSurface =
-                attempt !== null &&
-                editingId !== null &&
-                attempt.sessionId === editingId &&
-                hostKeyDecision === null
-                  ? attemptSurface
-                  : null;
-              /* The same failed attempt `attemptSurface` itself refuses to
-                 show a card for, `intent === 'inline'` and reached here.
-                 Handed to the wizard as data rather than a `ReactNode`: it
-                 renders this next to the credential field it is about, not
-                 as a card of its own. */
-              const testFailure =
-                attempt !== null &&
-                editingId !== null &&
-                attempt.sessionId === editingId &&
-                attempt.stage.stage === 'failed'
-                  ? { code: attempt.stage.code, hop: attempt.stage.hop }
-                  : null;
-              /* ADR-0033: the bastion's own field. A session behind
-                 a jump host authenticates it first. `submitCredential` is
-                 the same command the separate window already answers
-                 through; nothing about answering a request was ever
-                 window-specific, only opening one was. */
-              const bastionStage =
-                attempt !== null &&
-                editingId !== null &&
-                attempt.sessionId === editingId &&
-                attempt.stage.stage === 'awaitingBastionCredential'
-                  ? attempt.stage
-                  : null;
-              const bastionCredential =
-                bastionStage === null
-                  ? null
-                  : {
-                      prompt: bastionStage.prompt,
-                      onSubmit: (secret: Secret, keep: Keep) => {
-                        const wire =
-                          'password' in secret
-                            ? { password: secret.password }
-                            : { privateKey: secret.privateKey, passphrase: secret.passphrase ?? null };
-                        void submitCredential(bastionStage.request, wire, keep);
-                      },
-                      onCancel: abandon,
-                    };
-              const panelTitle =
-                target === null
-                  ? ''
-                  : (editorTabs.find((candidate) =>
-                      sameFocus({ kind: 'editor', target: candidate.target }, {
-                        kind: 'editor',
-                        target,
-                      }),
-                    )?.title ?? '');
-              const availableGroups = groupNames(sessions);
-
               return (
                 <HostsSection
                   sessions={sessions}
-                  selectedId={editingId}
-                  creatingNew={target?.kind === 'new'}
+                  selectedId={homeEditorTarget?.kind === 'existing' ? homeEditorTarget.sessionId : null}
+                  creatingNew={homeEditorTarget?.kind === 'new'}
                   sidebarOpen={sidebarOpen}
                   modifier={chrome?.commandModifier ?? 'control'}
                   onSelect={(sessionId) => openEditor({ kind: 'existing', sessionId })}
                   onNew={() => openEditor({ kind: 'new' })}
-                  detail={
-                    open === null || target === null || jump === null ? null : (
-                      <SessionWizard
-                        /* This tab's own stable id, not `editorKey(target)`:
-                           a brand-new draft's key changes the instant Save
-                           gives it a real one, and remounting mid-save wiped
-                           the local proving/attempted state the credential
-                           prompt depends on. See `OpenEditor.formId`. */
-                        key={open.formId}
-                        title={panelTitle}
-                        values={open.values}
-                        wrong={open.wrong}
-                        discarding={open.discarding}
-                        failure={editorFailed.get(editorKey(target)) ?? null}
-                        onDismissFailure={() => clearFailure(target)}
-                        missingCredential={editorOpenedFor.has(editorKey(target))}
-                        onDismissMissingCredential={() => dismissOpenedFor(target)}
-                        onChange={(field, value) => changeIn(target, field, value)}
-                        onChangeForwards={(forwards) => changeForwardsIn(target, forwards)}
-                        jumpHosts={jump.offered}
-                        carried={jump.carried}
-                        duplicate={duplicate}
-                        groupNames={availableGroups}
-                        storedCredential={storedCredential}
-                        keptCredential={editingId !== null && (keptCredentials.get(editingId) ?? false)}
-                        skipTest={skipTest}
-                        onSkipTest={() => {
-                          submitIn(target);
-                          /* ADR-0036's own path never opens `testSurface`, so
-                             nothing else marks this settled: the same map
-                             `onCredentialSettled` writes, written here for
-                             the same reason, since a save with nothing
-                             invalidated is exactly what "saved" means. */
-                          if (editingId !== null) {
-                            setTestOutcome((current) => new Map(current).set(editingId, 'saved'));
-                          }
-                        }}
-                        onForget={editingId === null ? null : () => forgetPassword(target)}
-                        onDelete={target.kind === 'new' ? null : () => requestDelete(target)}
-                        deleting={open.deleting}
-                        onConfirmDelete={() => removeIn(target)}
-                        onCancelDelete={() => cancelDelete(target)}
-                        onSave={() => hostFieldsValid(target)}
-                        onTest={(method, credential) => testInWizard(target, method, credential)}
-                        onAutoFinish={() => {
-                          abandon();
-                          finishWizard(target);
-                        }}
-                        testSurface={testSurface}
-                        hostKeyDecision={hostKeyDecision}
-                        testFailure={testFailure}
-                        lastOutcome={editingId !== null ? (testOutcome.get(editingId) ?? null) : null}
-                        bastionCredential={bastionCredential}
-                        onConfirmDiscard={() => discardIn(target, true)}
-                        onCancelDiscard={() => discardIn(target, false)}
-                        onCancel={() => cancelEditing(target)}
-                      />
-                    )
-                  }
+                  detail={homeEditorTarget === null ? null : wizardFor(homeEditorTarget, false)}
                 />
               );
             })()}
@@ -2699,6 +2956,31 @@ export function App(): JSX.Element {
               attempt.sessionId === selectedMonitorSession.session.id &&
               attemptSurface !== null && <div className="absolute inset-0">{attemptSurface}</div>
             )}
+          </main>
+        )}
+
+        {workspace === 'map' && (
+          /* ADR-0064: the map's own main, `relative` for the same reason
+             Sessions' is: the terminals are stacked in it, one per connected
+             SSH component, and the stage says where each one goes. */
+          <main className="bg-surface-base relative flex min-w-0 flex-1 flex-col overflow-hidden">
+            <MapStage
+              workspace={mapWorkspace}
+              onChange={changeMap}
+              hosts={saved}
+              handles={mapHandles}
+              onConnect={connectFromMap}
+              onDisconnect={disconnect}
+              attemptSurface={mapAttemptSurface}
+              onEditHost={(sessionId) =>
+                openEditorOnMap({ kind: 'existing', sessionId }, { kind: null, changing: null })
+              }
+              onNewHost={(name, ask) => openEditorOnMap({ kind: 'new' }, ask, name)}
+              hostPopup={mapHostPopup}
+              terminals={mapTerminalWiring}
+              renderSftp={renderMapSftp}
+              renderMonitor={renderMapMonitor}
+            />
           </main>
         )}
       </div>

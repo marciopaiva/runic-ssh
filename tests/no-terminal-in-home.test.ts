@@ -17,7 +17,8 @@
  * ADR-0032 relied on.
  */
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
@@ -59,5 +60,43 @@ describe('nothing renders remote output while Home is showing (ADR-0032)', () =>
        caught here rather than by this test quietly checking nothing. */
     const gate = "{workspace === 'sessions' && (\n";
     expect(source).toContain(gate);
+  });
+});
+
+describe('the map is the one other place a terminal mounts (ADR-0064)', () => {
+  const here = fileURLToPath(new URL('.', import.meta.url));
+  const srcDir = path.join(here, '..', 'src');
+
+  function walk(dir: string): string[] {
+    return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      const full = path.join(dir, entry.name);
+      return entry.isDirectory() ? walk(full) : [full];
+    });
+  }
+
+  it('mounts TerminalView in App.tsx and MapTerminals.tsx, nowhere else', () => {
+    const sites = walk(srcDir)
+      .filter((file) => /\.tsx?$/.test(file) && !file.endsWith('TerminalView.tsx'))
+      .filter((file) => /<TerminalView\b/.test(readFileSync(file, 'utf8')))
+      /* Forward slashes whatever the platform: `path.relative` answers with
+         backslashes on Windows, and CI runs there too. */
+      .map((file) => path.relative(srcDir, file).split(path.sep).join('/'))
+      .sort();
+    expect(sites).toEqual(['App.tsx', 'components/map/MapTerminals.tsx']);
+  });
+
+  it('renders the map, and so its stack, only inside the map workspace branch', () => {
+    const mapGate = source.indexOf("        {workspace === 'map' && (");
+    const stage = source.indexOf('<MapStage');
+    const homeGate = source.indexOf("        {workspace === 'home' && (");
+    expect(mapGate, 'the Map workspace gate').toBeGreaterThan(-1);
+    expect(stage, 'the MapStage mount site').toBeGreaterThan(mapGate);
+    expect(source.indexOf('<MapStage', stage + 1)).toBe(-1);
+    /* Home's branch comes first in the file; the map's stack is not in it. */
+    expect(homeGate).toBeLessThan(mapGate);
+    const mapTerminals = readFileSync(path.join(srcDir, 'components', 'map', 'MapTerminals.tsx'), 'utf8');
+    const stageSource = readFileSync(path.join(srcDir, 'components', 'map', 'MapStage.tsx'), 'utf8');
+    expect([...mapTerminals.matchAll(/<TerminalView\b/g)]).toHaveLength(1);
+    expect([...stageSource.matchAll(/<MapTerminals\b/g)]).toHaveLength(1);
   });
 });

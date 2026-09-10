@@ -8,75 +8,41 @@ import type { Endpoint, PaneEntry } from '../features/sftp/endpoint';
 import { useTranslator } from '../features/settings';
 import type { Translator } from '../lib/i18n';
 
-import { BroadcastGlyph } from './BroadcastGlyph';
+import { Button } from './ui/Button';
+import { Card } from './ui/Card';
+import { Tooltip } from './ui/Tooltip';
+import { cn } from '../lib/classnames';
+import {
+  ChevronLeftIcon,
+  ChevronUpIcon,
+  PlusIcon,
+  RefreshCwIcon,
+  EditIcon,
+  TrashIcon,
+  XIcon,
+  SendIcon,
+  FolderIcon,
+  FileIcon,
+} from './ui/icons';
 import { GroupMenu } from './GroupMenu';
 import type { GroupMenuItem } from './GroupMenu';
+import { BroadcastGlyph } from './BroadcastGlyph';
 import { SftpDeleteConfirm } from './SftpDeleteConfirm';
 
 interface SftpPaneProps {
   readonly endpoint: Endpoint;
-  /** `App.tsx`'s `SOURCE_PANE_ID`/`destinationPaneId(slot)`: how this
-   * pane's own report is told apart from every other one's. */
   readonly paneId: string;
-  /** `sftp.source`/`sftp.destination`, the small caption above the identity. */
   readonly label: string;
-  /** `user@host` or `localhost`, drawn beside `label`. */
   readonly identity: string;
-  /** Reports where this pane currently is, and how to make it look again,
-   * up to the fan-out orchestration: `useFanout`'s own `reportPane`.
-   * Called with `null` on unmount. */
   readonly onReport: (paneId: string, report: { readonly path: string | null; readonly reload: () => void } | null) => void;
-  /** Present only on the source pane: sends a file to every occupied,
-   * receiving destination. `null` on a destination pane, which only ever
-   * receives. Called once per file selected, ADR-0047's own reading of
-   * "check one row, press Send" covering the single-file case too. */
   readonly onSend: ((entry: PaneEntry) => void) | null;
-  /** This pane's own way to clear itself back to empty, drawn beside its
-   * identity: the source and every destination slot alike. */
   readonly onClear: () => void;
-  /** Whether this destination slot receives a fan-out right now. `null` on
-   * the source, which the question does not apply to (ADR-0047). */
   readonly receiving: boolean | null;
   readonly onToggleReceiving: (() => void) | null;
-  /** A file row has started being dragged out of this pane, carrying
-   * whichever entries the drag actually means (this one alone, or the
-   * whole current selection if the dragged row was part of it). `null` on
-   * a destination, which is a target rather than a source for this. */
   readonly onDragEntriesStart: ((entries: readonly PaneEntry[]) => void) | null;
   readonly onDragEntriesEnd: (() => void) | null;
 }
 
-/** The folder icon, also drawn on the rail's own SFTP slot and the sidebar. */
-export function FolderIcon({ className }: { readonly className: string }): JSX.Element {
-  return (
-    <svg viewBox="0 0 24 24" className={className} fill="none" aria-hidden="true">
-      <path
-        d="M4 6.5h6l1.6 2H20v9.5H4z"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-export function FileIcon({ className }: { readonly className: string }): JSX.Element {
-  return (
-    <svg viewBox="0 0 24 24" className={className} fill="none" aria-hidden="true">
-      <path
-        d="M6 3h8l4 4v14H6z"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-      />
-      <path d="M14 3v4h4" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-/** `4.2 kB`, `318 kB`, `1.1 MB`. Not localised: a unit abbreviation, not a
- * sentence, and the same three letters read the same in every catalogue
- * this application ships. */
 export function formatSize(bytes: number): string {
   const units = ['B', 'kB', 'MB', 'GB', 'TB'];
   let value = bytes;
@@ -99,10 +65,6 @@ export function formatModified(unixSecs: number | null): string {
   });
 }
 
-/** A plain click selects only this row; the two modifier conventions every
- * file manager already uses. Shift extends a range from whichever row was
- * last plainly clicked; Ctrl (Cmd on macOS) adds or removes just this one
- * without touching the rest. */
 export interface SelectModifiers {
   readonly shift: boolean;
   readonly additive: boolean;
@@ -114,27 +76,16 @@ interface RowProps {
   readonly size: number;
   readonly modifiedUnixSecs: number | null;
   readonly onOpen: () => void;
-  /** `null` for the `..` row and a row mid-creation, the two that are
-   * never selectable (ADR-0050: every other row, in every pane, is). */
   readonly selected: boolean | null;
-  /** Clicking or activating the row itself. `null` for the `..` row and a
-   * row mid-creation, the two that are never selectable. */
   readonly onSelectClick: ((modifiers: SelectModifiers) => void) | null;
-  /** Picking this row up to drop it on a destination pane. `null` wherever
-   * `onSelectClick` is: only a selectable file is draggable at all. */
   readonly onDragStart: (() => void) | null;
   readonly onDragEnd: (() => void) | null;
-  /** Replaces the name with a plain text input, for a rename in progress or
-   * a freshly created "New folder" row (ADR-0048). `null` the rest of the
-   * time, which is almost always. */
   readonly editing: {
     readonly value: string;
     readonly onChange: (value: string) => void;
     readonly onCommit: () => void;
     readonly onCancel: () => void;
   } | null;
-  /** Opens the file-management menu (rename, delete). `null` on the `..`
-   * row, which is navigation, not an entry. */
   readonly onContextMenu: ((point: { readonly x: number; readonly y: number }) => void) | null;
 }
 
@@ -154,12 +105,6 @@ function Row({
   const clickable = editing === null && (isDir || onSelectClick !== null);
   const draggable = editing === null && onDragStart !== null;
 
-  /* ADR-0050: a plain click always selects now, the way every other file
-     manager already treats one, a directory included; the `..` row and a
-     row mid-creation have no `onSelectClick` at all and just open, since
-     there is nothing of theirs to select. Opening a directory itself is a
-     double-click's job (below) or, on a keyboard with no double-press
-     convention to lean on, an unmodified Enter. */
   const selectOrOpen = (modifiers: SelectModifiers): void => {
     if (onSelectClick === null) {
       onOpen();
@@ -168,11 +113,6 @@ function Row({
     onSelectClick(modifiers);
   };
 
-  /* What Enter/Space did before this ADR, kept for the keyboard alone:
-     an unmodified activation on a directory opens it outright, since a
-     keyboard has no second gesture to ask for that the way a mouse's
-     double-click does. Shift/Ctrl+Enter still changes the selection
-     instead, matching a modified click. */
   const activateByKeyboard = (modifiers: SelectModifiers): void => {
     if (isDir && (onSelectClick === null || (!modifiers.shift && !modifiers.additive))) {
       onOpen();
@@ -189,12 +129,6 @@ function Row({
       onDragStart={
         draggable
           ? (event) => {
-              /* A payload is set because some engines will not begin a drag
-                 without one, the same convention `SessionsSidebar`'s own
-                 rows use. What is actually being sent is held in the shell
-                 (`useFanout`'s own state), not in `dataTransfer`, so
-                 nothing dragged in from outside the window can pose as a
-                 file this pane already has. */
               event.dataTransfer.effectAllowed = 'copy';
               event.dataTransfer.setData('text/plain', name);
               onDragStart?.();
@@ -225,9 +159,11 @@ function Row({
               onContextMenu({ x: event.clientX, y: event.clientY });
             }
       }
-      className={`group flex items-center gap-2.5 px-2.5 py-[3px] ${clickable ? 'cursor-default' : ''} ${
-        selected === true ? 'bg-accent-soft/30' : 'hover:bg-surface-raised/40'
-      }`}
+      className={cn(
+        'group flex items-center gap-2.5 px-2.5 py-[3px]',
+        clickable ? 'cursor-default' : '',
+        selected === true ? 'bg-accent-soft/30' : 'hover:bg-surface-raised/40',
+      )}
     >
       <span className="text-ink2 flex min-w-0 flex-1 items-center gap-2.5">
         {isDir ? (
@@ -253,18 +189,7 @@ function Row({
                 editing.onCancel();
               }
             }}
-            /* Losing focus without an explicit Enter is read the same as
-               Escape: an edit nobody confirmed is discarded, never sent
-               just because the pointer moved away. `onCancel` is safe to
-               call twice (Escape already having called it), since it only
-               ever clears the same piece of state. */
             onBlur={() => editing.onCancel()}
-            /* Selects the starting text once, on the real DOM focus event
-               `autoFocus` causes: an inline ref callback would do this on
-               every re-render instead (a fresh function identity each
-               time, which React treats as the ref changing), reselecting
-               after every keystroke and letting each new character
-               overwrite everything typed so far. */
             onFocus={(event) => event.currentTarget.select()}
             autoFocus
             className="bg-surface-input border-accent text-ink min-w-0 flex-1 rounded border px-1 py-0 font-mono text-[12px] outline-none"
@@ -290,30 +215,12 @@ interface NavBarProps {
   readonly onUp: () => void;
   readonly onEnter: (path: string) => void;
   readonly onRefresh: () => void;
-  /** Starts a new, editable "New folder" row (ADR-0048). A visible entry
-   * point next to refresh, not only a right-click on empty space: the same
-   * "a context menu is the convention and a visible button is the thing
-   * somebody finds without being told the convention" reasoning
-   * `SessionMenu.tsx`'s own doc comment already gives. */
   readonly onNewFolder: () => void;
-  /** How many rows this pane currently has selected. Drives whether rename
-   * and delete, drawn here regardless (ADR-0050: "always there, not always
-   * able," the same convention `canGoBack`/`canGoUp` already draw for the
-   * arrows beside them), can actually be clicked. */
   readonly selectedCount: number;
-  /** Renames the sole selected row. Never called at any other count: the
-   * button is disabled and F2 is a no-op otherwise. */
   readonly onRename: () => void;
-  /** Opens the delete confirmation for every selected row. */
   readonly onDelete: () => void;
 }
 
-/**
- * Back, up, a clickable breadcrumb, new folder, refresh, rename and delete,
- * below a pane's identity header (ADR-0047, ADR-0048, ADR-0050). No
- * forward: `usePane`'s own history is back-only, which is the one
- * direction this draws.
- */
 function NavBar({
   i18n,
   path,
@@ -332,30 +239,30 @@ function NavBar({
 
   return (
     <div className="border-line-subtle bg-surface-chrome flex h-7 shrink-0 items-center gap-0.5 border-b px-1.5">
-      <button
-        type="button"
-        disabled={!canGoBack}
-        onClick={onBack}
-        aria-label={i18n.t('sftp.nav.back')}
-        title={i18n.t('sftp.nav.back')}
-        className="text-ink-muted enabled:hover:text-ink disabled:text-ink-disabled flex h-5 w-5 shrink-0 items-center justify-center"
-      >
-        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" aria-hidden="true">
-          <path d="M14 5l-6 7 6 7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
-      <button
-        type="button"
-        disabled={!canGoUp}
-        onClick={onUp}
-        aria-label={i18n.t('sftp.nav.up')}
-        title={i18n.t('sftp.nav.up')}
-        className="text-ink-muted enabled:hover:text-ink disabled:text-ink-disabled flex h-5 w-5 shrink-0 items-center justify-center"
-      >
-        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" aria-hidden="true">
-          <path d="M5 14l7-6 7 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
+      <Tooltip content={i18n.t('sftp.nav.back')} side="bottom">
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={!canGoBack}
+          onClick={onBack}
+          aria-label={i18n.t('sftp.nav.back')}
+          className="h-5 w-5"
+        >
+          <ChevronLeftIcon className="h-3.5 w-3.5" />
+        </Button>
+      </Tooltip>
+      <Tooltip content={i18n.t('sftp.nav.up')} side="bottom">
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={!canGoUp}
+          onClick={onUp}
+          aria-label={i18n.t('sftp.nav.up')}
+          className="h-5 w-5"
+        >
+          <ChevronUpIcon className="h-3.5 w-3.5" />
+        </Button>
+      </Tooltip>
 
       <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-1">
         {segments.length === 0 ? (
@@ -364,89 +271,56 @@ function NavBar({
           segments.map((segment, at) => (
             <span key={segment.path} className="flex shrink-0 items-center gap-1">
               {at > 0 && <span className="text-ink-disabled">/</span>}
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => onEnter(segment.path)}
-                /* The tail reads brighter than the rest, the same weight
-                   rule a breadcrumb usually gives its own current segment
-                   (matches the canvas's own `nav_bar()`). */
-                className={`hover:text-ink truncate font-mono text-[11px] ${
-                  at === segments.length - 1 ? 'text-ink' : 'text-ink-muted'
-                }`}
+                className={cn(
+                  'hover:text-ink truncate font-mono text-[11px]',
+                  at === segments.length - 1 ? 'text-ink' : 'text-ink-muted',
+                )}
               >
                 {segment.label}
-              </button>
+              </Button>
             </span>
           ))
         )}
       </div>
 
-      <button
-        type="button"
-        onClick={onNewFolder}
-        aria-label={i18n.t('sftp.nav.newFolder')}
-        title={i18n.t('sftp.nav.newFolder')}
-        className="text-ink-muted hover:text-ink flex h-5 w-5 shrink-0 items-center justify-center"
-      >
-        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" aria-hidden="true">
-          <path
-            d="M4 6.5h6l1.6 2H20v9.5H4z"
-            stroke="currentColor"
-            strokeWidth="1.6"
-            strokeLinejoin="round"
-          />
-          <path d="M12 12v4M10 14h4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-        </svg>
-      </button>
-      <button
-        type="button"
-        onClick={onRefresh}
-        aria-label={i18n.t('sftp.nav.refresh')}
-        title={i18n.t('sftp.nav.refresh')}
-        className="text-ink-muted hover:text-ink flex h-5 w-5 shrink-0 items-center justify-center"
-      >
-        <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" aria-hidden="true">
-          <path d="M20 12a8 8 0 1 1-2.6-5.9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-          <path d="M20 4v5h-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
-      <button
-        type="button"
-        disabled={selectedCount !== 1}
-        onClick={onRename}
-        aria-label={i18n.t('sftp.menu.rename')}
-        title={i18n.t('sftp.menu.rename')}
-        className="text-ink-muted enabled:hover:text-ink disabled:text-ink-disabled flex h-5 w-5 shrink-0 items-center justify-center"
-      >
-        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" aria-hidden="true">
-          <path
-            d="M4 20l1-4.2L15.8 5l3.2 3.2L8.2 19H4z"
-            stroke="currentColor"
-            strokeWidth="1.6"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <path d="M13.8 6.7l3.2 3.2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-        </svg>
-      </button>
-      <button
-        type="button"
-        disabled={selectedCount < 1}
-        onClick={onDelete}
-        aria-label={i18n.t('sftp.menu.delete')}
-        title={i18n.t('sftp.menu.delete')}
-        className="enabled:text-danger-text enabled:hover:opacity-80 disabled:text-ink-disabled flex h-5 w-5 shrink-0 items-center justify-center"
-      >
-        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" aria-hidden="true">
-          <path
-            d="M5 7h14M9.5 7V5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v2M7 7l1 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-13"
-            stroke="currentColor"
-            strokeWidth="1.6"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </button>
+      <Tooltip content={i18n.t('sftp.nav.newFolder')} side="bottom">
+        <Button variant="ghost" size="sm" onClick={onNewFolder} aria-label={i18n.t('sftp.nav.newFolder')} className="h-5 w-5">
+          <PlusIcon className="h-3.5 w-3.5" />
+        </Button>
+      </Tooltip>
+      <Tooltip content={i18n.t('sftp.nav.refresh')} side="bottom">
+        <Button variant="ghost" size="sm" onClick={onRefresh} aria-label={i18n.t('sftp.nav.refresh')} className="h-5 w-5">
+          <RefreshCwIcon className="h-3 w-3" />
+        </Button>
+      </Tooltip>
+      <Tooltip content={i18n.t('sftp.menu.rename')} side="bottom">
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={selectedCount !== 1}
+          onClick={onRename}
+          aria-label={i18n.t('sftp.menu.rename')}
+          className="h-5 w-5"
+        >
+          <EditIcon className="h-3.5 w-3.5" />
+        </Button>
+      </Tooltip>
+      <Tooltip content={i18n.t('sftp.menu.delete')} side="bottom">
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={selectedCount < 1}
+          onClick={onDelete}
+          aria-label={i18n.t('sftp.menu.delete')}
+          className="h-5 w-5 text-danger-text hover:opacity-80"
+        >
+          <TrashIcon className="h-3.5 w-3.5" />
+        </Button>
+      </Tooltip>
     </div>
   );
 }
@@ -458,11 +332,6 @@ interface SendBarProps {
   readonly onSend: () => void;
 }
 
-/** The source pane's own way to start a transfer, once one or more files
- * are checked (ADR-0047). Replaces the previous hover-only send icon. The
- * panel tone (not the chrome the header and nav bar use) matches the
- * canvas's own `send_bar()`, which draws it as the sidebar's own surface
- * rather than one more chrome bar. */
 function SendBar({ i18n, count, onClear, onSend }: SendBarProps): JSX.Element {
   return (
     <div className="border-line-subtle bg-surface-panel flex h-9 shrink-0 items-center gap-3 border-t px-2.5">
@@ -470,25 +339,15 @@ function SendBar({ i18n, count, onClear, onSend }: SendBarProps): JSX.Element {
         {i18n.t('sftp.selected', { count: String(count) })}
       </span>
       <div className="flex-1" />
-      <button
-        type="button"
-        onClick={onClear}
-        className="text-ink-faint hover:text-ink text-[11.5px]"
-      >
-        {i18n.t('sftp.clearSelection')}
-      </button>
-      <button
-        type="button"
-        onClick={onSend}
-        aria-label={i18n.t('sftp.sendToDestinations')}
-        title={i18n.t('sftp.sendToDestinations')}
-        className="bg-accent text-surface-base flex items-center gap-1.5 rounded-md px-3.5 py-1.5 text-[12px] font-semibold"
-      >
+      <Tooltip content={i18n.t('sftp.clearSelection')} side="bottom">
+        <Button variant="ghost" size="sm" onClick={onClear} className="text-[11.5px]">
+          {i18n.t('sftp.clearSelection')}
+        </Button>
+      </Tooltip>
+      <Button variant="primary" size="sm" onClick={onSend} aria-label={i18n.t('sftp.sendToDestinations')}>
+        <SendIcon className="h-3 w-3" />
         {i18n.t('sftp.send')}
-        <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" aria-hidden="true">
-          <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
+      </Button>
     </div>
   );
 }
@@ -503,15 +362,6 @@ function Header({ i18n }: { readonly i18n: Translator }): JSX.Element {
   );
 }
 
-/**
- * One pane: the source, or one destination slot. ADR-0045.
- *
- * Replaces #127's `SftpBrowser`, which owned a hardcoded local pane and a
- * hardcoded remote pane side by side. One of these is mounted per occupied
- * slot instead, each against whatever `Endpoint` it was dropped there:
- * `usePane` inside it does not know or care whether that endpoint is local
- * or remote.
- */
 export function SftpPane({
   endpoint,
   paneId,
@@ -527,25 +377,13 @@ export function SftpPane({
 }: SftpPaneProps): JSX.Element {
   const i18n = useTranslator();
   const pane = usePane(endpoint);
-  /* The listing's own scrollable container, focused back after an inline
-     edit ends: see `refocusList` below. */
   const listRef = useRef<HTMLDivElement>(null);
-  /* Which of this pane's own rows are selected, every pane alike (ADR-0050:
-     a destination's own selection is real now, not only the source's).
-     Reset on every navigation: a selection made in one directory has
-     nothing to say about the next one. */
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
-  /* The row a shift-click extends a range from: whichever one was last
-     plainly clicked. Cleared alongside `selected`, and never moved by a
-     shift-click itself, the same convention every file manager already
-     uses so a second shift-click from the same anchor can shrink a range
-     it just grew. */
   const [selectAnchor, setSelectAnchor] = useState<string | null>(null);
 
   useEffect(() => {
     onReport(paneId, { path: pane.path, reload: () => pane.enter(pane.path) });
     return () => onReport(paneId, null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paneId, pane.path, pane.enter, onReport]);
 
   useEffect(() => {
@@ -582,10 +420,6 @@ export function SftpPane({
     setSelectAnchor(entry.path);
   };
 
-  /* Dragging a row that is part of the current selection carries the whole
-     selection, the same "drag any one of the highlighted rows to move all
-     of them" convention every file manager already uses; dragging a row
-     outside it carries only that row, leaving the selection untouched. */
   const handleDragStart = (entry: PaneEntry): void => {
     if (onDragEntriesStart === null) return;
     const entries = selected.has(entry.path)
@@ -594,22 +428,12 @@ export function SftpPane({
     onDragEntriesStart(entries);
   };
 
-  /* A fresh, editable "New folder" row, drawn above the real listing.
-   * `null` the rest of the time. ADR-0048. */
   const [creating, setCreating] = useState<{ readonly value: string } | null>(null);
-  /* Which existing entry is mid-rename, by its own path, and the text so
-   * far. `null` the rest of the time; never more than one at once. */
   const [renaming, setRenaming] = useState<{ readonly path: string; readonly value: string } | null>(null);
   const [menu, setMenu] = useState<{
     readonly at: { readonly x: number; readonly y: number };
     readonly entry: PaneEntry;
   } | null>(null);
-  /* The targets a delete was asked for, waiting on the one question
-   * `requestDelete` always asks first, regardless of which of the three
-   * triggers (the nav bar's own icon, the context menu, or the Delete key)
-   * asked it: neither SFTP nor a local filesystem offers a Recycle Bin on
-   * either end, so nothing here calls `pane.removeEntries` directly
-   * anymore. `null` the rest of the time. ADR-0050. */
   const [confirmingDelete, setConfirmingDelete] = useState<readonly PaneEntry[] | null>(null);
 
   useEffect(() => {
@@ -622,9 +446,6 @@ export function SftpPane({
   const selectedEntries = (): readonly PaneEntry[] =>
     pane.entries.filter((entry) => selected.has(entry.path));
 
-  /* The nav bar's own pencil and F2 alike: a no-op at any count but
-   * exactly one, the same guard the button's own `disabled` already
-   * enforces for a mouse. */
   const renameSoleSelected = (): void => {
     const entries = selectedEntries();
     if (entries.length === 1) startRenaming(entries[0] as PaneEntry);
@@ -640,20 +461,10 @@ export function SftpPane({
     const deleted = new Set(confirmingDelete.map((target) => target.path));
     pane.removeEntries(confirmingDelete.map((target) => ({ name: target.name, isDir: target.isDir })));
     setConfirmingDelete(null);
-    /* Otherwise the selection bar keeps counting rows that are no longer
-       there: `removeEntries` drops them from the listing, not from
-       `selected`, which nothing else here would think to do on its own. */
     setSelected((current) => new Set([...current].filter((path) => !deleted.has(path))));
     refocusList();
   };
 
-  /* Refocuses the listing itself once an inline edit ends, whichever way
-     it ended. The `<input>` an edit reads holds focus while it exists;
-     losing it to Escape or Enter unmounting that input moves focus
-     nowhere in particular, and Delete/Ctrl+A/F2 (ADR-0050) all depend on
-     this container, not the row, holding it. Without this a cancelled
-     rename left every one of them unreachable until the next plain
-     click. */
   const refocusList = (): void => {
     listRef.current?.focus();
   };
@@ -681,13 +492,6 @@ export function SftpPane({
     refocusList();
   };
 
-  /* What the right-click menu offers for `entry`: renaming (never for more
-   * than one at once) and deleting, either just `entry` or, when it is
-   * part of the current selection, every selected entry together
-   * (ADR-0048). The label never changes; the weight of a multi-delete or a
-   * recursive folder delete is carried by `detail`, read a moment before
-   * the click, the same reasoning `GroupMenu.tsx`'s own doc comment gives
-   * for closing several tabs at once. */
   const menuItemsFor = (entry: PaneEntry): readonly GroupMenuItem[] => {
     const multi = selected.has(entry.path) && selected.size > 1;
     const targets = multi ? pane.entries.filter((candidate) => selected.has(candidate.path)) : [entry];
@@ -721,38 +525,33 @@ export function SftpPane({
   };
 
   return (
-    <div className="border-line-subtle bg-surface-terminal relative flex h-full flex-col overflow-hidden rounded border">
+    <Card variant="outlined" className="relative flex h-full flex-col overflow-hidden">
       <div className="border-line-subtle bg-surface-chrome flex h-8 shrink-0 items-center gap-2.5 border-b px-2.5">
         <span className="text-ink-faint text-[9.5px] font-bold tracking-[0.1em]">{label}</span>
         <span className="text-ink-muted truncate font-mono text-[11px]">{identity}</span>
         <span className="text-ink-disabled truncate font-mono text-[10.5px]">{pane.path ?? ''}</span>
         <div className="flex-1" />
         {receiving !== null && onToggleReceiving !== null && (
-          <button
-            type="button"
-            role="switch"
-            aria-checked={receiving}
-            onClick={onToggleReceiving}
-            aria-label={i18n.t(receiving ? 'sftp.receiving.on' : 'sftp.receiving.off')}
-            title={i18n.t(receiving ? 'sftp.receiving.on' : 'sftp.receiving.off')}
-            className={`flex h-4 w-4 shrink-0 items-center justify-center ${
-              receiving ? 'text-warn' : 'text-ink-faint hover:text-ink-muted'
-            }`}
-          >
-            <BroadcastGlyph className="h-3.5 w-3.5" />
-          </button>
+          <Tooltip content={i18n.t(receiving ? 'sftp.receiving.on' : 'sftp.receiving.off')} side="bottom">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onToggleReceiving}
+              aria-label={i18n.t(receiving ? 'sftp.receiving.on' : 'sftp.receiving.off')}
+              className={cn(
+                'flex h-4 w-4 shrink-0 items-center justify-center',
+                receiving ? 'text-warn' : 'text-ink-faint hover:text-ink-muted',
+              )}
+            >
+              <BroadcastGlyph className="h-3.5 w-3.5" />
+            </Button>
+          </Tooltip>
         )}
-        <button
-          type="button"
-          onClick={onClear}
-          aria-label={i18n.t('sftp.clearSlot')}
-          title={i18n.t('sftp.clearSlot')}
-          className="text-ink-faint hover:text-ink flex h-4 w-4 shrink-0 items-center justify-center"
-        >
-          <svg viewBox="0 0 10 10" className="h-2 w-2" fill="none" aria-hidden="true">
-            <path d="M0.5 0.5l9 9M9.5 0.5l-9 9" stroke="currentColor" strokeWidth="1.4" />
-          </svg>
-        </button>
+        <Tooltip content={i18n.t('sftp.clearSlot')} side="bottom">
+          <Button variant="ghost" size="sm" onClick={onClear} aria-label={i18n.t('sftp.clearSlot')} className="h-4 w-4">
+            <XIcon className="h-2 w-2" />
+          </Button>
+        </Tooltip>
       </div>
 
       <NavBar
@@ -771,33 +570,23 @@ export function SftpPane({
       />
 
       {pane.actionError !== null && (
-        <p className="bg-danger-soft border-line-subtle text-danger-text border-b px-2.5 py-1.5 text-[11.5px]">
-          {i18n.t(describeSftpFailure(pane.actionError))}
-        </p>
+        <Card variant="filled" className="border-b border-line-subtle">
+          <p className="text-danger-text px-2.5 py-1.5 text-[11.5px]">
+            {i18n.t(describeSftpFailure(pane.actionError))}
+          </p>
+        </Card>
       )}
 
-      {/* `pr-2` is dead space, not a column: an overlay scrollbar (WebKit's
-          own on Linux) draws on top of the content rather than reserving
-          its own width, and with none to spare here it sat directly over
-          the last row's own trailing edge, which a click then landed on
-          instead of reaching. `SessionSurface.tsx` solves the same failure
-          with a cancelled margin, since it wants the scrollbar flush with
-          the window's edge; nothing here needs that, only somewhere empty
-          for the thumb to sit. */}
       <div
         ref={listRef}
         tabIndex={-1}
         className="min-h-0 flex-1 overflow-y-auto py-1 pr-2 outline-none"
         onKeyDown={(event) => {
-          /* ADR-0050: every pane's own selection now, not only the source's. */
           if ((event.ctrlKey || event.metaKey) && event.key === 'a') {
             event.preventDefault();
             setSelected(new Set(pane.entries.map((entry) => entry.path)));
             return;
           }
-          /* F2 renames the sole selected row, a no-op at any other count:
-             the row-level `<input>`'s own `onKeyDown` already stops
-             propagation, so this never fires while one is already open. */
           if (event.key === 'F2') {
             renameSoleSelected();
             return;
@@ -920,6 +709,6 @@ export function SftpPane({
           />
         </div>
       )}
-    </div>
+    </Card>
   );
 }

@@ -119,6 +119,9 @@ pub enum Error {
     #[error("the macro is missing or malformed")]
     InvalidMacro { field: String },
 
+    #[error("the map is missing or malformed")]
+    InvalidWorkspace { field: String },
+
     #[error("that decision is not waiting on an answer")]
     UnknownDecision,
 
@@ -319,6 +322,11 @@ pub enum IpcError {
     InvalidMacro {
         field: String,
     },
+    /// The map was rejected before being written; `field` names which part.
+    /// ADR-0064.
+    InvalidWorkspace {
+        field: String,
+    },
     /// The SFTP channel or subsystem could not be opened.
     SftpNotConnected,
     /// A remote name failed `sftp::path::check_name` before it was let
@@ -419,6 +427,7 @@ impl From<Error> for IpcError {
             Error::InvalidSession { field } => Self::InvalidSession { field },
             Error::UnknownMacro { id } => Self::UnknownMacro { id },
             Error::InvalidMacro { field } => Self::InvalidMacro { field },
+            Error::InvalidWorkspace { field } => Self::InvalidWorkspace { field },
             Error::UnknownDecision => Self::UnknownDecision,
             Error::NotAwaitingDecision => Self::NotAwaitingDecision,
             Error::HostKeyRevoked => Self::HostKeyRevoked,

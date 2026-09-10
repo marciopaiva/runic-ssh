@@ -1,6 +1,9 @@
 import type { JSX, ReactNode } from 'react';
 
 import { useTranslator } from '../features/settings';
+import { Button } from './ui/Button';
+import { cn } from '../lib/classnames';
+import { LockIcon } from './ui/icons';
 
 interface RailSlotProps {
   /** Whether the thing this slot leads to is what the sidebar is showing. */
@@ -34,27 +37,31 @@ function RailSlot({
   children,
 }: RailSlotProps): JSX.Element {
   return (
-    <button
-      type="button"
+    <Button
+      variant="ghost"
+      size="sm"
       onClick={onClick}
       disabled={locked}
       aria-pressed={on}
       aria-label={label}
       title={label}
-      className={`relative flex h-11 w-full items-center justify-center ${
+      className={cn(
+        'relative flex h-11 w-full items-center justify-center',
+        'transition-colors duration-fast easing-standard',
         locked
           ? 'text-ink-disabled cursor-not-allowed'
           : on
             ? 'text-ink'
-            : 'text-ink-faint hover:text-ink-muted'
-      }`}
+            : 'text-ink-faint hover:text-ink-muted',
+      )}
     >
       {on && (
         <span
           aria-hidden="true"
-          className={`absolute top-2 bottom-2 left-0 w-0.5 rounded-r-sm ${
-            tone === 'warn' ? 'bg-warn' : 'bg-accent'
-          }`}
+          className={cn(
+            'absolute top-2 bottom-2 left-0 w-0.5 rounded-r-sm',
+            tone === 'warn' ? 'bg-warn' : 'bg-accent',
+          )}
         />
       )}
 
@@ -63,9 +70,10 @@ function RailSlot({
       {badge !== undefined && badge > 0 && (
         <span
           aria-label={badgeLabel}
-          className={`text-surface-base absolute right-1.5 bottom-1.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-lg px-1 font-mono text-[9.5px] font-bold ${
-            tone === 'warn' ? 'bg-warn' : 'bg-accent'
-          }`}
+          className={cn(
+            'text-surface-base absolute right-1.5 bottom-1.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-lg px-1 font-mono text-[9.5px] font-bold',
+            tone === 'warn' ? 'bg-warn' : 'bg-accent',
+          )}
         >
           {badge}
         </span>
@@ -75,24 +83,14 @@ function RailSlot({
         /* A padlock rather than a dimmer icon. Disabled and dim is what a
            control looks like when the application forgot to wire it; a lock
            says something is holding it shut, and the label says what. */
-        <svg
-          viewBox="0 0 24 24"
-          className="text-warn absolute right-1.5 bottom-1.5 h-2.5 w-2.5"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          aria-hidden="true"
-        >
-          <rect x="5" y="11" width="14" height="9.5" rx="1.6" />
-          <path d="M8 11V7.6a4 4 0 018 0V11" />
-        </svg>
+        <LockIcon className="text-warn absolute right-1.5 bottom-1.5 h-2.5 w-2.5" />
       )}
-    </button>
+    </Button>
   );
 }
 
 /** Which main area the window is showing. */
-export type Workspace = 'home' | 'sessions' | 'sftp' | 'monitor';
+export type Workspace = 'home' | 'sessions' | 'sftp' | 'monitor' | 'map';
 
 interface ActivityRailProps {
   /** Which workspace is showing right now. */
@@ -263,6 +261,33 @@ export function ActivityRail({
           aria-hidden="true"
         >
           <path d="M4 6.5h6l1.6 2H20v9.5H4z" />
+        </svg>
+      </RailSlot>
+
+      {/* ADR-0064: the map, a fifth workspace beside the three it will
+          replace in v0.9.0. Live while armed for the same reason Sessions
+          is: its terminals receive keystrokes, and a broadcast in progress
+          is exactly what somebody switching to the map may want to see. */}
+      <RailSlot
+        on={workspace === 'map'}
+        tone={armed ? 'warn' : 'accent'}
+        label={i18n.t('map.rail')}
+        onClick={() => onChoose('map')}
+      >
+        <svg
+          viewBox="0 0 24 24"
+          className="h-[21px] w-[21px]"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <circle cx="12" cy="6" r="2.4" />
+          <circle cx="5.5" cy="17" r="2.4" />
+          <circle cx="18.5" cy="17" r="2.4" />
+          <path d="M10.6 8.2l-3.7 6.4M13.4 8.2l3.7 6.4M8 17h8" />
         </svg>
       </RailSlot>
 

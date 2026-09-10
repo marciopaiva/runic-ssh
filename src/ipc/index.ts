@@ -3,6 +3,8 @@ export { appVersion } from './app';
 export { sessionCandidateLogs } from './candidate-logs';
 export { deleteMacro, listMacros, saveMacro } from './macros';
 export type { Macro, MacroDraft } from './macros';
+export { EMPTY_WORKSPACE, loadWorkspace, saveWorkspace } from './workspace';
+export type { Component, ComponentKind, Layer, Link, Point, Size, Vision, Workspace } from './workspace';
 export {
   credentialPrompt,
   dismissCredential,

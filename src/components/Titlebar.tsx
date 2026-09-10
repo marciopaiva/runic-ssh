@@ -4,6 +4,7 @@ import type { WindowAction, WindowControl } from '../features/chrome';
 import { useTranslator } from '../features/settings';
 
 import { WindowControls } from './WindowControls';
+import { cn } from '../lib/classnames';
 
 interface TitlebarProps {
   readonly controls: readonly WindowControl[];
@@ -45,7 +46,10 @@ export function Titlebar({ controls, leadingInset, onAct }: TitlebarProps): JSX.
   return (
     <header
       data-tauri-drag-region="deep"
-      className="bg-surface-chrome border-line-subtle flex h-9 shrink-0 items-stretch border-b"
+      className={cn(
+        'bg-surface-chrome border-line-subtle flex h-9 shrink-0 items-stretch border-b',
+        'transition-colors duration-fast easing-standard',
+      )}
       style={{ paddingLeft: `${leadingInset}px` }}
     >
       <div
@@ -54,9 +58,10 @@ export function Titlebar({ controls, leadingInset, onAct }: TitlebarProps): JSX.
            inset pushes the cell off the rail (ADR-0020 accepts that), so the
            rule is dropped rather than drawn somewhere it lines up with
            nothing. */
-        className={`flex w-12 shrink-0 items-center justify-center ${
-          leadingInset === 0 ? 'border-line-subtle border-r' : ''
-        }`}
+        className={cn(
+          'flex w-12 shrink-0 items-center justify-center',
+          leadingInset === 0 ? 'border-line-subtle border-r' : '',
+        )}
       >
         <svg
           width="18"

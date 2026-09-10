@@ -2,11 +2,8 @@ import type { JSX } from 'react';
 
 import type { WindowAction, WindowControl } from '../features/chrome';
 import { useTranslator } from '../features/settings';
-
-interface WindowControlsProps {
-  readonly controls: readonly WindowControl[];
-  readonly onAct: (action: WindowAction) => void;
-}
+import { Button } from './ui/Button';
+import { cn } from '../lib/classnames';
 
 /** The glyph for each control, drawn on a 10×10 grid so the strokes align. */
 function Glyph({ action }: { readonly action: WindowAction }): JSX.Element {
@@ -43,7 +40,7 @@ function Glyph({ action }: { readonly action: WindowAction }): JSX.Element {
  * window puts the close button in the screen corner, where it can be hit by
  * throwing the pointer at it; a margin of even one pixel takes that away.
  */
-export function WindowControls({ controls, onAct }: WindowControlsProps): JSX.Element | null {
+export function WindowControls({ controls, onAct }: { readonly controls: readonly WindowControl[]; readonly onAct: (action: WindowAction) => void }): JSX.Element | null {
   const i18n = useTranslator();
 
   if (controls.length === 0) return null;
@@ -51,20 +48,20 @@ export function WindowControls({ controls, onAct }: WindowControlsProps): JSX.El
   return (
     <div className="flex shrink-0 self-stretch">
       {controls.map((control) => (
-        <button
+        <Button
           key={control.action}
-          type="button"
+          variant={control.destructive ? 'danger' : 'ghost'}
+          size="sm"
           onClick={() => onAct(control.action)}
           aria-label={i18n.t(control.label)}
           title={i18n.t(control.label)}
-          className={`flex w-[46px] items-center justify-center ${
-            control.destructive
-              ? 'text-ink-secondary hover:bg-danger hover:text-surface-base'
-              : 'text-ink-secondary hover:bg-surface-raised hover:text-ink'
-          }`}
+          className={cn(
+            'w-[46px]',
+            control.destructive && 'hover:bg-danger hover:text-surface-base',
+          )}
         >
           <Glyph action={control.action} />
-        </button>
+        </Button>
       ))}
     </div>
   );

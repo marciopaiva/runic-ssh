@@ -17,6 +17,8 @@ import type { TerminalSize } from '../features/terminal/use-terminal';
 import type { CommandModifier, SessionStats } from '../ipc';
 
 import { SessionMarker } from './SessionMarker';
+import { Button } from './ui/Button';
+import { WarningIcon } from './ui/icons';
 
 interface StatusBarProps {
   /** `null` when no session is open. */
@@ -296,8 +298,9 @@ export function StatusBar({
           connecting. Dismissible because there is nothing to act on: the
           secret is gone, correctly, and the next connection will ask again. */}
       {credentialUnsaved !== null && (
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={onDismissUnsaved}
           title={
             credentialUnsaved.via === null
@@ -313,17 +316,9 @@ export function StatusBar({
                   { host: credentialUnsaved.via },
                 )
           }
-          className="text-ink-secondary border-line-subtle hover:text-ink my-1 flex shrink-0 items-center gap-1.5 rounded border px-2"
+          className="my-1 flex shrink-0 items-center gap-1.5 rounded border px-2"
         >
-          <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" aria-hidden="true">
-            <path
-              d="M8 1.8 1.5 13.2h13L8 1.8ZM8 6.2v3.4M8 11.4h.01"
-              stroke="currentColor"
-              strokeWidth="1.4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+          <WarningIcon className="h-3 w-3" />
           {/* The badge says which of the two it was, rather than leaving the
               difference in the title where it takes a hover to find. Both
               refusals read identically at a glance otherwise, and the one
@@ -333,7 +328,7 @@ export function StatusBar({
               ? 'status.credentialUnsaved'
               : 'status.credentialUnsaved.via',
           )}
-        </button>
+        </Button>
       )}
 
       {syncing !== null && (

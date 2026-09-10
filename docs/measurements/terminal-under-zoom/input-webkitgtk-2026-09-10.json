@@ -1,0 +1,114 @@
+[
+ {
+  "mode": "scale",
+  "zoom": 1.0,
+  "click": [
+   363,
+   265
+  ],
+  "echoed": false,
+  "promptAgain": false,
+  "typedMs": 411,
+  "grid": "85x18",
+  "tail": [
+   "deploy@web-01:~$ cho zoom-scale-100",
+   "deploy@web-01:~$"
+  ]
+ },
+ {
+  "mode": "scale",
+  "zoom": 0.75,
+  "click": [
+   272,
+   209
+  ],
+  "echoed": false,
+  "promptAgain": false,
+  "typedMs": 393,
+  "grid": "85x18",
+  "tail": [
+   "deploy@web-01:~$ cho zoom-scale-75",
+   "deploy@web-01:~$"
+  ]
+ },
+ {
+  "mode": "scale",
+  "zoom": 1.25,
+  "click": [
+   453,
+   321
+  ],
+  "echoed": false,
+  "promptAgain": false,
+  "typedMs": 412,
+  "grid": "85x18",
+  "tail": [
+   "deploy@web-01:~$ cho zoom-scale-125",
+   "deploy@web-01:~$"
+  ]
+ },
+ {
+  "mode": "refit",
+  "zoom": 0.75,
+  "click": [
+   272,
+   209
+  ],
+  "echoed": false,
+  "promptAgain": false,
+  "typedMs": 399,
+  "grid": "63x13",
+  "tail": [
+   "deploy@web-01:~$ cho zoom-refit-75",
+   "deploy@web-01:~$"
+  ]
+ },
+ {
+  "mode": "refit",
+  "zoom": 1.25,
+  "click": [
+   453,
+   321
+  ],
+  "echoed": false,
+  "promptAgain": false,
+  "typedMs": 415,
+  "grid": "107x22",
+  "tail": [
+   "deploy@web-01:~$ cho zoom-refit-125",
+   "deploy@web-01:~$"
+  ]
+ },
+ {
+  "mode": "scale",
+  "zoom": 0.5,
+  "click": [
+   181,
+   152
+  ],
+  "echoed": false,
+  "promptAgain": false,
+  "typedMs": 395,
+  "grid": "85x18",
+  "tail": [
+   "deploy@web-01:~$ cho zoom-scale-50",
+   "deploy@web-01:~$"
+  ]
+ },
+ {
+  "mode": "refit",
+  "zoom": 0.5,
+  "click": [
+   181,
+   152
+  ],
+  "echoed": false,
+  "promptAgain": false,
+  "typedMs": 395,
+  "grid": "41x9",
+  "tail": [
+   "deploy@web-01:~$ cho zoom-refit-50",
+   "deploy@web-01:~$"
+  ]
+ }
+]
