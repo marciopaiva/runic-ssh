@@ -122,6 +122,28 @@ passing.
 
 **Size:** medium.
 
+**Reviewed on 2026-09-10**, after v0.6.0 shipped, before any line code.
+What the review found, and where it went:
+
+* `Link` was `{a, b}` with no direction and `validate` did not check the
+  kinds at the ends; the map's SFTP window transferred nothing
+  (`renderMapSftp` passed `onSend: null`); `Component.host` was a session id,
+  so the local machine could not be a component; broadcast was keyed by
+  `HeldGroup`, which the map does not have. ADR-0065 answers all four:
+  order is direction on a file-browser link, one family per link, `local`
+  as a fourth kind with `host` absent, connected sets of terminal links as
+  the map's groups with a switch of their own beside Sessions'.
+* The maintainer confirmed the local machine as an SFTP component ("Esta
+  máquina"); it is the file browser of the machine Runic runs on, not a
+  local terminal, which does not exist in Runic.
+* Order of work: `fix/map-strip` first (#363 and #364, PR #366, merged
+  2026-09-10), since the line handle uses the same capture path; then this
+  ADR and `MapLines.dc.html`; then #367 (terminal line), #368 (file-browser
+  line and the local machine), #115 scoped to the map window with the
+  `execCommand('paste')` measurement first; then the release.
+* Still the maintainer's: whether the menu ships without paste if the
+  measurement fails, and the triage of the seven unscheduled issues.
+
 ### v0.8.0 Visions
 
 **Ships:** a vision groups components and their lines; closed it is an icon
