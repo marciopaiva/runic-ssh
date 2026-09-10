@@ -131,6 +131,14 @@ export interface PaneReport {
   readonly reload: () => void;
 }
 
+/** One end of a map line a send lands on: the endpoint, the directory its
+ * pane is showing, and the pane's own reload (ADR-0065). */
+export interface MapDestination {
+  readonly endpoint: Endpoint;
+  readonly dir: string;
+  readonly reload: () => void;
+}
+
 export interface FanoutState {
   readonly source: Endpoint | null;
   readonly destinations: readonly (Endpoint | null)[];
@@ -172,6 +180,15 @@ export interface FanoutActions {
    * reaches only that slot, whether or not its own receive toggle spares
    * it from a broadcast `sendToDestinations` run. */
   readonly sendEntriesToDestination: (entries: readonly PaneEntry[], slot: number) => void;
+  /** Entries from any source to any destinations, each named with the
+   * directory it lands in and how to refresh it afterwards: the map's lines
+   * (ADR-0065), which have no slots. Tracked the same way the grid's sends
+   * are, so the transfers bar shows them. */
+  readonly sendEntriesBetween: (
+    source: Endpoint,
+    entries: readonly PaneEntry[],
+    destinations: readonly MapDestination[],
+  ) => void;
   readonly cancelTransfer: (transfer: TransferHandle) => void;
   readonly dismissTransfer: (transfer: TransferHandle) => void;
   /** Stops a folder copy after whichever file is currently in flight
@@ -495,6 +512,33 @@ export function useFanout(sessions: readonly LiveSession[]): FanoutState & Fanou
    * it from the broadcast `sendToDestinations` runs. Dragging a file onto
    * a specific pane and having it not land there because that pane was
    * quietly spared would read as broken, not as the toggle working. */
+  const dispatchEntries = useCallback(
+    (from: Endpoint, entries: readonly PaneEntry[], to: Endpoint, destDir: string, reload: () => void) => {
+      const label = labelFor(to);
+      for (const entry of entries) {
+        if (entry.isDir) {
+          void planFolderCopy(from, entry.path).then((plan) => {
+            const total = plan.filter((item) => !item.isDir).length;
+            const id = `folder-${String(nextCopyId.current)}`;
+            nextCopyId.current += 1;
+            setFolderCopies((current) =>
+              reduceFolderCopies(current, { type: 'started', id, name: entry.name, destination: label, total }),
+            );
+            runFolderCopy(id, entry.name, plan, from, to, destDir, reload);
+          });
+          continue;
+        }
+        const started = startTransfer(from, entry.path, to, destDir);
+        if (started === null) continue;
+
+        void started.then(({ transfer, direction }) => {
+          track(transfer, direction, entry.name, label, reload);
+        });
+      }
+    },
+    [labelFor, track, runFolderCopy],
+  );
+
   const sendEntriesToDestination = useCallback(
     (entries: readonly PaneEntry[], slot: number) => {
       if (source === null) return;
@@ -502,31 +546,16 @@ export function useFanout(sessions: readonly LiveSession[]): FanoutState & Fanou
       if (destination === undefined || destination === null) return;
       const pane = panes.current.get(destinationPaneId(slot));
       if (pane?.path == null) return;
-      const destDir = pane.path;
-
-      const label = labelFor(destination);
-      for (const entry of entries) {
-        if (entry.isDir) {
-          void planFolderCopy(source, entry.path).then((plan) => {
-            const total = plan.filter((item) => !item.isDir).length;
-            const id = `folder-${String(nextCopyId.current)}`;
-            nextCopyId.current += 1;
-            setFolderCopies((current) =>
-              reduceFolderCopies(current, { type: 'started', id, name: entry.name, destination: label, total }),
-            );
-            runFolderCopy(id, entry.name, plan, source, destination, destDir, () => pane.reload());
-          });
-          continue;
-        }
-        const started = startTransfer(source, entry.path, destination, pane.path);
-        if (started === null) continue;
-
-        void started.then(({ transfer, direction }) => {
-          track(transfer, direction, entry.name, label, () => pane.reload());
-        });
-      }
+      dispatchEntries(source, entries, destination, pane.path, () => pane.reload());
     },
-    [source, destinations, labelFor, track, runFolderCopy],
+    [source, destinations, dispatchEntries],
+  );
+
+  const sendEntriesBetween = useCallback(
+    (from: Endpoint, entries: readonly PaneEntry[], targets: readonly MapDestination[]) => {
+      for (const target of targets) dispatchEntries(from, entries, target.endpoint, target.dir, target.reload);
+    },
+    [dispatchEntries],
   );
 
   const cancelTransfer = useCallback((transfer: TransferHandle) => {
@@ -564,6 +593,7 @@ export function useFanout(sessions: readonly LiveSession[]): FanoutState & Fanou
     reportPane,
     sendToDestinations,
     sendEntriesToDestination,
+    sendEntriesBetween,
     cancelTransfer,
     dismissTransfer,
     cancelFolderCopy,

@@ -20,6 +20,7 @@ export const DEFAULT_SIZE: Readonly<Record<ComponentKind, Size>> = {
   ssh: { w: 560, h: 360 },
   sftp: { w: 740, h: 420 },
   monitor: { w: 660, h: 380 },
+  local: { w: 740, h: 420 },
 };
 
 /** Below this a window is a thumbnail, not a place to type. */
@@ -113,6 +114,26 @@ export function addComponent(
   };
 }
 
+/** The local machine on one level of the map, if it is there (ADR-0065). */
+export function localOn(workspace: Workspace, layer: string | null): Component | undefined {
+  return componentsOn(workspace, layer).find((component) => component.kind === 'local');
+}
+
+/**
+ * Adds this machine's file browser to a level, or says why not: there is one
+ * per level, the way a host carries one component of each remote kind.
+ */
+export function addLocal(workspace: Workspace, layer: string | null = null, now?: number): AddOutcome {
+  const existing = localOn(workspace, layer);
+  if (existing !== undefined) return { ok: false, refusal: { reason: 'duplicate', existing } };
+  const component: Component = {
+    id: newComponentId(workspace, now),
+    kind: 'local',
+    ...(layer === null ? {} : { layer }),
+  };
+  return { ok: true, component, workspace: { ...workspace, components: [...workspace.components, component] } };
+}
+
 /** Removes a component, and any line or vision membership that named it. */
 export function removeComponent(workspace: Workspace, id: string): Workspace {
   return {
@@ -148,7 +169,7 @@ export function changeHost(
   hosts: readonly Session[],
 ): AddOutcome {
   const current = findComponent(workspace, id);
-  if (current === undefined || !hosts.some((session) => session.id === host)) {
+  if (current === undefined || current.kind === 'local' || !hosts.some((session) => session.id === host)) {
     return { ok: false, refusal: { reason: 'unknownHost' } };
   }
   if (current.host === host) return { ok: true, workspace, component: current };

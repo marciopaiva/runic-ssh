@@ -2,6 +2,8 @@ export {
   DEFAULT_SIZE,
   MIN_SIZE,
   addComponent,
+  addLocal,
+  localOn,
   placeSavedHost,
   changeHost,
   componentsOn,
@@ -19,6 +21,7 @@ export type { AddOutcome, AddRefusal, HostAsk } from './model';
 export {
   addLink,
   canLink,
+  destinationsOf,
   familyOf,
   lineKey,
   linkedSet,

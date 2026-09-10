@@ -141,14 +141,10 @@ export function AlertDialog({
   loading = false,
 }: AlertDialogProps) {
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      title={title}
-      description={description}
-      size="sm"
-      showCloseButton={false}
-    >
+    /* The title and the description are drawn once, in the body beside the
+       icon; handed to `Dialog` as well they were drawn twice, which the
+       map's first use of this found (ADR-0065). */
+    <Dialog open={open} onClose={onClose} size="sm" showCloseButton={false}>
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-3">

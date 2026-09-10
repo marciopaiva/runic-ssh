@@ -11,7 +11,8 @@ import { kindColor } from './glyphs';
 
 interface ComponentWindowProps {
   readonly component: Component;
-  readonly host: Session;
+  /** `null` for this machine, which has no host to edit (ADR-0065). */
+  readonly host: Session | null;
   /** In stage pixels: the window is drawn in screen space, not in the
       scaled world, so what is inside it stays 1:1 whatever the zoom. */
   readonly rect: { readonly left: number; readonly top: number; readonly width: number; readonly height: number };
@@ -83,7 +84,8 @@ export function ComponentWindow({
   bodyId,
 }: ComponentWindowProps): JSX.Element {
   const i18n = useTranslator();
-  const port = host.port === 22 ? '' : `:${String(host.port)}`;
+  const name = host === null ? i18n.t('map.local.name') : host.name;
+  const who = host === null ? i18n.t('sftp.localhost') : `${host.user}@${host.host}${host.port === 22 ? '' : `:${String(host.port)}`}`;
   const maximized = snapped === 'full';
   /* The receiving edge outranks the focus edge, as it does on a pane in
      Sessions (ADR-0019): with typing synchronised every receiving window
@@ -93,7 +95,7 @@ export function ComponentWindow({
   return (
     <section
       data-window={component.id}
-      aria-label={host.name}
+      aria-label={name}
       className={`absolute flex flex-col overflow-hidden border transition-[box-shadow,border-color] duration-normal ${
         maximized ? 'rounded-none' : 'rounded-[7px]'
       } ${edge} ${focused ? 'shadow-5' : 'shadow-3'}`}
@@ -132,19 +134,20 @@ export function ComponentWindow({
             thumbnail and the name is the one thing a person reads in the
             strip (#364). A flex item's minimum width is its content unless
             told otherwise, which is what wrapped the name onto two lines. */}
-        <button
-          type="button"
-          className="text-ink hover:bg-surface-raised -mx-1 max-w-[50%] shrink-0 truncate rounded px-1 text-[12px] font-semibold hover:underline hover:underline-offset-2"
-          title={i18n.t('map.window.editHost')}
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={onEditHost}
-        >
-          {host.name}
-        </button>
-        <span className="text-ink-faint min-w-0 truncate font-mono text-[10.5px]">
-          {host.user}@{host.host}
-          {port}
-        </span>
+        {host === null ? (
+          <span className="text-ink max-w-[50%] shrink-0 truncate text-[12px] font-semibold">{name}</span>
+        ) : (
+          <button
+            type="button"
+            className="text-ink hover:bg-surface-raised -mx-1 max-w-[50%] shrink-0 truncate rounded px-1 text-[12px] font-semibold hover:underline hover:underline-offset-2"
+            title={i18n.t('map.window.editHost')}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={onEditHost}
+          >
+            {name}
+          </button>
+        )}
+        <span className="text-ink-faint min-w-0 truncate font-mono text-[10.5px]">{who}</span>
         {broadcast !== null && (
           <button
             type="button"

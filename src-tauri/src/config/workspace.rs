@@ -36,6 +36,9 @@ pub enum ComponentKind {
     Ssh,
     Sftp,
     Monitor,
+    /// The file browser of the machine this runs on (ADR-0065): no host, no
+    /// connection, so that a line to or from it is an upload or a download.
+    Local,
 }
 
 /// Which lines a component may hold (ADR-0065): terminals join terminals,
@@ -50,7 +53,7 @@ impl ComponentKind {
     pub fn family(self) -> Option<Family> {
         match self {
             ComponentKind::Ssh => Some(Family::Terminal),
-            ComponentKind::Sftp => Some(Family::Files),
+            ComponentKind::Sftp | ComponentKind::Local => Some(Family::Files),
             ComponentKind::Monitor => None,
         }
     }
@@ -77,8 +80,11 @@ pub struct Component {
     /// Stable for the life of the component; what a line or a vision names.
     pub id: String,
     pub kind: ComponentKind,
-    /// The saved session this opens on, by the id `sessions.json` gave it.
-    pub host: String,
+    /// The saved session this opens on, by the id `sessions.json` gave it;
+    /// absent for `Local`, which is the one kind with no session, and
+    /// required for every other (ADR-0065).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub host: Option<String>,
     /// The layer this sits in, or `None` for the outermost map.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub layer: Option<String>,
@@ -90,7 +96,9 @@ pub struct Component {
     pub size: Option<Size>,
 }
 
-/// A line between two components of the same kind (v0.7.0).
+/// A line between two components of one family (ADR-0065). Between file
+/// browsers the order is the direction, `a` the origin and `b` the
+/// destination; between terminals the order carries nothing.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Link {
@@ -162,10 +170,22 @@ pub fn validate(workspace: &Workspace) -> Result<(), Error> {
         if !ids.insert(component.id.as_str()) {
             return Err(invalid("component.id"));
         }
-        if !acceptable_id(&component.host) {
-            return Err(invalid("component.host"));
-        }
-        if !surfaces.insert((component.host.as_str(), component.kind)) {
+        // A remote kind names its host; the local machine names none, and
+        // there is one of it per layer, the way a host carries one of each
+        // remote kind.
+        let surface = match (component.kind, component.host.as_deref()) {
+            (ComponentKind::Local, None) => {
+                (component.layer.as_deref().unwrap_or(""), component.kind)
+            }
+            (ComponentKind::Local, Some(_)) | (_, None) => return Err(invalid("component.host")),
+            (_, Some(host)) => {
+                if !acceptable_id(host) {
+                    return Err(invalid("component.host"));
+                }
+                (host, component.kind)
+            }
+        };
+        if !surfaces.insert(surface) {
             return Err(invalid("component.kind"));
         }
         if let Some(layer) = component.layer.as_deref() {
@@ -208,6 +228,9 @@ pub fn validate(workspace: &Workspace) -> Result<(), Error> {
             return Err(invalid("link"));
         };
         if to.family() != Some(family) {
+            return Err(invalid("link"));
+        }
+        if *from == ComponentKind::Local && *to == ComponentKind::Local {
             return Err(invalid("link"));
         }
         let duplicate = seen_links.iter().any(|(a, b)| {
@@ -258,7 +281,10 @@ pub fn validate(workspace: &Workspace) -> Result<(), Error> {
 pub fn prune(mut workspace: Workspace, known_hosts: &HashSet<&str>) -> Workspace {
     workspace
         .components
-        .retain(|component| known_hosts.contains(component.host.as_str()));
+        .retain(|component| match component.host.as_deref() {
+            Some(host) => known_hosts.contains(host),
+            None => true,
+        });
 
     let kept: HashSet<&str> = workspace
         .components
@@ -352,9 +378,20 @@ mod tests {
         Component {
             id: id.to_owned(),
             kind,
-            host: host.to_owned(),
+            host: Some(host.to_owned()),
             layer: None,
             position: Some(Point { x: 120.0, y: -40.5 }),
+            size: None,
+        }
+    }
+
+    fn local(id: &str) -> Component {
+        Component {
+            id: id.to_owned(),
+            kind: ComponentKind::Local,
+            host: None,
+            layer: None,
+            position: None,
             size: None,
         }
     }
@@ -497,6 +534,7 @@ mod tests {
                 component("f1", ComponentKind::Sftp, "s1"),
                 component("f2", ComponentKind::Sftp, "s2"),
                 component("m1", ComponentKind::Monitor, "s1"),
+                local("l1"),
             ],
             links,
             ..Workspace::default()
@@ -521,6 +559,60 @@ mod tests {
         assert!(
             refused(vec![link("f1", "f2"), link("f1", "f2")]),
             "the same direction twice"
+        );
+        assert!(
+            validate(&with(vec![link("l1", "f1"), link("f2", "l1")])).is_ok(),
+            "an upload and a download"
+        );
+        assert!(
+            refused(vec![link("t1", "l1")]),
+            "a terminal to the local machine"
+        );
+    }
+
+    #[test]
+    fn the_local_machine_has_no_host_and_there_is_one_per_layer() {
+        let refused = |components: Vec<Component>| {
+            validate(&Workspace {
+                components,
+                ..Workspace::default()
+            })
+            .err()
+        };
+
+        assert!(refused(vec![local("l1")]).is_none());
+        assert!(matches!(
+            refused(vec![Component { host: Some("s1".to_owned()), ..local("l1") }]),
+            Some(Error::InvalidWorkspace { field }) if field == "component.host"
+        ));
+        assert!(matches!(
+            refused(vec![Component { host: None, ..component("t1", ComponentKind::Ssh, "s1") }]),
+            Some(Error::InvalidWorkspace { field }) if field == "component.host"
+        ));
+        assert!(matches!(
+            refused(vec![local("l1"), local("l2")]),
+            Some(Error::InvalidWorkspace { field }) if field == "component.kind"
+        ));
+        assert!(refused(vec![
+            local("l1"),
+            Component {
+                layer: Some("k".to_owned()),
+                ..local("l2")
+            }
+        ])
+        .is_none());
+
+        let pruned = prune(
+            Workspace {
+                components: vec![local("l1"), component("t1", ComponentKind::Ssh, "gone")],
+                ..Workspace::default()
+            },
+            &HashSet::new(),
+        );
+        assert_eq!(
+            pruned.components.len(),
+            1,
+            "the local machine has no host to lose"
         );
     }
 

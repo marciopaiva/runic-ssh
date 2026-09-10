@@ -13,6 +13,7 @@ import { describe, expect, it } from 'vitest';
 import {
   addLink,
   canLink,
+  destinationsOf,
   lineKey,
   linkedSet,
   linkedSets,
@@ -33,6 +34,9 @@ function sftp(id: string, host: string = `h_${id}`): Component {
 }
 function monitor(id: string, host: string = `h_${id}`): Component {
   return { id, kind: 'monitor', host };
+}
+function local(id: string): Component {
+  return { id, kind: 'local' };
 }
 
 function map(components: readonly Component[], links: readonly { a: string; b: string }[] = []): Workspace {
@@ -55,6 +59,25 @@ describe('a line may join', () => {
     const files = map([sftp('f1'), sftp('f2')], [{ a: 'f1', b: 'f2' }]);
     expect(canLink(files, 'f1', 'f2')).toEqual({ reason: 'duplicate' });
     expect(canLink(files, 'f2', 'f1')).toBeNull();
+  });
+
+  it('this machine with a file browser either way, never with itself', () => {
+    const files = map([local('l1'), local('l2'), sftp('f1'), ssh('t1')]);
+    expect(canLink(files, 'l1', 'f1')).toBeNull();
+    expect(canLink(files, 'f1', 'l1')).toBeNull();
+    expect(canLink(files, 'l1', 'l2')).toEqual({ reason: 'local' });
+    expect(canLink(files, 't1', 'l1')).toEqual({ reason: 'family' });
+  });
+
+  it('knows where a file browser sends, in the order the lines were drawn', () => {
+    const files = map([local('l1'), sftp('f1'), sftp('f2')], [
+      { a: 'l1', b: 'f2' },
+      { a: 'f1', b: 'l1' },
+      { a: 'l1', b: 'f1' },
+    ]);
+    expect(destinationsOf(files, 'l1')).toEqual(['f2', 'f1']);
+    expect(destinationsOf(files, 'f1')).toEqual(['l1']);
+    expect(destinationsOf(files, 'f2')).toEqual([]);
   });
 
   it('never a terminal with a file browser, and never a monitor', () => {

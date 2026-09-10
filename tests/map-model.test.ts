@@ -8,9 +8,11 @@ import {
   DEFAULT_SIZE,
   MIN_SIZE,
   addComponent,
+  addLocal,
   changeHost,
   componentsOn,
   defaultSize,
+  localOn,
   moveComponent,
   newComponentId,
   placeSavedHost,
@@ -174,5 +176,25 @@ describe('placing a host the editor just saved', () => {
     /* The same host in the same kind twice, and a host the book has never heard of. */
     expect(placeSavedHost(added.workspace, { kind: 'ssh', changing: null }, 's1', BOOK)).toBeNull();
     expect(placeSavedHost(added.workspace, { kind: 'monitor', changing: null }, 'nobody', BOOK)).toBeNull();
+  });
+});
+
+describe('this machine on the map (ADR-0065)', () => {
+  it('is added once per level, with no host', () => {
+    const first = addLocal(EMPTY_WORKSPACE, null, 1);
+    expect(first.ok && first.component).toEqual({ id: 'c_1', kind: 'local' });
+    if (!first.ok) return;
+    expect(localOn(first.workspace, null)?.id).toBe('c_1');
+    const second = addLocal(first.workspace, null, 2);
+    expect(!second.ok && second.refusal).toEqual({ reason: 'duplicate', existing: first.component });
+    const deeper = addLocal(first.workspace, 'k', 3);
+    expect(deeper.ok && deeper.component.layer).toBe('k');
+  });
+
+  it('cannot be pointed at a host', () => {
+    const withLocal = addLocal(EMPTY_WORKSPACE, null, 1);
+    if (!withLocal.ok) throw new Error('unreachable');
+    const outcome = changeHost(withLocal.workspace, 'c_1', 's1', BOOK);
+    expect(outcome.ok).toBe(false);
   });
 });

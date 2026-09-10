@@ -940,6 +940,29 @@ row is in the code and its test (`tests/map-lines.test.ts`) and nobody has
 driven it yet. A hold on the icon offers the same "Broadcast" segment in the
 radial; only the right-click path was driven.
 
+A line between two file browsers is directed and carries a transfer; the
+machine Runic runs on is a component of its own, "This machine", so an
+upload is a line from it and a download a line to it (ADR-0065). Two SFTP
+components on the map, `lb-01` on 2224 and `db-01` on 2223, and a small
+file in the home directory of the machine Runic runs on.
+
+| Do this | Expect |
+| --- | --- |
+| Right-click the floor | the menu's last entry is "This machine", "the files on this computer"; pick it and a laptop icon joins the ring, and `workspace.json` holds `{"kind": "local"}` with no `host`. Right-click the floor again: the entry is gone, there is one per map |
+| Right-click the laptop | "Open", "Transfer to" with "draw a line to another file browser", "Remove": no "Change host", nothing to edit |
+| Pick "Transfer to", click `lb-01`; again, click `db-01` | two lines with an arrowhead at the far end and a round send button on each, greyed; `links` holds `{"a": <this machine>, "b": …}` twice, one per destination |
+| Open "This machine", click a file's row | the row highlights and both send buttons light up with a `1` badge |
+| Open `lb-01`, click the send button on its line | the file lands in the folder `lb-01`'s window is showing, the transfers bar under the map reports it done, and `lb-01`'s listing shows it; `db-01`, not open, was skipped |
+| Open `db-01` too, click either send button | a question first: "Send to 2 destinations?", naming the item count, the origin and both destinations; "Send" lands the file in both |
+| Right-click a send button | the same menu a terminal line has, "Remove the line"; the sessions stay |
+
+Confirmed on Linux on 2026-09-10, headlessly the same way, in the dev
+build against `runic-test-sshd` on 2223 and 2224, with the file checked on
+both fixtures with `podman exec … ls`. The local pane's path is not typed;
+it is walked by clicking folders, or scrolled. A download (a line from a
+host to this machine) and a folder are in the code and nobody has driven
+them on the map yet.
+
 ### SFTP
 
 ADR-0044 through ADR-0049. One fixture on 2222 is enough for browsing,

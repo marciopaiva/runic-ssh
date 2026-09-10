@@ -68,7 +68,7 @@ export function HostPicker({ kind, changing, hosts, refusal, onPick, onNewHost, 
               <span className="text-warn text-[11.5px]">
                 {refusal.reason === 'duplicate'
                   ? i18n.t('map.picker.duplicate', {
-                      name: byId.get(refusal.existing.host)?.name ?? refusal.existing.host,
+                      name: byId.get(refusal.existing.host ?? '')?.name ?? (refusal.existing.host ?? ''),
                       kind: kindLabel,
                     })
                   : i18n.t('map.empty.body')}

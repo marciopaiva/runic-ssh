@@ -111,7 +111,8 @@ import {
   submitCredential,
 } from './ipc';
 import type { Keep, Macro, Secret, Session, SessionDraft, SessionHandle, SuggestedMethod } from './ipc';
-import type { Workspace as MapWorkspaceModel } from './ipc';
+import type { Component as MapComponent, ComponentKind as MapComponentKind, Workspace as MapWorkspaceModel } from './ipc';
+import type { MapPaneWiring } from './components/map/MapStage';
 import { mapTerminals, placeSavedHost } from './features/map';
 import type { HostAsk } from './features/map';
 import { useLocale, useTheme } from './features/settings';
@@ -2005,26 +2006,32 @@ export function App(): JSX.Element {
     [mapMounted, saved, chrome],
   );
 
+  /* ADR-0065: a file browser in a map window, a saved host's or this
+     machine's. It sends through the lines, not through a bar of its own, so
+     `onSend` stays null; the pane reports where it is and what is selected
+     and the stage does the rest. */
   const renderMapSftp = useCallback(
-    (session: Session, handle: SessionHandle, onClose: () => void): ReactNode => {
-      const endpoint: Endpoint = { kind: 'remote', sessionId: session.id, handle };
+    (_component: MapComponent, session: Session | null, handle: SessionHandle | null, pane: MapPaneWiring): ReactNode => {
+      const endpoint: Endpoint =
+        session === null || handle === null ? { kind: 'local' } : { kind: 'remote', sessionId: session.id, handle };
       return (
         <SftpPane
           endpoint={endpoint}
-          paneId={`map-sftp-${session.id}`}
-          label={session.name}
+          paneId={pane.paneId}
+          label={session === null ? i18n.t('map.local.name') : session.name}
           identity={sftpIdentity(endpoint)}
-          onReport={() => {}}
+          onReport={pane.onReport}
           onSend={null}
-          onClear={onClose}
+          onClear={pane.onClose}
           receiving={null}
           onToggleReceiving={null}
           onDragEntriesStart={null}
           onDragEntriesEnd={null}
+          onSelectionChange={pane.onSelectionChange}
         />
       );
     },
-    [sftpIdentity],
+    [i18n, sftpIdentity],
   );
 
   const renderMapMonitor = useCallback(
@@ -2258,8 +2265,16 @@ export function App(): JSX.Element {
     if (mapEditor === null || mapEditorTarget === null) return null;
     const element = wizardFor(mapEditorTarget, true);
     if (element === null) return null;
-    const kindLabel = (kind: 'ssh' | 'sftp' | 'monitor'): string =>
-      i18n.t(kind === 'ssh' ? 'map.create.ssh' : kind === 'sftp' ? 'map.create.sftp' : 'map.create.monitor');
+    const kindLabel = (kind: MapComponentKind): string =>
+      i18n.t(
+        kind === 'ssh'
+          ? 'map.create.ssh'
+          : kind === 'sftp'
+            ? 'map.create.sftp'
+            : kind === 'monitor'
+              ? 'map.create.monitor'
+              : 'map.create.local',
+      );
     /* A host being registered for a component stays "New host" after Save
        gives it an id: the popup is about the component it was asked for,
        and it closes on its own once the proof settles. */
@@ -2984,7 +2999,16 @@ export function App(): JSX.Element {
               terminals={mapTerminalWiring}
               renderSftp={renderMapSftp}
               renderMonitor={renderMapMonitor}
-            onReceivingChange={setMapReceivingCount}
+              onSend={fanout.sendEntriesBetween}
+              onReceivingChange={setMapReceivingCount}
+            />
+            <TransfersBar
+              transfers={fanout.transfers}
+              onCancel={fanout.cancelTransfer}
+              onDismiss={fanout.dismissTransfer}
+              folderCopies={fanout.folderCopies}
+              onCancelFolder={fanout.cancelFolderCopy}
+              onDismissFolder={fanout.dismissFolderCopy}
             />
           </main>
         )}

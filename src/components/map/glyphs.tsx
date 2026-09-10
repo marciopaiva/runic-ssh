@@ -35,6 +35,8 @@ export function kindColor(kind: ComponentKind): string {
       return 'var(--rs-state-warn)';
     case 'monitor':
       return 'var(--rs-brand-end)';
+    case 'local':
+      return 'var(--rs-state-warn)';
   }
 }
 
@@ -74,6 +76,17 @@ export function KindGlyph({ kind, size = 72 }: GlyphProps): JSX.Element {
           <path d="M30 42 h12" stroke={color} strokeWidth="2.2" strokeLinecap="round" />
           <path d="M36 8 v10 M31 13 l5 -5 5 5" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           <path d="M22 62 h28" stroke={dim} strokeWidth="1.4" strokeLinecap="round" />
+        </>
+      )}
+      {kind === 'local' && (
+        /* The machine Runic runs on, a file browser like `sftp` (ADR-0065):
+           a laptop, the one object on the map that is not somewhere else. */
+        <>
+          <path className="map-glyph-edge" d="M17 14 h38 a3 3 0 0 1 3 3 v27 h-44 v-27 a3 3 0 0 1 3 -3 z" fill="url(#map-glass)" stroke={EDGE} strokeWidth="1.2" />
+          <path d="M14 17 h44" stroke={color} strokeWidth="1.8" strokeLinecap="round" />
+          <path d="M27 26 h7 l2 2 h9 v9 h-18 z" fill="none" stroke={color} strokeWidth="1.8" strokeLinejoin="round" />
+          <path d="M9 50 h54 l4 8 h-62 z" fill={raised} stroke={color} strokeOpacity=".7" strokeWidth="1.2" />
+          <path d="M30 54 h12" stroke={dim} strokeWidth="1.4" strokeLinecap="round" />
         </>
       )}
       {kind === 'monitor' && (
