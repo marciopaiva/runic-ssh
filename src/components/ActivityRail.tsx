@@ -90,7 +90,7 @@ function RailSlot({
 }
 
 /** Which main area the window is showing. */
-export type Workspace = 'home' | 'sessions' | 'sftp' | 'monitor';
+export type Workspace = 'home' | 'sessions' | 'sftp' | 'monitor' | 'map';
 
 interface ActivityRailProps {
   /** Which workspace is showing right now. */
@@ -261,6 +261,33 @@ export function ActivityRail({
           aria-hidden="true"
         >
           <path d="M4 6.5h6l1.6 2H20v9.5H4z" />
+        </svg>
+      </RailSlot>
+
+      {/* ADR-0064: the map, a fifth workspace beside the three it will
+          replace in v0.9.0. Live while armed for the same reason Sessions
+          is: its terminals receive keystrokes, and a broadcast in progress
+          is exactly what somebody switching to the map may want to see. */}
+      <RailSlot
+        on={workspace === 'map'}
+        tone={armed ? 'warn' : 'accent'}
+        label={i18n.t('map.rail')}
+        onClick={() => onChoose('map')}
+      >
+        <svg
+          viewBox="0 0 24 24"
+          className="h-[21px] w-[21px]"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <circle cx="12" cy="6" r="2.4" />
+          <circle cx="5.5" cy="17" r="2.4" />
+          <circle cx="18.5" cy="17" r="2.4" />
+          <path d="M10.6 8.2l-3.7 6.4M13.4 8.2l3.7 6.4M8 17h8" />
         </svg>
       </RailSlot>
 

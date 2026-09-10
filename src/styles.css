@@ -120,3 +120,24 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* The map (ADR-0064): the radial menu blooms from the point held, and a
+   node's glass edge brightens under the pointer. Both are cut to nothing by
+   the reduced-motion block above. */
+@keyframes map-bloom {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.map-bloom {
+  animation: map-bloom 160ms var(--rs-easing-decelerated) both;
+  transform-origin: center;
+}
+.group:hover .map-glyph-edge {
+  stroke: var(--rs-glass-edge-hot);
+}

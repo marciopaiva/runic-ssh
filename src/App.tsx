@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties, DragEvent, JSX } from 'react';
+import type { CSSProperties, DragEvent, JSX, ReactNode } from 'react';
 
 import { ActivityRail } from './components/ActivityRail';
 import type { Workspace } from './components/ActivityRail';
@@ -18,6 +18,8 @@ import { HostKeyRefused } from './components/HostKeyRefused';
 import { MacrosButton } from './components/MacrosButton';
 import { MacrosSidebar } from './components/MacrosSidebar';
 import { MonitorWorkspace } from './components/MonitorWorkspace';
+import { MapStage } from './components/map/MapStage';
+import { MonitorBody } from './components/map/MonitorBody';
 import { PasteConfirm } from './components/PasteConfirm';
 import { SessionMenu } from './components/SessionMenu';
 import { SessionWizard } from './components/SessionWizard';
@@ -96,15 +98,20 @@ import {
   asIpcError,
   deleteSession,
   disconnectSession,
+  EMPTY_WORKSPACE,
   forgetCredential,
   internalVaultStatus,
+  loadWorkspace,
   saveSession,
+  saveWorkspace,
   sendInput,
   sessionCredentialKept,
   stopForward,
   submitCredential,
 } from './ipc';
-import type { Keep, Macro, Secret, Session, SessionDraft, SuggestedMethod } from './ipc';
+import type { Keep, Macro, Secret, Session, SessionDraft, SessionHandle, SuggestedMethod } from './ipc';
+import type { Workspace as MapWorkspaceModel } from './ipc';
+import { mapTerminals } from './features/map';
 import { useLocale, useTheme } from './features/settings';
 import { visibleDestinationRows } from './features/sftp/browser';
 import { endpointKey } from './features/sftp/endpoint';
@@ -299,6 +306,10 @@ export function App(): JSX.Element {
      one host at a time, so a second pick before the first resolves simply
      replaces which one `onOpened` is waiting for. */
   const monitorConnectTarget = useRef<string | null>(null);
+  /* ADR-0064: sessions the map asked for. Checked first in `onOpened`, the
+     same way the monitor's own target is: a map component wants its window
+     filled, not a tab in Sessions. */
+  const mapConnectTargets = useRef<Set<string>>(new Set());
   /* Which sessions Sessions itself has actually asked a shell for, ADR-0053.
      A connection opened for SFTP shares its handle with Sessions (one SSH
      transport, multiplexed channels), which used to be read as "Sessions
@@ -501,7 +512,9 @@ export function App(): JSX.Element {
          happens to work. Neither wants `wantTerminal`/`setFocus` below,
          since neither is asking for a tab in Sessions. */
       const sftpTarget = sftpConnectTargets.current.get(sessionId);
-      if (monitorConnectTarget.current === sessionId) {
+      if (mapConnectTargets.current.has(sessionId)) {
+        mapConnectTargets.current.delete(sessionId);
+      } else if (monitorConnectTarget.current === sessionId) {
         monitorConnectTarget.current = null;
       } else if (sftpTarget !== undefined) {
         sftpConnectTargets.current.delete(sessionId);
@@ -533,6 +546,7 @@ export function App(): JSX.Element {
        user closed are three different things, and the marker says which. */
     onFailed: (sessionId, code) => {
       sftpConnectTargets.current.delete(sessionId);
+      mapConnectTargets.current.delete(sessionId);
       if (monitorConnectTarget.current === sessionId) monitorConnectTarget.current = null;
       setState(sessionId, stateAfterFailure(code));
       setTestOutcome((current) => new Map(current).set(sessionId, 'failed'));
@@ -544,6 +558,7 @@ export function App(): JSX.Element {
        *previous* attempt's result showing on this one. */
     onAbandoned: (sessionId, settled) => {
       sftpConnectTargets.current.delete(sessionId);
+      mapConnectTargets.current.delete(sessionId);
       if (monitorConnectTarget.current === sessionId) monitorConnectTarget.current = null;
       /* Nothing is left to show a tab for once an attempt is walked away
          from, ADR-0053: no handle, no attempt, and (for one Sessions itself
@@ -1831,6 +1846,121 @@ export function App(): JSX.Element {
     [sessions, i18n],
   );
 
+  /* ADR-0064: the map's own state. Loaded once, held whole, written whole a
+     moment after the last change, so a drag is one write and not sixty. */
+  const [mapWorkspace, setMapWorkspace] = useState<MapWorkspaceModel>(EMPTY_WORKSPACE);
+  useEffect(() => {
+    let live = true;
+    void loadWorkspace()
+      .then((loaded) => {
+        if (live) setMapWorkspace(loaded);
+      })
+      .catch(() => {
+        /* A malformed file is reported by the core the next time the map is
+           written, on the save that fails; until then the map starts empty
+           rather than the workspace refusing to open. */
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+  const mapSave = useRef<{ timer: ReturnType<typeof setTimeout> | null; pending: MapWorkspaceModel | null }>({
+    timer: null,
+    pending: null,
+  });
+  const changeMap = useCallback((next: MapWorkspaceModel): void => {
+    setMapWorkspace(next);
+    const state = mapSave.current;
+    state.pending = next;
+    if (state.timer !== null) clearTimeout(state.timer);
+    state.timer = setTimeout(() => {
+      state.timer = null;
+      const pending = state.pending;
+      state.pending = null;
+      if (pending !== null) void saveWorkspace(pending).catch(() => {});
+    }, 300);
+  }, []);
+  useEffect(
+    () => () => {
+      const state = mapSave.current;
+      if (state.timer !== null) clearTimeout(state.timer);
+      if (state.pending !== null) void saveWorkspace(state.pending).catch(() => {});
+    },
+    [],
+  );
+
+  const mapHandles = useMemo(() => {
+    const handles = new Map<string, SessionHandle>();
+    for (const live of sessions) if (live.handle !== null) handles.set(live.session.id, live.handle);
+    return handles;
+  }, [sessions]);
+
+  const connectFromMap = useCallback(
+    (sessionId: string): void => {
+      const live = sessions.find((entry) => entry.session.id === sessionId);
+      if (live === undefined || live.handle !== null) return;
+      mapConnectTargets.current.add(sessionId);
+      if (attempt !== null && attempt.sessionId === sessionId && isInProgress(attempt.stage)) return;
+      void connect(sessionId);
+    },
+    [connect, sessions, attempt],
+  );
+
+  const mapAttemptSurface = useCallback(
+    (sessionId: string): JSX.Element | null =>
+      attempt !== null && attempt.sessionId === sessionId ? attemptSurface : null,
+    [attempt, attemptSurface],
+  );
+
+  /* One terminal per SSH component whose host is connected. The stack itself
+     is `MapTerminals`, inside the map's own main (ADR-0014, ADR-0032); this
+     is what the shell wires into each of them, the same things Sessions'
+     stack gets. */
+  const mapMounted = useMemo(() => mapTerminals(mapWorkspace.components, mapHandles), [mapWorkspace, mapHandles]);
+  const mapTerminalWiring = useMemo(
+    () => ({
+      mounted: mapMounted,
+      sessions: saved,
+      modifier: chrome?.commandModifier ?? 'control',
+      onSize: setSize,
+      onFocusHandle: (sessionId: string, focus: () => void) => focusFns.current.set(sessionId, focus),
+      onPasteNeedsConfirming: (sessionId: string, text: string) => setPendingPaste({ sessionId, text }),
+      onInput: (sessionId: string, bytes: Uint8Array) => {
+        const target = mapMounted.find((candidate) => candidate.sessionId === sessionId);
+        if (target === undefined) return;
+        void sendInput(target.handle, bytes).catch(() => {});
+      },
+    }),
+    [mapMounted, saved, chrome],
+  );
+
+  const renderMapSftp = useCallback(
+    (session: Session, handle: SessionHandle, onClose: () => void): ReactNode => {
+      const endpoint: Endpoint = { kind: 'remote', sessionId: session.id, handle };
+      return (
+        <SftpPane
+          endpoint={endpoint}
+          paneId={`map-sftp-${session.id}`}
+          label={session.name}
+          identity={sftpIdentity(endpoint)}
+          onReport={() => {}}
+          onSend={null}
+          onClear={onClose}
+          receiving={null}
+          onToggleReceiving={null}
+          onDragEntriesStart={null}
+          onDragEntriesEnd={null}
+        />
+      );
+    },
+    [sftpIdentity],
+  );
+
+  const renderMapMonitor = useCallback(
+    (session: Session, handle: SessionHandle): ReactNode => <MonitorBody session={session} handle={handle} />,
+    [],
+  );
+
   /* Where a drag lands. A tab moves, a host from the list opens: `openHere`
      already knows that one of those is a connection it has to make and the
      other is one it must not make twice. */
@@ -1929,6 +2059,19 @@ export function App(): JSX.Element {
         />
       )}
       {workspace === 'monitor' && (
+        <Toolbar
+          trailing={
+            <ThemeLanguageControls
+              theme={theme}
+              onChooseTheme={(next) => void chooseTheme(next)}
+              chosenLocale={chosen}
+              onChooseLocale={(locale) => void choose(locale)}
+            />
+          }
+        />
+      )}
+
+      {workspace === 'map' && (
         <Toolbar
           trailing={
             <ThemeLanguageControls
@@ -2699,6 +2842,28 @@ export function App(): JSX.Element {
               attempt.sessionId === selectedMonitorSession.session.id &&
               attemptSurface !== null && <div className="absolute inset-0">{attemptSurface}</div>
             )}
+          </main>
+        )}
+
+        {workspace === 'map' && (
+          /* ADR-0064: the map's own main, `relative` for the same reason
+             Sessions' is: the terminals are stacked in it, one per connected
+             SSH component, and the stage says where each one goes. */
+          <main className="bg-surface-base relative flex min-w-0 flex-1 flex-col overflow-hidden">
+            <MapStage
+              workspace={mapWorkspace}
+              onChange={changeMap}
+              hosts={saved}
+              handles={mapHandles}
+              onConnect={connectFromMap}
+              onDisconnect={disconnect}
+              attemptSurface={mapAttemptSurface}
+              onEditHost={(sessionId) => openEditor({ kind: 'existing', sessionId })}
+              onNewHost={() => openEditor({ kind: 'new' })}
+              terminals={mapTerminalWiring}
+              renderSftp={renderMapSftp}
+              renderMonitor={renderMapMonitor}
+            />
           </main>
         )}
       </div>

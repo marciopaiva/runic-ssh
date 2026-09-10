@@ -99,6 +99,24 @@
   /* Glass/blur: for overlays, backdrops, elevated surfaces. */
   --rs-glass-blur: 8px;
   --rs-glass-opacity: 0.08;
+
+  /* Glass, for the map (ADR-0064): a window's fill, the light on its top
+     edge, its edge at rest, raised and under the pointer, and the floor it
+     sits on. Alphas rather than solids because a window over the map has to
+     show the map through it, which a solid surface token cannot. */
+  --rs-glass-fill: rgba(6, 12, 20, 0.82);
+  --rs-glass-panel: rgba(12, 21, 34, 0.9);
+  --rs-glass-tint: rgba(232, 240, 250, 0.03);
+  --rs-glass-top: rgba(232, 240, 250, 0.06);
+  --rs-glass-edge: rgba(94, 200, 245, 0.16);
+  --rs-glass-edge-strong: rgba(94, 200, 245, 0.38);
+  --rs-glass-edge-hot: rgba(94, 200, 245, 0.85);
+  --rs-map-deep: #04080f;
+  --rs-map-grid: rgba(42, 64, 96, 0.16);
+  --rs-map-vignette: rgba(34, 180, 239, 0.07);
+  --rs-map-snap: rgba(34, 180, 239, 0.08);
+  --rs-map-radial: rgba(14, 26, 42, 0.9);
+  --rs-map-shadow: rgba(0, 0, 0, 0.45);
 }
 
 /* A viewer who has asked their system for light, and has not overridden it
@@ -173,6 +191,20 @@
     /* Glass/blur: for overlays, backdrops, elevated surfaces. */
     --rs-glass-blur: 8px;
     --rs-glass-opacity: 0.06;
+
+    --rs-glass-fill: rgba(244, 247, 251, 0.9);
+    --rs-glass-panel: rgba(255, 255, 255, 0.92);
+    --rs-glass-tint: rgba(12, 22, 36, 0.03);
+    --rs-glass-top: rgba(255, 255, 255, 0.6);
+    --rs-glass-edge: rgba(11, 126, 184, 0.18);
+    --rs-glass-edge-strong: rgba(11, 126, 184, 0.38);
+    --rs-glass-edge-hot: rgba(11, 126, 184, 0.85);
+    --rs-map-deep: #dfe6f0;
+    --rs-map-grid: rgba(180, 194, 214, 0.35);
+    --rs-map-vignette: rgba(11, 126, 184, 0.08);
+    --rs-map-snap: rgba(11, 126, 184, 0.1);
+    --rs-map-radial: rgba(255, 255, 255, 0.92);
+    --rs-map-shadow: rgba(12, 22, 36, 0.18);
   }
 }
 
@@ -247,4 +279,18 @@
   /* Glass/blur: for overlays, backdrops, elevated surfaces. */
     --rs-glass-blur: 8px;
   --rs-glass-opacity: 0.06;
+
+  --rs-glass-fill: rgba(244, 247, 251, 0.9);
+  --rs-glass-panel: rgba(255, 255, 255, 0.92);
+  --rs-glass-tint: rgba(12, 22, 36, 0.03);
+  --rs-glass-top: rgba(255, 255, 255, 0.6);
+  --rs-glass-edge: rgba(11, 126, 184, 0.18);
+  --rs-glass-edge-strong: rgba(11, 126, 184, 0.38);
+  --rs-glass-edge-hot: rgba(11, 126, 184, 0.85);
+  --rs-map-deep: #dfe6f0;
+  --rs-map-grid: rgba(180, 194, 214, 0.35);
+  --rs-map-vignette: rgba(11, 126, 184, 0.08);
+  --rs-map-snap: rgba(11, 126, 184, 0.1);
+  --rs-map-radial: rgba(255, 255, 255, 0.92);
+  --rs-map-shadow: rgba(12, 22, 36, 0.18);
 }
