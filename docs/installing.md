@@ -46,12 +46,31 @@ workflow produced, and it is the answer to "is this usable yet".
 
 | Platform | Installed and driven | Version | Where the file came from |
 | --- | --- | --- | --- |
-| Linux, `.deb` | **yes**, 2026-09-08 | 0.5.0 | **downloaded from the release** |
+| Linux, `.deb` | **yes**, 2026-09-10 | 0.6.0 | **downloaded from the release** |
 | Linux, `.rpm` | no | | no RPM distribution to hand |
 | Linux, `.AppImage` | no | | discouraged anyway, see below |
 | Windows, `.exe` (NSIS) | **yes**, 2026-08-26 | 0.1.1 | **a workflow artifact, copied in through WSL** |
 | Windows, `.msi` (WiX) | built, not installed | | the NSIS package was the one exercised |
 | macOS, `.dmg` | **no** | | needs an Apple Silicon Mac |
+
+**The 0.6.0 `.deb` was downloaded from the release**, checked against
+`SHA256SUMS` (six lines, one per file on the page, every one covered), and
+installed over the 0.5.0 package already on this machine with `apt install
+./Runic-SSH_0.6.0_amd64.deb`. Driven as the installed `/usr/bin/runic-ssh`
+on an isolated display, on an `XDG_CONFIG_HOME` seeded with three saved
+hosts, one of them with its password already in the keychain, and no map:
+the first six rows of "The map (ADR-0064)" in `docs/testing.md`, as they
+now read. A component created from the floor's menu and the picker,
+`workspace.json` written beside `sessions.json`; the icon opened into its
+window and the shell answered `echo` with the host's own name; the window
+dragged by its strip and resized by its east edge, both saved to the file;
+maximized and restored from the strip's buttons; a thumbnail at 60% and a
+refit at 117%; minimized to the icon and reopened on the same shell. Two
+things found on the way, neither of which stops the rows: double-click on
+the strip fits the view instead of maximizing (#363, a defect in the
+release, cause known), and the window's name wraps in the strip at 60%
+(#364). Sessions, SFTP, Monitor, macros and port forwarding were not
+re-driven this pass; the paragraphs below still stand for them.
 
 **The 0.5.0 `.deb` was downloaded from the release**, checked against
 `SHA256SUMS` (six lines, one per file on the page, every one covered), and
