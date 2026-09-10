@@ -5,6 +5,17 @@
 # a supply chain attacker as an adversary and a tag can be moved. And the five
 # commands are written out exactly as the agreement states them, so that what CI
 # enforces and what a contributor runs locally cannot drift apart.
+#
+# A pull request runs the gate on Linux alone; a push to `main`, the nightly
+# run and a run started by hand cover all three platforms. Decided on
+# 2026-09-10 from six months of runs: Windows took four to nine minutes where
+# Linux took two, and every platform-only break it caught (a path separator,
+# CRLF on checkout, a step under pwsh) was CI plumbing that a run on `main`
+# would have caught one merge later. The Rust tree has no `cfg(target_os)`;
+# what differs per platform is the dependencies, and package.yml builds and
+# smokes all three on every tag, so a release cannot ship what the gate
+# skipped. Revisit for v1.0.0, when signed installers on every platform
+# are the promise and a red `main` costs more than a slow review.
 
 name: gate
 
@@ -13,6 +24,10 @@ on:
     branches: [main]
   push:
     branches: [main]
+  schedule:
+    # 06:00 UTC, before the maintainer's day starts in America/Sao_Paulo.
+    - cron: '0 6 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -43,7 +58,11 @@ jobs:
       # break is universal or specific to one target.
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        # Linux alone on a pull request; the three everywhere else. See the
+        # note at the top. Branch protection requires `gate / ubuntu-latest`
+        # and `prose` on a pull request, and nothing that a pull request does
+        # not run.
+        os: ${{ github.event_name == 'pull_request' && fromJSON('["ubuntu-latest"]') || fromJSON('["ubuntu-latest", "macos-latest", "windows-latest"]') }}
 
     steps:
       - name: Check out
@@ -153,9 +172,11 @@ jobs:
   # checked here, in a job of their own so the canonical list above stays the
   # canonical list. It reads only what the branch adds, so it needs the history
   # the merge base is computed from, and on a push to `main` there is nothing
-  # added and it passes without looking at anything.
+  # added and it passes without looking at anything. The nightly and a run by
+  # hand add nothing either, so they skip it.
   prose:
     name: prose
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Check out
