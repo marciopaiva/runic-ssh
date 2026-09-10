@@ -41,6 +41,10 @@ interface SftpPaneProps {
   readonly onToggleReceiving: (() => void) | null;
   readonly onDragEntriesStart: ((entries: readonly PaneEntry[]) => void) | null;
   readonly onDragEntriesEnd: (() => void) | null;
+  /** What is selected, reported as it changes, for a sender outside the
+      pane: the button on a map line sends the origin's selection
+      (ADR-0065). Absent, the selection stays the pane's own business. */
+  readonly onSelectionChange?: ((entries: readonly PaneEntry[]) => void) | undefined;
 }
 
 export function formatSize(bytes: number): string {
@@ -374,12 +378,19 @@ export function SftpPane({
   onToggleReceiving,
   onDragEntriesStart,
   onDragEntriesEnd,
+  onSelectionChange,
 }: SftpPaneProps): JSX.Element {
   const i18n = useTranslator();
   const pane = usePane(endpoint);
   const listRef = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [selectAnchor, setSelectAnchor] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (onSelectionChange === undefined) return;
+    onSelectionChange(pane.entries.filter((entry) => selected.has(entry.path)));
+  }, [onSelectionChange, pane.entries, selected]);
+  useEffect(() => () => onSelectionChange?.([]), [onSelectionChange]);
 
   useEffect(() => {
     onReport(paneId, { path: pane.path, reload: () => pane.enter(pane.path) });

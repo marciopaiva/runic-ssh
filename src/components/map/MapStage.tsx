@@ -7,14 +7,18 @@ import type { MountedTerminal } from '../../features/terminal';
 import {
   addComponent,
   addLink,
+  addLocal,
   canLink,
   changeHost,
   componentsOn,
   defaultSize,
+  destinationsOf,
   edgePoint,
+  familyOf,
   lineKey,
   linkedSet,
   linkedSets,
+  localOn,
   mapInputTargets,
   mapReceiving,
   removeComponent,
@@ -28,9 +32,13 @@ import {
 import type { AddRefusal, HostAsk } from '../../features/map';
 import { HUB, useMapStage } from '../../features/map/use-map-stage';
 import { useTranslator } from '../../features/settings';
+import type { Endpoint, PaneEntry } from '../../features/sftp/endpoint';
+import type { MapDestination, PaneReport } from '../../features/sftp/use-fanout';
+
+import { AlertDialog } from '../ui/Dialog';
 
 import { ComponentNode } from './ComponentNode';
-import { LineHandle } from './LineHandle';
+import { LineHandle, SendHandle } from './LineHandle';
 import { MapTerminals } from './MapTerminals';
 import type { TerminalWiring } from './MapTerminals';
 import { ComponentWindow } from './ComponentWindow';
@@ -62,6 +70,14 @@ export interface TerminalFrame {
   readonly visible: boolean;
   readonly focused: boolean;
   readonly zIndex: number;
+}
+
+/** What the shell wires into a file browser the map mounts (ADR-0065). */
+export interface MapPaneWiring {
+  readonly paneId: string;
+  readonly onClose: () => void;
+  readonly onReport: (paneId: string, report: PaneReport | null) => void;
+  readonly onSelectionChange: (entries: readonly PaneEntry[]) => void;
 }
 
 export interface HostPopupState {
@@ -96,8 +112,13 @@ interface MapStageProps {
       Mounted here in one stable stack (ADR-0014) and aimed at the frames
       this stage computes. */
   readonly terminals: TerminalWiring & { readonly mounted: readonly MountedTerminal[] };
-  readonly renderSftp: (session: Session, handle: SessionHandle, onClose: () => void) => ReactNode;
+  /** A file browser for a component: a saved host's, or this machine's
+      when `host` is `null` (ADR-0065). */
+  readonly renderSftp: (component: Component, host: Session | null, handle: SessionHandle | null, pane: MapPaneWiring) => ReactNode;
   readonly renderMonitor: (session: Session, handle: SessionHandle) => ReactNode;
+  /** Sends entries from one endpoint to each destination, tracked in the
+      shell's transfers (ADR-0045's mechanics, ADR-0065's gesture). */
+  readonly onSend: (source: Endpoint, entries: readonly PaneEntry[], destinations: readonly MapDestination[]) => void;
   /** How many windows a keystroke typed on the map reaches right now, or
       `null` with no line armed: the status bar's warning edge and its
       announcement (ADR-0019, ADR-0065). */
@@ -139,6 +160,7 @@ export function MapStage({
   terminals,
   renderSftp,
   renderMonitor,
+  onSend,
   onReceivingChange,
 }: MapStageProps): JSX.Element {
   const i18n = useTranslator();
@@ -153,10 +175,34 @@ export function MapStage({
   const level = useMemo(() => componentsOn(workspace, null), [workspace]);
   const byId = useMemo(() => new Map(hosts.map((host) => [host.id, host])), [hosts]);
   const componentById = useMemo(() => new Map(level.map((component) => [component.id, component])), [level]);
+  /* A component's host, `null` for this machine, `undefined` for a remote
+     kind whose host the book no longer has (the store drops it next load). */
+  const hostOf = useCallback(
+    (component: Component): Session | null | undefined =>
+      component.host === undefined ? (component.kind === 'local' ? null : undefined) : byId.get(component.host),
+    [byId],
+  );
+  const nameOf = useCallback(
+    (id: string): string => {
+      const component = componentById.get(id);
+      if (component === undefined) return '';
+      const host = hostOf(component);
+      return host === null ? i18n.t('map.local.name') : (host?.name ?? '');
+    },
+    [componentById, hostOf, i18n],
+  );
 
   const kindLabel = useCallback(
     (kind: ComponentKind): string =>
-      i18n.t(kind === 'ssh' ? 'map.create.ssh' : kind === 'sftp' ? 'map.create.sftp' : 'map.create.monitor'),
+      i18n.t(
+        kind === 'ssh'
+          ? 'map.create.ssh'
+          : kind === 'sftp'
+            ? 'map.create.sftp'
+            : kind === 'monitor'
+              ? 'map.create.monitor'
+              : 'map.create.local',
+      ),
     [i18n],
   );
 
@@ -164,12 +210,22 @@ export function MapStage({
   const actionsFor = useCallback(
     (target: string | null): readonly (MapMenuItem & { readonly listOnly?: boolean })[] => {
       if (target === null || target === HUB) {
-        return CREATE_KINDS.map((kind) => ({
+        const create: (MapMenuItem & { readonly listOnly?: boolean })[] = CREATE_KINDS.map((kind) => ({
           id: `create:${kind}`,
           label: kindLabel(kind),
           detail: i18n.t('map.create.detail'),
           color: kindColor(kind),
         }));
+        /* One local machine per level (ADR-0065): offered until it is there. */
+        if (localOn(workspace, null) === undefined) {
+          create.push({
+            id: 'create:local',
+            label: kindLabel('local'),
+            detail: i18n.t('map.create.local.detail'),
+            color: kindColor('local'),
+          });
+        }
+        return create;
       }
       if (target.startsWith(LINE_TARGET)) {
         return [{ id: 'unlink', label: i18n.t('map.line.remove'), detail: i18n.t('map.line.remove.detail'), danger: true }];
@@ -181,9 +237,11 @@ export function MapStage({
           ? { id: 'collapse', label: i18n.t('map.menu.collapse'), detail: i18n.t('map.menu.collapse.detail'), color: kindColor(component.kind) }
           : { id: 'open', label: i18n.t('map.menu.open'), detail: kindLabel(component.kind), color: kindColor(component.kind) },
       ];
-      /* A line needs another terminal to reach; with none, the option would
-         be a gesture ending nowhere (ADR-0065). */
-      if (component.kind === 'ssh' && level.some((other) => other.id !== target && other.kind === 'ssh')) {
+      /* A line needs another of its family to reach; with none, the option
+         would be a gesture ending nowhere (ADR-0065). */
+      const family = familyOf(component.kind);
+      const reachable = level.some((other) => other.id !== target && canLink(workspace, target, other.id) === null);
+      if (family === 'terminal' && reachable) {
         items.push({
           id: 'broadcast',
           label: i18n.t('map.menu.broadcast'),
@@ -191,16 +249,26 @@ export function MapStage({
           color: 'var(--rs-state-warn)',
         });
       }
-      items.push({ id: 'changeHost', label: i18n.t('map.menu.changeHost') }, { id: 'editHost', label: i18n.t('map.menu.editHost') });
-      if (handles.has(component.host) || openRef.current.has(target)) {
-        items.push({ id: 'close', label: i18n.t('map.menu.close'), detail: i18n.t('map.menu.close.detail'), listOnly: true });
+      if (family === 'files' && reachable) {
+        items.push({
+          id: 'transfer',
+          label: i18n.t('map.menu.transfer'),
+          detail: i18n.t('map.menu.transfer.detail'),
+          color: 'var(--rs-state-warn)',
+        });
+      }
+      if (component.host !== undefined) {
+        items.push({ id: 'changeHost', label: i18n.t('map.menu.changeHost') }, { id: 'editHost', label: i18n.t('map.menu.editHost') });
+        if (handles.has(component.host) || openRef.current.has(target)) {
+          items.push({ id: 'close', label: i18n.t('map.menu.close'), detail: i18n.t('map.menu.close.detail'), listOnly: true });
+        }
       }
       if (component.position !== undefined) items.push({ id: 'resetPosition', label: i18n.t('map.menu.resetPosition'), listOnly: true });
       if (component.size !== undefined) items.push({ id: 'defaultSize', label: i18n.t('map.menu.defaultSize'), listOnly: true });
       items.push({ id: 'remove', label: i18n.t('map.menu.remove'), detail: i18n.t('map.menu.remove.detail'), danger: true });
       return items;
     },
-    [componentById, handles, i18n, kindLabel, level],
+    [componentById, handles, i18n, kindLabel, level, workspace],
   );
 
   /* The hook is declared below and its callbacks are read through these
@@ -216,6 +284,7 @@ export function MapStage({
   const closeComponent = useCallback(
     (component: Component): void => {
       collapseRef.current(component.id);
+      if (component.host === undefined) return;
       const othersOpen = level.some(
         (other) => other.id !== component.id && other.host === component.host && openRef.current.has(other.id),
       );
@@ -226,6 +295,11 @@ export function MapStage({
 
   const act = useCallback(
     (target: string | null, action: string): void => {
+      if (action === 'create:local') {
+        const outcome = addLocal(workspace);
+        if (outcome.ok) onChange(outcome.workspace);
+        return;
+      }
       if (action.startsWith('create:')) {
         const kind = action.slice('create:'.length) as ComponentKind;
         setPicker({ kind, changing: null, refusal: null });
@@ -234,8 +308,15 @@ export function MapStage({
       if (target === null) return;
       if (target.startsWith(LINE_TARGET)) {
         if (action !== 'unlink') return;
-        const [a, b] = target.slice(LINE_TARGET.length).split('~');
-        if (a !== undefined && b !== undefined) onChange(removeLink(workspace, a, b));
+        const key = target.slice(LINE_TARGET.length);
+        const directed = key.includes('>');
+        const [a, b] = key.split(directed ? '>' : '~');
+        if (a === undefined || b === undefined) return;
+        onChange(
+          directed
+            ? { ...workspace, links: workspace.links.filter((link) => !(link.a === a && link.b === b)) }
+            : removeLink(workspace, a, b),
+        );
         return;
       }
       const component = componentById.get(target);
@@ -243,9 +324,10 @@ export function MapStage({
       switch (action) {
         case 'open':
           openWindowRef.current(component.id);
-          if (!handles.has(component.host)) onConnect(component.host);
+          if (component.host !== undefined && !handles.has(component.host)) onConnect(component.host);
           return;
         case 'broadcast':
+        case 'transfer':
           startLinkRef.current(component.id);
           return;
         case 'collapse':
@@ -258,7 +340,7 @@ export function MapStage({
           setPicker({ kind: component.kind, changing: component.id, refusal: null });
           return;
         case 'editHost':
-          onEditHost(component.host);
+          if (component.host !== undefined) onEditHost(component.host);
           return;
         case 'resetPosition':
           onChange(resetPosition(workspace, component.id));
@@ -411,18 +493,111 @@ export function MapStage({
   const matches = useCallback(
     (component: Component): boolean => {
       if (needle === '') return true;
-      const host = byId.get(component.host);
+      const host = hostOf(component);
+      if (host === null) return i18n.t('map.local.name').toLowerCase().includes(needle);
       if (host === undefined) return false;
       return `${host.name} ${host.host} ${host.user}`.toLowerCase().includes(needle);
     },
-    [byId, needle],
+    [hostOf, i18n, needle],
+  );
+
+  /* The file browsers the map mounts report where they are and what is
+     selected, for the send button on a line (ADR-0065). One wiring per
+     component, made once, so a pane's effect does not re-run per render. */
+  const panes = useRef(new Map<string, PaneReport>());
+  const [selections, setSelections] = useState<ReadonlyMap<string, readonly PaneEntry[]>>(new Map());
+  const onPaneReport = useCallback((paneId: string, report: PaneReport | null): void => {
+    if (report === null) panes.current.delete(paneId);
+    else panes.current.set(paneId, report);
+  }, []);
+  const paneWiring = useRef(new Map<string, MapPaneWiring>());
+  const wiringFor = useCallback(
+    (component: Component): MapPaneWiring => {
+      const known = paneWiring.current.get(component.id);
+      if (known !== undefined) return known;
+      const wiring: MapPaneWiring = {
+        paneId: `map-pane-${component.id}`,
+        onClose: () => closeComponent(component),
+        onReport: onPaneReport,
+        onSelectionChange: (entries) =>
+          setSelections((current) => {
+            if ((current.get(component.id) ?? []).length === 0 && entries.length === 0) return current;
+            const next = new Map(current);
+            next.set(component.id, entries);
+            return next;
+          }),
+      };
+      paneWiring.current.set(component.id, wiring);
+      return wiring;
+    },
+    [closeComponent, onPaneReport],
+  );
+  const endpointOf = useCallback(
+    (component: Component): Endpoint | null => {
+      if (component.kind === 'local') return { kind: 'local' };
+      if (component.host === undefined) return null;
+      const handle = handles.get(component.host);
+      return handle === undefined ? null : { kind: 'remote', sessionId: component.host, handle };
+    },
+    [handles],
+  );
+  /* Where a send from `id` lands: every destination it has a line to whose
+     window is open and connected, with the directory that window shows. */
+  const destinationsFor = useCallback(
+    (id: string): readonly MapDestination[] => {
+      const out: MapDestination[] = [];
+      for (const target of destinationsOf(workspace, id)) {
+        const component = componentById.get(target);
+        if (component === undefined) continue;
+        const endpoint = endpointOf(component);
+        const pane = panes.current.get(`map-pane-${component.id}`);
+        if (endpoint === null || pane === undefined || pane.path === null) continue;
+        out.push({ endpoint, dir: pane.path, reload: pane.reload });
+      }
+      return out;
+    },
+    [componentById, endpointOf, workspace],
+  );
+  const [pendingSend, setPendingSend] = useState<{
+    readonly from: string;
+    readonly source: Endpoint;
+    readonly entries: readonly PaneEntry[];
+    readonly destinations: readonly MapDestination[];
+    readonly names: readonly string[];
+  } | null>(null);
+  const sendFrom = useCallback(
+    (id: string): void => {
+      const component = componentById.get(id);
+      const entries = selections.get(id) ?? [];
+      if (component === undefined || entries.length === 0) return;
+      const source = endpointOf(component);
+      const destinations = destinationsFor(id);
+      if (source === null || destinations.length === 0) return;
+      if (destinations.length === 1) {
+        onSend(source, entries, destinations);
+        return;
+      }
+      /* More than one destination asks first (ADR-0045, ADR-0065 rule 5). */
+      const names = destinationsOf(workspace, id)
+        .filter((target) => {
+          const component = componentById.get(target);
+          return (
+            component !== undefined &&
+            endpointOf(component) !== null &&
+            (panes.current.get(`map-pane-${component.id}`)?.path ?? null) !== null
+          );
+        })
+        .map(nameOf);
+      setPendingSend({ from: id, source, entries, destinations, names });
+    },
+    [componentById, destinationsFor, endpointOf, nameOf, onSend, selections, workspace],
   );
 
   const frames = useMemo<readonly TerminalFrame[]>(() => {
     const out: TerminalFrame[] = [];
     stage.windows.forEach((window, i) => {
       const component = componentById.get(window.id);
-      if (component === undefined || component.kind !== 'ssh') return;
+      if (component === undefined || component.kind !== 'ssh' || component.host === undefined) return;
       const handle = handles.get(component.host);
       if (handle === undefined) return;
       const box = terminalBox(
@@ -471,45 +646,60 @@ export function MapStage({
     },
     [stage.positions, stage.view, stage.windows],
   );
+  interface DrawnLine {
+    readonly link: Link;
+    readonly key: string;
+    readonly family: 'terminal' | 'files';
+    readonly from: Point;
+    readonly to: Point;
+    readonly mid: Point;
+    readonly members: readonly string[];
+    readonly on: boolean;
+  }
   const lines = useMemo(() => {
-    const out: { readonly link: Link; readonly key: string; readonly from: Point; readonly to: Point; readonly mid: Point; readonly members: readonly string[]; readonly on: boolean }[] = [];
+    const out: DrawnLine[] = [];
     for (const link of workspace.links) {
       const a = componentById.get(link.a);
       const b = componentById.get(link.b);
-      if (a?.kind !== 'ssh' || b?.kind !== 'ssh') continue;
+      if (a === undefined || b === undefined) continue;
+      const family = familyOf(a.kind);
+      if (family === null || family !== familyOf(b.kind)) continue;
       const boxA = anchorBox(link.a);
       const boxB = anchorBox(link.b);
       if (boxA === null || boxB === null) continue;
       const from = edgePoint(boxA.centre, boxA.size, boxB.centre, 2);
-      const to = edgePoint(boxB.centre, boxB.size, boxA.centre, 2);
-      const members = linkedSet(workspace, link.a);
+      /* A file-browser line stops short of the destination's border so the
+         arrowhead shows; a terminal line has nothing to point with. */
+      const to = edgePoint(boxB.centre, boxB.size, boxA.centre, family === 'files' ? 8 : 2);
+      const members = family === 'terminal' ? linkedSet(workspace, link.a) : [];
+      /* A file-browser line is keyed with its direction: the same pair may
+         hold one each way, and each needs its own handle. */
       out.push({
         link,
-        key: lineKey(link),
+        key: family === 'terminal' ? lineKey(link) : `${link.a}>${link.b}`,
+        family,
         from,
         to,
         mid: { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 },
         members,
-        on: armed.has(setKey(members)),
+        on: family === 'terminal' && armed.has(setKey(members)),
       });
     }
     return out;
   }, [anchorBox, armed, componentById, workspace]);
   const linkingFrom = stage.linking === null ? null : anchorBox(stage.linking.from);
+  const linkingFamily = stage.linking === null ? null : familyOf(componentById.get(stage.linking.from)?.kind ?? 'monitor');
   const menuTitle = (target: string | null): string => {
     if (target === null || target === HUB) return i18n.t('map.crumb.root');
     if (target.startsWith(LINE_TARGET)) {
       const line = lines.find((one) => `${LINE_TARGET}${one.key}` === target);
       return line === undefined ? '' : lineTitle(line.link);
     }
-    return byId.get(componentById.get(target)?.host ?? '')?.name ?? '';
+    return nameOf(target);
   };
   const lineTitle = useCallback(
-    (link: Link): string => {
-      const name = (id: string): string => byId.get(componentById.get(id)?.host ?? '')?.name ?? '';
-      return i18n.t('map.line.title', { a: name(link.a), b: name(link.b) });
-    },
-    [byId, componentById, i18n],
+    (link: Link): string => i18n.t('map.line.title', { a: nameOf(link.a), b: nameOf(link.b) }),
+    [i18n, nameOf],
   );
 
   return (
@@ -545,7 +735,10 @@ export function MapStage({
       <div
         ref={stage.setStageElement}
         data-map-stage=""
-        className={`relative min-h-0 flex-1 overflow-hidden select-none ${
+        /* `isolate`: the windows and the line handles stack inside the
+           stage, so their z-indices never reach a dialog portaled to the
+           body, which sits above the whole map by being outside it. */
+        className={`relative isolate min-h-0 flex-1 overflow-hidden select-none ${
           stage.linking === null ? 'cursor-grab active:cursor-grabbing' : 'cursor-crosshair'
         }`}
         style={{
@@ -626,7 +819,7 @@ export function MapStage({
           </div>
 
           {level.map((component) => {
-            const host = byId.get(component.host);
+            const host = hostOf(component);
             const at = stage.positions.get(component.id);
             if (host === undefined || at === undefined || stage.open.has(component.id)) return null;
             return (
@@ -635,7 +828,7 @@ export function MapStage({
                 component={component}
                 host={host}
                 at={at}
-                connected={handles.has(component.host)}
+                connected={component.host !== undefined && handles.has(component.host)}
                 dimmed={
                   !matches(component) ||
                   (stage.linking !== null &&
@@ -671,6 +864,11 @@ export function MapStage({
             the pointer. */}
         {(lines.length > 0 || linkingFrom !== null) && (
           <svg aria-hidden="true" className="pointer-events-none absolute inset-0 z-[5] h-full w-full">
+            <defs>
+              <marker id="map-arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                <path d="M0 0 L10 5 L0 10 z" fill="var(--rs-state-warn)" />
+              </marker>
+            </defs>
             {lines.map((line) => (
               <line
                 key={line.key}
@@ -678,9 +876,10 @@ export function MapStage({
                 y1={line.from.y}
                 x2={line.to.x}
                 y2={line.to.y}
-                stroke={line.on ? 'var(--rs-state-warn)' : 'var(--rs-border-strong)'}
+                stroke={line.on || line.family === 'files' ? 'var(--rs-state-warn)' : 'var(--rs-border-strong)'}
                 strokeWidth={line.on ? 1.8 : 1.4}
-                opacity={line.on ? 0.9 : 0.8}
+                opacity={line.on ? 0.9 : line.family === 'files' ? 0.6 : 0.8}
+                markerEnd={line.family === 'files' ? 'url(#map-arrowhead)' : undefined}
               />
             ))}
             {linkingFrom !== null && stage.linking !== null && (
@@ -702,22 +901,24 @@ export function MapStage({
             className="bg-surface-panel border-line-strong text-ink-secondary pointer-events-none absolute z-[105] rounded border px-2 py-1 text-[11px] whitespace-nowrap shadow-3"
             style={{ left: stage.linking.pointer.x + 16, top: stage.linking.pointer.y + 16 }}
           >
-            {i18n.t('map.linking.hint')}
+            {i18n.t(linkingFamily === 'files' ? 'map.linking.hint.files' : 'map.linking.hint')}
           </div>
         )}
 
         {/* The windows: stage pixels, 1:1 whatever the zoom. */}
         {stage.windows.map((window, i) => {
           const component = componentById.get(window.id);
-          const host = component === undefined ? undefined : byId.get(component.host);
+          const host = component === undefined ? undefined : hostOf(component);
           if (component === undefined || host === undefined) return null;
-          const handle = handles.get(component.host);
+          const handle = component.host === undefined ? undefined : handles.get(component.host);
           const focused = stage.focused === window.id;
           let body: ReactNode = null;
-          if (handle === undefined) {
-            body = attemptSurface(component.host) ?? <ConnectingBody />;
+          if (component.kind === 'local') {
+            body = renderSftp(component, null, null, wiringFor(component));
+          } else if (handle === undefined || host === null) {
+            body = (component.host === undefined ? null : attemptSurface(component.host)) ?? <ConnectingBody />;
           } else if (component.kind === 'sftp') {
-            body = renderSftp(host, handle, () => closeComponent(component));
+            body = renderSftp(component, host, handle, wiringFor(component));
           } else if (component.kind === 'monitor') {
             body = renderMonitor(host, handle);
           }
@@ -730,9 +931,9 @@ export function MapStage({
                   rect={window}
                   snapped={window.snapped}
                   focused={focused}
-                  connected={handle !== undefined}
+                  connected={component.kind === 'local' || handle !== undefined}
                   thumbnail={thumbnail}
-                  broadcast={broadcastOf(component.id)}
+                  broadcast={component.kind === 'ssh' ? broadcastOf(component.id) : null}
                   onToggleMute={() => toggleMute(component.id)}
                   bodyId={`map-body-${component.id}`}
                   onStripPointerDown={(event) => stage.onStripPointerDown(component.id, event)}
@@ -743,7 +944,9 @@ export function MapStage({
                   onMinimize={() => stage.collapse(component.id)}
                   onToggleMaximize={() => stage.toggleMaximize(component.id)}
                   onClose={() => closeComponent(component)}
-                  onEditHost={() => onEditHost(component.host)}
+                  onEditHost={() => {
+                    if (component.host !== undefined) onEditHost(component.host);
+                  }}
                   onContextMenu={(event) => {
                     event.preventDefault();
                     event.stopPropagation();
@@ -760,22 +963,39 @@ export function MapStage({
 
         <MapTerminals frames={frames} onPress={stage.focus} {...routedTerminals} />
 
-        {lines.map((line) => (
-          <LineHandle
-            key={line.key}
-            at={line.mid}
-            on={line.on}
-            label={lineTitle(line.link)}
-            title={i18n.t(line.on ? 'map.line.disarm' : 'map.line.arm')}
-            onToggle={() => toggleArmed(line.members)}
-            onContextMenu={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              const rect = (event.currentTarget as HTMLElement).closest('[data-map-stage]')?.getBoundingClientRect();
-              stage.openMenu(`${LINE_TARGET}${line.key}`, { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) });
-            }}
-          />
-        ))}
+        {lines.map((line) => {
+          const onContextMenu = (event: React.MouseEvent): void => {
+            event.preventDefault();
+            event.stopPropagation();
+            const rect = (event.currentTarget as HTMLElement).closest('[data-map-stage]')?.getBoundingClientRect();
+            stage.openMenu(`${LINE_TARGET}${line.key}`, { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) });
+          };
+          if (line.family === 'files') {
+            const count = (selections.get(line.link.a) ?? []).length;
+            return (
+              <SendHandle
+                key={line.key}
+                at={line.mid}
+                count={count}
+                label={lineTitle(line.link)}
+                title={i18n.t(count === 0 ? 'map.line.send.none' : 'map.line.send')}
+                onSend={() => sendFrom(line.link.a)}
+                onContextMenu={onContextMenu}
+              />
+            );
+          }
+          return (
+            <LineHandle
+              key={line.key}
+              at={line.mid}
+              on={line.on}
+              label={lineTitle(line.link)}
+              title={i18n.t(line.on ? 'map.line.disarm' : 'map.line.arm')}
+              onToggle={() => toggleArmed(line.members)}
+              onContextMenu={onContextMenu}
+            />
+          );
+        })}
 
         {stage.snapPreview !== null && (
           <div
@@ -795,7 +1015,7 @@ export function MapStage({
           <Radial
             at={stage.radial.at}
             segment={stage.radial.segment}
-            title={stage.radial.target === HUB ? i18n.t('map.crumb.root') : (byId.get(componentById.get(stage.radial.target)?.host ?? '')?.name ?? '')}
+            title={stage.radial.target === HUB ? i18n.t('map.crumb.root') : nameOf(stage.radial.target)}
             options={actionsFor(stage.radial.target)
               .filter((item) => item.listOnly !== true)
               .map<RadialOption>((item) => ({ label: item.label, detail: item.detail, color: item.color, danger: item.danger }))}
@@ -838,6 +1058,30 @@ export function MapStage({
           {hostPopup.element}
         </HostPopup>
       )}
+
+      <AlertDialog
+        open={pendingSend !== null}
+        onClose={() => setPendingSend(null)}
+        onConfirm={() => {
+          if (pendingSend !== null) onSend(pendingSend.source, pendingSend.entries, pendingSend.destinations);
+          setPendingSend(null);
+        }}
+        title={i18n.t('map.send.title', { count: String(pendingSend?.destinations.length ?? 0) })}
+        description={
+          pendingSend === null
+            ? ''
+            : i18n.t('map.send.body', {
+                items: i18n.t(pendingSend.entries.length === 1 ? 'map.send.items.one' : 'map.send.items.other', {
+                  count: String(pendingSend.entries.length),
+                }),
+                origin: nameOf(pendingSend.from),
+                destinations: pendingSend.names.join(', '),
+              })
+        }
+        confirmText={i18n.t('map.send.confirm')}
+        cancelText={i18n.t('map.send.cancel')}
+        variant="primary"
+      />
     </div>
   );
 }

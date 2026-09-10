@@ -7,7 +7,8 @@ import { KindGlyph } from './glyphs';
 
 interface ComponentNodeProps {
   readonly component: Component;
-  readonly host: Session;
+  /** `null` for this machine, the one kind with no host (ADR-0065). */
+  readonly host: Session | null;
   /** Where its centre is, in map pixels. */
   readonly at: Point;
   /** Whether the host has a live connection. Shown by shape: a filled dot
@@ -39,12 +40,13 @@ export function ComponentNode({
   onKeyOpen,
 }: ComponentNodeProps): JSX.Element {
   const i18n = useTranslator();
-  const port = host.port === 22 ? '' : `:${String(host.port)}`;
+  const name = host === null ? i18n.t('map.local.name') : host.name;
+  const who = host === null ? i18n.t('sftp.localhost') : `${host.user}@${host.host}${host.port === 22 ? '' : `:${String(host.port)}`}`;
   return (
     <div
       role="button"
       tabIndex={0}
-      aria-label={host.name}
+      aria-label={name}
       data-component={component.id}
       className={`group absolute flex -translate-x-1/2 -translate-y-1/2 cursor-pointer flex-col items-center gap-1.5 select-none transition-opacity duration-normal ${
         dimmed ? 'opacity-20' : ''
@@ -69,12 +71,9 @@ export function ComponentNode({
         />
       </div>
       <span className="text-ink-secondary group-hover:text-ink max-w-[140px] truncate text-[11.5px] font-semibold">
-        {host.name}
+        {name}
       </span>
-      <span className="text-ink-faint font-mono text-[10.5px] whitespace-nowrap">
-        {host.user}@{host.host}
-        {port}
-      </span>
+      <span className="text-ink-faint font-mono text-[10.5px] whitespace-nowrap">{who}</span>
     </div>
   );
 }
