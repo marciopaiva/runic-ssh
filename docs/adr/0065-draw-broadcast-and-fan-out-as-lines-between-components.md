@@ -1,6 +1,6 @@
 # ADR-0065: Draw broadcast and fan-out as lines between components
 
-* **Status**: Proposed
+* **Status**: Accepted
 * **Date**: 2026-09-10
 
 ## Context
