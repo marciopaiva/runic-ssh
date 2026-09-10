@@ -1,8 +1,8 @@
 import type { JSX } from 'react';
 
-import type { Session } from '../../ipc';
+import type { Point, Session } from '../../ipc';
 import type { MountedTerminal } from '../../features/terminal';
-import type { TerminalSize } from '../../features/terminal/use-terminal';
+import type { ClipboardApi, TerminalSize } from '../../features/terminal/use-terminal';
 
 import { TerminalView } from '../TerminalView';
 
@@ -27,6 +27,11 @@ interface MapTerminalsProps extends TerminalWiring {
   readonly frames: readonly TerminalFrame[];
   /** A press inside a terminal raises its component's window. */
   readonly onPress: (componentId: string) => void;
+  /** The right button inside a terminal: the window's own menu, at a point
+      in stage pixels (#115). */
+  readonly onContextMenu: (componentId: string, at: Point) => void;
+  /** Each terminal's clipboard, keyed by session, for that menu. */
+  readonly onClipboardHandle: (sessionId: string, clipboard: ClipboardApi) => void;
 }
 
 /**
@@ -42,6 +47,8 @@ export function MapTerminals({
   mounted,
   frames,
   onPress,
+  onContextMenu,
+  onClipboardHandle,
   sessions,
   modifier,
   onSize,
@@ -87,6 +94,14 @@ export function MapTerminals({
               onPasteNeedsConfirming={(text) => onPasteNeedsConfirming(terminal.sessionId, text)}
               onInput={(bytes) => onInput(terminal.sessionId, bytes)}
               broadcasting={false}
+              onClipboardHandle={(clipboard) => onClipboardHandle(terminal.sessionId, clipboard)}
+              onContextMenu={(event) => {
+                if (frame === undefined) return;
+                event.preventDefault();
+                event.stopPropagation();
+                const rect = (event.currentTarget as HTMLElement).closest('[data-map-stage]')?.getBoundingClientRect();
+                onContextMenu(frame.componentId, { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) });
+              }}
             />
           </div>
         );

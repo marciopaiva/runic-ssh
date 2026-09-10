@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import type { CSSProperties, JSX } from 'react';
+import type { CSSProperties, JSX, MouseEvent as ReactMouseEvent } from 'react';
 
 import type { Session, SessionHandle } from '../ipc';
 import { useTerminal } from '../features/terminal/use-terminal';
+import type { ClipboardApi } from '../features/terminal/use-terminal';
 import type { TerminalSize } from '../features/terminal/use-terminal';
 import { useTranslator } from '../features/settings';
 
@@ -46,6 +47,11 @@ interface TerminalViewProps {
   readonly onInput: (bytes: Uint8Array) => void;
   /** Whether what is typed here reaches more than this session. */
   readonly broadcasting: boolean;
+  /** Reports the clipboard, for a menu drawn by whoever mounts this (#115). */
+  readonly onClipboardHandle?: ((clipboard: ClipboardApi) => void) | undefined;
+  /** The right button over the terminal. Absent, the webview draws its own
+      menu, which is what Sessions still gets until v0.9.0. */
+  readonly onContextMenu?: ((event: ReactMouseEvent) => void) | undefined;
 }
 
 /**
@@ -88,10 +94,12 @@ export function TerminalView({
   onPasteNeedsConfirming,
   onInput,
   broadcasting,
+  onClipboardHandle,
+  onContextMenu,
 }: TerminalViewProps): JSX.Element {
   const i18n = useTranslator();
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
-  const { closed, exitStatus, size, focus } = useTerminal(
+  const { closed, exitStatus, size, focus, clipboard } = useTerminal(
     container,
     handle,
     modifier,
@@ -114,6 +122,10 @@ export function TerminalView({
     onFocusHandle(focus);
   }, [onFocusHandle, focus]);
 
+  useEffect(() => {
+    onClipboardHandle?.(clipboard);
+  }, [onClipboardHandle, clipboard]);
+
   return (
     <section
       id={id}
@@ -127,6 +139,7 @@ export function TerminalView({
       /* React's `onFocus` is `focusin`, so this catches the click that lands
          inside xterm as well as a tab into it. */
       onFocus={onPaneFocus}
+      onContextMenu={onContextMenu}
     >
       {/* The padding is on this wrapper and not on the element xterm owns.
           FitAddon measures the parent it is opened into, and the rows it
