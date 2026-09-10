@@ -44,6 +44,13 @@ export interface MenuState {
   readonly at: Point;
 }
 
+/** A line being drawn from a component to wherever the pointer is (ADR-0065). */
+export interface LinkingState {
+  readonly from: string;
+  /** In stage pixels. */
+  readonly pointer: Point;
+}
+
 /** Where a component's window sits on the stage, in stage pixels. */
 export interface WindowRect extends StageRect {
   readonly id: string;
@@ -58,6 +65,7 @@ export interface MapStageApi {
   readonly snapped: ReadonlyMap<string, SnapSide>;
   readonly radial: RadialState | null;
   readonly menu: MenuState | null;
+  readonly linking: LinkingState | null;
   readonly dragging: string | null;
   readonly snapPreview: SnapSide | null;
   /** Where each node's centre is, in map pixels, drags included. */
@@ -78,6 +86,12 @@ export interface MapStageApi {
   readonly openMenu: (target: string | null, at: Point) => void;
   readonly closeMenu: () => void;
   readonly closeRadial: () => void;
+  /** Starts drawing a line from `from`; the pointer's end follows the mouse
+      until a click lands on a component or Escape, a press on the floor or
+      `cancelLink` ends it. Which click completes it is the stage's caller's
+      decision, since only it knows what may be joined. */
+  readonly startLink: (from: string) => void;
+  readonly cancelLink: () => void;
   readonly recenter: () => void;
   readonly fitAll: () => void;
 }
@@ -118,6 +132,7 @@ export function useMapStage({ workspace, components, onChange, radialOptions, on
   const [snapped, setSnapped] = useState<ReadonlyMap<string, SnapSide>>(new Map());
   const [radial, setRadial] = useState<RadialState | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
+  const [linking, setLinking] = useState<LinkingState | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const [dragPosition, setDragPosition] = useState<Point | null>(null);
   const [resizing, setResizing] = useState<{ id: string; size: { w: number; h: number }; centre: Point } | null>(null);
@@ -131,6 +146,8 @@ export function useMapStage({ workspace, components, onChange, radialOptions, on
   viewRef.current = view;
   const workspaceRef = useRef(workspace);
   workspaceRef.current = workspace;
+  const linkingRef = useRef(linking);
+  linkingRef.current = linking;
 
   /* Measured rather than assumed: the ring's radius and the fit-to-all
      scale both depend on how much room the stage actually has. */
@@ -264,6 +281,29 @@ export function useMapStage({ workspace, components, onChange, radialOptions, on
 
   const openMenu = useCallback((target: string | null, at: Point): void => setMenu({ target, at }), []);
   const closeMenu = useCallback((): void => setMenu(null), []);
+
+  const cancelLink = useCallback((): void => setLinking(null), []);
+  const startLink = useCallback(
+    (from: string): void => {
+      setMenu(null);
+      setRadial(null);
+      const at = positions.get(from) ?? centre;
+      setLinking({ from, pointer: toStage(viewRef.current, at) });
+    },
+    [centre, positions],
+  );
+
+  /* Escape ends a line being drawn. Listened for only while one is, and
+     removed with it, so the map never holds a key listener it has no use
+     for; `tests/map-stage-teardown.test.ts` holds that. */
+  useEffect(() => {
+    if (linking === null) return;
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setLinking(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [linking]);
   const closeRadial = useCallback((): void => {
     setRadial(null);
     if (tracking.current?.kind === 'radial') tracking.current = null;
@@ -347,6 +387,12 @@ export function useMapStage({ workspace, components, onChange, radialOptions, on
       if (event.button !== 0) return;
       stopFling();
       setMenu(null);
+      /* A press on the floor while a line is being drawn ends the line and
+         nothing else: it is the way out that needs no key. */
+      if (linkingRef.current !== null) {
+        setLinking(null);
+        return;
+      }
       const at = stagePoint(event);
       tracking.current = { kind: 'pan', last: at, velocity: { x: 0, y: 0 }, at: performance.now() };
       capture(event);
@@ -356,6 +402,10 @@ export function useMapStage({ workspace, components, onChange, radialOptions, on
 
   useEffect(() => {
     const onMove = (event: PointerEvent): void => {
+      if (linkingRef.current !== null) {
+        const pointer = stagePoint(event);
+        setLinking((state) => (state === null ? null : { ...state, pointer }));
+      }
       const current = tracking.current;
       if (current === null) return;
       const at = stagePoint(event);
@@ -533,6 +583,7 @@ export function useMapStage({ workspace, components, onChange, radialOptions, on
     snapped,
     radial,
     menu,
+    linking,
     dragging,
     snapPreview,
     positions,
@@ -551,6 +602,8 @@ export function useMapStage({ workspace, components, onChange, radialOptions, on
     openMenu,
     closeMenu,
     closeRadial,
+    startLink,
+    cancelLink,
     recenter,
     fitAll,
   };

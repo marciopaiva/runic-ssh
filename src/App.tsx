@@ -741,7 +741,11 @@ export function App(): JSX.Element {
      without being looked at. Held here rather than derived in the bar because
      an announcement is about the change, and the bar only ever sees the state
      it is in now. See #154. */
-  const hostsReceiving = armed ? receiving.length : null;
+  /* The map has a switch of its own (ADR-0065) and reports what it reaches;
+     the bar shows whichever workspace is in front, since a keystroke goes
+     to the one showing. */
+  const [mapReceivingCount, setMapReceivingCount] = useState<number | null>(null);
+  const hostsReceiving = workspace === 'map' ? mapReceivingCount : armed ? receiving.length : null;
   const lastReceiving = useRef<number | null>(null);
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
   useEffect(() => {
@@ -2980,6 +2984,7 @@ export function App(): JSX.Element {
               terminals={mapTerminalWiring}
               renderSftp={renderMapSftp}
               renderMonitor={renderMapMonitor}
+            onReceivingChange={setMapReceivingCount}
             />
           </main>
         )}

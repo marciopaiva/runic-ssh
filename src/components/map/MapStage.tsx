@@ -1,23 +1,36 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, JSX, ReactNode } from 'react';
 
-import type { Component, ComponentKind, Session, SessionHandle, Workspace } from '../../ipc';
+import type { Component, ComponentKind, Link, Point, Session, SessionHandle, Size, Workspace } from '../../ipc';
+import { isCursorPositionReport } from '../../features/terminal/clipboard';
 import type { MountedTerminal } from '../../features/terminal';
 import {
   addComponent,
+  addLink,
+  canLink,
   changeHost,
   componentsOn,
   defaultSize,
+  edgePoint,
+  lineKey,
+  linkedSet,
+  linkedSets,
+  mapInputTargets,
+  mapReceiving,
   removeComponent,
+  removeLink,
   resetPosition,
+  setKey,
   terminalBox,
   terminalTreatment,
+  toStage,
 } from '../../features/map';
 import type { AddRefusal, HostAsk } from '../../features/map';
 import { HUB, useMapStage } from '../../features/map/use-map-stage';
 import { useTranslator } from '../../features/settings';
 
 import { ComponentNode } from './ComponentNode';
+import { LineHandle } from './LineHandle';
 import { MapTerminals } from './MapTerminals';
 import type { TerminalWiring } from './MapTerminals';
 import { ComponentWindow } from './ComponentWindow';
@@ -31,6 +44,12 @@ import { RuneGlyph, kindColor } from './glyphs';
 
 /** The strip of a window, in stage pixels: what the body sits below. */
 const STRIP = 28;
+
+/** A closed component's box at 100%, for where a line meets its icon. */
+const ICON_BOX: Size = { w: 96, h: 112 };
+
+/** The menu target for a line, so one menu path serves nodes and lines. */
+const LINE_TARGET = 'line:';
 
 /** Where a terminal is drawn, relative to the map's own main area. */
 export interface TerminalFrame {
@@ -79,6 +98,10 @@ interface MapStageProps {
   readonly terminals: TerminalWiring & { readonly mounted: readonly MountedTerminal[] };
   readonly renderSftp: (session: Session, handle: SessionHandle, onClose: () => void) => ReactNode;
   readonly renderMonitor: (session: Session, handle: SessionHandle) => ReactNode;
+  /** How many windows a keystroke typed on the map reaches right now, or
+      `null` with no line armed: the status bar's warning edge and its
+      announcement (ADR-0019, ADR-0065). */
+  readonly onReceivingChange: (count: number | null) => void;
 }
 
 interface PickerState {
@@ -116,10 +139,16 @@ export function MapStage({
   terminals,
   renderSftp,
   renderMonitor,
+  onReceivingChange,
 }: MapStageProps): JSX.Element {
   const i18n = useTranslator();
   const [picker, setPicker] = useState<PickerState | null>(null);
   const [query, setQuery] = useState('');
+  /* ADR-0065: the switch per connected set, keyed by the set's members, and
+     the windows that spared themselves. In memory only, on purpose: a
+     restart never comes up armed, and a set that changed is a new key. */
+  const [armed, setArmed] = useState<ReadonlySet<string>>(new Set());
+  const [muted, setMuted] = useState<ReadonlySet<string>>(new Set());
 
   const level = useMemo(() => componentsOn(workspace, null), [workspace]);
   const byId = useMemo(() => new Map(hosts.map((host) => [host.id, host])), [hosts]);
@@ -142,15 +171,27 @@ export function MapStage({
           color: kindColor(kind),
         }));
       }
+      if (target.startsWith(LINE_TARGET)) {
+        return [{ id: 'unlink', label: i18n.t('map.line.remove'), detail: i18n.t('map.line.remove.detail'), danger: true }];
+      }
       const component = componentById.get(target);
       if (component === undefined) return [];
       const items: (MapMenuItem & { readonly listOnly?: boolean })[] = [
         openRef.current.has(target)
           ? { id: 'collapse', label: i18n.t('map.menu.collapse'), detail: i18n.t('map.menu.collapse.detail'), color: kindColor(component.kind) }
           : { id: 'open', label: i18n.t('map.menu.open'), detail: kindLabel(component.kind), color: kindColor(component.kind) },
-        { id: 'changeHost', label: i18n.t('map.menu.changeHost') },
-        { id: 'editHost', label: i18n.t('map.menu.editHost') },
       ];
+      /* A line needs another terminal to reach; with none, the option would
+         be a gesture ending nowhere (ADR-0065). */
+      if (component.kind === 'ssh' && level.some((other) => other.id !== target && other.kind === 'ssh')) {
+        items.push({
+          id: 'broadcast',
+          label: i18n.t('map.menu.broadcast'),
+          detail: i18n.t('map.menu.broadcast.detail'),
+          color: 'var(--rs-state-warn)',
+        });
+      }
+      items.push({ id: 'changeHost', label: i18n.t('map.menu.changeHost') }, { id: 'editHost', label: i18n.t('map.menu.editHost') });
       if (handles.has(component.host) || openRef.current.has(target)) {
         items.push({ id: 'close', label: i18n.t('map.menu.close'), detail: i18n.t('map.menu.close.detail'), listOnly: true });
       }
@@ -159,7 +200,7 @@ export function MapStage({
       items.push({ id: 'remove', label: i18n.t('map.menu.remove'), detail: i18n.t('map.menu.remove.detail'), danger: true });
       return items;
     },
-    [componentById, handles, i18n, kindLabel],
+    [componentById, handles, i18n, kindLabel, level],
   );
 
   /* The hook is declared below and its callbacks are read through these
@@ -170,6 +211,7 @@ export function MapStage({
   const collapseRef = useRef<(id: string) => void>(() => {});
   const openWindowRef = useRef<(id: string) => void>(() => {});
   const focusRef = useRef<(id: string) => void>(() => {});
+  const startLinkRef = useRef<(id: string) => void>(() => {});
 
   const closeComponent = useCallback(
     (component: Component): void => {
@@ -190,12 +232,21 @@ export function MapStage({
         return;
       }
       if (target === null) return;
+      if (target.startsWith(LINE_TARGET)) {
+        if (action !== 'unlink') return;
+        const [a, b] = target.slice(LINE_TARGET.length).split('~');
+        if (a !== undefined && b !== undefined) onChange(removeLink(workspace, a, b));
+        return;
+      }
       const component = componentById.get(target);
       if (component === undefined) return;
       switch (action) {
         case 'open':
           openWindowRef.current(component.id);
           if (!handles.has(component.host)) onConnect(component.host);
+          return;
+        case 'broadcast':
+          startLinkRef.current(component.id);
           return;
         case 'collapse':
           collapseRef.current(component.id);
@@ -224,12 +275,37 @@ export function MapStage({
     [closeComponent, componentById, handles, onChange, onConnect, onEditHost, workspace],
   );
 
+  /* A click while a line is being drawn is the line's other end, or the
+     way out. Returns whether the click was that, so the caller leaves it
+     alone; a click on a component that cannot be joined keeps the line
+     in hand rather than dropping it, the way a picker keeps its question. */
+  const linkingRef = useRef<{ readonly from: string } | null>(null);
+  const cancelLinkRef = useRef<() => void>(() => {});
+  const completeLink = useCallback(
+    (id: string): boolean => {
+      const linking = linkingRef.current;
+      if (linking === null) return false;
+      if (id === HUB || id === linking.from) {
+        cancelLinkRef.current();
+        return true;
+      }
+      const outcome = addLink(workspace, linking.from, id);
+      if (outcome.ok) {
+        onChange(outcome.workspace);
+        cancelLinkRef.current();
+      }
+      return true;
+    },
+    [onChange, workspace],
+  );
+
   const stage = useMapStage({
     workspace,
     components: level,
     onChange,
     radialOptions: (id) => actionsFor(id).filter((item) => item.listOnly !== true).length,
     onClick: (id) => {
+      if (completeLink(id)) return;
       if (id === HUB) return;
       const component = componentById.get(id);
       if (component === undefined) return;
@@ -249,6 +325,69 @@ export function MapStage({
   collapseRef.current = stage.collapse;
   openWindowRef.current = stage.openWindow;
   focusRef.current = stage.focus;
+  startLinkRef.current = stage.startLink;
+  cancelLinkRef.current = stage.cancelLink;
+  linkingRef.current = stage.linking;
+
+  /* ADR-0065, ADR-0019's rules on a set of terminal lines. `stage.open` is
+     the map's "showing": a collapsed window is spared the way a tab behind
+     another is. Arming a set starts with every window in it included. */
+  const receiving = useMemo(() => mapReceiving(workspace, armed, muted, stage.open), [workspace, armed, muted, stage.open]);
+  const receivingSet = useMemo(() => new Set(receiving), [receiving]);
+  useEffect(() => {
+    onReceivingChange(receiving.length > 0 ? receiving.length : null);
+  }, [onReceivingChange, receiving.length]);
+  useEffect(() => () => onReceivingChange(null), [onReceivingChange]);
+
+  const toggleArmed = useCallback(
+    (members: readonly string[]): void => {
+      const key = setKey(members);
+      const live = new Set(linkedSets(workspace).map(setKey));
+      setArmed((current) => {
+        const next = new Set([...current].filter((one) => live.has(one)));
+        if (next.has(key)) next.delete(key);
+        else next.add(key);
+        return next;
+      });
+      if (!armed.has(key)) setMuted((current) => new Set([...current].filter((id) => !members.includes(id))));
+    },
+    [armed, workspace],
+  );
+  const toggleMute = useCallback((id: string): void => {
+    setMuted((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+  const broadcastOf = useCallback(
+    (id: string): 'receiving' | 'muted' | 'armed' | null => {
+      const set = linkedSet(workspace, id);
+      if (set.length < 2 || !armed.has(setKey(set))) return null;
+      if (muted.has(id)) return 'muted';
+      return receivingSet.has(id) ? 'receiving' : 'armed';
+    },
+    [armed, muted, receivingSet, workspace],
+  );
+
+  /* The map's own routing: a keystroke typed in a map window reaches every
+     receiving window on its set, and only those (ADR-0065 rule 4). The
+     shell's wiring sends to one host; this fans it out. The cursor
+     position report stays on the channel that asked, as it does in
+     Sessions. */
+  const routedTerminals = useMemo(
+    () => ({
+      ...terminals,
+      onInput: (sessionId: string, bytes: Uint8Array): void => {
+        const targets = isCursorPositionReport(new TextDecoder().decode(bytes))
+          ? [sessionId]
+          : mapInputTargets(workspace, sessionId, armed, muted, stage.open);
+        for (const target of targets) terminals.onInput(target, bytes);
+      },
+    }),
+    [armed, muted, stage.open, terminals, workspace],
+  );
 
   const pick = useCallback(
     (sessionId: string): void => {
@@ -314,6 +453,65 @@ export function MapStage({
   const hub = stage.positions.get(HUB) ?? { x: 0, y: 0 };
   const worldTransform = `translate(${String(stage.view.x)}px, ${String(stage.view.y)}px) scale(${String(stage.view.scale)})`;
 
+  /* Where a line meets a component, in stage pixels: its window's border
+     when open, its icon's when closed, so the line is drawn between the
+     two and never under either. */
+  const anchorBox = useCallback(
+    (id: string): { readonly centre: Point; readonly size: Size } | null => {
+      const window = stage.windows.find((one) => one.id === id);
+      if (window !== undefined) {
+        return {
+          centre: { x: window.left + window.width / 2, y: window.top + window.height / 2 },
+          size: { w: window.width, h: window.height },
+        };
+      }
+      const at = stage.positions.get(id);
+      if (at === undefined) return null;
+      return { centre: toStage(stage.view, at), size: { w: ICON_BOX.w * stage.view.scale, h: ICON_BOX.h * stage.view.scale } };
+    },
+    [stage.positions, stage.view, stage.windows],
+  );
+  const lines = useMemo(() => {
+    const out: { readonly link: Link; readonly key: string; readonly from: Point; readonly to: Point; readonly mid: Point; readonly members: readonly string[]; readonly on: boolean }[] = [];
+    for (const link of workspace.links) {
+      const a = componentById.get(link.a);
+      const b = componentById.get(link.b);
+      if (a?.kind !== 'ssh' || b?.kind !== 'ssh') continue;
+      const boxA = anchorBox(link.a);
+      const boxB = anchorBox(link.b);
+      if (boxA === null || boxB === null) continue;
+      const from = edgePoint(boxA.centre, boxA.size, boxB.centre, 2);
+      const to = edgePoint(boxB.centre, boxB.size, boxA.centre, 2);
+      const members = linkedSet(workspace, link.a);
+      out.push({
+        link,
+        key: lineKey(link),
+        from,
+        to,
+        mid: { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 },
+        members,
+        on: armed.has(setKey(members)),
+      });
+    }
+    return out;
+  }, [anchorBox, armed, componentById, workspace]);
+  const linkingFrom = stage.linking === null ? null : anchorBox(stage.linking.from);
+  const menuTitle = (target: string | null): string => {
+    if (target === null || target === HUB) return i18n.t('map.crumb.root');
+    if (target.startsWith(LINE_TARGET)) {
+      const line = lines.find((one) => `${LINE_TARGET}${one.key}` === target);
+      return line === undefined ? '' : lineTitle(line.link);
+    }
+    return byId.get(componentById.get(target)?.host ?? '')?.name ?? '';
+  };
+  const lineTitle = useCallback(
+    (link: Link): string => {
+      const name = (id: string): string => byId.get(componentById.get(id)?.host ?? '')?.name ?? '';
+      return i18n.t('map.line.title', { a: name(link.a), b: name(link.b) });
+    },
+    [byId, componentById, i18n],
+  );
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="border-line-subtle bg-surface-panel flex h-[34px] shrink-0 items-center gap-2 border-b px-2.5">
@@ -347,7 +545,9 @@ export function MapStage({
       <div
         ref={stage.setStageElement}
         data-map-stage=""
-        className="relative min-h-0 flex-1 cursor-grab overflow-hidden active:cursor-grabbing select-none"
+        className={`relative min-h-0 flex-1 overflow-hidden select-none ${
+          stage.linking === null ? 'cursor-grab active:cursor-grabbing' : 'cursor-crosshair'
+        }`}
         style={{
           background:
             'radial-gradient(ellipse at 50% 42%, var(--rs-map-vignette), transparent 58%), linear-gradient(var(--rs-surface-base), var(--rs-map-deep))',
@@ -436,7 +636,12 @@ export function MapStage({
                 host={host}
                 at={at}
                 connected={handles.has(component.host)}
-                dimmed={!matches(component)}
+                dimmed={
+                  !matches(component) ||
+                  (stage.linking !== null &&
+                    stage.linking.from !== component.id &&
+                    canLink(workspace, stage.linking.from, component.id) !== null)
+                }
                 dragging={stage.dragging === component.id}
                 onPointerDown={(event) => stage.onNodePointerDown(component.id, event)}
                 onContextMenu={(event) => {
@@ -460,6 +665,46 @@ export function MapStage({
             </div>
           )}
         </div>
+
+        {/* The lines: stage pixels, between the two ends' borders, under the
+            windows and over the world (ADR-0065). The one being drawn follows
+            the pointer. */}
+        {(lines.length > 0 || linkingFrom !== null) && (
+          <svg aria-hidden="true" className="pointer-events-none absolute inset-0 z-[5] h-full w-full">
+            {lines.map((line) => (
+              <line
+                key={line.key}
+                x1={line.from.x}
+                y1={line.from.y}
+                x2={line.to.x}
+                y2={line.to.y}
+                stroke={line.on ? 'var(--rs-state-warn)' : 'var(--rs-border-strong)'}
+                strokeWidth={line.on ? 1.8 : 1.4}
+                opacity={line.on ? 0.9 : 0.8}
+              />
+            ))}
+            {linkingFrom !== null && stage.linking !== null && (
+              <line
+                x1={linkingFrom.centre.x}
+                y1={linkingFrom.centre.y}
+                x2={stage.linking.pointer.x}
+                y2={stage.linking.pointer.y}
+                stroke="var(--rs-accent)"
+                strokeWidth={1.5}
+                strokeDasharray="5 4"
+              />
+            )}
+          </svg>
+        )}
+        {stage.linking !== null && (
+          <div
+            aria-live="polite"
+            className="bg-surface-panel border-line-strong text-ink-secondary pointer-events-none absolute z-[105] rounded border px-2 py-1 text-[11px] whitespace-nowrap shadow-3"
+            style={{ left: stage.linking.pointer.x + 16, top: stage.linking.pointer.y + 16 }}
+          >
+            {i18n.t('map.linking.hint')}
+          </div>
+        )}
 
         {/* The windows: stage pixels, 1:1 whatever the zoom. */}
         {stage.windows.map((window, i) => {
@@ -487,10 +732,14 @@ export function MapStage({
                   focused={focused}
                   connected={handle !== undefined}
                   thumbnail={thumbnail}
+                  broadcast={broadcastOf(component.id)}
+                  onToggleMute={() => toggleMute(component.id)}
                   bodyId={`map-body-${component.id}`}
                   onStripPointerDown={(event) => stage.onStripPointerDown(component.id, event)}
                   onResizePointerDown={(handleName, event) => stage.onResizePointerDown(component.id, handleName, event)}
-                  onFocus={() => stage.focus(component.id)}
+                  onFocus={() => {
+                    if (!completeLink(component.id)) stage.focus(component.id);
+                  }}
                   onMinimize={() => stage.collapse(component.id)}
                   onToggleMaximize={() => stage.toggleMaximize(component.id)}
                   onClose={() => closeComponent(component)}
@@ -509,7 +758,24 @@ export function MapStage({
           );
         })}
 
-        <MapTerminals frames={frames} onPress={stage.focus} {...terminals} />
+        <MapTerminals frames={frames} onPress={stage.focus} {...routedTerminals} />
+
+        {lines.map((line) => (
+          <LineHandle
+            key={line.key}
+            at={line.mid}
+            on={line.on}
+            label={lineTitle(line.link)}
+            title={i18n.t(line.on ? 'map.line.disarm' : 'map.line.arm')}
+            onToggle={() => toggleArmed(line.members)}
+            onContextMenu={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              const rect = (event.currentTarget as HTMLElement).closest('[data-map-stage]')?.getBoundingClientRect();
+              stage.openMenu(`${LINE_TARGET}${line.key}`, { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) });
+            }}
+          />
+        ))}
 
         {stage.snapPreview !== null && (
           <div
@@ -539,11 +805,7 @@ export function MapStage({
         {stage.menu !== null && (
           <MapMenu
             at={stage.menu.at}
-            title={
-              stage.menu.target === null || stage.menu.target === HUB
-                ? i18n.t('map.crumb.root')
-                : (byId.get(componentById.get(stage.menu.target)?.host ?? '')?.name ?? '')
-            }
+            title={menuTitle(stage.menu.target)}
             items={actionsFor(stage.menu.target)}
             onPick={(id) => {
               const target = stage.menu?.target ?? null;
