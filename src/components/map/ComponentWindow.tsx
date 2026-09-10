@@ -112,16 +112,21 @@ export function ComponentWindow({
           className={`h-1.5 w-1.5 shrink-0 rounded-full ${connected ? 'bg-ok' : 'border-ink-faint border'}`}
           aria-hidden="true"
         />
+        {/* The address gives way first, down to nothing, and only then the
+            name, capped at half the strip: below 75% the terminal is a
+            thumbnail and the name is the one thing a person reads in the
+            strip (#364). A flex item's minimum width is its content unless
+            told otherwise, which is what wrapped the name onto two lines. */}
         <button
           type="button"
-          className="text-ink hover:bg-surface-raised -mx-1 rounded px-1 text-[12px] font-semibold hover:underline hover:underline-offset-2"
+          className="text-ink hover:bg-surface-raised -mx-1 max-w-[50%] shrink-0 truncate rounded px-1 text-[12px] font-semibold hover:underline hover:underline-offset-2"
           title={i18n.t('map.window.editHost')}
           onPointerDown={(event) => event.stopPropagation()}
           onClick={onEditHost}
         >
           {host.name}
         </button>
-        <span className="text-ink-faint truncate font-mono text-[10.5px]">
+        <span className="text-ink-faint min-w-0 truncate font-mono text-[10.5px]">
           {host.user}@{host.host}
           {port}
         </span>
