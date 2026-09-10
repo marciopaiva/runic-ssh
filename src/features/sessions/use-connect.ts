@@ -323,6 +323,11 @@ export function useConnect(wiring: Wiring): ConnectState {
            since it was saved) is reported as an ordinary failure instead,
            landing back on the same form to retype. */
         if (intent === 'open' && shouldPromptAfterSaved(reported.code)) {
+          /* The connection is closed above and the editor is where this
+             continues, so nothing is in progress any more. An attempt left
+             at `connecting` here is the "Reaching…" card that sat over the
+             redirected editor with Save reading "Proving" (#358). */
+          setAttempt(null);
           onCredentialMissing(sessionId, 'target');
           return;
         }
@@ -429,6 +434,10 @@ export function useConnect(wiring: Wiring): ConnectState {
              collects the bastion's credential inline, on the same call, so
              the chain never fails this way while it is running. */
           if (current(mine) && reported.hop === 'bastion' && shouldPromptAfterSaved(reported.code)) {
+            /* Over, not failed: the redirect is the answer. Left in place,
+               the `connecting` stage drew a "Reaching…" card over the
+               editor it opened and held every field shut (#358). */
+            setAttempt(null);
             onCredentialMissing(sessionId, 'bastion');
             return;
           }
