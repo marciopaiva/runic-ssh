@@ -22,6 +22,15 @@ with the caveat that anything below 1.0 may break, and this project intends to.
   treated as no broadcast at all. The map's switch and Sessions' are two
   switches: a keystroke is routed by where it was typed, never through both.
   Lines are saved in `workspace.json`; whether one is armed is not.
+- Lines between file browsers on the map, and this machine as a component.
+  "This machine", created from the floor's menu, is the file browser of the
+  computer Runic runs on, one per map, with no host. Hold or right-click a
+  file browser, pick "Transfer to", click another: a directed line with a
+  send button. The button sends what is selected on the origin to the
+  folder every destination's open window is showing, asking first when
+  more than one will receive; a line from this machine is an upload, a line
+  to it a download. Transfers show in the same bar the SFTP workspace has,
+  now under the map too.
 
 ### Fixed
 

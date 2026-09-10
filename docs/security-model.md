@@ -335,10 +335,12 @@ of a clipboard whose contents they may not have looked at.
 
 The map (`config/workspace.rs`, ADR-0064) is a second file beside
 `sessions.json`: `workspace.json` holds, per component, a host's id, a kind
-(SSH, SFTP, Monitor), a position and a size, and, per line between two
-components (ADR-0065), the two component ids and nothing else: whether a
-line's switch is on lives in memory only, so no map ever loads armed. It
-stores no credential, no
+(SSH, SFTP, Monitor, or this machine's own file browser, which names no
+host), a position and a size, and, per line between two components
+(ADR-0065), the two component ids and nothing else: whether a line's switch
+is on lives in memory only, so no map ever loads armed, and what a
+file-browser line last sent is not recorded anywhere. It stores no
+credential, no
 host key and no host address; every entry is a reference into the host book,
 and a reference to a host that no longer exists is dropped on the next load
 rather than resolved. Adversary 3 learns from it exactly what `sessions.json`
