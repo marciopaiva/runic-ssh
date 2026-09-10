@@ -78,7 +78,9 @@ describe('the map is the one other place a terminal mounts (ADR-0064)', () => {
     const sites = walk(srcDir)
       .filter((file) => /\.tsx?$/.test(file) && !file.endsWith('TerminalView.tsx'))
       .filter((file) => /<TerminalView\b/.test(readFileSync(file, 'utf8')))
-      .map((file) => path.relative(srcDir, file))
+      /* Forward slashes whatever the platform: `path.relative` answers with
+         backslashes on Windows, and CI runs there too. */
+      .map((file) => path.relative(srcDir, file).split(path.sep).join('/'))
       .sort();
     expect(sites).toEqual(['App.tsx', 'components/map/MapTerminals.tsx']);
   });
