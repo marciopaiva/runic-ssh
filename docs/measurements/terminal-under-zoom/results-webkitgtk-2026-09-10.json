@@ -1,0 +1,200 @@
+[
+ {
+  "mode": "scale",
+  "zoom": 1,
+  "n": 1,
+  "lps": 2000,
+  "fps": 110.99726775956285,
+  "p95": 16,
+  "max": 18,
+  "drops": 0,
+  "ua": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15"
+ },
+ {
+  "mode": "scale",
+  "zoom": 1,
+  "n": 4,
+  "lps": 2000,
+  "fps": 64.65067778936393,
+  "p95": 19,
+  "max": 21,
+  "drops": 0,
+  "ua": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15"
+ },
+ {
+  "mode": "scale",
+  "zoom": 1,
+  "n": 9,
+  "lps": 2000,
+  "fps": 62.41234221598878,
+  "p95": 19,
+  "max": 21,
+  "drops": 0,
+  "ua": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15"
+ },
+ {
+  "mode": "scale",
+  "zoom": 0.75,
+  "n": 1,
+  "lps": 2000,
+  "fps": 115.22773623385451,
+  "p95": 16,
+  "max": 17,
+  "drops": 0,
+  "ua": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15"
+ },
+ {
+  "mode": "scale",
+  "zoom": 0.75,
+  "n": 4,
+  "lps": 2000,
+  "fps": 95.17288599794591,
+  "p95": 16,
+  "max": 17,
+  "drops": 0,
+  "ua": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15"
+ },
+ {
+  "mode": "scale",
+  "zoom": 0.75,
+  "n": 9,
+  "lps": 2000,
+  "fps": 92.13716660893661,
+  "p95": 16,
+  "max": 19,
+  "drops": 0,
+  "ua": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15"
+ },
+ {
+  "mode": "scale",
+  "zoom": 0.5,
+  "n": 1,
+  "lps": 2000,
+  "fps": 115.94695681740905,
+  "p95": 16,
+  "max": 17,
+  "drops": 0,
+  "ua": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15"
+ },
+ {
+  "mode": "scale",
+  "zoom": 0.5,
+  "n": 4,
+  "lps": 2000,
+  "fps": 101.76390773405699,
+  "p95": 16,
+  "max": 17,
+  "drops": 0,
+  "ua": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15"
+ },
+ {
+  "mode": "scale",
+  "zoom": 0.5,
+  "n": 9,
+  "lps": 2000,
+  "fps": 101.54373927958834,
+  "p95": 16,
+  "max": 17,
+  "drops": 0,
+  "ua": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15"
+ },
+ {
+  "mode": "refit",
+  "zoom": 1,
+  "n": 1,
+  "lps": 2000,
+  "fps": 111.22554067971164,
+  "p95": 16,
+  "max": 17,
+  "drops": 0,
+  "ua": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15"
+ },
+ {
+  "mode": "refit",
+  "zoom": 1,
+  "n": 4,
+  "lps": 2000,
+  "fps": 63.25613549948151,
+  "p95": 19,
+  "max": 20,
+  "drops": 0,
+  "ua": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15"
+ },
+ {
+  "mode": "refit",
+  "zoom": 1,
+  "n": 9,
+  "lps": 2000,
+  "fps": 62.43460062783397,
+  "p95": 19,
+  "max": 22,
+  "drops": 0,
+  "ua": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15"
+ },
+ {
+  "mode": "refit",
+  "zoom": 0.75,
+  "n": 1,
+  "lps": 2000,
+  "fps": 111.14887831407205,
+  "p95": 16,
+  "max": 17,
+  "drops": 0,
+  "ua": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15"
+ },
+ {
+  "mode": "refit",
+  "zoom": 0.75,
+  "n": 4,
+  "lps": 2000,
+  "fps": 99.08381404818459,
+  "p95": 16,
+  "max": 17,
+  "drops": 0,
+  "ua": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15"
+ },
+ {
+  "mode": "refit",
+  "zoom": 0.75,
+  "n": 9,
+  "lps": 2000,
+  "fps": 98.39426033481381,
+  "p95": 16,
+  "max": 18,
+  "drops": 0,
+  "ua": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15"
+ },
+ {
+  "mode": "refit",
+  "zoom": 0.5,
+  "n": 1,
+  "lps": 2000,
+  "fps": 105.3346924906558,
+  "p95": 16,
+  "max": 17,
+  "drops": 0,
+  "ua": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15"
+ },
+ {
+  "mode": "refit",
+  "zoom": 0.5,
+  "n": 4,
+  "lps": 2000,
+  "fps": 105.82191780821918,
+  "p95": 16,
+  "max": 17,
+  "drops": 0,
+  "ua": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15"
+ },
+ {
+  "mode": "refit",
+  "zoom": 0.5,
+  "n": 9,
+  "lps": 2000,
+  "fps": 105.56687033265445,
+  "p95": 16,
+  "max": 17,
+  "drops": 0,
+  "ua": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15"
+ }
+]

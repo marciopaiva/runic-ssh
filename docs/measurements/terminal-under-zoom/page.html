@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>xterm under zoom</title>
+<style>
+/*XTERM_CSS*/
+:root{--base:#070e18;--panel:#0c1522;--chrome:#0a121e;--raised:#152536;--term:#060c14;--b1:#1a2a40;--b2:#2a4060;--t1:#e8f0fa;--t2:#c5d4e8;--t3:#8b9fb8;--t4:#5a6f88;--acc:#22b4ef;--acc2:#5ec8f5;--warn:#e8b04a;--ok:#2fc49e}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:"Manrope","Segoe UI",system-ui,sans-serif;font-size:12.5px;background:var(--base);color:var(--t2);overflow:hidden;display:flex;flex-direction:column}
+#bar{height:40px;flex:none;display:flex;align-items:center;gap:14px;padding:0 12px;background:var(--chrome);border-bottom:1px solid var(--b1);font-size:11.5px}
+#bar .g{display:flex;align-items:center;gap:4px}
+#bar .g span{color:var(--t4);font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;margin-right:4px}
+#bar button{height:24px;padding:0 9px;border:1px solid var(--b1);border-radius:4px;background:var(--panel);color:var(--t3);font:inherit;cursor:pointer}
+#bar button.on{border-color:var(--acc);color:var(--acc2);background:#0e2a3c}
+#bar button.run{border-color:var(--warn);color:var(--warn)}
+#bar .sp{flex:1}
+#stage{flex:1;position:relative;overflow:hidden;cursor:grab;background:radial-gradient(ellipse at 50% 42%,rgba(34,180,239,.07),transparent 58%),linear-gradient(var(--base),#04080f)}
+#stage.panning{cursor:grabbing}
+#world{position:absolute;left:0;top:0;transform-origin:0 0}
+.win{position:absolute;display:flex;flex-direction:column;background:rgba(6,12,20,.9);border:1px solid rgba(94,200,245,.16);border-radius:7px;overflow:hidden;box-shadow:0 10px 15px -3px rgb(0 0 0/.35)}
+.win .strip{height:28px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px;background:rgba(232,240,250,.03);border-bottom:1px solid rgba(94,200,245,.16);font-size:12px;color:var(--t1)}
+.win .strip .addr{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:10.5px;color:var(--t4)}
+.win .strip .sz{margin-left:auto;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:10.5px;color:var(--t4)}
+.win .body{flex:1;min-height:0;position:relative;background:var(--term)}
+.win .body .xt{position:absolute;inset:0;padding:6px 8px;transform-origin:0 0}
+#hud{position:absolute;right:12px;bottom:12px;z-index:5;width:340px;background:rgba(12,21,34,.9);border:1px solid var(--b2);border-radius:6px;padding:10px 12px;font-size:11.5px}
+#hud h4{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--t4);margin-bottom:6px}
+#hud .kv{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-variant-numeric:tabular-nums}
+#hud .kv dt{color:var(--t4)}#hud .kv dd{color:var(--t1);font-family:"JetBrains Mono",ui-monospace,monospace;font-size:11px}
+#hud table{width:100%;border-collapse:collapse;margin-top:8px;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:10.5px;font-variant-numeric:tabular-nums}
+#hud th,#hud td{text-align:right;padding:2px 4px;border-bottom:1px solid var(--b1);color:var(--t2)}
+#hud th{color:var(--t4);font-weight:600}
+#hud td:first-child,#hud th:first-child{text-align:left}
+#hud .bad{color:#ff8a92}#hud .ok{color:var(--ok)}
+#zoomlbl{font-family:"JetBrains Mono",ui-monospace,monospace;color:var(--t1)}
+#note{position:absolute;left:12px;bottom:12px;z-index:5;max-width:460px;font-size:11.5px;color:var(--t3);line-height:1.5}
+#note b{color:var(--t2)}
+</style>
+</head>
+<body>
+<div id="bar">
+  <div class="g"><span>mode</span><button data-mode="scale" class="on" title="The terminal is scaled by the map transform, like any node">CSS scale</button><button data-mode="refit" title="The terminal stays at 100% inside the scaled box: fewer columns and rows, crisp text">refit 1:1</button></div>
+  <div class="g"><span>zoom</span><button data-zoom=".5">50</button><button data-zoom=".75">75</button><button data-zoom="1" class="on">100</button><button data-zoom="1.25">125</button><button data-zoom="1.5">150</button><span id="zoomlbl" style="text-transform:none;letter-spacing:0;margin-left:6px">100%</span></div>
+  <div class="g"><span>terminals</span><button data-n="1">1</button><button data-n="2">2</button><button data-n="4" class="on">4</button><button data-n="6">6</button><button data-n="9">9</button></div>
+  <div class="g"><span>load</span><button data-load="0" class="on">idle</button><button data-load="20">20 l/s</button><button data-load="200">200 l/s</button><button data-load="2000">2000 l/s</button></div>
+  <div class="sp"></div>
+  <button class="run" id="bench" title="5 s of 2000 lines/s into every terminal, measuring frames">Measure 5 s</button>
+  <button id="matrix" title="Runs the whole matrix: 2 modes x 3 zooms x 3 counts, 3 s each">Matrix</button>
+  <button id="copy">Copy results</button>
+</div>
+<div id="stage"><div id="world"></div>
+  <div id="note"><b>Wheel</b> zooms, dragging the background pans, click a terminal and type: it echoes. What matters is whether text stays crisp in both modes below 100% and how many frames per second are left under load.</div>
+  <div id="hud"><h4>Frames</h4><dl class="kv"><dt>fps</dt><dd id="fps">–</dd><dt>frame p95</dt><dd id="p95">–</dd><dt>worst frame</dt><dd id="max">–</dd><dt>frames > 33 ms</dt><dd id="drops">–</dd><dt>lines written</dt><dd id="lines">0</dd></dl><table id="res"><thead><tr><th>mode</th><th>zoom</th><th>n</th><th>fps</th><th>p95</th><th>worst</th></tr></thead><tbody></tbody></table></div>
+</div>
+<script>/*XTERM_JS*/</script>
+<script>/*FIT_JS*/</script>
+<script>
+const $=s=>document.querySelector(s);
+const stage=$('#stage'),world=$('#world');
+const THEME={background:'#060c14',foreground:'#c5d4e8',cursor:'#c5d4e8',selectionBackground:'#1e3a52',black:'#0c1522',red:'#ff5f6b',green:'#2fc49e',yellow:'#e8b04a',blue:'#22b4ef',magenta:'#b961e6',cyan:'#5ec8f5',white:'#e8f0fa',brightBlack:'#5a6f88',brightRed:'#ff8a92',brightGreen:'#5ce0b8',brightYellow:'#f2c96b',brightBlue:'#5ec8f5',brightMagenta:'#cf8bf0',brightCyan:'#9be1fa',brightWhite:'#ffffff'};
+const state={mode:'scale',zoom:1,n:4,load:0};
+const vw={x:0,y:0,s:1};
+let terms=[];let linesWritten=0;
+const HOSTS=['web-01','web-02','api-01','db-01','cache-01','worker-01','lb-01','grafana-01','stg-web-01'];
+function applyWorld(){world.style.transform=`translate(${vw.x}px,${vw.y}px) scale(${vw.s})`;$('#zoomlbl').textContent=Math.round(vw.s*100)+'%';document.querySelectorAll('[data-zoom]').forEach(b=>b.classList.toggle('on',+b.dataset.zoom===vw.s));if(state.mode==='refit')refitAll();}
+function layout(){
+  world.innerHTML='';terms.forEach(t=>t.term.dispose());terms=[];
+  const n=state.n,cols=n<=1?1:n<=4?2:3,rows=Math.ceil(n/cols);
+  const W=stage.clientWidth,H=stage.clientHeight,gap=14;
+  const cw=Math.floor((W-gap*(cols+1))/cols),ch=Math.floor((H-gap*(rows+1))/rows);
+  for(let i=0;i<n;i++){
+    const col=i%cols,row=Math.floor(i/cols);
+    const w=document.createElement('div');w.className='win';w.style.left=(gap+col*(cw+gap))+'px';w.style.top=(gap+row*(ch+gap))+'px';w.style.width=cw+'px';w.style.height=ch+'px';
+    w.innerHTML=`<div class="strip"><span>${HOSTS[i]}</span><span class="addr">deploy@10.0.1.1${i+1}</span><span class="sz"></span></div><div class="body"><div class="xt"></div></div>`;
+    world.appendChild(w);
+    const term=new Terminal({theme:THEME,fontFamily:"'JetBrains Mono','Cascadia Mono',ui-monospace,monospace",fontSize:13,lineHeight:1.35,cursorBlink:true,scrollback:5000,allowProposedApi:false});
+    const fit=new FitAddon.FitAddon();term.loadAddon(fit);
+    const xt=w.querySelector('.xt');term.open(xt);
+    const t={term,fit,el:w,xt,host:HOSTS[i],buf:''};terms.push(t);
+    term.onData(d=>{if(d==='\r'){term.write('\r\n'+prompt(t));t.buf='';}else if(d==='\x7f'){if(t.buf.length){t.buf=t.buf.slice(0,-1);term.write('\b \b');}}else{t.buf+=d;term.write(d);}});
+    term.write('\x1b[90mLast login: Tue Sep  9 21:14:02 2026 from 10.0.0.5\x1b[0m\r\n'+prompt(t));
+  }
+  refitAll();
+}
+function prompt(t){return `\x1b[36mdeploy@\x1b[35m${t.host}\x1b[0m:~$ `;}
+/* refit: the terminal box is counter-scaled so glyphs stay 1:1 and cols/rows change instead */
+function refitAll(){
+  terms.forEach(t=>{
+    if(state.mode==='refit'){const s=vw.s;t.xt.style.transform=`scale(${1/s})`;t.xt.style.width=(100*s)+'%';t.xt.style.height=(100*s)+'%';t.xt.style.inset='0 auto auto 0';}
+    else{t.xt.style.transform='';t.xt.style.width='';t.xt.style.height='';t.xt.style.inset='0';}
+    try{t.fit.fit();}catch(e){}
+    t.el.querySelector('.sz').textContent=`${t.term.cols}x${t.term.rows}`;
+  });
+}
+/* workload: realistic coloured log lines */
+const PATHS=['/api/v1/orders','/api/v1/users/42','/healthz','/static/app.js','/login','/api/v1/search?q=runic'];
+function line(){const r=Math.random();let lv='\x1b[32mINFO \x1b[0m';if(r>.9)lv='\x1b[31mERROR\x1b[0m';else if(r>.7)lv='\x1b[33mWARN \x1b[0m';const ms=(Math.random()*400|0);return `${lv} \x1b[90m${new Date().toISOString().slice(11,23)}\x1b[0m worker-${(Math.random()*8|0)+1} \x1b[36m${PATHS[Math.random()*PATHS.length|0]}\x1b[0m ${ms>300?'\x1b[31m504\x1b[0m':'200'} ${ms}ms id=${Math.random().toString(36).slice(2,10)}\r\n`;}
+let loadTimer=null;
+function setLoad(lps){state.load=lps;clearInterval(loadTimer);document.querySelectorAll('[data-load]').forEach(b=>b.classList.toggle('on',+b.dataset.load===lps));if(!lps)return;
+  const per=Math.max(1,Math.round(lps/50));loadTimer=setInterval(()=>{let s='';for(let i=0;i<per;i++)s+=line();terms.forEach(t=>t.term.write(s));linesWritten+=per*terms.length;$('#lines').textContent=linesWritten;},20);}
+/* frame measurement */
+let frames=[],last=performance.now();
+(function tick(now){const dt=now-last;last=now;frames.push(dt);if(frames.length>240)frames.shift();requestAnimationFrame(tick);})(performance.now());
+function stats(arr){const a=[...arr].sort((x,y)=>x-y);const sum=a.reduce((x,y)=>x+y,0);return {fps:a.length/(sum/1000),p95:a[Math.floor(a.length*.95)]||0,max:a[a.length-1]||0,drops:a.filter(x=>x>33).length};}
+setInterval(()=>{if(frames.length<10)return;const s=stats(frames);$('#fps').textContent=s.fps.toFixed(0);$('#p95').textContent=s.p95.toFixed(1)+' ms';$('#max').textContent=s.max.toFixed(1)+' ms';$('#drops').textContent=s.drops;},500);
+const results=[];
+function addResult(r){results.push(r);const tb=$('#res tbody');const tr=document.createElement('tr');tr.innerHTML=`<td>${r.mode}</td><td>${Math.round(r.zoom*100)}%</td><td>${r.n}</td><td class="${r.fps<30?'bad':r.fps>=55?'ok':''}">${r.fps.toFixed(0)}</td><td class="${r.p95>33?'bad':''}">${r.p95.toFixed(0)}</td><td>${r.max.toFixed(0)}</td>`;tb.appendChild(tr);console.log('RESULT '+JSON.stringify(r));}
+function bench(sec=5,lps=2000){return new Promise(res=>{const prev=state.load;setLoad(lps);const samples=[];let l=performance.now();const t0=l;const loop=now=>{samples.push(now-l);l=now;if(now-t0<sec*1000)requestAnimationFrame(loop);else{setLoad(prev);const s=stats(samples.slice(10));const r={mode:state.mode,zoom:vw.s,n:state.n,lps,...s,ua:navigator.userAgent.slice(0,60)};addResult(r);res(r);}};requestAnimationFrame(loop);});}
+async function matrix(){for(const mode of['scale','refit'])for(const z of[1,.75,.5])for(const n of[1,4,9]){setMode(mode);setZoom(z);setN(n);await new Promise(r=>setTimeout(r,400));await bench(3);}console.log('MATRIX_DONE');}
+function setMode(m){state.mode=m;document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('on',b.dataset.mode===m));refitAll();}
+function setZoom(z){vw.s=z;vw.x=0;vw.y=0;applyWorld();}
+function setN(n){state.n=n;document.querySelectorAll('[data-n]').forEach(b=>b.classList.toggle('on',+b.dataset.n===n));layout();if(state.load)setLoad(state.load);}
+document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
+document.querySelectorAll('[data-zoom]').forEach(b=>b.onclick=()=>setZoom(+b.dataset.zoom));
+document.querySelectorAll('[data-n]').forEach(b=>b.onclick=()=>setN(+b.dataset.n));
+document.querySelectorAll('[data-load]').forEach(b=>b.onclick=()=>setLoad(+b.dataset.load));
+$('#bench').onclick=()=>bench(5);$('#matrix').onclick=matrix;
+$('#copy').onclick=()=>{const txt=JSON.stringify(results,null,1);if(navigator.clipboard)navigator.clipboard.writeText(txt);console.log(txt);};
+/* pan and zoom, as in the prototype */
+let press=null;
+stage.addEventListener('pointerdown',e=>{if(e.button!==0||e.target.closest('.win'))return;press={lx:e.clientX,ly:e.clientY};stage.classList.add('panning');stage.setPointerCapture(e.pointerId);});
+stage.addEventListener('pointermove',e=>{if(!press)return;vw.x+=e.clientX-press.lx;vw.y+=e.clientY-press.ly;press.lx=e.clientX;press.ly=e.clientY;applyWorld();});
+stage.addEventListener('pointerup',()=>{press=null;stage.classList.remove('panning');});
+stage.addEventListener('wheel',e=>{if(e.target.closest('.xterm'))return;e.preventDefault();const r=stage.getBoundingClientRect(),sx=e.clientX-r.left,sy=e.clientY-r.top;const ns=Math.max(.4,Math.min(2,vw.s*(e.deltaY>0?.9:1.1)));vw.x=sx-(sx-vw.x)*(ns/vw.s);vw.y=sy-(sy-vw.y)*(ns/vw.s);vw.s=ns;applyWorld();},{passive:false});
+addEventListener('resize',()=>{layout();});
+layout();applyWorld();
+const q=new URLSearchParams(location.search);
+if(q.get('mode'))setMode(q.get('mode'));if(q.get('zoom'))setZoom(+q.get('zoom'));if(q.get('n'))setN(+q.get('n'));if(q.get('load'))setLoad(+q.get('load'));
+if(q.get('auto')){setTimeout(matrix,800);}
+window.spike={setMode,setZoom,setN,setLoad,bench,matrix,results,get terms(){return terms;}};
+</script>
+</body>
+</html>
