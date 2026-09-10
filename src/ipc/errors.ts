@@ -59,6 +59,8 @@ export type IpcError =
   | { readonly code: 'unknownMacro'; readonly id: string }
   /** A saved macro was rejected; `field` names which part. */
   | { readonly code: 'invalidMacro'; readonly field: string }
+  /** The map was rejected before being written; `field` names which part (ADR-0064). */
+  | { readonly code: 'invalidWorkspace'; readonly field: string }
   /**
    * The jump host a session names cannot be used.
    *
@@ -233,6 +235,7 @@ export const CODES: ReadonlySet<IpcErrorCode> = new Set<IpcErrorCode>([
   'invalidSession',
   'unknownMacro',
   'invalidMacro',
+  'invalidWorkspace',
   'invalidProxyJump',
   'duplicateSession',
   'chainFailed',

@@ -14,7 +14,8 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { asIpcError } from '../src/ipc/errors';
-import type { CredentialStoreStatus, WindowChrome } from '../src/ipc';
+import { EMPTY_WORKSPACE } from '../src/ipc';
+import type { CredentialStoreStatus, WindowChrome, Workspace } from '../src/ipc';
 
 const rustSource = readFileSync(
   fileURLToPath(new URL('../src-tauri/src/error.rs', import.meta.url)),
@@ -491,5 +492,37 @@ describe('every command the frontend calls exists in the core', () => {
 
   it.each(invoked)('%s is in generate_handler!', (command) => {
     expect(registered).toContain(`::${command},`);
+  });
+});
+
+describe('the map workspace crossing the boundary', () => {
+  /* ADR-0064. The map is one object the interface owns in memory and the
+     core writes whole; an array renamed on one side is a layout that
+     silently stops arriving, never a compile error. */
+
+  it('sends the empty map the core pins', () => {
+    const rust = readFileSync(
+      fileURLToPath(new URL('../src-tauri/src/config/workspace.rs', import.meta.url)),
+      'utf8',
+    );
+
+    expect(rust).toContain(JSON.stringify(EMPTY_WORKSPACE));
+  });
+
+  it('accepts a component with nothing optional set', () => {
+    const workspace: Workspace = JSON.parse(
+      '{"components":[{"id":"c1","kind":"ssh","host":"s1"}],"links":[],"visions":[],"layers":[]}',
+    ) as Workspace;
+
+    expect(workspace.components[0]?.kind).toBe('ssh');
+    expect(workspace.components[0]?.position).toBeUndefined();
+    expect(workspace.links).toHaveLength(0);
+  });
+
+  it('narrows a refused map to its field', () => {
+    const refused = asIpcError({ code: 'invalidWorkspace', field: 'component.kind' });
+
+    expect(refused?.code).toBe('invalidWorkspace');
+    expect(refused?.code === 'invalidWorkspace' ? refused.field : null).toBe('component.kind');
   });
 });
