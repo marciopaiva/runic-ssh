@@ -8,11 +8,6 @@ import { useTranslator } from '../features/settings';
 
 import { HostKindIcon } from './HostKindIcon';
 import { SessionMarker } from './SessionMarker';
-import { Button } from './ui/Button';
-import { Input } from './ui/Input';
-import { Tooltip } from './ui/Tooltip';
-import { cn } from '../lib/classnames';
-import { MoreVerticalIcon, SearchIcon, XIcon as CloseIcon } from './ui/icons';
 
 function FolderMark(): JSX.Element {
   return (
@@ -52,6 +47,21 @@ interface SessionsSidebarProps {
   readonly onMenu?: (sessionId: string, at: { readonly x: number; readonly y: number }) => void;
 }
 
+/**
+ * The list of saved hosts.
+ *
+ * Presentational: it renders what it is handed and reports what was clicked.
+ * Loading, grouping and connection state live in the feature slice.
+ *
+ * Shared between Sessions and SFTP since ADR-0046: `SftpWorkspaceSidebar`'s
+ * own reasoning for a plainer list ("a host picked to browse does not need a
+ * kind icon or a jump mark") was overridden directly, in favour of one
+ * sidebar rather than two that have to be kept looking alike by hand. What
+ * changes between the two callers is never the row's own shape, only what a
+ * row *means*: `selectedId`/`receiving`/`spared` for Sessions' "which tab is
+ * this and does it receive," `assigned` for SFTP's "is this open in a pane
+ * right now."
+ */
 export function SessionsSidebar({
   title,
   emptyTitle,
@@ -103,17 +113,18 @@ export function SessionsSidebar({
             scrolled past" stops being a reasonable way to ask someone to
             undo something. */}
         {soloName !== null && (
-          <Button
-            variant="ghost"
-            size="sm"
+          <button
+            type="button"
             onClick={() => setSolo(null)}
             aria-label={i18n.t('sessions.solo.clear')}
             title={i18n.t('sessions.solo.clear')}
-            className="text-accent"
+            className="text-accent bg-accent/10 hover:bg-accent/20 flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[9.5px] font-bold tracking-[0.05em]"
           >
             <span className="max-w-[80px] truncate">{soloName}</span>
-            <CloseIcon className="h-2 w-2 shrink-0 ml-1" />
-          </Button>
+            <svg viewBox="0 0 10 10" className="h-2 w-2 shrink-0" fill="none" aria-hidden="true">
+              <path d="M0.5 0.5l9 9M9.5 0.5l-9 9" stroke="currentColor" strokeWidth="1.4" />
+            </svg>
+          </button>
         )}
 
         {/* How many hosts are on the receiving end, at the top of the list of
@@ -130,14 +141,27 @@ export function SessionsSidebar({
 
       {sessions.length > 0 && (
         <div className="relative px-3.5 pb-2">
-          <Input
+          <svg
+            viewBox="0 0 24 24"
+            className="text-ink-faint pointer-events-none absolute top-1/2 left-6 h-3.5 w-3.5 -translate-y-1/2"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            aria-hidden="true"
+          >
+            <circle cx="10.5" cy="10.5" r="6" />
+            <path d="M15 15l4.5 4.5" />
+          </svg>
+          <input
+            type="text"
             value={query}
-            onChange={setQuery}
+            onChange={(event) => setQuery(event.target.value)}
             placeholder={i18n.t('sessions.filter')}
             aria-label={i18n.t('sessions.filter')}
-            leftIcon={<SearchIcon className="h-3.5 w-3.5" />}
-            size="sm"
-            fullWidth
+            autoComplete="off"
+            spellCheck={false}
+            className="bg-surface-input border-line-subtle text-ink placeholder:text-ink-faint focus:border-line-strong w-full rounded border py-1 pr-2 pl-7 text-[12px] outline-none"
           />
         </div>
       )}
@@ -178,16 +202,15 @@ export function SessionsSidebar({
                       reaching for once there is enough to want it hidden, but
                       nothing here needs to know how many groups exist to
                       offer it: it does nothing extra with just one. */}
-                  <Button
-                    variant="ghost"
-                    size="sm"
+                  <button
+                    type="button"
                     onClick={() => setSolo((current) => (current === key ? null : key))}
                     aria-pressed={solo === key}
                     title={i18n.t('sessions.solo', { name: displayName })}
                     className="hover:text-ink flex min-w-0 flex-1 items-center text-left"
                   >
                     <span className="truncate">{displayName}</span>
-                  </Button>
+                  </button>
                   <span className="text-ink-disabled ml-auto font-mono text-[10px]">
                     {group.sessions.length}
                   </span>
@@ -264,16 +287,13 @@ export function SessionsSidebar({
                               }
                         }
                       >
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          fullWidth
+                        <button
+                          type="button"
                           onClick={() => onSelect(session.id)}
                           aria-current={selected ? 'true' : undefined}
-                          className={cn(
-                            'flex min-w-0 flex-1 items-center gap-2.5 px-2 py-1.5 text-left',
-                            selected ? 'text-ink' : 'text-ink-secondary',
-                          )}
+                          className={`flex min-w-0 flex-1 items-center gap-2.5 px-2 py-1.5 text-left ${
+                            selected ? 'text-ink' : 'text-ink-secondary'
+                          }`}
                         >
                           {/* The chain drawn as position rather than as a
                               glyph (`jump.ts`'s `orderChain`): one faint rule
@@ -376,7 +396,7 @@ export function SessionsSidebar({
                               </span>
                             )}
                           </div>
-                        </Button>
+                        </button>
 
                         {/* SFTP mode's own mark: this host is sitting in a
                             pane right now. Always shown rather than
@@ -389,27 +409,26 @@ export function SessionsSidebar({
                         )}
 
                         {onMenu !== undefined && (
-                          <Tooltip
-                            content={i18n.t('sessions.actions', { name: session.name })}
-                            side="right"
+                          <button
+                            type="button"
+                            aria-label={i18n.t('sessions.actions', { name: session.name })}
+                            title={i18n.t('sessions.actions', { name: session.name })}
+                            onClick={(event) => {
+                              const box = event.currentTarget.getBoundingClientRect();
+                              onMenu(session.id, { x: box.right - 4, y: box.bottom + 2 });
+                            }}
+                            /* Hidden until the row is hovered or the button is
+                               focused, so the list stays quiet. Never hidden
+                               from the keyboard, though, which is how a
+                               hover-only affordance becomes unreachable. */
+                            className="text-ink-faint hover:text-ink mr-1 flex h-5 w-5 shrink-0 items-center justify-center rounded opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
                           >
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                // We need to get the button's position for the menu
-                                const button = document.querySelector(`[aria-label="${i18n.t('sessions.actions', { name: session.name })}"]`);
-                                if (button) {
-                                  const box = button.getBoundingClientRect();
-                                  onMenu(session.id, { x: box.right - 4, y: box.bottom + 2 });
-                                }
-                              }}
-                              className="mr-1 flex h-5 w-5 shrink-0 items-center justify-center rounded"
-                              aria-label={i18n.t('sessions.actions', { name: session.name })}
-                            >
-                              <MoreVerticalIcon className="h-3.5 w-3.5" />
-                            </Button>
-                          </Tooltip>
+                            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" aria-hidden="true">
+                              <circle cx="8" cy="3.5" r="1.2" fill="currentColor" />
+                              <circle cx="8" cy="8" r="1.2" fill="currentColor" />
+                              <circle cx="8" cy="12.5" r="1.2" fill="currentColor" />
+                            </svg>
+                          </button>
                         )}
                       </li>
                     );
