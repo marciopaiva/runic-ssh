@@ -2305,7 +2305,7 @@ def topology_folded_row(kind="direct", via=None):
 
 
 def host_detail_panel(banner_html="", access_html=None, topology_folded=False, forwarding_folded=False,
-                       title="runic-target-a", general_html=None):
+                       title="runic-target-a", general_html=None, topology_html=None):
     """The populated form `HomeHosts.dc.html` and `HomeCollapsed.dc.html`
     both show, factored out once a second artboard needed the identical
     General/Topology/Access/Forwarding panel at a different width.
@@ -2326,7 +2326,12 @@ def host_detail_panel(banner_html="", access_html=None, topology_folded=False, f
     Topology only makes sense drawn against a host that is actually plain,
     so the artboard that turns the fold on also needs its own General
     fields rather than inheriting `runic-target-a`'s own bastion-routed
-    ones."""
+    ones. `topology_html` (the context-panel proposal's own hook): a host
+    that already serves as a jump host draws no "Reached through" picker
+    at all, per the rule `docs/testing.md`'s "A host that already serves
+    as a jump host" section already names, a sentence naming its own
+    riders instead; the default below is still the target-shaped picker
+    every existing caller already drew."""
     general = bordered_section("General", general_html if general_html is not None else f"""
       <div>{wizard_label('Host')}{wizard_field('target.internal')}</div>
       <div style="display: flex; gap: 12px; margin-top: 14px;">
@@ -2335,7 +2340,7 @@ def host_detail_panel(banner_html="", access_html=None, topology_folded=False, f
       </div>
       <div style="margin-top: 14px;">{wizard_label('Name')}{wizard_field('runic-target-a', mono=False)}</div>
       <div style="margin-top: 14px;">{wizard_label('Group')}{wizard_field('REAL-CHAIN', mono=False, chev=True)}</div>""")
-    topology = topology_folded_row() if topology_folded else bordered_section("Topology", f"""
+    topology = topology_folded_row() if topology_folded else bordered_section("Topology", topology_html if topology_html is not None else f"""
       <div>{wizard_label('Kind')}{kind_picker('target')}</div>
       <div style="margin-top: 14px;">{wizard_label('Reached through')}{wizard_field('runic-bastion', mono=False, chev=True)}</div>""")
     access = bordered_section("Access", access_html if access_html is not None else f"""
@@ -2373,6 +2378,122 @@ def host_detail_panel(banner_html="", access_html=None, topology_folded=False, f
         <div style="margin-top: 26px; padding-top: 16px; border-top: 1px solid {T['line']};">{wizard_actions(('Delete', False), ('Cancel', False), ('Save', True))}</div>
       </div>"""
     return panel
+
+
+# ---------- exploratory: a third column beside the host editor (2026-09-08)
+#
+# From the maintainer's own external mockup (runic-ssh-book-context.html,
+# never committed), the same one-off-HTML-becomes-a-real-artboard path
+# `HomeHostsTopology.dc.html`'s own docstring already documents. Nothing
+# below this comment is accepted; `HomeHosts.dc.html` is still the shipped
+# shape. Icons, rail order and every existing string stay exactly as
+# shipped: the only thing proposed here is the column itself, and the two
+# things on it that neither the list nor the form can answer today.
+
+def context_carrying_row(name, state):
+    """One dependent host in the context column's own "Carrying" section,
+    coloured with the exact dot vocabulary `host_row()` already draws
+    (`ok` filled, `saved` hollow): a live rider here reads the same as it
+    does in the list itself, just answered from the bastion's own point
+    of view instead of read off each rider's own row one at a time."""
+    dots = {"ok": f'background: {T["ok"]};', "saved": f'border: 1.5px solid {T["off"]}; box-sizing: border-box;'}
+    label = {"ok": "Connected", "saved": "Saved, not connected"}[state]
+    return f"""<div style="display: flex; align-items: center; gap: 8px;">
+      <span style="width: 7px; height: 7px; border-radius: 50%; flex: none; {dots[state]}"></span>
+      <span style="font-size: 12.5px; color: {T['ink']}; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{name}</span>
+      <span style="font-size: 10.5px; color: {T['faint']}; flex: none;">{label}</span>
+    </div>"""
+
+def context_test_row(label, value, tone=None):
+    """One line of the context column's own "Last checked" section: what
+    the most recent Test click actually found, which today only the
+    Access column's stored/not-stored line comes close to and does not
+    actually answer."""
+    color = T[tone] if tone else T['ink2']
+    return f"""<div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px;">
+      <span style="font-size: 11.5px; color: {T['faint']};">{label}</span>
+      <span style="font-size: 12px; color: {color};">{value}</span>
+    </div>"""
+
+def host_context_panel(carrying=None, last_checked=None):
+    """The proposal's own third column. `carrying=None` (a plain host with
+    nothing riding it) and `last_checked=None` (never tested) each drop
+    their own section rather than draw it empty, the same "say nothing
+    rather than say none" rule `bastionName` already follows for a direct
+    connection's own Via row. Both absent draws one quiet hint instead of
+    a blank column, so a person does not read the emptiness as broken."""
+    sections = []
+    if carrying:
+        rows = "\n".join(context_carrying_row(name, state) for name, state in carrying)
+        sections.append(bordered_section("Carrying", f'<div style="display: flex; flex-direction: column; gap: 10px;">{rows}</div>'))
+    if last_checked:
+        rows = "\n".join(context_test_row(label, value, tone) for label, value, tone in last_checked)
+        sections.append(bordered_section("Last checked", f'<div style="display: flex; flex-direction: column; gap: 8px;">{rows}</div>'))
+    body = "\n".join(sections) if sections else f'<span style="font-size: 12px; color: {T["faint"]};">Nothing to show yet: save the host to see it here.</span>'
+    return f"""    <div style="width: 260px; flex: none; border-left: 1px solid {T['line']}; padding: 20px 18px; display: flex; flex-direction: column; gap: 18px; overflow-y: auto;">
+      <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.09em; color: {T['faint']};">CONTEXT</span>
+      {body}
+    </div>"""
+
+def hosts_shell_with_context(rows_html, panel_html, context_html):
+    """`hosts_shell()`'s own three-column proposal. The list and the form
+    are drawn exactly as shipped, `host_detail_panel()` unmodified, with
+    one more column bolted onto the trailing edge rather than
+    `hosts_shell()` itself changed: every artboard already calling it is
+    unaffected by this existing at all."""
+    left = f"""    <div style="width: 280px; flex: none; background: {T['panel']}; border-right: 1px solid {T['line']}; display: flex; flex-direction: column;">
+{hosts_header(False, True)}
+      <div style="flex: 1; padding: 0 8px 8px; display: flex; flex-direction: column; gap: 2px; overflow: hidden;">
+{rows_html}
+      </div>
+    </div>"""
+    return f"""    <div style="flex: 1; min-height: 0; display: flex;">
+{left}
+      <div style="flex: 1; min-width: 0; overflow: hidden;">{panel_html}</div>
+{context_html}
+    </div>"""
+
+def build_home_hosts_proposal_context():
+    """Exploratory (2026-09-08), the third column: which of a bastion's
+    own riders are actually connected right now (`Carrying`), and what its
+    own last connection test found (`Last checked`), neither answerable
+    from the list or the form alone today. Also proposes `runic-bastion`'s
+    own Topology section drawing the sentence `docs/testing.md`'s "A host
+    that already serves as a jump host" section already describes for the
+    real app, rather than the generic target-shaped picker
+    `host_detail_panel()` draws by default: nothing before this artboard
+    ever opened that editor for a bastion itself to check it against."""
+    rows = home_hosts_rows(active="runic-bastion")
+    topology_html = f"""
+      <div>{wizard_label('Kind')}{kind_picker('jumpServer')}</div>
+      <div style="margin-top: 14px; font-size: 12.5px; color: {T['ink2']}; line-height: 1.5;">runic-target-a and db-replica are reached through this host.</div>"""
+    panel = host_detail_panel(title="runic-bastion", topology_html=topology_html, general_html=f"""
+      <div>{wizard_label('Host')}{wizard_field('127.0.0.1')}</div>
+      <div style="display: flex; gap: 12px; margin-top: 14px;">
+        <div style="flex: 1;">{wizard_label('User')}{wizard_field('jump')}</div>
+        <div style="width: 90px;">{wizard_label('Port')}{wizard_field('22')}</div>
+      </div>
+      <div style="margin-top: 14px;">{wizard_label('Name')}{wizard_field('runic-bastion', mono=False)}</div>
+      <div style="margin-top: 14px;">{wizard_label('Group')}{wizard_field('', mono=False, chev=True, placeholder=True)}</div>""")
+    context = host_context_panel(
+        carrying=[("runic-target-a", "ok"), ("db-replica", "saved")],
+        last_checked=[("Result", "Reached", "ok"), ("Latency", "31 ms", None),
+                       ("Host key", "Verified, unchanged", "ok"), ("Auth", "Password · keychain", None)],
+    )
+    body = hosts_shell_with_context(rows, panel, context)
+    st = status(stat_text("runic-bastion", T['muted'], mono=False), stat_text("11 hosts", T['faint']))
+    page_html = f"""
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{plain_titlebar()}
+{toolbar_row(right_html=theme_language_toolbar_controls())}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{home_rail(workspace="home")}
+{body}
+  </div>
+{st}
+</div>
+"""
+    write("HomeHostsProposalContext.dc.html", HEAD + page_html + FOOT)
 
 
 def sftp_empty_drop(title, body):
@@ -3574,6 +3695,7 @@ else:
                build_sessions_proposal, build_sessions_proposal_broadcast,
                build_sessions_proposal_broadcast_multi,
                build_home_hosts, build_home_hosts_common_case, build_home_hosts_empty, build_home_collapsed, build_home_delete_confirm,
+               build_home_hosts_proposal_context,
                build_home_hosts_credential, build_home_hosts_unknown_key, build_home_hosts_topology,
                build_monitor, build_monitor_processes, build_monitor_ports,
                build_monitor_systemd, build_monitor_logs, build_monitor_hosts_empty,
