@@ -883,7 +883,7 @@ fifth slot on the rail.
 | Right-click the floor, pick "SSH terminal", pick `web-01` in the picker | an icon in the ring around the rune, joined to it by a wire; `workspace.json` in the config dir holds one component with the host's id and `"ssh"`, and nothing else yet: the position and the size are written when the window is first moved or resized |
 | Click the icon | it expands into a window where it stands; the window connects, the shell opens with the MOTD, typing reaches it |
 | Drag the window by its strip, in real steps; then drag its right edge, pressing 2px inside the border | it moves, and it resizes with the terminal refitting (the columns in the status bar change); `workspace.json` now carries the position and the size. The handle is the 4px ring just inside the border: the terminal starts 4px in, and outside the border is the floor, which pans |
-| The strip's maximize button, then its restore button | maximized to the stage, then restored where it was. Double-click on the strip is meant to do the same and instead fits the view (#363) |
+| Double-click the strip, away from its buttons; then double-click it again | maximized to the stage, then restored where it was, with the zoom untouched; the strip's maximize and restore buttons do the same. Double-click on the floor is what fits the view |
 | Wheel down over the floor until the window reads below 75% | the terminal is drawn as a thumbnail, scaled with the window; wheel back up and it refits 1:1 |
 | Click the window's minimize | back to the icon; click the icon, the same shell, still open |
 | Right-click the floor, "SFTP browser", type `lb-01` in the picker, click the "Register lb-01" row | the host editor opens in a glass popup over the map, titled "New host", with no Group field; fill port 2224 and a password, Save |
@@ -896,7 +896,9 @@ Confirmed on Linux on 2026-09-10, headlessly on a private `Xvfb` display
 with `openbox`, in the dev build against `runic-test-sshd` on 2222 and 2224,
 in both themes; the first six rows again the same day in the packaged
 0.6.0 build installed from the release page, which is where the maximize
-row was corrected and #363 and #364 were found. The drags were the multi-step form
+row was corrected and #363 and #364 were found. Both were fixed for 0.7.0
+and the double-click row, the strip drag and the zoomed-out strip were
+driven again in the dev build the same day. The drags were the multi-step form
 "What synthetic input can and cannot drive" below requires; a single jump
 left the window in place. Two things the rows depend on, found on the way:
 
