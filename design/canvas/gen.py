@@ -105,6 +105,7 @@ MARK = f"""<svg width="18" height="18" viewBox="0 0 24 24" fill="none">
       </svg>"""
 
 ICON = dict(
+    map='<circle cx="12" cy="6" r="2.4"></circle><circle cx="5.5" cy="17" r="2.4"></circle><circle cx="18.5" cy="17" r="2.4"></circle><path d="M10.6 8.2l-3.7 6.4M13.4 8.2l3.7 6.4M8 17h8"></path>',
     ssh='<path d="M4 17l5-5-5-5M12 19h8"></path>',
     sftp='<path d="M4 6.5h6l1.6 2H20v9.5H4z"></path><path d="M12 11.5v4M10 13.5l2-2 2 2"></path>',
     gear='<circle cx="12" cy="12" r="3.1"></circle><path d="M12 3.5v2.2M12 18.3v2.2M20.5 12h-2.2M5.7 12H3.5M18 6l-1.6 1.6M7.6 16.4L6 18M18 18l-1.6-1.6M7.6 7.6L6 6"></path>',
@@ -2022,6 +2023,7 @@ def home_rail(workspace="home", badge=None, sftp_badge=None, armed=False):
       {slot('monitor', workspace == 'monitor', locked=armed)}
       {slot('ssh', workspace == 'sessions', bad=badge)}
       {slot('sftp', workspace == 'sftp', locked=armed, bad=sftp_badge)}
+      {slot('map', workspace == 'map', locked=armed)}
     </div>"""
 
 def kind_picker(active="direct"):
@@ -3682,6 +3684,200 @@ def build_terminal_motd():
           page(f'      <div style="flex: 1; min-height: 0; display: flex;">{g}</div>',
                sidebar_shell(sessions_header(), rows_sidebar), home_rail(workspace="sessions", badge="1"), st))
 
+# ============================================================ MAP (ADR-0064)
+
+def glass_defs():
+    return (f'<defs><linearGradient id="gglass" x1="0" y1="0" x2="0" y2="1">'
+            f'<stop offset="0" stop-color="{T["raised"]}" stop-opacity=".95"></stop>'
+            f'<stop offset="1" stop-color="{T["panel"]}" stop-opacity=".95"></stop></linearGradient></defs>')
+
+def map_glyph(kind, color):
+    """The closed icon of a component: the object you get when it opens. A
+    tilted screen with a prompt for a terminal, a crate with an arrow for
+    files, a gauge for vitals. Drawn in the glass material the map's
+    windows share, so an icon and its window read as one thing in two
+    sizes. Iterated with the maintainer in `runic-proposta-modelo.html`."""
+    edge = "rgba(94,200,245,.38)"
+    fill = "url(#gglass)"
+    dim = T['line2']
+    if kind == "ssh":
+        body = (f'<path d="M15 19 L57 12 L57 47 L15 54 Z" fill="{fill}" stroke="{edge}" stroke-width="1.2"></path>'
+                f'<path d="M15 19 L57 12" stroke="{color}" stroke-width="1.8" stroke-linecap="round"></path>'
+                f'<path d="M25 29 l6 5 -6 5" fill="none" stroke="{color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>'
+                f'<rect x="35" y="36" width="9" height="3.2" fill="{color}"></rect>'
+                f'<path d="M31 54 L42 52 L44 60 L29 62 Z" fill="{T["panel"]}" stroke="{dim}"></path>'
+                f'<path d="M22 65 h28" stroke="{dim}" stroke-width="1.4" stroke-linecap="round"></path>')
+    elif kind == "sftp":
+        body = (f'<path d="M16 30 h40 v24 a4 4 0 0 1 -4 4 h-32 a4 4 0 0 1 -4 -4 z" fill="{fill}" stroke="{edge}" stroke-width="1.2"></path>'
+                f'<path d="M12 22 h48 l-4 8 h-40 z" fill="{T["raised"]}" stroke="{color}" stroke-opacity=".7" stroke-width="1.2"></path>'
+                f'<path d="M30 42 h12" stroke="{color}" stroke-width="2.2" stroke-linecap="round"></path>'
+                f'<path d="M36 8 v10 M31 13 l5 -5 5 5" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>'
+                f'<path d="M22 62 h28" stroke="{dim}" stroke-width="1.4" stroke-linecap="round"></path>')
+    else:
+        body = (f'<circle cx="36" cy="38" r="24" fill="{fill}" stroke="{edge}" stroke-width="1.2"></circle>'
+                f'<path d="M19 48 A19 19 0 1 1 53 48" fill="none" stroke="{dim}" stroke-width="3.5" stroke-linecap="round"></path>'
+                f'<path d="M19 48 A19 19 0 0 1 36 19" fill="none" stroke="{color}" stroke-width="3.5" stroke-linecap="round"></path>'
+                f'<path d="M36 38 L46 27" stroke="{color}" stroke-width="2.2" stroke-linecap="round"></path>'
+                f'<circle cx="36" cy="38" r="2.6" fill="{color}"></circle>'
+                f'<path d="M24 66 h24" stroke="{dim}" stroke-width="1.4" stroke-linecap="round"></path>')
+    return (f'<svg viewBox="0 0 72 72" style="width: 72px; height: 72px; overflow: visible;'
+            f' filter: drop-shadow(0 8px 14px rgba(0,0,0,.45));">{glass_defs()}{body}</svg>')
+
+def map_rune(x, y, size=88):
+    """The map's centre: the mark on a glass disc with a still orbit. Hold it
+    to create; it is not a button, so it carries no label."""
+    return (f'<div style="position: absolute; left: {x}px; top: {y}px; width: {size}px; height: {size}px; transform: translate(-50%, -50%);">'
+            f'<svg viewBox="0 0 88 88" style="width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 8px 14px rgba(0,0,0,.45));">{glass_defs()}'
+            f'<circle cx="44" cy="44" r="40" fill="url(#gglass)" stroke="rgba(94,200,245,.38)" stroke-width="1.2"></circle>'
+            f'<circle cx="44" cy="44" r="33" fill="none" stroke="{T["line2"]}" stroke-width="1" stroke-dasharray="2 4"></circle>'
+            f'<circle cx="44" cy="11" r="2.2" fill="{T["accent2"]}"></circle>'
+            f'<g transform="translate(20 20) scale(2)"><circle cx="9.5" cy="12" r="7" stroke="{T["bstart"]}" stroke-width="1.1" fill="none"></circle>'
+            f'<circle cx="14.5" cy="12" r="7" stroke="{T["bend"]}" stroke-width="1.1" fill="none"></circle>'
+            f'<path d="M12 6.5v11M12 10l3-2.5M12 14l3 2.5M12 12l-2.6-2.2" stroke="{T["brune"]}" stroke-width="1.1" stroke-linecap="round" fill="none"></path></g></svg></div>')
+
+def map_kind_color(kind):
+    return {"ssh": T['accent'], "sftp": T['warn'], "monitor": T['bend']}[kind]
+
+def map_component(kind, name, who, x, y, state="saved"):
+    """A closed component: the glyph, the state marker by shape (a filled
+    dot for a live session, a hollow ring for a saved host), the host's
+    name and `user@host`. Sizes and colours match `ComponentNode`."""
+    color = map_kind_color(kind)
+    if state == "saved":
+        dot = f'<span style="position: absolute; top: 6px; right: 2px; width: 8px; height: 8px; border-radius: 50%; background: {T["panel"]}; border: 1px solid {T["faint"]};" title="Saved"></span>'
+    else:
+        dot = f'<span style="position: absolute; top: 6px; right: 2px; width: 8px; height: 8px; border-radius: 50%; background: {T["ok"]}; border: 1px solid {T["base"]};" title="Connected"></span>'
+    return (f'<div style="position: absolute; left: {x}px; top: {y}px; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 6px;">'
+            f'<div style="position: relative;">{map_glyph(kind, color)}{dot}</div>'
+            f'<span style="font-size: 11.5px; font-weight: 600; color: {T["ink2"]}; white-space: nowrap;">{name}</span>'
+            f'<span class="mono" style="font-size: 10.5px; color: {T["faint"]}; white-space: nowrap;">{who}</span></div>')
+
+def map_window(kind, name, who, body_html, x, y, w, h, focused=True, maximized=False):
+    """An open component: the glass window in place of its icon. The strip
+    carries the state dot, the host's name (a button: it opens the host
+    popup), `user@host`, the kind tag, and the Windows trio. No corner
+    mark: every edge resizes, as `ComponentWindow` does."""
+    color = map_kind_color(kind)
+    edge = "rgba(94,200,245,.55)" if focused else "rgba(94,200,245,.16)"
+    shadow = f"inset 0 1px 0 rgba(232,240,250,.06), {T['shadow_5']}, 0 0 0 1px rgba(94,200,245,.18)" if focused else f"inset 0 1px 0 rgba(232,240,250,.06), {T['shadow_3']}"
+    btn = lambda glyph, title: (f'<span title="{title}" style="width: 26px; height: 24px; border-radius: 4px; display: flex; align-items: center;'
+                                f' justify-content: center; color: {T["muted"]}; font-size: 11px;">{glyph}</span>')
+    return (f'<div style="position: absolute; left: {x}px; top: {y}px; width: {w}px; height: {h}px; transform: translate(-50%, -50%); display: flex; flex-direction: column;'
+            f' background: rgba(6,12,20,.82); border: 1px solid {edge}; border-radius: {"0" if maximized else "7px"}; box-shadow: {shadow}; overflow: hidden;">'
+            f'<div style="height: 28px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 4px 0 10px; background: rgba(232,240,250,.03); border-bottom: 1px solid rgba(94,200,245,.16);">'
+            f'<span class="dot" style="background: {T["ok"]};"></span>'
+            f'<span style="font-size: 12px; font-weight: 600; color: {T["ink"]};" title="Change this host">{name}</span>'
+            f'<span class="mono" style="font-size: 10.5px; color: {T["faint"]};">{who}</span>'
+            f'<span style="margin-left: auto; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; color: {color};">{kind.upper()}</span>'
+            f'<span style="display: flex; align-items: center; gap: 2px;">{btn("&ndash;", "Minimize: back to the icon, the session stays")}{btn("&#10064;" if maximized else "&#9633;", "Restore" if maximized else "Maximize")}{btn("&#10005;", "Close and end the session")}</span>'
+            f'</div>'
+            f'<div style="flex: 1; min-height: 0; display: flex; flex-direction: column; background: {T["terminal"]};">{body_html}</div></div>')
+
+def map_wire(x1, y1, x2, y2):
+    return f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="{T["line2"]}" stroke-width="1" stroke-dasharray="4 5" opacity=".6"></line>'
+
+def map_floor(inner_html, wires_html="", w=1392, h=806):
+    """The stage: a vignette and a faint grid, static. No particles and no
+    continuous motion, on purpose: this is a client that stays open all day."""
+    return (f'<div style="flex: 1; position: relative; overflow: hidden; background: radial-gradient(ellipse at 50% 42%, rgba(34,180,239,.07), transparent 58%), linear-gradient({T["base"]}, #04080f);">'
+            f'<div style="position: absolute; inset: 0; background-image: linear-gradient(rgba(42,64,96,.16) 1px, transparent 1px), linear-gradient(90deg, rgba(42,64,96,.16) 1px, transparent 1px); background-size: 56px 56px;'
+            f' -webkit-mask-image: radial-gradient(ellipse at 50% 50%, #000 25%, transparent 78%); mask-image: radial-gradient(ellipse at 50% 50%, #000 25%, transparent 78%);"></div>'
+            f'<svg style="position: absolute; inset: 0; width: {w}px; height: {h}px;">{wires_html}</svg>'
+            f'{inner_html}</div>')
+
+def map_toolbar(zoom="100%"):
+    search = (f'<div style="width: 300px; height: 24px; background: {T["input"]}; border: 1px solid {T["line"]}; border-radius: 4px; display: flex; align-items: center; gap: 8px; padding: 0 8px;">'
+              f'{ic("search", 14, T["faint"])}<span style="font-size: 12px; color: {T["faint"]};">Search hosts and components</span>'
+              f'<span class="cap" style="margin-left: auto;">Ctrl K</span></div>')
+    crumb = f'<span style="font-size: 12px; font-weight: 600; color: {T["ink"]};">Runic</span>'
+    zoomlbl = f'<span class="mono" style="font-size: 10.5px; color: {T["faint"]};">{zoom}</span>'
+    recenter = f'<span style="height: 24px; padding: 0 10px; border: 1px solid {T["line"]}; border-radius: 4px; font-size: 11px; color: {T["muted"]}; display: flex; align-items: center;">Recenter</span>'
+    return toolbar_row(right_html=search + zoomlbl + recenter, left_html=crumb)
+
+def map_terminal_body(user, host, lines):
+    return (f'<div class="term" style="padding: 8px 12px; font-size: 12px;">'
+            f'<span style="color: {T["faint"]};">Last login: Tue Sep  9 21:14:02 2026 from 10.0.0.5</span>\n'
+            + "".join(prompt(user, host, cmd) + "\n" + out + "\n" for cmd, out in lines)
+            + prompt(user, host) + '<span style="display: inline-block; width: 7px; height: 13px; background: ' + T['ink2'] + '; vertical-align: -2px;"></span></div>')
+
+def build_map():
+    """The Map workspace (v0.6.0, ADR-0064): the rune at the centre, three
+    components around it, one of them open as a window in place. What a
+    person sees after creating a terminal, an SFTP browser and a monitor."""
+    cx, cy = 696, 403
+    wires = map_wire(cx, cy, cx + 380, cy - 120) + map_wire(cx, cy, cx - 260, cy + 150) + map_wire(cx, cy, cx + 120, cy + 230)
+    inner = (map_rune(cx, cy)
+             + map_window("ssh", "web-01", "deploy@10.4.1.20", map_terminal_body("deploy", "web-01", [("uptime", " 21:14:09 up 41 days,  3:12,  1 user,  load average: 0.42, 0.37, 0.31")]), cx + 380, cy - 120, 520, 330)
+             + map_component("sftp", "lb-01", "deploy@10.4.1.10", cx - 260, cy + 150)
+             + map_component("monitor", "db-prod", "postgres@10.4.1.31", cx + 120, cy + 230, state="connected"))
+    body = map_toolbar() + map_floor(inner, wires)
+    st = status(stat_text("3 components", T['muted'], mono=False), stat_text("2 connected", T['faint']))
+    write("Map.dc.html", page(body, None, home_rail(workspace="map"), st, show_shapes=False))
+
+def build_map_component():
+    """One component in every state it can be in, on the same floor: saved
+    (a hollow ring), collapsed with the session alive (a filled dot), open,
+    the host key question inside its own window (ADR-0015's rule with a
+    window as the surface), and a host that did not answer, also inside."""
+    hostkey = (f'<div style="flex: 1; display: flex; flex-direction: column; gap: 10px; padding: 16px 18px;">'
+               f'<div style="display: flex; align-items: center; gap: 10px;"><svg class="ic" viewBox="0 0 24 24" style="width: 16px; height: 16px; color: {T["warn"]};">{ICON["shield"]}</svg>'
+               f'<span style="font-size: 13.5px; font-weight: 700;">Unknown host key</span></div>'
+               f'<div style="font-size: 12px; color: {T["ink2"]}; line-height: 1.55;">Runic SSH has never connected to log-01 before. Confirm the fingerprint through a channel you already trust, not through this connection.</div>'
+               f'<div><div style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.11em; color: {T["faint"]};">SHA256 FINGERPRINT</div>'
+               f'<div class="mono" style="font-size: 11.5px; color: {T["accent2"]}; margin-top: 4px; word-break: break-all;">SHA256:9pJk2vQr7Xf1mNbT4wLd8sYcE0hGuA3iZoRxV6nKqMs</div></div>'
+               f'<div style="display: flex; align-items: flex-start; gap: 9px; padding: 10px 12px; background: {T["base"]}; border: 1px solid {T["line"]}; border-radius: 6px;">'
+               f'<span style="width: 14px; height: 14px; border: 1.5px solid {T["line2"]}; border-radius: 4px; flex: none; margin-top: 1px;"></span>'
+               f'<span style="font-size: 12px; color: {T["ink2"]}; font-weight: 600;">I verified this fingerprint out of band</span></div>'
+               f'<div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: auto;">'
+               f'<span style="font-size: 12px; color: {T["muted"]}; border: 1px solid {T["line"]}; border-radius: 6px; padding: 6px 16px;">Cancel</span>'
+               f'<span style="font-size: 12px; font-weight: 600; color: {T["off"]}; background: {T["raised"]}; border-radius: 6px; padding: 6px 16px;">Trust and connect</span></div></div>')
+    failure = (f'<div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px;">'
+               f'<svg viewBox="0 0 24 24" fill="none" stroke="{T["faint"]}" stroke-width="1.4" style="width: 36px; height: 36px; opacity: 0.8;"><circle cx="12" cy="12" r="8.5"></circle><path d="M6 6l12 12"></path></svg>'
+               f'<div style="font-size: 12.5px; color: {T["muted"]}; line-height: 1.6; margin-top: 8px; max-width: 320px;">Nothing answered at that address and port. Check that the host is up, and that the port is the one it listens on.</div>'
+               f'<div class="mono" style="font-size: 11.5px; color: {T["faint"]}; margin-top: 10px;">10.9.0.5:22</div>'
+               f'<div style="display: flex; gap: 8px; margin-top: 16px;"><span style="font-size: 12px; font-weight: 600; color: {T["base"]}; background: {T["accent"]}; border-radius: 6px; padding: 6px 16px;">Try again</span>'
+               f'<span style="font-size: 12px; color: {T["muted"]}; border: 1px solid {T["line"]}; border-radius: 6px; padding: 6px 16px;">Cancel</span></div></div>')
+    label = lambda x, y, text: f'<span style="position: absolute; left: {x}px; top: {y}px; transform: translateX(-50%); font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: {T["faint"]};">{text}</span>'
+    inner = (map_component("ssh", "web-01", "deploy@10.4.1.20", 130, 150) + label(130, 60, "SAVED")
+             + map_component("ssh", "web-02", "deploy@10.4.1.21", 330, 150, state="connected") + label(330, 60, "SESSION ALIVE, COLLAPSED")
+             + map_window("ssh", "web-03", "deploy@10.4.1.22", map_terminal_body("deploy", "web-03", [("hostname", "web-03")]), 830, 200, 500, 300, focused=False) + label(830, 40, "OPEN")
+             + map_window("ssh", "log-01", "ops@10.4.1.60", hostkey, 330, 600, 480, 330) + label(330, 410, "HOST KEY, INSIDE THE WINDOW")
+             + map_window("ssh", "stg-app", "deploy@10.9.0.5", failure, 900, 610, 420, 280, focused=False) + label(900, 445, "DID NOT ANSWER, INSIDE THE WINDOW"))
+    body = map_toolbar() + map_floor(inner)
+    st = status(stat_text("5 components", T['muted'], mono=False), stat_text("3 connected", T['faint']))
+    write("MapComponent.dc.html", page(body, None, home_rail(workspace="map"), st, show_shapes=False))
+
+def build_map_host_popup():
+    """The host popup over the map: the Home wizard's own General, Topology
+    and Access sections in a dialog, reached from the picker, the window's
+    title and the context menu. One form for create and edit; editing says
+    how many components point at the host, because the change reaches all
+    of them."""
+    cx, cy = 696, 403
+    inner = (map_rune(cx, cy)
+             + map_component("ssh", "web-01", "deploy@10.4.1.20", cx + 260, cy - 120, state="connected")
+             + map_component("sftp", "lb-01", "deploy@10.4.1.10", cx - 260, cy + 150))
+    # No Group field: on the map, layers and visions group, and the host book
+    # already reads by topology (ADR-0060). The panel's own footer stays: it is
+    # the wizard's Delete, Cancel and Save, and the dialog draws no second one.
+    general = f"""
+      <div>{wizard_label('Host')}{wizard_field('10.4.1.20')}</div>
+      <div style="display: flex; gap: 12px; margin-top: 14px;">
+        <div style="flex: 1;">{wizard_label('User')}{wizard_field('deploy')}</div>
+        <div style="width: 90px;">{wizard_label('Port')}{wizard_field('22')}</div>
+      </div>
+      <div style="margin-top: 14px;">{wizard_label('Name')}{wizard_field('web-01', mono=False)}</div>"""
+    panel = host_detail_panel(topology_folded=True, forwarding_folded=True, title="web-01", general_html=general)
+    veil = (f'<div style="position: absolute; inset: 0; background: rgba(7,14,24,.72); display: flex; align-items: center; justify-content: center;">'
+            f'<div style="width: 560px; max-height: 720px; display: flex; flex-direction: column; background: rgba(12,21,34,.94); border: 1px solid rgba(94,200,245,.16); border-radius: 8px; box-shadow: inset 0 1px 0 rgba(232,240,250,.06), {T["shadow_5"]}; overflow: hidden;">'
+            f'<div style="padding: 14px 18px 10px; border-bottom: 1px solid {T["line"]};"><div style="font-size: 13.5px; font-weight: 700; color: {T["ink"]};">Change host</div>'
+            f'<div style="font-size: 11.5px; color: {T["muted"]}; margin-top: 3px;">Used by 2 components. What changes here changes for all of them.</div></div>'
+            f'<div style="flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column;">{panel}</div></div></div>')
+    body = map_toolbar() + map_floor(inner + veil)
+    st = status(stat_text("2 components", T['muted'], mono=False), stat_text("1 connected", T['faint']))
+    write("MapHostPopup.dc.html", page(body, None, home_rail(workspace="map"), st, show_shapes=False))
+
+
 if LIGHT_MODE:
     _w = write
     write = lambda name, content: _w("MainLight.dc.html", content)
@@ -3699,6 +3895,7 @@ else:
                build_home_hosts_credential, build_home_hosts_unknown_key, build_home_hosts_topology,
                build_monitor, build_monitor_processes, build_monitor_ports,
                build_monitor_systemd, build_monitor_logs, build_monitor_hosts_empty,
+               build_map, build_map_component, build_map_host_popup,
                build_anatomy, build_tokens,
                build_hostkeychanged, build_failure, build_paste, build_palette):
         fn()

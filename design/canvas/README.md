@@ -78,6 +78,9 @@ ADR-0020 exists to stop.
 | `TerminalMotd.dc.html` | The brand banner, printed into the terminal on connect (ADR-0051) |
 | `SftpWorkspace.dc.html` | SFTP's own workspace, nothing picked yet (ADR-0044) |
 | `SftpFanout.dc.html` | One source, a grid of up to four destinations (ADR-0045) |
+| `Map.dc.html` | Map, the fifth rail workspace (ADR-0064): the rune at the centre, an SSH terminal open as a window in place, an SFTP browser and a monitor as icons |
+| `MapComponent.dc.html` | Map, one component in every state: saved, collapsed with the session alive, open, the host key question inside its window, a host that did not answer inside its window |
+| `MapHostPopup.dc.html` | Map, the host popup: the Home wizard's own form in a dialog over the map, reached from the picker, the window title and the context menu |
 | `SftpFileOps.dc.html` | Creating, renaming and deleting a file or folder in place (ADR-0048) |
 | `SftpFolderCopy.dc.html` | Copying a folder: one still in progress, one finished with failures (ADR-0049) |
 | `SftpDeleteConfirm.dc.html` | The one question a delete always asks first, scoped to the pane that asked (ADR-0050) |
