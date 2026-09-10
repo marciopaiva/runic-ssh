@@ -10,6 +10,7 @@ import {
   defaultSize,
   removeComponent,
   resetPosition,
+  terminalBox,
   terminalTreatment,
 } from '../../features/map';
 import type { AddRefusal } from '../../features/map';
@@ -33,6 +34,7 @@ const STRIP = 28;
 /** Where a terminal is drawn, relative to the map's own main area. */
 export interface TerminalFrame {
   readonly sessionId: string;
+  readonly componentId: string;
   readonly handle: SessionHandle;
   readonly style: CSSProperties;
   /** The window body's element id, which the terminal is labelled by. */
@@ -269,18 +271,30 @@ export function MapStage({
       if (component === undefined || component.kind !== 'ssh') return;
       const handle = handles.get(component.host);
       if (handle === undefined) return;
+      const box = terminalBox(
+        { left: window.left, top: window.top + STRIP, width: window.width, height: window.height - STRIP },
+        stage.view.scale,
+        thumbnail ? 'thumbnail' : 'refit',
+      );
       out.push({
         sessionId: component.host,
+        componentId: component.id,
         handle,
-        style: { left: window.left, top: window.top + STRIP, width: window.width, height: window.height - STRIP },
+        style: {
+          left: box.left,
+          top: box.top,
+          width: box.width,
+          height: box.height,
+          ...(box.scale === 1 ? {} : { transform: `scale(${box.scale})`, transformOrigin: '0 0', pointerEvents: 'none' }),
+        },
         bodyId: `map-body-${component.id}`,
-        visible: !thumbnail,
-        focused: stage.focused === window.id,
+        visible: true,
+        focused: box.interactive && stage.focused === window.id,
         zIndex: 11 + i * 2,
       });
     });
     return out;
-  }, [componentById, handles, stage.focused, stage.windows, thumbnail]);
+  }, [componentById, handles, stage.focused, stage.view.scale, stage.windows, thumbnail]);
 
   const hub = stage.positions.get(HUB) ?? { x: 0, y: 0 };
   const worldTransform = `translate(${String(stage.view.x)}px, ${String(stage.view.y)}px) scale(${String(stage.view.scale)})`;
@@ -480,7 +494,7 @@ export function MapStage({
           );
         })}
 
-        <MapTerminals frames={frames} {...terminals} />
+        <MapTerminals frames={frames} onPress={stage.focus} {...terminals} />
 
         {stage.snapPreview !== null && (
           <div

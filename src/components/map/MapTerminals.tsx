@@ -25,6 +25,8 @@ interface MapTerminalsProps extends TerminalWiring {
       it keeps the whole area, hidden, the way a background tab does in
       Sessions, so `FitAddon` goes on measuring something real (ADR-0014). */
   readonly frames: readonly TerminalFrame[];
+  /** A press inside a terminal raises its component's window. */
+  readonly onPress: (componentId: string) => void;
 }
 
 /**
@@ -39,6 +41,7 @@ interface MapTerminalsProps extends TerminalWiring {
 export function MapTerminals({
   mounted,
   frames,
+  onPress,
   sessions,
   modifier,
   onSize,
@@ -52,28 +55,40 @@ export function MapTerminals({
         const frame = frames.find((one) => one.sessionId === terminal.sessionId);
         const shown = frame !== undefined && frame.visible;
         return (
-          <TerminalView
+          /* The terminals paint above the windows, outside them in the tree,
+             so a press inside one would otherwise reach the stage and start
+             a pan under the text being selected. `display: contents` keeps
+             the wrapper out of layout; the events still bubble through it. */
+          <div
             key={terminal.sessionId}
-            handle={terminal.handle}
-            session={sessions.find((one) => one.id === terminal.sessionId) ?? null}
-            sessions={sessions}
-            visible={shown}
-            focused={frame?.focused ?? false}
-            frame={
-              frame !== undefined && shown
-                ? { ...frame.style, zIndex: frame.zIndex }
-                : { left: 0, top: 0, width: '100%', height: '100%' }
-            }
-            id={`map-terminal-${terminal.sessionId}`}
-            labelledBy={frame?.bodyId ?? `map-terminal-${terminal.sessionId}`}
-            onPaneFocus={() => {}}
-            onSize={onSize}
-            onFocusHandle={(focus) => onFocusHandle(terminal.sessionId, focus)}
-            modifier={modifier}
-            onPasteNeedsConfirming={(text) => onPasteNeedsConfirming(terminal.sessionId, text)}
-            onInput={(bytes) => onInput(terminal.sessionId, bytes)}
-            broadcasting={false}
-          />
+            style={{ display: 'contents' }}
+            onPointerDown={(event) => {
+              event.stopPropagation();
+              if (frame !== undefined) onPress(frame.componentId);
+            }}
+          >
+            <TerminalView
+              handle={terminal.handle}
+              session={sessions.find((one) => one.id === terminal.sessionId) ?? null}
+              sessions={sessions}
+              visible={shown}
+              focused={frame?.focused ?? false}
+              frame={
+                frame !== undefined && shown
+                  ? { ...frame.style, zIndex: frame.zIndex }
+                  : { left: 0, top: 0, width: '100%', height: '100%' }
+              }
+              id={`map-terminal-${terminal.sessionId}`}
+              labelledBy={frame?.bodyId ?? `map-terminal-${terminal.sessionId}`}
+              onPaneFocus={() => {}}
+              onSize={onSize}
+              onFocusHandle={(focus) => onFocusHandle(terminal.sessionId, focus)}
+              modifier={modifier}
+              onPasteNeedsConfirming={(text) => onPasteNeedsConfirming(terminal.sessionId, text)}
+              onInput={(bytes) => onInput(terminal.sessionId, bytes)}
+              broadcasting={false}
+            />
+          </div>
         );
       })}
     </>

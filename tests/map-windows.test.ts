@@ -10,6 +10,7 @@ import {
   SNAP_MARGIN,
   edgePoint,
   keepInside,
+  terminalBox,
   resizeCursor,
   resizeFrom,
   snapRect,
@@ -105,5 +106,19 @@ describe('keeping a window on the stage', () => {
   it('does nothing on a stage that has not been measured', () => {
     const rect = { left: -40, top: -90, width: 360, height: 200 };
     expect(keepInside(rect, 0, 0)).toBe(rect);
+  });
+});
+
+describe('the box a terminal is drawn in', () => {
+  const body = { left: 100, top: 128, width: 560, height: 332 };
+
+  it('refits at 1:1, held in from the sides the resize handles sit on', () => {
+    expect(terminalBox(body, 1, 'refit')).toEqual({ left: 104, top: 128, width: 552, height: 328, scale: 1, interactive: true });
+    expect(terminalBox(body, 1.2, 'refit').scale).toBe(1);
+  });
+
+  it('keeps its 100% size as a thumbnail and scales the drawing instead', () => {
+    const box = terminalBox({ left: 100, top: 128, width: 280, height: 166 }, 0.5, 'thumbnail');
+    expect(box).toEqual({ left: 104, top: 128, width: 544, height: 324, scale: 0.5, interactive: false });
   });
 });

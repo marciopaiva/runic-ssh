@@ -50,10 +50,12 @@ export {
   SNAP_MARGIN,
   edgePoint,
   keepInside,
+  terminalBox,
+  TERMINAL_INSET,
   resizeCursor,
   resizeFrom,
   snapRect,
   snapZone,
 } from './windows';
-export type { ResizeHandle, Resized, SnapSide, StageRect } from './windows';
+export type { ResizeHandle, Resized, SnapSide, StageRect, TerminalBox } from './windows';
 export { mapTerminals, mountedOnce } from './mounted';

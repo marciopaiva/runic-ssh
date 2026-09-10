@@ -138,3 +138,37 @@ export function edgePoint(centre: Point, size: Size, towards: Point, inset: numb
   const t = Math.min(hw / (Math.abs(ux) || 1e-9), hh / (Math.abs(uy) || 1e-9));
   return { x: centre.x + ux * t, y: centre.y + uy * t };
 }
+
+/** How far a terminal stays in from its window's sides, so the resize
+    handles centred on those edges are never under it. */
+export const TERMINAL_INSET = 4;
+
+/**
+ * The box a terminal is drawn in for a window body, and at what scale.
+ *
+ * Refit: the terminal fills the body at 1:1 and FitAddon picks the columns
+ * and rows for it; zooming changes the remote pty's size, which is the
+ * point of that treatment. Thumbnail: the terminal keeps the size it had at
+ * 100% and is drawn through a CSS transform instead, so a zoom out never
+ * sends a window change to the shell; it takes no input until zoomed back
+ * in (`docs/measurements/terminal-under-zoom.md`).
+ */
+export interface TerminalBox {
+  readonly left: number;
+  readonly top: number;
+  readonly width: number;
+  readonly height: number;
+  /** 1 for a refit terminal; the view's scale for a thumbnail. */
+  readonly scale: number;
+  readonly interactive: boolean;
+}
+
+export function terminalBox(body: StageRect, viewScale: number, treatment: 'refit' | 'thumbnail'): TerminalBox {
+  const inset = TERMINAL_INSET;
+  const left = body.left + inset;
+  const top = body.top;
+  const width = Math.max(0, body.width - inset * 2);
+  const height = Math.max(0, body.height - inset);
+  if (treatment === 'refit') return { left, top, width, height, scale: 1, interactive: true };
+  return { left, top, width: width / viewScale, height: height / viewScale, scale: viewScale, interactive: false };
+}
