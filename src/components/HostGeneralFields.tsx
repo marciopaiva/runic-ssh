@@ -26,6 +26,8 @@ interface HostGeneralFieldsProps {
    * saved host's group field by hand.
    */
   readonly groupNames: readonly string[];
+  /** The map draws no Group: layers and visions group there (ADR-0064). */
+  readonly showGroup?: boolean;
   /** Focused on mount, when the caller wants it. */
   readonly firstRef?: RefObject<HTMLInputElement | null>;
 }
@@ -46,6 +48,7 @@ export function HostGeneralFields({
   onChange,
   duplicate,
   groupNames,
+  showGroup = true,
   firstRef,
 }: HostGeneralFieldsProps): JSX.Element {
   const i18n = useTranslator();
@@ -137,6 +140,7 @@ export function HostGeneralFields({
         hint: i18n.t('session.editor.nameHint'),
       })}
 
+      {showGroup && (
       <label ref={groupBox} className="relative flex flex-col gap-1">
         <span className="text-ink-muted text-[11px]">{i18n.t('session.editor.group')}</span>
         <input
@@ -184,6 +188,7 @@ export function HostGeneralFields({
           </div>
         )}
       </label>
+      )}
     </div>
   );
 }

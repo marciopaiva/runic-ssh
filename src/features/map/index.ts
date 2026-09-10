@@ -2,6 +2,7 @@ export {
   DEFAULT_SIZE,
   MIN_SIZE,
   addComponent,
+  placeSavedHost,
   changeHost,
   componentsOn,
   defaultSize,
@@ -14,7 +15,7 @@ export {
   sizeOf,
   surfaceOn,
 } from './model';
-export type { AddOutcome, AddRefusal } from './model';
+export type { AddOutcome, AddRefusal, HostAsk } from './model';
 export {
   HOME_VIEW,
   HONEYCOMB_STEP,

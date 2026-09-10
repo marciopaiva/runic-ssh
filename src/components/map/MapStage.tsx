@@ -13,7 +13,7 @@ import {
   terminalBox,
   terminalTreatment,
 } from '../../features/map';
-import type { AddRefusal } from '../../features/map';
+import type { AddRefusal, HostAsk } from '../../features/map';
 import { HUB, useMapStage } from '../../features/map/use-map-stage';
 import { useTranslator } from '../../features/settings';
 
@@ -22,6 +22,7 @@ import { MapTerminals } from './MapTerminals';
 import type { TerminalWiring } from './MapTerminals';
 import { ComponentWindow } from './ComponentWindow';
 import { HostPicker } from './HostPicker';
+import { HostPopup } from './HostPopup';
 import { MapMenu } from './MapMenu';
 import type { MapMenuItem } from './MapMenu';
 import { Radial } from './Radial';
@@ -44,6 +45,13 @@ export interface TerminalFrame {
   readonly zIndex: number;
 }
 
+export interface HostPopupState {
+  readonly title: string;
+  readonly detail: string;
+  readonly element: ReactNode;
+  readonly onClose: () => void;
+}
+
 interface MapStageProps {
   readonly workspace: Workspace;
   readonly onChange: (next: Workspace) => void;
@@ -57,8 +65,14 @@ interface MapStageProps {
       `null` when nothing is being asked about it. Drawn inside the window,
       which is what ADR-0015 means once a window is the session's surface. */
   readonly attemptSurface: (sessionId: string) => JSX.Element | null;
+  /** Opens the host editor over the map for a host already in the book:
+      the window's title and the context menu (#357). */
   readonly onEditHost: (sessionId: string) => void;
-  readonly onNewHost: (name: string) => void;
+  /** Opens the host editor over the map for a host not in the book yet,
+      with `name` typed in and `ask` saying where the saved host goes. */
+  readonly onNewHost: (name: string, ask: HostAsk) => void;
+  /** The editor over the map, framed by `HostPopup`, or nothing. */
+  readonly hostPopup: HostPopupState | null;
   /** The terminals: which are mounted, and what the shell wires into each.
       Mounted here in one stable stack (ADR-0014) and aimed at the frames
       this stage computes. */
@@ -98,6 +112,7 @@ export function MapStage({
   attemptSurface,
   onEditHost,
   onNewHost,
+  hostPopup,
   terminals,
   renderSftp,
   renderMonitor,
@@ -548,11 +563,18 @@ export function MapStage({
           refusal={picker.refusal}
           onPick={pick}
           onNewHost={(name) => {
+            const ask: HostAsk = { kind: picker.changing === null ? picker.kind : null, changing: picker.changing };
             setPicker(null);
-            onNewHost(name);
+            onNewHost(name, ask);
           }}
           onClose={() => setPicker(null)}
         />
+      )}
+
+      {hostPopup !== null && (
+        <HostPopup title={hostPopup.title} detail={hostPopup.detail} onClose={hostPopup.onClose}>
+          {hostPopup.element}
+        </HostPopup>
       )}
     </div>
   );

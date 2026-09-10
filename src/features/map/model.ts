@@ -190,3 +190,38 @@ export function defaultSize(workspace: Workspace, id: string): Workspace {
 export function sizeOf(component: Component): Size {
   return component.size ?? DEFAULT_SIZE[component.kind];
 }
+
+/**
+ * What the map asked the host editor for, so the host it saves lands where
+ * it was asked: a new component of `kind`, the host of the component
+ * `changing`, or nothing when the editor was opened only to change a host's
+ * details (#357).
+ */
+export interface HostAsk {
+  readonly kind: ComponentKind | null;
+  readonly changing: string | null;
+}
+
+/**
+ * The map after the editor saved `host`: the component the ask was for, or
+ * the map unchanged when nothing was asked. `null` when the model refuses,
+ * which is the picker's own refusal (a duplicate, an unknown host) reached
+ * by another door; the caller reports it the way the picker would.
+ */
+export function placeSavedHost(
+  workspace: Workspace,
+  ask: HostAsk,
+  host: string,
+  hosts: readonly Session[],
+): Workspace | null {
+  if (ask.changing !== null) {
+    const outcome = changeHost(workspace, ask.changing, host, hosts);
+    return outcome.ok ? outcome.workspace : null;
+  }
+  if (ask.kind !== null) {
+    const outcome = addComponent(workspace, ask.kind, host, hosts);
+    return outcome.ok ? outcome.workspace : null;
+  }
+  return workspace;
+}
+

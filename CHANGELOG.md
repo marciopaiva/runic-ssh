@@ -35,6 +35,13 @@ roadmap rather than moved again (#128 stays open, unscheduled).
   per host and kind; a component whose host is deleted from the book is
   dropped on the next load (ADR-0064).
 - Glass, depth and map surface tokens in `tokens.css`, in every theme.
+- Registering or changing a host from the map happens over the map: the
+  picker's "Register" row, a window's title and the component's context
+  menu open Home's own host editor in a glass popup on the stage, without
+  the Group field. A host saved for a component lands on the map as that
+  component the moment its proof settles, and a connection the map asked
+  for that finds no credential is answered in the same popup and resumes
+  in its window (#357).
 
 ### Changed
 
@@ -45,8 +52,6 @@ roadmap rather than moved again (#128 stays open, unscheduled).
 
 ### Known limitations
 
-- Registering or editing a host from the map goes to Home's own editor and
-  comes back; the popup over the map that the canvas draws is not built yet.
 - A terminal in a window below 75% zoom is drawn as a thumbnail and takes no
   input until zoomed back in (`docs/measurements/terminal-under-zoom.md`).
 - The map's own toolbar (crumb, search, zoom, recenter) sits inside the
