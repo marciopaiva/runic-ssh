@@ -9,6 +9,8 @@ export interface MapMenuItem {
   readonly detail?: string;
   readonly color?: string;
   readonly danger?: boolean;
+  /** Offered and not takeable: the entry says what the gesture is for. */
+  readonly disabled?: boolean;
 }
 
 interface MapMenuProps {
@@ -69,10 +71,14 @@ export function MapMenu({ at, title, items, onPick, onClose }: MapMenuProps): JS
           ref={i === 0 ? first : undefined}
           type="button"
           role="menuitem"
+          disabled={item.disabled === true}
+          aria-disabled={item.disabled === true}
           className={`flex h-7 w-full items-center gap-2 rounded px-2.5 text-left text-[12px] ${
             item.danger ? 'text-danger-text' : 'text-ink-secondary'
-          } hover:bg-surface-raised hover:text-ink focus-visible:bg-surface-raised focus-visible:outline-none`}
-          onClick={() => onPick(item.id)}
+          } hover:bg-surface-raised hover:text-ink focus-visible:bg-surface-raised focus-visible:outline-none disabled:opacity-40 disabled:hover:bg-transparent`}
+          onClick={() => {
+            if (item.disabled !== true) onPick(item.id);
+          }}
         >
           <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: item.color ?? 'transparent' }} aria-hidden="true" />
           {item.label}

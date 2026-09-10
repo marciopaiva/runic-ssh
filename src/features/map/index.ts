@@ -76,3 +76,5 @@ export {
 } from './windows';
 export type { ResizeHandle, Resized, SnapSide, StageRect, TerminalBox } from './windows';
 export { mapTerminals, mountedOnce } from './mounted';
+export { terminalMenu } from './menu';
+export type { TerminalMenuEntry, TerminalMenuId, TerminalMenuState } from './menu';

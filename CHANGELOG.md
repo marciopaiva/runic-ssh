@@ -31,6 +31,10 @@ with the caveat that anything below 1.0 may break, and this project intends to.
   more than one will receive; a line from this machine is an upload, a line
   to it a download. Transfers show in the same bar the SFTP workspace has,
   now under the map too.
+- A menu on the terminal window of the map, on the right button: Copy and
+  Paste with their shortcuts beside them, Broadcast when another terminal
+  is free to join, and the window's own spare and include on an armed
+  line. Sessions' panes keep the webview's menu until v0.9.0 (#115).
 
 ### Fixed
 
@@ -40,6 +44,14 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 - A map window's name no longer wraps onto two lines in the strip when the
   map is zoomed out; the address gives way first, then the name truncates
   (#364).
+
+### Known limitations
+
+- On Linux, "Paste" in the map terminal's menu does nothing: WebKitGTK
+  refuses a paste asked by a script, even from a click. Ctrl-Shift-V pastes,
+  and the entry is where the shortcut is written down
+  (`docs/measurements/terminal-menu-clipboard.md`). Windows has not been
+  measured.
 
 ## [0.6.0] — 2026-09-10
 

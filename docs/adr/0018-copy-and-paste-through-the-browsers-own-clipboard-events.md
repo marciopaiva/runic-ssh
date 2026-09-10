@@ -131,3 +131,12 @@ comment argues the point. Revisit if an xterm release starts cancelling
 Ctrl-Shift-C or Ctrl-Shift-V, or if the one lost Ctrl-C turns out to bite in
 practice, in which case the setting this ADR declined to add becomes worth its
 cost.
+
+**Follow-up, 2026-09-10**: the menu exists on the map's terminal window
+(#115, v0.7.0). Its Copy and Paste entries reach the clipboard through
+`document.execCommand`, the same `copy` and `paste` events as the keys, so
+nothing here is widened. On WebKitGTK `execCommand('paste')` from a click
+does nothing; the measurement is in
+`docs/measurements/terminal-menu-clipboard.md`, and the setting that would
+change it, `javascript-can-access-clipboard`, is the widening this document
+refused, to be decided on its own if ever.

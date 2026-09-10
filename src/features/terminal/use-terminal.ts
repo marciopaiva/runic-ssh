@@ -5,7 +5,7 @@
  * component below is a div and a ref.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Terminal } from '@xterm/xterm';
 
 import { openTerminal, resizeTerminal, watchTerminal } from '../../ipc';
@@ -20,6 +20,21 @@ import { terminalTheme } from './theme';
 export interface TerminalSize {
   readonly columns: number;
   readonly rows: number;
+}
+
+/**
+ * The clipboard, reached from a menu rather than a key (#115, ADR-0018's
+ * follow-up). Both go through `document.execCommand`, which raises the
+ * same `copy` and `paste` events a keystroke does, so xterm's own handlers
+ * and the paste confirmation above run unchanged; nothing here reads or
+ * writes the clipboard directly, and nothing asks for a permission. Each
+ * returns what the browser said: `false` is a webview that refused, which
+ * `docs/measurements/terminal-menu-clipboard.md` records per platform.
+ */
+export interface ClipboardApi {
+  readonly hasSelection: () => boolean;
+  readonly copy: () => boolean;
+  readonly paste: () => boolean;
 }
 
 export interface TerminalState {
@@ -49,6 +64,8 @@ export interface TerminalState {
   /** Moves the keyboard caret into this terminal. A no-op before the
       terminal has finished mounting, since nothing is there yet to catch it. */
   readonly focus: () => void;
+  /** The clipboard from a menu; see {@link ClipboardApi}. */
+  readonly clipboard: ClipboardApi;
 }
 
 /**
@@ -72,7 +89,7 @@ export function useTerminal(
   sessions: readonly Session[],
 ): TerminalState {
   const i18n = useTranslator();
-  const [state, setState] = useState<Omit<TerminalState, 'focus'>>({
+  const [state, setState] = useState<Omit<TerminalState, 'focus' | 'clipboard'>>({
     closed: false,
     exitStatus: null,
     size: null,
@@ -88,6 +105,24 @@ export function useTerminal(
   const focus = useCallback((): void => {
     terminalRef.current?.focus();
   }, []);
+  const clipboard = useMemo<ClipboardApi>(
+    () => ({
+      hasSelection: () => terminalRef.current?.hasSelection() ?? false,
+      copy: () => {
+        const terminal = terminalRef.current;
+        if (terminal === null || !terminal.hasSelection()) return false;
+        terminal.focus();
+        return document.execCommand('copy');
+      },
+      paste: () => {
+        const terminal = terminalRef.current;
+        if (terminal === null) return false;
+        terminal.focus();
+        return document.execCommand('paste');
+      },
+    }),
+    [],
+  );
 
   /* Also a ref, for a different reason: the effect below mounts an xterm, and
      it must not tear one down and build another because a parent re-rendered
@@ -291,5 +326,5 @@ export function useTerminal(
     };
   }, [container, handle]);
 
-  return { ...state, focus };
+  return { ...state, focus, clipboard };
 }

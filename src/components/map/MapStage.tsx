@@ -4,6 +4,7 @@ import type { CSSProperties, JSX, ReactNode } from 'react';
 import type { Component, ComponentKind, Link, Point, Session, SessionHandle, Size, Workspace } from '../../ipc';
 import { isCursorPositionReport } from '../../features/terminal/clipboard';
 import type { MountedTerminal } from '../../features/terminal';
+import type { ClipboardApi } from '../../features/terminal/use-terminal';
 import {
   addComponent,
   addLink,
@@ -26,6 +27,7 @@ import {
   resetPosition,
   setKey,
   terminalBox,
+  terminalMenu,
   terminalTreatment,
   toStage,
 } from '../../features/map';
@@ -58,6 +60,8 @@ const ICON_BOX: Size = { w: 96, h: 112 };
 
 /** The menu target for a line, so one menu path serves nodes and lines. */
 const LINE_TARGET = 'line:';
+/** The menu target for the inside of a terminal window (#115). */
+const TERMINAL_TARGET = 'terminal:';
 
 /** Where a terminal is drawn, relative to the map's own main area. */
 export interface TerminalFrame {
@@ -230,6 +234,31 @@ export function MapStage({
       if (target.startsWith(LINE_TARGET)) {
         return [{ id: 'unlink', label: i18n.t('map.line.remove'), detail: i18n.t('map.line.remove.detail'), danger: true }];
       }
+      if (target.startsWith(TERMINAL_TARGET)) {
+        const id = target.slice(TERMINAL_TARGET.length);
+        const component = componentById.get(id);
+        if (component === undefined || component.host === undefined) return [];
+        const clipboard = clipboards.current.get(component.host);
+        const entries = terminalMenu({
+          hasSelection: clipboard?.hasSelection() ?? false,
+          reachable: level.some((other) => other.id !== id && canLink(workspace, id, other.id) === null),
+          broadcast: broadcastRef.current(id),
+        });
+        /* The shortcut beside each entry is the point of the menu (#115): a
+           person who opens it learns the key exists. On WebKitGTK the Paste
+           entry is that signpost and no more; see
+           `docs/measurements/terminal-menu-clipboard.md`. */
+        const shortcut = (key: string): string =>
+          i18n.t(terminals.modifier === 'meta' ? 'map.terminal.shortcut.meta' : 'map.terminal.shortcut.control', { key });
+        const labels: Record<(typeof entries)[number]['id'], { readonly label: string; readonly detail?: string; readonly color?: string }> = {
+          copy: { label: i18n.t('map.terminal.copy'), detail: shortcut('C') },
+          paste: { label: i18n.t('map.terminal.paste'), detail: shortcut('V') },
+          broadcast: { label: i18n.t('map.menu.broadcast'), detail: i18n.t('map.menu.broadcast.detail'), color: 'var(--rs-state-warn)' },
+          mute: { label: i18n.t('map.terminal.mute') },
+          unmute: { label: i18n.t('map.terminal.unmute') },
+        };
+        return entries.map((entry) => ({ id: entry.id, disabled: entry.disabled, ...labels[entry.id] }));
+      }
       const component = componentById.get(target);
       if (component === undefined) return [];
       const items: (MapMenuItem & { readonly listOnly?: boolean })[] = [
@@ -268,7 +297,7 @@ export function MapStage({
       items.push({ id: 'remove', label: i18n.t('map.menu.remove'), detail: i18n.t('map.menu.remove.detail'), danger: true });
       return items;
     },
-    [componentById, handles, i18n, kindLabel, level, workspace],
+    [componentById, handles, i18n, kindLabel, level, terminals.modifier, workspace],
   );
 
   /* The hook is declared below and its callbacks are read through these
@@ -280,6 +309,13 @@ export function MapStage({
   const openWindowRef = useRef<(id: string) => void>(() => {});
   const focusRef = useRef<(id: string) => void>(() => {});
   const startLinkRef = useRef<(id: string) => void>(() => {});
+  const broadcastRef = useRef<(id: string) => 'receiving' | 'muted' | 'armed' | null>(() => null);
+  const toggleMuteRef = useRef<(id: string) => void>(() => {});
+  /* Each mounted terminal's clipboard, by session (#115). */
+  const clipboards = useRef(new Map<string, ClipboardApi>());
+  const onClipboardHandle = useCallback((sessionId: string, clipboard: ClipboardApi): void => {
+    clipboards.current.set(sessionId, clipboard);
+  }, []);
 
   const closeComponent = useCallback(
     (component: Component): void => {
@@ -306,6 +342,28 @@ export function MapStage({
         return;
       }
       if (target === null) return;
+      if (target.startsWith(TERMINAL_TARGET)) {
+        const id = target.slice(TERMINAL_TARGET.length);
+        const component = componentById.get(id);
+        if (component === undefined || component.host === undefined) return;
+        const clipboard = clipboards.current.get(component.host);
+        switch (action) {
+          case 'copy':
+            clipboard?.copy();
+            return;
+          case 'paste':
+            clipboard?.paste();
+            return;
+          case 'broadcast':
+            startLinkRef.current(id);
+            return;
+          case 'mute':
+          case 'unmute':
+            toggleMuteRef.current(id);
+            return;
+        }
+        return;
+      }
       if (target.startsWith(LINE_TARGET)) {
         if (action !== 'unlink') return;
         const key = target.slice(LINE_TARGET.length);
@@ -452,6 +510,8 @@ export function MapStage({
     },
     [armed, muted, receivingSet, workspace],
   );
+  broadcastRef.current = broadcastOf;
+  toggleMuteRef.current = toggleMute;
 
   /* The map's own routing: a keystroke typed in a map window reaches every
      receiving window on its set, and only those (ADR-0065 rule 4). The
@@ -695,6 +755,7 @@ export function MapStage({
       const line = lines.find((one) => `${LINE_TARGET}${one.key}` === target);
       return line === undefined ? '' : lineTitle(line.link);
     }
+    if (target.startsWith(TERMINAL_TARGET)) return nameOf(target.slice(TERMINAL_TARGET.length));
     return nameOf(target);
   };
   const lineTitle = useCallback(
@@ -961,7 +1022,13 @@ export function MapStage({
           );
         })}
 
-        <MapTerminals frames={frames} onPress={stage.focus} {...routedTerminals} />
+        <MapTerminals
+          frames={frames}
+          onPress={stage.focus}
+          onContextMenu={(componentId, at) => stage.openMenu(`${TERMINAL_TARGET}${componentId}`, at)}
+          onClipboardHandle={onClipboardHandle}
+          {...routedTerminals}
+        />
 
         {lines.map((line) => {
           const onContextMenu = (event: React.MouseEvent): void => {
