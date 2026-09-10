@@ -131,3 +131,12 @@ still seeing a window mid-test, no longer exists. Revisit this decision
 outright if Home ever gains a reason to keep a terminal mounted across a
 workspace switch; the guard will fail first, but the reasoning above will
 need rewriting, not just the code.
+
+**Follow-up, 2026-09-10**: v0.6.0 opened that gap once, on purpose and
+written down. The map's host popup (#357) renders this same editor, field
+included, over a stage whose terminals stay mounted (ADR-0064); the guard
+above was widened to admit that second mount site, and the premise in
+Context no longer holds for that popup. `docs/security-model.md`, "What the
+map stores", records what still protects the field there, and #360 carries
+the decision this document says has to be remade, scheduled with the v0.9.0
+cut that removes Sessions altogether.

@@ -331,6 +331,49 @@ does not get is the multi-line paste check, and it does not need it: a
 person saved that text on purpose, newline included, which is the opposite
 of a clipboard whose contents they may not have looked at.
 
+## What the map stores
+
+The map (`config/workspace.rs`, ADR-0064) is a second file beside
+`sessions.json`: `workspace.json` holds, per component, a host's id, a kind
+(SSH, SFTP, Monitor), a position and a size. It stores no credential, no
+host key and no host address; every entry is a reference into the host book,
+and a reference to a host that no longer exists is dropped on the next load
+rather than resolved. Adversary 3 learns from it exactly what `sessions.json`
+already told them, which hosts a person keeps, plus how they are laid out,
+which is not a secret worth a rule.
+
+What the map does move is where a credential is asked for, and it moves
+nothing about how. Registering or editing a host from the map opens the same
+host editor Home draws, in a popup over the stage, and the credential is
+collected there before save the way ADR-0057 requires (ADR-0034: the editor
+is the only path a credential takes into the keychain). A connection the map
+starts that finds no credential is answered in that popup and resumed
+afterwards, ADR-0039 and ADR-0040 unchanged. Rule 1 holds because the map
+adds no path: the popup is the editor, not a copy of it.
+
+A host key question raised by a connection the map started is rendered
+inside the component's window, and it is the same surface with the same
+rules, rule 3 included: an unknown key arms nothing until the person says
+they checked the fingerprint elsewhere, and a changed key blocks.
+
+One thing the map does weaken, and it is written here rather than left to be
+found. ADR-0032 put the credential field inline in the host editor on a
+checked premise: no terminal is mounted while Home shows, so the failure
+mode ADR-0008 named, a bug in the code decoding a host's bytes reaching
+`document.querySelector('input').value` in the same document, had nothing
+to reach. The map's popup is that same editor, credential field included,
+drawn over a stage whose terminals stay mounted underneath it, hidden by a
+veil that is visual and nothing more. The premise ADR-0032 relied on does
+not hold for that popup. What still holds: the terminal renders through
+xterm.js into its own canvas, the bytes a host sends are never interpolated
+into markup anywhere in this document, and the field is uncontrolled and
+submitted straight to the core, so the exposure is the one ADR-0032 already
+accepted for Home's own inline field, minus the structural argument that
+made it moot there. v0.9.0 removes Sessions and moves every editor into the
+map, at which point ADR-0032 has to be revisited outright, the way its own
+follow-up says; #360 tracks that, and until then a person who wants the
+stronger guarantee back edits hosts from Home, where it still holds.
+
 ## Reviewing a change
 
 Any change touching `vault/`, host key verification, logging, or

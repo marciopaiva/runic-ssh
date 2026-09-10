@@ -40,7 +40,7 @@ ADR-0020 exists to stop.
 | Page | What is on it |
 | --- | --- |
 | `System` | The anatomy and its seven rules, and the token, type, density and marker sheet |
-| `Surfaces` | Thirty-two screens |
+| `Surfaces` | Thirty-five screens |
 | `Variants` | Light, and the same window in pt-BR and neutral es |
 
 ## Files

@@ -872,6 +872,44 @@ Confirmed on Linux on 2026-09-04 in the packaged v0.4.0 build: a plain
 host folded both sections; the same host, after the Local forward above
 was added and saved, opened Forwarding automatically on the next visit.
 
+### The map (ADR-0064)
+
+Two saved hosts in the book, one of them (`web-01`, port 2222) with a
+password the keychain holds, the other not yet registered. The map is the
+fifth slot on the rail.
+
+| Do this | Expect |
+| --- | --- |
+| Right-click the floor, pick "SSH terminal", pick `web-01` in the picker | an icon in the ring around the rune, joined to it by a wire; `workspace.json` in the config dir holds one component with the host's id, `"ssh"`, a position and a size |
+| Click the icon | it expands into a window where it stands; the window connects, the shell opens with the MOTD, typing reaches it |
+| Drag the window by its strip, in real steps; drag its bottom-right corner | it moves, and it resizes with the terminal refitting to the new size |
+| Double-click the strip, then again | maximized to the stage, then restored where it was |
+| Wheel down over the floor until the window reads below 75% | the terminal is drawn as a thumbnail, scaled with the window; wheel back up and it refits 1:1 |
+| Click the window's minimize | back to the icon; click the icon, the same shell, still open |
+| Right-click the floor, "SFTP browser", type `lb-01` in the picker, click the "Register lb-01" row | the host editor opens in a glass popup over the map, titled "New host", with no Group field; fill port 2224 and a password, Save |
+| The unknown host key is asked inside the popup; check the fingerprint, confirm | the popup closes and an SFTP icon for `lb-01` sits in the ring |
+| Right-click the SSH icon, "Change host details" | the popup opens on `web-01`, detail "Used by 1 component"; Cancel |
+| Forget `web-01`'s password from its editor in Home, return to the map, click its icon | the window asks nothing; the popup opens on `web-01` with the "needs to authenticate" note (#358, #357); enter the password, Save |
+| | the connection resumes into the window, the shell opens there, and Sessions gains no tab for it (ADR-0040, ADR-0053) |
+
+Confirmed on Linux on 2026-09-10, headlessly on a private `Xvfb` display
+with `openbox`, in the dev build against `runic-test-sshd` on 2222 and 2224,
+in both themes, every row as written. The drags were the multi-step form
+"What synthetic input can and cannot drive" below requires; a single jump
+left the window in place. Two things the rows depend on, found on the way:
+
+* A menu item's `pointerdown` reached the stage, which started a pan and
+  unmounted the menu before its `click` fired; the picker never appeared.
+  The menu stops propagation now. Anything drawn over the stage has to.
+* A terminal rendered inside a window covered the window's resize handles,
+  and a press inside it panned the map. The terminal is inset from the
+  handles by four pixels and stops the press from reaching the stage.
+
+Snapping a window to an edge, and keeping its scrollback across minimize,
+are in the code and not in this table: nobody has driven them yet. The
+packaged v0.6.0 build gets the first six rows again when it is installed
+from the release page; see `docs/installing.md`.
+
 ### SFTP
 
 ADR-0044 through ADR-0049. One fixture on 2222 is enough for browsing,
