@@ -40,7 +40,7 @@ ADR-0020 exists to stop.
 | Page | What is on it |
 | --- | --- |
 | `System` | The anatomy and its seven rules, and the token, type, density and marker sheet |
-| `Surfaces` | Thirty-five screens |
+| `Surfaces` | Thirty-six screens |
 | `Variants` | Light, and the same window in pt-BR and neutral es |
 
 ## Files
@@ -81,6 +81,7 @@ ADR-0020 exists to stop.
 | `Map.dc.html` | Map, the fifth rail workspace (ADR-0064): the rune at the centre, an SSH terminal open as a window in place, an SFTP browser and a monitor as icons |
 | `MapComponent.dc.html` | Map, one component in every state: saved, collapsed with the session alive, open, the host key question inside its window, a host that did not answer inside its window |
 | `MapHostPopup.dc.html` | Map, the host popup: the Home wizard's own form in a dialog over the map, reached from the picker, the window title and the context menu |
+| `MapLines.dc.html` | Map, lines (ADR-0065): three terminals on one line with its switch armed, two receiving and one muted from its strip; the local machine as a component, three files selected, two directed lines to two hosts and the button that sends to both |
 | `SftpFileOps.dc.html` | Creating, renaming and deleting a file or folder in place (ADR-0048) |
 | `SftpFolderCopy.dc.html` | Copying a folder: one still in progress, one finished with failures (ADR-0049) |
 | `SftpDeleteConfirm.dc.html` | The one question a delete always asks first, scoped to the pane that asked (ADR-0050) |

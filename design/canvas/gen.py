@@ -3274,6 +3274,90 @@ def sheet(title, sub, body, h=900):
 </div>
 """ + FOOT)
 
+def map_line(x1, y1, x2, y2, armed=False, directed=False):
+    """A line between two components (ADR-0065). Solid where the rune's
+    wires are dashed, because it carries something: a keystroke, armed in
+    the warning colour ADR-0019 gives a receiving pane; or a file, with an
+    arrowhead at the destination, since order is direction there."""
+    color = T['warn'] if (armed or directed) else T['line2']
+    marker = ' marker-end="url(#arrowhead)"' if directed else ''
+    return f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="{color}" stroke-width="{1.6 if armed or directed else 1.2}" opacity="{.85 if armed else .7}"{marker}></line>'
+
+def map_arrowhead():
+    return f'<defs><marker id="arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="{T["warn"]}"></path></marker></defs>'
+
+def map_switch(x, y, on):
+    """The switch on a terminal line: one per connected set, off by default
+    (ADR-0019). Drawn in screen space like a window, so it stays this size
+    at any zoom, and pressed, it captures on itself (#363)."""
+    bg = T['warn'] if on else T['raised']
+    knob_left = 19 if on else 3
+    title = "Stop typing into every window on this line" if on else "Type into every window on this line at once"
+    return (f'<div title="{title}" style="position: absolute; left: {x}px; top: {y}px; transform: translate(-50%, -50%); width: 36px; height: 20px; border-radius: 10px;'
+            f' background: {bg}; border: 1px solid {T["warn"] if on else T["line2"]}; box-shadow: {T["shadow_3"]};">'
+            f'<span style="position: absolute; top: 2px; left: {knob_left}px; width: 14px; height: 14px; border-radius: 50%; background: {T["ink"] if on else T["muted"]};"></span></div>')
+
+def map_send(x, y, count):
+    """The button on a file-browser line: sends the origin's selection to
+    every destination the origin has a line to, asking first when there is
+    more than one (ADR-0045)."""
+    return (f'<div title="Send to every destination" style="position: absolute; left: {x}px; top: {y}px; transform: translate(-50%, -50%); width: 28px; height: 28px; border-radius: 50%;'
+            f' background: {T["warn"]}; color: {T["base"]}; display: flex; align-items: center; justify-content: center; box-shadow: {T["shadow_3"]};">'
+            f'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="width: 14px; height: 14px;"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>'
+            f'<span class="mono" style="position: absolute; top: -8px; right: -10px; font-size: 9.5px; font-weight: 700; color: {T["warn"]}; background: {T["base"]}; border: 1px solid {T["warn"]}; border-radius: 8px; padding: 0 5px;">{count}</span></div>')
+
+def map_strip_tag(text, color, struck=False):
+    deco = " text-decoration: line-through;" if struck else ""
+    return (f'<span style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.1em; color: {color}; border: 1px solid {color};'
+            f' border-radius: 4px; padding: 1px 6px;{deco}">{text}</span>')
+
+def map_local_body(rows):
+    """`SftpPane` on the local endpoint, the pane the SFTP workspace already
+    draws for `localhost`: a path bar and a listing, three rows selected."""
+    def row(name, is_dir, selected):
+        i = (f'<svg class="ic" viewBox="0 0 24 24" style="width: 12px; height: 12px; color: {T["warn"] if is_dir else T["faint"]};">'
+             + ('<path d="M3 6h6l2 2h10v11H3z"></path>' if is_dir else '<path d="M6 3h8l4 4v14H6z"></path><path d="M14 3v4h4"></path>') + '</svg>')
+        bg = "rgba(94,200,245,.14)" if selected else "transparent"
+        return (f'<div style="display: flex; align-items: center; gap: 7px; padding: 3px 10px; background: {bg};">{i}'
+                f'<span class="mono" style="font-size: 11px; color: {T["ink"] if selected else T["ink2"]};">{name}</span></div>')
+    bar = (f'<div style="height: 24px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 10px; background: {T["chrome"]}; border-bottom: 1px solid {T["line"]};">'
+           f'<span class="mono" style="font-size: 10.5px; color: {T["muted"]};">/home/marcio/releases/0.7.0</span></div>')
+    return bar + f'<div style="flex: 1; padding: 4px 0; overflow: hidden;">' + "".join(row(*r) for r in rows) + '</div>'
+
+def build_map_lines():
+    """Lines (v0.7.0, ADR-0065). Above: three terminals on one line, the
+    switch armed, two receiving with the warning edge and one muted from
+    its own strip. Below: the local machine, a component of its own, with
+    three files selected and two directed lines to two hosts; the button on
+    a line sends the selection to both, after the question ADR-0045 asks
+    when more than one destination will receive."""
+    w1, w2, w3 = (250, 205), (700, 205), (1150, 205)
+    lo, lb, db = (330, 640), (930, 590), (930, 730)
+    wires = (map_arrowhead()
+             + map_line(*w1, *w2, armed=True) + map_line(*w2, *w3, armed=True)
+             # A directed line stops at the icon's edge, so the arrowhead shows.
+             + map_line(*lo, 878, 594, directed=True) + map_line(*lo, 879, 722, directed=True))
+    receiving = map_strip_tag("RECEIVING", T['warn'])
+    muted = map_strip_tag("MUTED", T['faint'], struck=True)
+    term = lambda host, cmd: map_terminal_body("deploy", host, [(cmd, f"{host}")])
+    label = lambda x, y, text: f'<span style="position: absolute; left: {x}px; top: {y}px; transform: translateX(-50%); font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: {T["faint"]};">{text}</span>'
+    inner = (map_rune(696, 430)
+             + map_window("ssh", "web-01", "deploy@10.4.1.20", term("web-01", "hostname"), *w1, 400, 240, focused=True, edge=T['warn'], tag_html=receiving)
+             + map_window("ssh", "web-02", "deploy@10.4.1.21", term("web-02", "hostname"), *w2, 400, 240, focused=False, edge=T['warn'], tag_html=receiving)
+             + map_window("ssh", "web-03", "deploy@10.4.1.22", term("web-03", "hostname"), *w3, 400, 240, focused=False, tag_html=muted)
+             + map_switch(475, 205, True) + map_switch(925, 205, True)
+             + label(700, 60, "ONE LINE, ONE SWITCH: THREE ON THE SET, TWO RECEIVING, ONE MUTED FROM ITS STRIP")
+             + map_window("local", "This machine", "", map_local_body([("config", True, False), ("Runic-SSH_0.7.0_amd64.deb", False, True), ("Runic-SSH_0.7.0_x64-setup.exe", False, True), ("SHA256SUMS", False, True), ("notes.md", False, False)]), *lo, 480, 280, focused=False)
+             + map_component("sftp", "lb-01", "deploy@10.4.1.10", *lb, state="connected")
+             + map_component("sftp", "db-01", "postgres@10.4.1.31", *db, state="connected")
+             + map_send(640, 615, 3) + map_send(640, 685, 3)
+             + label(700, 490, "ORIGIN TO DESTINATION: THE BUTTON SENDS THE SELECTION TO BOTH, AFTER ASKING"))
+    body = map_toolbar() + map_floor(inner, wires)
+    st = status_warn(stat_text("6 components", T['muted'], mono=False) + "\n" + sep() + "\n" + stat_text("5 connected", T['faint']),
+                     f'    <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: {T["warnsoft"]}; background: {T["warn"]}; border-radius: 4px; padding: 4px 10px;">TYPING INTO 2 WINDOWS</span>\n'
+                     f'    <span style="font-size: 11px; color: {T["warn"]}; border: 1px solid {T["warn"]}; border-radius: 4px; padding: 3px 10px;">Turn off</span>')
+    write("MapLines.dc.html", page(body, None, home_rail(workspace="map"), st, show_shapes=False))
+
 def build_anatomy():
     def reg(label, w, h, bg, color, note, border=None):
         b = f'border: 1px solid {border};' if border else ''
@@ -3713,6 +3797,14 @@ def map_glyph(kind, color):
                 f'<path d="M30 42 h12" stroke="{color}" stroke-width="2.2" stroke-linecap="round"></path>'
                 f'<path d="M36 8 v10 M31 13 l5 -5 5 5" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>'
                 f'<path d="M22 62 h28" stroke="{dim}" stroke-width="1.4" stroke-linecap="round"></path>')
+    elif kind == "local":
+        # The machine Runic runs on, a file browser like `sftp` (ADR-0065): a
+        # laptop, the one object on the map that is not somewhere else.
+        body = (f'<path d="M17 14 h38 a3 3 0 0 1 3 3 v27 h-44 v-27 a3 3 0 0 1 3 -3 z" fill="{fill}" stroke="{edge}" stroke-width="1.2"></path>'
+                f'<path d="M14 17 h44" stroke="{color}" stroke-width="1.8" stroke-linecap="round"></path>'
+                f'<path d="M27 26 h7 l2 2 h9 v9 h-18 z" fill="none" stroke="{color}" stroke-width="1.8" stroke-linejoin="round"></path>'
+                f'<path d="M9 50 h54 l4 8 h-62 z" fill="{T["raised"]}" stroke="{color}" stroke-opacity=".7" stroke-width="1.2"></path>'
+                f'<path d="M30 54 h12" stroke="{dim}" stroke-width="1.4" stroke-linecap="round"></path>')
     else:
         body = (f'<circle cx="36" cy="38" r="24" fill="{fill}" stroke="{edge}" stroke-width="1.2"></circle>'
                 f'<path d="M19 48 A19 19 0 1 1 53 48" fill="none" stroke="{dim}" stroke-width="3.5" stroke-linecap="round"></path>'
@@ -3736,7 +3828,7 @@ def map_rune(x, y, size=88):
             f'<path d="M12 6.5v11M12 10l3-2.5M12 14l3 2.5M12 12l-2.6-2.2" stroke="{T["brune"]}" stroke-width="1.1" stroke-linecap="round" fill="none"></path></g></svg></div>')
 
 def map_kind_color(kind):
-    return {"ssh": T['accent'], "sftp": T['warn'], "monitor": T['bend']}[kind]
+    return {"ssh": T['accent'], "sftp": T['warn'], "local": T['warn'], "monitor": T['bend']}[kind]
 
 def map_component(kind, name, who, x, y, state="saved"):
     """A closed component: the glyph, the state marker by shape (a filled
@@ -3752,13 +3844,13 @@ def map_component(kind, name, who, x, y, state="saved"):
             f'<span style="font-size: 11.5px; font-weight: 600; color: {T["ink2"]}; white-space: nowrap;">{name}</span>'
             f'<span class="mono" style="font-size: 10.5px; color: {T["faint"]}; white-space: nowrap;">{who}</span></div>')
 
-def map_window(kind, name, who, body_html, x, y, w, h, focused=True, maximized=False):
+def map_window(kind, name, who, body_html, x, y, w, h, focused=True, maximized=False, edge=None, tag_html=""):
     """An open component: the glass window in place of its icon. The strip
     carries the state dot, the host's name (a button: it opens the host
     popup), `user@host`, the kind tag, and the Windows trio. No corner
     mark: every edge resizes, as `ComponentWindow` does."""
     color = map_kind_color(kind)
-    edge = "rgba(94,200,245,.55)" if focused else "rgba(94,200,245,.16)"
+    edge = edge or ("rgba(94,200,245,.55)" if focused else "rgba(94,200,245,.16)")
     shadow = f"inset 0 1px 0 rgba(232,240,250,.06), {T['shadow_5']}, 0 0 0 1px rgba(94,200,245,.18)" if focused else f"inset 0 1px 0 rgba(232,240,250,.06), {T['shadow_3']}"
     btn = lambda glyph, title: (f'<span title="{title}" style="width: 26px; height: 24px; border-radius: 4px; display: flex; align-items: center;'
                                 f' justify-content: center; color: {T["muted"]}; font-size: 11px;">{glyph}</span>')
@@ -3767,7 +3859,7 @@ def map_window(kind, name, who, body_html, x, y, w, h, focused=True, maximized=F
             f'<div style="height: 28px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 4px 0 10px; background: rgba(232,240,250,.03); border-bottom: 1px solid rgba(94,200,245,.16);">'
             f'<span class="dot" style="background: {T["ok"]};"></span>'
             f'<span style="font-size: 12px; font-weight: 600; color: {T["ink"]};" title="Change this host">{name}</span>'
-            f'<span class="mono" style="font-size: 10.5px; color: {T["faint"]};">{who}</span>'
+            f'<span class="mono" style="font-size: 10.5px; color: {T["faint"]};">{who}</span>{tag_html}'
             f'<span style="margin-left: auto; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; color: {color};">{kind.upper()}</span>'
             f'<span style="display: flex; align-items: center; gap: 2px;">{btn("&ndash;", "Minimize: back to the icon, the session stays")}{btn("&#10064;" if maximized else "&#9633;", "Restore" if maximized else "Maximize")}{btn("&#10005;", "Close and end the session")}</span>'
             f'</div>'
@@ -3895,7 +3987,7 @@ else:
                build_home_hosts_credential, build_home_hosts_unknown_key, build_home_hosts_topology,
                build_monitor, build_monitor_processes, build_monitor_ports,
                build_monitor_systemd, build_monitor_logs, build_monitor_hosts_empty,
-               build_map, build_map_component, build_map_host_popup,
+               build_map, build_map_component, build_map_host_popup, build_map_lines,
                build_anatomy, build_tokens,
                build_hostkeychanged, build_failure, build_paste, build_palette):
         fn()
