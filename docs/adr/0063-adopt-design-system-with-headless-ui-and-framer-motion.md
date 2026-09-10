@@ -33,7 +33,7 @@ Extend tokens v2. Build all primitives from scratch using only React + CSS (`@st
 Option A: Incremental Design System Extraction with Headless UI + Framer Motion.
 
 **Tradeoffs accepted**:
-- Two new runtime dependencies (`@headlessui/react` ~12KB, `framer-motion` ~50KB gzipped): ADR required and granted
+- Four new runtime dependencies: `@headlessui/react` (~12KB) and `framer-motion` (~50KB gzipped) for the primitives and their motion, plus `clsx` and `tailwind-merge` (~1KB and ~7KB gzipped) behind the `cn` helper, so a caller's class can override a primitive's own without depending on stylesheet order. ADR required and granted for all four; the follow-up below always listed them, and this line counted two
 - Framer Motion adds bundle weight; mitigated by using it only for orchestration (sidebar, tabs, dialogs, shared layout), not micro-interactions (handled by CSS transitions)
 - Headless UI primitives are unstyled; we own 100% of visual output via tokens: no design opinion leakage
 - Incremental migration means temporary coexistence of old/new component patterns; managed by per-component canvas updates
