@@ -373,6 +373,15 @@
       "h": 900,
       "page": "page-2",
       "title": "Map, the host popup: the Home form over the map"
+    },
+    {
+      "file": "MapLines.dc.html",
+      "x": 0,
+      "y": 10800,
+      "w": 1440,
+      "h": 900,
+      "page": "page-2",
+      "title": "Map, lines: broadcast on a terminal line, transfer on directed lines from this machine (v0.7.0, ADR-0065)"
     }
   ],
   "annotations": [
