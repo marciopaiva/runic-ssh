@@ -914,6 +914,32 @@ are in the code and not in this table: nobody has driven them yet. The
 last six rows have been driven only in the dev build so far; see
 `docs/installing.md` for what the packaged build has had.
 
+### Lines on the map (ADR-0065)
+
+A line joins two terminals and carries ADR-0019's switch: off by default,
+disarmed when the set changes, a window able to spare itself, one receiving
+window treated as none. Two hosts on the map, `web-01` on 2222 and `db-01`
+on 2223, both as SSH components.
+
+| Do this | Expect |
+| --- | --- |
+| Right-click `web-01`'s icon | the menu has "Broadcast", with "draw a line to another terminal" beside it; a map with one terminal has no such entry |
+| Pick it, move the pointer | a dashed line follows the pointer from the icon, a hint says to click another terminal or press Esc, and everything that cannot be joined is dimmed; a press on the floor or Esc ends it with no line |
+| Click `db-01`'s icon | a solid line between the two icons' borders with a switch at its midpoint, off; `workspace.json` holds `{"a": …, "b": …}` under `links` |
+| Open both windows | the line now runs between the two windows' borders, and moves with them when one is dragged |
+| Click the switch | it turns on in the warning colour, both windows take the warning edge and a broadcast glyph in their strips, the status bar's top edge goes warning with `SYNC 2` |
+| Type `echo hi` Enter into `web-01` | both shells run it |
+| Click `db-01`'s glyph in its strip | its edge and `web-01`'s go back to normal and the status bar clears: one receiving window is no broadcast; typing into `web-01` reaches only it. The switch stays on, the set is armed with nobody to reach |
+| Right-click the switch | a menu titled with both names offers "Remove the line"; pick it and the line and the glyphs are gone, `links` is empty, both sessions stay |
+| Collapse a window on an armed line | it is spared while collapsed, the way a tab behind another is |
+
+Confirmed on Linux on 2026-09-10, headlessly on a private `Xvfb` display
+with `openbox`, in the dev build against `runic-test-sshd` on 2222 and 2223:
+the first eight rows in that order, with screenshots between steps. The last
+row is in the code and its test (`tests/map-lines.test.ts`) and nobody has
+driven it yet. A hold on the icon offers the same "Broadcast" segment in the
+radial; only the right-click path was driven.
+
 ### SFTP
 
 ADR-0044 through ADR-0049. One fixture on 2222 is enough for browsing,

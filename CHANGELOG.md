@@ -11,6 +11,18 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 
 ## [Unreleased]
 
+### Added
+
+- Lines between terminals on the map (ADR-0065). Right-click or hold a
+  terminal, pick "Broadcast", click another: a line joins them, with a
+  switch at its midpoint. On, what is typed into any window on the line
+  reaches every open window on it, under the same rules as Sessions'
+  synchronised typing: off by default, off again whenever the set changes,
+  each window able to spare itself from its strip, and one receiving window
+  treated as no broadcast at all. The map's switch and Sessions' are two
+  switches: a keystroke is routed by where it was typed, never through both.
+  Lines are saved in `workspace.json`; whether one is armed is not.
+
 ### Fixed
 
 - Double-click on a map window's strip maximizes the window, as 0.6.0 said
