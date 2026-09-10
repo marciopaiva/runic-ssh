@@ -10,7 +10,7 @@
 //! and `#[serde(default)]`, so the releases that fill them (v0.7.0 to v0.9.0)
 //! add data to a file this version already reads rather than migrate it.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
 
@@ -36,6 +36,24 @@ pub enum ComponentKind {
     Ssh,
     Sftp,
     Monitor,
+}
+
+/// Which lines a component may hold (ADR-0065): terminals join terminals,
+/// file browsers join file browsers, and a monitor holds none.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Family {
+    Terminal,
+    Files,
+}
+
+impl ComponentKind {
+    pub fn family(self) -> Option<Family> {
+        match self {
+            ComponentKind::Ssh => Some(Family::Terminal),
+            ComponentKind::Sftp => Some(Family::Files),
+            ComponentKind::Monitor => None,
+        }
+    }
 }
 
 /// A place on the map, in map pixels at 100%.
@@ -167,10 +185,39 @@ pub fn validate(workspace: &Workspace) -> Result<(), Error> {
         }
     }
 
+    // ADR-0065: a line joins two components of one family, terminals with
+    // terminals and file browsers with file browsers, never a monitor. On a
+    // file-browser line the order is the direction, so the same pair may hold
+    // one line each way; a terminal line has no direction and its pair holds
+    // one line whichever way it was written.
+    let kinds: HashMap<&str, ComponentKind> = workspace
+        .components
+        .iter()
+        .map(|component| (component.id.as_str(), component.kind))
+        .collect();
+    let mut seen_links: Vec<(&str, &str)> = Vec::new();
     for link in &workspace.links {
-        if !ids.contains(link.a.as_str()) || !ids.contains(link.b.as_str()) || link.a == link.b {
+        if link.a == link.b {
             return Err(invalid("link"));
         }
+        let (Some(from), Some(to)) = (kinds.get(link.a.as_str()), kinds.get(link.b.as_str()))
+        else {
+            return Err(invalid("link"));
+        };
+        let Some(family) = from.family() else {
+            return Err(invalid("link"));
+        };
+        if to.family() != Some(family) {
+            return Err(invalid("link"));
+        }
+        let duplicate = seen_links.iter().any(|(a, b)| {
+            (*a == link.a && *b == link.b)
+                || (family == Family::Terminal && *a == link.b && *b == link.a)
+        });
+        if duplicate {
+            return Err(invalid("link"));
+        }
+        seen_links.push((link.a.as_str(), link.b.as_str()));
     }
 
     let mut vision_ids = HashSet::new();
@@ -438,6 +485,42 @@ mod tests {
 
         assert!(
             matches!(validate(&workspace), Err(Error::InvalidWorkspace { field }) if field == "link")
+        );
+    }
+
+    #[test]
+    fn a_link_joins_two_components_of_one_family() {
+        let with = |links: Vec<Link>| Workspace {
+            components: vec![
+                component("t1", ComponentKind::Ssh, "s1"),
+                component("t2", ComponentKind::Ssh, "s2"),
+                component("f1", ComponentKind::Sftp, "s1"),
+                component("f2", ComponentKind::Sftp, "s2"),
+                component("m1", ComponentKind::Monitor, "s1"),
+            ],
+            links,
+            ..Workspace::default()
+        };
+        let link = |a: &str, b: &str| Link {
+            a: a.to_owned(),
+            b: b.to_owned(),
+        };
+        let refused = |links: Vec<Link>| matches!(validate(&with(links)), Err(Error::InvalidWorkspace { field }) if field == "link");
+
+        assert!(validate(&with(vec![link("t1", "t2")])).is_ok());
+        assert!(
+            validate(&with(vec![link("f1", "f2"), link("f2", "f1")])).is_ok(),
+            "one each way"
+        );
+        assert!(refused(vec![link("t1", "f1")]), "across families");
+        assert!(refused(vec![link("t1", "m1")]), "a monitor");
+        assert!(
+            refused(vec![link("t1", "t2"), link("t2", "t1")]),
+            "a terminal pair twice"
+        );
+        assert!(
+            refused(vec![link("f1", "f2"), link("f1", "f2")]),
+            "the same direction twice"
         );
     }
 

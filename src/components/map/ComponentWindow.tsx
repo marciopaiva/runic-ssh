@@ -5,6 +5,8 @@ import { RESIZE_HANDLES, resizeCursor } from '../../features/map';
 import type { ResizeHandle, SnapSide } from '../../features/map';
 import { useTranslator } from '../../features/settings';
 
+import { BroadcastGlyph } from '../BroadcastGlyph';
+
 import { kindColor } from './glyphs';
 
 interface ComponentWindowProps {
@@ -19,6 +21,12 @@ interface ComponentWindowProps {
   /** Whether the body is drawn at all. Below the measured floor the window
       is a thumbnail and its body is left empty (ADR-0064's follow-up). */
   readonly thumbnail: boolean;
+  /** On an armed line: receiving what is typed elsewhere on it, spared by
+      its own switch, or armed but reaching nobody yet because one receiving
+      window is no broadcast. `null` off any armed line, when the strip
+      shows no switch at all (ADR-0065, ADR-0019's per-pane opt-out). */
+  readonly broadcast: 'receiving' | 'muted' | 'armed' | null;
+  readonly onToggleMute: () => void;
   readonly children: ReactNode;
   readonly onStripPointerDown: (event: ReactPointerEvent) => void;
   readonly onResizePointerDown: (handle: ResizeHandle, event: ReactPointerEvent) => void;
@@ -61,6 +69,8 @@ export function ComponentWindow({
   focused,
   connected,
   thumbnail,
+  broadcast,
+  onToggleMute,
   children,
   onStripPointerDown,
   onResizePointerDown,
@@ -75,13 +85,18 @@ export function ComponentWindow({
   const i18n = useTranslator();
   const port = host.port === 22 ? '' : `:${String(host.port)}`;
   const maximized = snapped === 'full';
+  /* The receiving edge outranks the focus edge, as it does on a pane in
+     Sessions (ADR-0019): with typing synchronised every receiving window
+     carries the warning, and focus is the status bar's to say. */
+  const edge =
+    broadcast === 'receiving' ? 'border-warn' : focused ? 'border-accent' : 'border-line-strong';
   return (
     <section
       data-window={component.id}
       aria-label={host.name}
       className={`absolute flex flex-col overflow-hidden border transition-[box-shadow,border-color] duration-normal ${
         maximized ? 'rounded-none' : 'rounded-[7px]'
-      } ${focused ? 'border-accent shadow-5' : 'border-line-strong shadow-3'}`}
+      } ${edge} ${focused ? 'shadow-5' : 'shadow-3'}`}
       style={{
         left: rect.left,
         top: rect.top,
@@ -130,7 +145,30 @@ export function ComponentWindow({
           {host.user}@{host.host}
           {port}
         </span>
-        <span className="ml-auto text-[10.5px] font-bold tracking-[0.08em]" style={{ color: kindColor(component.kind) }}>
+        {broadcast !== null && (
+          <button
+            type="button"
+            role="switch"
+            aria-checked={broadcast !== 'muted'}
+            title={i18n.t(broadcast === 'muted' ? 'map.window.unmute' : 'map.window.mute')}
+            aria-label={i18n.t(broadcast === 'muted' ? 'map.window.unmute' : 'map.window.mute')}
+            className={`ml-auto flex h-5 w-5 shrink-0 items-center justify-center rounded ${
+              broadcast === 'receiving'
+                ? 'text-warn hover:bg-warn-soft'
+                : broadcast === 'muted'
+                  ? 'text-ink-faint hover:bg-surface-raised opacity-60'
+                  : 'text-ink-muted hover:bg-surface-raised'
+            }`}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={onToggleMute}
+          >
+            <BroadcastGlyph className="h-3.5 w-3.5" />
+          </button>
+        )}
+        <span
+          className={`${broadcast === null ? 'ml-auto' : ''} text-[10.5px] font-bold tracking-[0.08em]`}
+          style={{ color: kindColor(component.kind) }}
+        >
           {component.kind.toUpperCase()}
         </span>
         <span className="flex items-center gap-0.5" onPointerDown={(event) => event.stopPropagation()}>

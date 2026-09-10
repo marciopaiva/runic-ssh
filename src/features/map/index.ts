@@ -17,6 +17,19 @@ export {
 } from './model';
 export type { AddOutcome, AddRefusal, HostAsk } from './model';
 export {
+  addLink,
+  canLink,
+  familyOf,
+  lineKey,
+  linkedSet,
+  linkedSets,
+  mapInputTargets,
+  mapReceiving,
+  removeLink,
+  setKey,
+} from './lines';
+export type { Family, LinkOutcome, LinkRefusal } from './lines';
+export {
   HOME_VIEW,
   HONEYCOMB_STEP,
   REFIT_MIN,
