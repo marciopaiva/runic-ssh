@@ -9,6 +9,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 versions follow [semantic versioning](https://semver.org/spec/v2.0.0.html),
 with the caveat that anything below 1.0 may break, and this project intends to.
 
+## [Unreleased]
+
+### Added
+
+- Visions on the map (ADR-0067). Hold the rune, or right-click the floor,
+  for Vision and name it. Closed, a vision is an aperture with its member
+  count and a mark per kind; click opens it into a region that lays its
+  members out in the shape Sessions uses for that count (ADR-0022), sized
+  to them and never resized by hand. Drop a component in the region, or on
+  the aperture, to put it in; a member dropped inside stays where it was
+  left, one dropped outside leaves. The bar drags the whole vision, fits the
+  view to it, fills the screen with it and closes it with the sessions
+  alive. Filling the screen opens every member in that shape, 1:1, and
+  Escape gives the map back exactly as it was; a member maximizes inside its
+  region like a child window. Filling the screen never connects: a member
+  without a session shows its saved state and one button, and Connect all
+  on the vision's menu is the action that asks (#119).
+
 ## [0.7.0] — 2026-09-10
 
 Draws the lines the map's broadcast and fan-out travel on (ADR-0065): a line
@@ -1003,6 +1021,7 @@ deliberately labelled one.
 - A connection gives up after twenty seconds (ADR-0016). That number is a
   choice, not a measurement, and there is no setting for it yet.
 
+[Unreleased]: https://github.com/marciopaiva/runic-ssh/compare/v0.7.0...HEAD
 [0.7.0]: https://github.com/marciopaiva/runic-ssh/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/marciopaiva/runic-ssh/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/marciopaiva/runic-ssh/compare/v0.4.0...v0.5.0
