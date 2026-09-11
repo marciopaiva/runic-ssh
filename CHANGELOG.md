@@ -9,7 +9,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 versions follow [semantic versioning](https://semver.org/spec/v2.0.0.html),
 with the caveat that anything below 1.0 may break, and this project intends to.
 
-## [Unreleased]
+## [0.7.0] — 2026-09-10
+
+Draws the lines the map's broadcast and fan-out travel on (ADR-0065): a line
+between two terminals carries synchronised typing, a directed line between two
+file browsers carries a transfer, and the machine Runic runs on joins the map
+as a component of its own. The map moves behind a preview this release
+(ADR-0066): a fresh install shows the classic navigation and no map, and a
+setting reveals it. Classic is the default because it is the finished half, and
+the map is built in the open across the releases still to come. Visions and
+layers follow in v0.8.0 and v0.9.0, and the Sessions, SFTP and Monitor
+workspaces stay exactly as they were until v0.9.0 cuts them.
 
 ### Added
 
@@ -36,9 +46,17 @@ with the caveat that anything below 1.0 may break, and this project intends to.
   Paste with their shortcuts beside them, Broadcast when another terminal
   is free to join, and the window's own spare and include on an armed
   line. Sessions' panes keep the webview's menu until v0.9.0 (#115).
+- The map behind a preview setting, classic navigation the default (ADR-0066).
+  A fresh install shows Home, Sessions, SFTP and Monitor, and no map; the
+  command palette's "Show the map (preview)" reveals its rail slot, and turning
+  it off hides it again. Off by default, because the map is built across three
+  releases and is unfinished until the last of them.
 
 ### Fixed
 
+- The title bar's close button is drawn like the other two at rest, turning
+  red only under the pointer; adopting the design system had left it red at
+  rest.
 - Double-click on a map window's strip maximizes the window, as 0.6.0 said
   it did; it fitted the whole map to the view instead, because the press was
   captured on the stage and the browser sent the click there (#363).
@@ -48,6 +66,10 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 
 ### Known limitations
 
+- The map is off by default. If you used it on 0.6.0, it is gone from the rail
+  after upgrading until you run "Show the map (preview)" from the command
+  palette (`Ctrl+Shift+P`). Your map is not lost; `workspace.json` is untouched
+  and the components come back when you reveal it (ADR-0066).
 - On Linux, "Paste" in the map terminal's menu does nothing: WebKitGTK
   refuses a paste asked by a script, even from a click. Ctrl-Shift-V pastes,
   and the entry is where the shortcut is written down
@@ -981,6 +1003,7 @@ deliberately labelled one.
 - A connection gives up after twenty seconds (ADR-0016). That number is a
   choice, not a measurement, and there is no setting for it yet.
 
+[0.7.0]: https://github.com/marciopaiva/runic-ssh/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/marciopaiva/runic-ssh/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/marciopaiva/runic-ssh/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/marciopaiva/runic-ssh/compare/v0.3.0...v0.4.0

@@ -872,6 +872,15 @@ Confirmed on Linux on 2026-09-04 in the packaged v0.4.0 build: a plain
 host folded both sections; the same host, after the Local forward above
 was added and saved, opened Forwarding automatically on the next visit.
 
+### Reaching the map (ADR-0066)
+
+The map is a preview, off by default. A fresh `XDG_CONFIG_HOME` shows the
+classic navigation and no map slot on the rail. Open the command palette
+(`Ctrl+Shift+P`), run "Show the map (preview)", and the slot appears; the
+choice is saved in `settings.json` as `"previewFeatures": true`. Running "Hide
+the map" removes the slot again and falls back to Home if the map was showing.
+The drives below assume the preview is on.
+
 ### The map (ADR-0064)
 
 Two saved hosts in the book, one of them (`web-01`, port 2222) with a
