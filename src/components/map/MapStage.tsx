@@ -374,7 +374,7 @@ export function MapStage({
      and without a stale set of open windows captured by a memoised callback. */
   const openRef = useRef<ReadonlySet<string>>(new Set());
   const collapseRef = useRef<(id: string) => void>(() => {});
-  const openWindowRef = useRef<(id: string) => void>(() => {});
+  const openWindowRef = useRef<(id: string, reveal?: boolean) => void>(() => {});
   const focusRef = useRef<(id: string) => void>(() => {});
   const startLinkRef = useRef<(id: string) => void>(() => {});
   const broadcastRef = useRef<(id: string) => 'receiving' | 'muted' | 'armed' | null>(() => null);
@@ -445,7 +445,7 @@ export function MapStage({
             for (const id of vision.components) {
               const member = componentById.get(id);
               if (member?.host === undefined || handles.has(member.host)) continue;
-              openWindowRef.current(id);
+              openWindowRef.current(id, false);
               starting.push(member.host);
               onConnect(member.host);
             }

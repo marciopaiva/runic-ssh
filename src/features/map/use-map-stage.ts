@@ -19,7 +19,7 @@ import type { Component, Point, Vision, Workspace } from '../../ipc';
 
 import { HOLD_MS, beginPress, holdFired, movePress, radialSegment, releasePress } from './gestures';
 import type { Press } from './gestures';
-import { HOME_VIEW, ZOOM_MAX, ZOOM_MIN, fitTo, pan, placeChildren, ringRadiusFor, toMap, toStage, zoomAt } from './layout';
+import { HOME_VIEW, REFIT_MIN, ZOOM_MAX, ZOOM_MIN, fitTo, pan, placeChildren, ringRadiusFor, toMap, toStage, zoomAt } from './layout';
 import type { Rect, View } from './layout';
 import { moveComponent, resizeComponent, sizeOf } from './model';
 import { MEMBER_ICON, REGION, addMember, fullScreenFrames, layoutVision, moveVision, removeMember, setVisionOpen } from './visions';
@@ -33,6 +33,9 @@ export const FULLSCREEN_BAR = 36;
 export const FULLSCREEN_GAP = 8;
 /** How near an aperture a drop has to land, in map pixels, to join the vision. */
 const APERTURE_REACH = 64;
+/** How long the view takes to glide to a window that just opened: the
+    `--rs-duration-normal` of ADR-0063, in milliseconds. */
+export const REVEAL_MS = 200;
 
 export interface StageSize {
   readonly width: number;
@@ -105,7 +108,11 @@ export interface MapStageApi {
   readonly onResizePointerDown: (id: string, handle: ResizeHandle, event: ReactPointerEvent) => void;
   readonly onStagePointerDown: (event: ReactPointerEvent) => void;
   readonly onWheel: (event: ReactWheelEvent) => void;
-  readonly openWindow: (id: string) => void;
+  /** Expands a component into its window. The first time, the view glides
+      until the window is centred on the stage, and from below the refit
+      floor it zooms to 1:1 as well, since a window opened is a window
+      about to be typed into; `reveal: false` leaves the view alone. */
+  readonly openWindow: (id: string, reveal?: boolean) => void;
   readonly collapse: (id: string) => void;
   readonly focus: (id: string) => void;
   readonly toggleMaximize: (id: string) => void;
@@ -177,6 +184,8 @@ export function useMapStage({ workspace, components, visions, onChange, radialOp
   const [snapPreview, setSnapPreview] = useState<SnapSide | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState<string | null>(null);
+  /* A window just opened that the view has yet to glide to. */
+  const [reveal, setReveal] = useState<string | null>(null);
   /* What was open before a vision filled the screen, to give back on exit. */
   const restoreOpen = useRef<ReadonlySet<string> | null>(null);
 
@@ -192,6 +201,8 @@ export function useMapStage({ workspace, components, visions, onChange, radialOp
   linkingRef.current = linking;
   const fullscreenRef = useRef(fullscreen);
   fullscreenRef.current = fullscreen;
+  const openStateRef = useRef(open);
+  openStateRef.current = open;
 
   /* Measured rather than assumed: the ring's radius and the fit-to-all
      scale both depend on how much room the stage actually has. */
@@ -403,10 +414,55 @@ export function useMapStage({ workspace, components, visions, onChange, radialOp
 
   const focus = useCallback((id: string): void => setFocused(id), []);
 
-  const openWindow = useCallback((id: string): void => {
+  /* Glides the view to `target` over the normal duration, easing out, or
+     cuts to it under reduced motion. Shares the fling's frame handle, so a
+     press stops it and the teardown cancels it. */
+  const glideTo = useCallback(
+    (target: View): void => {
+      stopFling();
+      const from = viewRef.current;
+      const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reduced || typeof requestAnimationFrame !== 'function') {
+        setView(target);
+        return;
+      }
+      const started = performance.now();
+      const step = (): void => {
+        const t = Math.min(1, (performance.now() - started) / REVEAL_MS);
+        const eased = 1 - (1 - t) * (1 - t);
+        setView({
+          x: from.x + (target.x - from.x) * eased,
+          y: from.y + (target.y - from.y) * eased,
+          scale: from.scale + (target.scale - from.scale) * eased,
+        });
+        flingFrame.current = t < 1 ? requestAnimationFrame(step) : null;
+      };
+      flingFrame.current = requestAnimationFrame(step);
+    },
+    [stopFling],
+  );
+
+  const openWindow = useCallback((id: string, reveal: boolean = true): void => {
+    const first = !openStateRef.current.has(id);
     setOpen((current) => (current.has(id) ? current : new Set([...current, id])));
     setFocused(id);
+    /* Centre on the first open only: a click on a window already open is
+       focus, not a request to move the map under the others. Filling the
+       screen has no map to move. */
+    if (reveal && first && fullscreenRef.current === null) setReveal(id);
   }, []);
+
+  /* The glide waits for the render that opened the window, since a member
+     of a vision moves when its cell grows from an icon to a window: the
+     centre to reach is the one the layout settles on, not the icon's. */
+  useEffect(() => {
+    if (reveal === null) return;
+    setReveal(null);
+    const at = positions.get(reveal);
+    if (at === undefined) return;
+    const scale = viewRef.current.scale < REFIT_MIN ? 1 : viewRef.current.scale;
+    glideTo({ x: centre.x - at.x * scale, y: centre.y - at.y * scale, scale });
+  }, [centre, glideTo, positions, reveal]);
 
   const collapse = useCallback((id: string): void => {
     setOpen((current) => {
@@ -727,9 +783,14 @@ export function useMapStage({ workspace, components, visions, onChange, radialOp
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
       clearHold();
-      stopFling();
     };
-  }, [clearHold, onChange, onClick, onRadialPick, open, snapTo, stagePoint, stageSize.width, stopFling, visionAt]);
+  }, [clearHold, onChange, onClick, onRadialPick, open, snapTo, stagePoint, stageSize.width, visionAt]);
+
+  /* A frame in flight, a fling or a glide, is cancelled when the stage goes
+     away, and only then: this effect re-registers the listeners above
+     whenever a window opens, which is the very moment a glide starts, so
+     cancelling in that cleanup would end every glide on its first frame. */
+  useEffect(() => () => stopFling(), [stopFling]);
 
   const visionsRef = useRef(visions);
   visionsRef.current = visions;
