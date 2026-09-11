@@ -14,6 +14,7 @@ import {
   defaultSize,
   localOn,
   moveComponent,
+  moveToLayer,
   newComponentId,
   placeSavedHost,
   removeComponent,
@@ -153,29 +154,34 @@ describe('changing a component', () => {
 
 describe('placing a host the editor just saved', () => {
   it('creates the component the picker asked for', () => {
-    const next = placeSavedHost(EMPTY_WORKSPACE, { kind: 'ssh', changing: null }, 's1', BOOK);
+    const next = placeSavedHost(EMPTY_WORKSPACE, { kind: 'ssh', changing: null, layer: null }, 's1', BOOK);
     expect(next?.components.map((one) => [one.kind, one.host])).toEqual([['ssh', 's1']]);
+  });
+
+  it('creates it on the layer the map was showing (ADR-0068)', () => {
+    const next = placeSavedHost(EMPTY_WORKSPACE, { kind: 'ssh', changing: null, layer: 'lab' }, 's1', BOOK);
+    expect(next?.components[0]?.layer).toBe('lab');
   });
 
   it('points the component being changed at the new host', () => {
     const added = addComponent(EMPTY_WORKSPACE, 'sftp', 's1', BOOK);
     if (!added.ok) throw new Error('fixture');
-    const next = placeSavedHost(added.workspace, { kind: null, changing: added.component.id }, 's2', BOOK);
+    const next = placeSavedHost(added.workspace, { kind: null, changing: added.component.id, layer: null }, 's2', BOOK);
     expect(next?.components.map((one) => one.host)).toEqual(['s2']);
   });
 
   it('leaves the map alone when the editor was only about the host', () => {
     const added = addComponent(EMPTY_WORKSPACE, 'ssh', 's1', BOOK);
     if (!added.ok) throw new Error('fixture');
-    expect(placeSavedHost(added.workspace, { kind: null, changing: null }, 's1', BOOK)).toBe(added.workspace);
+    expect(placeSavedHost(added.workspace, { kind: null, changing: null, layer: null }, 's1', BOOK)).toBe(added.workspace);
   });
 
   it('refuses the way the picker would', () => {
     const added = addComponent(EMPTY_WORKSPACE, 'ssh', 's1', BOOK);
     if (!added.ok) throw new Error('fixture');
     /* The same host in the same kind twice, and a host the book has never heard of. */
-    expect(placeSavedHost(added.workspace, { kind: 'ssh', changing: null }, 's1', BOOK)).toBeNull();
-    expect(placeSavedHost(added.workspace, { kind: 'monitor', changing: null }, 'nobody', BOOK)).toBeNull();
+    expect(placeSavedHost(added.workspace, { kind: 'ssh', changing: null, layer: null }, 's1', BOOK)).toBeNull();
+    expect(placeSavedHost(added.workspace, { kind: 'monitor', changing: null, layer: null }, 'nobody', BOOK)).toBeNull();
   });
 });
 
@@ -196,5 +202,26 @@ describe('this machine on the map (ADR-0065)', () => {
     if (!withLocal.ok) throw new Error('unreachable');
     const outcome = changeHost(withLocal.workspace, 'c_1', 's1', BOOK);
     expect(outcome.ok).toBe(false);
+  });
+});
+
+describe('moving a component between layers (ADR-0068)', () => {
+  it('sets the layer and drops the place it had, since a ring position means nothing on another level', () => {
+    const added = addComponent(EMPTY_WORKSPACE, 'ssh', 's1', BOOK, null, { x: 40, y: 40 });
+    if (!added.ok) throw new Error('fixture');
+
+    const moved = moveToLayer(added.workspace, added.component.id, 'lab');
+    const component = moved.components.find((one) => one.id === added.component.id);
+    expect(component?.layer).toBe('lab');
+    expect(component?.position).toBeUndefined();
+  });
+
+  it('drops the layer field entirely for the outermost map, not a null', () => {
+    const added = addComponent(EMPTY_WORKSPACE, 'ssh', 's1', BOOK, 'lab');
+    if (!added.ok) throw new Error('fixture');
+
+    const moved = moveToLayer(added.workspace, added.component.id, null);
+    const component = moved.components.find((one) => one.id === added.component.id);
+    expect(component).not.toHaveProperty('layer');
   });
 });

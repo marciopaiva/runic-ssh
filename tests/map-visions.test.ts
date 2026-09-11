@@ -15,6 +15,7 @@ import {
   fullScreenFrames,
   layoutVision,
   moveVision,
+  moveVisionToLayer,
   removeMember,
   removeVision,
   renameVision,
@@ -139,6 +140,40 @@ describe('membership', () => {
     expect(workspace.visions).toEqual([]);
     expect(workspace.components.find((one) => one.id === 'c1')?.position).toEqual({ x: 250, y: 150 });
     expect(workspace.components.find((one) => one.id === 'c2')?.position).toEqual({ x: 300, y: 300 });
+  });
+});
+
+describe('moving a vision between layers (ADR-0068)', () => {
+  it('takes every member with it, and resets its own place but not a pinned member\'s', () => {
+    const made = addVision(TWO, 'prod', null, { x: 50, y: 50 }, 1);
+    if (!made.ok) throw new Error('refused');
+    const withMember = addMember(made.workspace, 'v_1', 'c1', { x: 250, y: 150 });
+
+    const moved = moveVisionToLayer(withMember, 'v_1', 'lab');
+
+    const vision = moved.visions.find((one) => one.id === 'v_1');
+    expect(vision?.layer).toBe('lab');
+    expect(vision?.position).toBeUndefined();
+    const member = moved.components.find((one) => one.id === 'c1');
+    expect(member?.layer).toBe('lab');
+    /* The pin is relative to the vision's own corner, not to the layer, so
+       it survives the move untouched. */
+    expect(member?.position).toEqual({ x: 200, y: 100 });
+  });
+
+  it('drops the layer field entirely for the outermost map', () => {
+    const made = addVision(TWO, 'prod', 'lab', undefined, 1);
+    if (!made.ok) throw new Error('refused');
+    const withMember = addMember(made.workspace, 'v_1', 'c1');
+
+    const moved = moveVisionToLayer(withMember, 'v_1', null);
+
+    expect(moved.visions.find((one) => one.id === 'v_1')).not.toHaveProperty('layer');
+    expect(moved.components.find((one) => one.id === 'c1')).not.toHaveProperty('layer');
+  });
+
+  it('is a no-op for a vision that is not there', () => {
+    expect(moveVisionToLayer(TWO, 'gone', 'lab')).toBe(TWO);
   });
 });
 
