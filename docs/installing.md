@@ -46,12 +46,30 @@ workflow produced, and it is the answer to "is this usable yet".
 
 | Platform | Installed and driven | Version | Where the file came from |
 | --- | --- | --- | --- |
-| Linux, `.deb` | **yes**, 2026-09-10 | 0.6.0 | **downloaded from the release** |
+| Linux, `.deb` | **yes**, 2026-09-10 | 0.7.0 | **downloaded from the release** |
 | Linux, `.rpm` | no | | no RPM distribution to hand |
 | Linux, `.AppImage` | no | | discouraged anyway, see below |
 | Windows, `.exe` (NSIS) | **yes**, 2026-08-26 | 0.1.1 | **a workflow artifact, copied in through WSL** |
 | Windows, `.msi` (WiX) | built, not installed | | the NSIS package was the one exercised |
 | macOS, `.dmg` | **no** | | needs an Apple Silicon Mac |
+
+**The 0.7.0 `.deb` was downloaded from the release**, its line in
+`SHA256SUMS` checked with `sha256sum -c --ignore-missing` (`OK`), and installed
+over the 0.6.0 package already on this machine with `apt install
+./Runic-SSH_0.7.0_amd64.deb`. The page was not listed against the sums by hand
+this pass; the workflow refuses to publish a file no hash covers, which is the
+guard #204 put where it runs before the page exists. Driven as the installed
+`/usr/bin/runic-ssh`, which serves the bundled frontend, on an isolated display
+and the same seeded `XDG_CONFIG_HOME`: it launched and the status bar read
+`v0.7.0`; the rail showed the classic navigation and no map, since the seeded
+`settings.json` predates the preview and the map is off by default (ADR-0066);
+the title bar's close button was drawn like the other two at rest. The command
+palette's "Show the map (preview)" added the map's rail slot and wrote
+`"previewFeatures": true`; the map opened on the two saved hosts with the line
+between them and its switch at the midpoint. Arming the broadcast, the
+transfers and the terminal menu were driven on the development build earlier
+the same day, not re-driven on the package; the "Lines on the map" rows in
+`docs/testing.md` stand for them.
 
 **The 0.6.0 `.deb` was downloaded from the release**, checked against
 `SHA256SUMS` (six lines, one per file on the page, every one covered), and
