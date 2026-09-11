@@ -28,10 +28,12 @@ export {
   linkedSets,
   mapInputTargets,
   mapReceiving,
+  outsideLink,
   removeLink,
   setKey,
+  switchState,
 } from './lines';
-export type { Family, LinkOutcome, LinkRefusal } from './lines';
+export type { Family, LinkOutcome, LinkRefusal, SwitchState } from './lines';
 export {
   HOME_VIEW,
   HONEYCOMB_STEP,
@@ -66,6 +68,7 @@ export {
   RESIZE_HANDLES,
   SNAP_MARGIN,
   edgePoint,
+  visibleMidpoint,
   keepInside,
   terminalBox,
   TERMINAL_INSET,

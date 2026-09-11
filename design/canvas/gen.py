@@ -3297,14 +3297,23 @@ def map_switch(x, y, on):
             f' background: {bg}; border: 1px solid {T["warn"] if on else T["line2"]}; box-shadow: {T["shadow_3"]};">'
             f'<span style="position: absolute; top: 2px; left: {knob_left}px; width: 14px; height: 14px; border-radius: 50%; background: {T["ink"] if on else T["muted"]};"></span></div>')
 
-def map_send(x, y, count):
-    """The button on a file-browser line: sends the origin's selection to
-    every destination the origin has a line to, asking first when there is
-    more than one (ADR-0045)."""
-    return (f'<div title="Send to every destination" style="position: absolute; left: {x}px; top: {y}px; transform: translate(-50%, -50%); width: 28px; height: 28px; border-radius: 50%;'
-            f' background: {T["warn"]}; color: {T["base"]}; display: flex; align-items: center; justify-content: center; box-shadow: {T["shadow_3"]};">'
-            f'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="width: 14px; height: 14px;"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>'
-            f'<span class="mono" style="position: absolute; top: -8px; right: -10px; font-size: 9.5px; font-weight: 700; color: {T["warn"]}; background: {T["base"]}; border: 1px solid {T["warn"]}; border-radius: 8px; padding: 0 5px;">{count}</span></div>')
+def map_knot(x, y):
+    """The knot on a file-browser line: its hit target, for the menu that
+    removes it. Sits on the part of the line no window covers."""
+    return (f'<div style="position: absolute; left: {x}px; top: {y}px; transform: translate(-50%, -50%); width: 12px; height: 12px; border-radius: 50%;'
+            f' background: {T["base"]}; border: 1.5px solid {T["warn"]}; box-shadow: {T["shadow_3"]};"></div>')
+
+def map_strip_send(count):
+    """The send arrow in a file browser's strip, in the slot a terminal
+    window gives its switch glyph: sends the origin's selection to every
+    destination it has a line to, asking first when there is more than one
+    (ADR-0045, ADR-0065's follow-up of 2026-09-10). The badge is the
+    selection's size; greyed at zero."""
+    color = T["warn"] if count else T["faint"]
+    badge = (f'<span class="mono" style="position: absolute; top: -6px; right: -8px; font-size: 9px; line-height: 12px; font-weight: 700; color: {T["warn"]};'
+             f' background: {T["base"]}; border: 1px solid {T["warn"]}; border-radius: 8px; padding: 0 4px;">{count}</span>') if count else ''
+    return (f'<span title="Send the selection to every destination this window has a line to" style="position: relative; margin-left: auto; width: 20px; height: 20px; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: {color}; flex: none;">'
+            f'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width: 14px; height: 14px;"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>{badge}</span>')
 
 def map_strip_tag(text, color, struck=False):
     deco = " text-decoration: line-through;" if struck else ""
@@ -3328,9 +3337,9 @@ def build_map_lines():
     """Lines (v0.7.0, ADR-0065). Above: three terminals on one line, the
     switch armed, two receiving with the warning edge and one muted from
     its own strip. Below: the local machine, a component of its own, with
-    three files selected and two directed lines to two hosts; the button on
-    a line sends the selection to both, after the question ADR-0045 asks
-    when more than one destination will receive."""
+    three files selected and two directed lines to two hosts, a knot on
+    each; the arrow in its strip sends the selection to both, after the
+    question ADR-0045 asks when more than one destination will receive."""
     w1, w2, w3 = (250, 205), (700, 205), (1150, 205)
     lo, lb, db = (330, 640), (930, 590), (930, 730)
     wires = (map_arrowhead()
@@ -3347,11 +3356,11 @@ def build_map_lines():
              + map_window("ssh", "web-03", "deploy@10.4.1.22", term("web-03", "hostname"), *w3, 400, 240, focused=False, tag_html=muted)
              + map_switch(475, 205, True) + map_switch(925, 205, True)
              + label(700, 60, "ONE LINE, ONE SWITCH: THREE ON THE SET, TWO RECEIVING, ONE MUTED FROM ITS STRIP")
-             + map_window("local", "This machine", "", map_local_body([("config", True, False), ("Runic-SSH_0.7.0_amd64.deb", False, True), ("Runic-SSH_0.7.0_x64-setup.exe", False, True), ("SHA256SUMS", False, True), ("notes.md", False, False)]), *lo, 480, 280, focused=False)
+             + map_window("local", "This machine", "", map_local_body([("config", True, False), ("Runic-SSH_0.7.0_amd64.deb", False, True), ("Runic-SSH_0.7.0_x64-setup.exe", False, True), ("SHA256SUMS", False, True), ("notes.md", False, False)]), *lo, 480, 280, focused=False, tag_html=map_strip_send(3))
              + map_component("sftp", "lb-01", "deploy@10.4.1.10", *lb, state="connected")
              + map_component("sftp", "db-01", "postgres@10.4.1.31", *db, state="connected")
-             + map_send(640, 615, 3) + map_send(640, 685, 3)
-             + label(700, 490, "ORIGIN TO DESTINATION: THE BUTTON SENDS THE SELECTION TO BOTH, AFTER ASKING"))
+             + map_knot(640, 615) + map_knot(640, 685)
+             + label(700, 490, "ORIGIN TO DESTINATION: THE ARROW IN THE STRIP SENDS THE SELECTION TO BOTH, AFTER ASKING"))
     body = map_toolbar() + map_floor(inner, wires)
     st = status_warn(stat_text("6 components", T['muted'], mono=False) + "\n" + sep() + "\n" + stat_text("5 connected", T['faint']),
                      f'    <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: {T["warnsoft"]}; background: {T["warn"]}; border-radius: 4px; padding: 4px 10px;">TYPING INTO 2 WINDOWS</span>\n'

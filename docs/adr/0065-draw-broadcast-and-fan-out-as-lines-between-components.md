@@ -194,3 +194,18 @@ the line's. Revisit this decision if the order-as-direction rule causes a
 real mistake in a stored file, in which case a `direction` field with a
 serde default is the migration-free fix; and if a measurement shows the
 fan-out needs a cap, put the cap in `validate`, not in the gesture.
+
+**Follow-up, 2026-09-10.** The send button first shipped on the line's
+midpoint, one per destination. Two things were wrong with that in use:
+every button from one origin sent the same selection to the same
+destinations, so two lines gave two identical buttons; and a line runs under
+the windows, so once two windows overlapped or sat closer than the button was
+wide, the button floated over one window's body with no line to belong to.
+The send now sits in the origin window's strip, in the slot a terminal
+window gives its switch glyph, with the selection's count as its badge. A
+file-browser line keeps its arrowhead and carries a small knot as the hit
+target for its menu. Every handle, the switch included, sits on the longest
+part of its line that no window covers, and a line covered entirely draws
+none. Rule 5's "a handle per destination" is the transfer's handle in ADR-0045's
+sense, one tracked transfer per destination; the map's gesture is one
+control per origin.

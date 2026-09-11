@@ -18,17 +18,18 @@ with the caveat that anything below 1.0 may break, and this project intends to.
   switch at its midpoint. On, what is typed into any window on the line
   reaches every open window on it, under the same rules as Sessions'
   synchronised typing: off by default, off again whenever the set changes,
-  each window able to spare itself from its strip, and one receiving window
-  treated as no broadcast at all. The map's switch and Sessions' are two
+  each window able to spare itself from its strip (its glyph struck through
+  while spared), and one receiving window treated as no broadcast at all,
+  which the switch shows by going hollow: armed, reaching nobody. The map's switch and Sessions' are two
   switches: a keystroke is routed by where it was typed, never through both.
   Lines are saved in `workspace.json`; whether one is armed is not.
 - Lines between file browsers on the map, and this machine as a component.
   "This machine", created from the floor's menu, is the file browser of the
   computer Runic runs on, one per map, with no host. Hold or right-click a
-  file browser, pick "Transfer to", click another: a directed line with a
-  send button. The button sends what is selected on the origin to the
-  folder every destination's open window is showing, asking first when
-  more than one will receive; a line from this machine is an upload, a line
+  file browser, pick "Transfer to", click another: a directed line, and a
+  send arrow in the origin window's strip. The arrow sends what is selected
+  on the origin to the folder every destination's open window is showing,
+  asking first when more than one will receive; a line from this machine is an upload, a line
   to it a download. Transfers show in the same bar the SFTP workspace has,
   now under the map too.
 - A menu on the terminal window of the map, on the right button: Copy and

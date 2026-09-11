@@ -19,6 +19,9 @@ interface ComponentWindowProps {
   readonly snapped: SnapSide | null;
   readonly focused: boolean;
   readonly connected: boolean;
+  /** Out of reach of the line being drawn: the origin, or the other
+      family. Faded like an icon the search does not match. */
+  readonly dimmed: boolean;
   /** Whether the body is drawn at all. Below the measured floor the window
       is a thumbnail and its body is left empty (ADR-0064's follow-up). */
   readonly thumbnail: boolean;
@@ -28,6 +31,9 @@ interface ComponentWindowProps {
       shows no switch at all (ADR-0065, ADR-0019's per-pane opt-out). */
   readonly broadcast: 'receiving' | 'muted' | 'armed' | null;
   readonly onToggleMute: () => void;
+  /** On a file browser with a line to somewhere: how many entries are
+      selected, and the send. `null` on every other window (ADR-0065). */
+  readonly send: { readonly count: number; readonly onSend: () => void } | null;
   readonly children: ReactNode;
   readonly onStripPointerDown: (event: ReactPointerEvent) => void;
   readonly onResizePointerDown: (handle: ResizeHandle, event: ReactPointerEvent) => void;
@@ -69,9 +75,11 @@ export function ComponentWindow({
   snapped,
   focused,
   connected,
+  dimmed,
   thumbnail,
   broadcast,
   onToggleMute,
+  send,
   children,
   onStripPointerDown,
   onResizePointerDown,
@@ -96,9 +104,9 @@ export function ComponentWindow({
     <section
       data-window={component.id}
       aria-label={name}
-      className={`absolute flex flex-col overflow-hidden border transition-[box-shadow,border-color] duration-normal ${
+      className={`absolute flex flex-col overflow-hidden border transition-[box-shadow,border-color,opacity] duration-normal ${
         maximized ? 'rounded-none' : 'rounded-[7px]'
-      } ${edge} ${focused ? 'shadow-5' : 'shadow-3'}`}
+      } ${edge} ${focused ? 'shadow-5' : 'shadow-3'} ${dimmed ? 'opacity-20' : ''}`}
       style={{
         left: rect.left,
         top: rect.top,
@@ -158,18 +166,38 @@ export function ComponentWindow({
             className={`ml-auto flex h-5 w-5 shrink-0 items-center justify-center rounded ${
               broadcast === 'receiving'
                 ? 'text-warn hover:bg-warn-soft'
-                : broadcast === 'muted'
-                  ? 'text-ink-faint hover:bg-surface-raised opacity-60'
-                  : 'text-ink-muted hover:bg-surface-raised'
+                : 'text-ink-muted hover:bg-surface-raised'
             }`}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={onToggleMute}
           >
-            <BroadcastGlyph className="h-3.5 w-3.5" />
+            <BroadcastGlyph className="h-3.5 w-3.5" struck={broadcast === 'muted'} />
+          </button>
+        )}
+        {send !== null && (
+          <button
+            type="button"
+            title={i18n.t(send.count === 0 ? 'map.window.send.none' : 'map.window.send')}
+            aria-label={i18n.t('map.window.send')}
+            disabled={send.count === 0}
+            className={`relative ml-auto flex h-5 w-5 shrink-0 items-center justify-center rounded ${
+              send.count === 0 ? 'text-ink-faint' : 'text-warn hover:bg-warn-soft'
+            }`}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={send.onSend}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5" aria-hidden="true">
+              <path d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
+            {send.count > 0 && (
+              <span className="bg-surface-base text-warn border-warn absolute -top-1.5 -right-2 rounded-full border px-1 font-mono text-[9px] leading-[12px] font-bold">
+                {send.count}
+              </span>
+            )}
           </button>
         )}
         <span
-          className={`${broadcast === null ? 'ml-auto' : ''} text-[10.5px] font-bold tracking-[0.08em]`}
+          className={`${broadcast === null && send === null ? 'ml-auto' : ''} text-[10.5px] font-bold tracking-[0.08em]`}
           style={{ color: kindColor(component.kind) }}
         >
           {component.kind.toUpperCase()}

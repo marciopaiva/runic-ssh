@@ -19,9 +19,12 @@ import {
   linkedSets,
   mapInputTargets,
   mapReceiving,
+  outsideLink,
   removeComponent,
   removeLink,
   setKey,
+  switchState,
+  visibleMidpoint,
 } from '../src/features/map';
 import { EMPTY_WORKSPACE } from '../src/ipc';
 import type { Component, Workspace } from '../src/ipc';
@@ -184,5 +187,62 @@ describe('where a keystroke typed in a map window goes', () => {
   it('ignores a key for a set that no longer exists', () => {
     const stale = new Set([setKey(['t1', 't2'])]);
     expect(mapInputTargets(linked, 'h1', stale, none, all)).toEqual(['h1']);
+  });
+});
+
+describe('the switch on a set', () => {
+  const pair = ['t1', 't2'];
+  const armed = new Set([setKey(pair)]);
+
+  it('is off until the set is armed', () => {
+    expect(switchState(pair, new Set(), ['t1', 't2'])).toBe('off');
+    expect(switchState(['t1'], armed, [])).toBe('off');
+  });
+
+  it('is on while somebody on the set receives', () => {
+    expect(switchState(pair, armed, ['t1', 't2'])).toBe('on');
+  });
+
+  it('is idle when the set is armed and nobody receives: one window spared itself', () => {
+    const two = map([ssh('t1'), ssh('t2')], [{ a: 't1', b: 't2' }]);
+    const receiving = mapReceiving(two, armed, new Set(['t2']), new Set(['t1', 't2']));
+    expect(receiving).toEqual([]);
+    expect(switchState(pair, armed, receiving)).toBe('idle');
+  });
+});
+
+describe('where a line shows its handle', () => {
+  const from = { x: 0, y: 0 };
+  const to = { x: 320, y: 0 };
+
+  it('at the midpoint when nothing covers the line', () => {
+    expect(visibleMidpoint(from, to, [])).toEqual({ x: 160, y: 0 });
+  });
+
+  it('in the middle of the longest uncovered part', () => {
+    const window = { left: 100, top: -10, width: 120, height: 20 };
+    const at = visibleMidpoint(from, to, [window]);
+    expect(at).not.toBeNull();
+    expect(at?.x).toBeCloseTo(50, 0);
+  });
+
+  it('nowhere when a window covers all of it', () => {
+    expect(visibleMidpoint(from, to, [{ left: -10, top: -10, width: 340, height: 20 }])).toBeNull();
+  });
+});
+
+describe('while a line is being drawn', () => {
+  const mixed = map([ssh('t1'), ssh('t2'), sftp('f1'), monitor('m1')], [{ a: 't1', b: 't2' }]);
+
+  it('the origin, the other family and what is already joined are out of reach', () => {
+    expect(outsideLink(mixed, 't1', 't1')).toBe(true);
+    expect(outsideLink(mixed, 't1', 'f1')).toBe(true);
+    expect(outsideLink(mixed, 't1', 'm1')).toBe(true);
+    expect(outsideLink(mixed, 't1', 't2')).toBe(true);
+  });
+
+  it('a free member of the same family is not', () => {
+    const three = map([ssh('t1'), ssh('t2'), ssh('t3')], [{ a: 't1', b: 't2' }]);
+    expect(outsideLink(three, 't1', 't3')).toBe(false);
   });
 });
