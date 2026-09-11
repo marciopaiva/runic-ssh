@@ -31,6 +31,7 @@ import {
   terminalMenu,
   terminalTreatment,
   toStage,
+  visibleMidpoint,
 } from '../../features/map';
 import type { AddRefusal, HostAsk, SwitchState } from '../../features/map';
 import { HUB, useMapStage } from '../../features/map/use-map-stage';
@@ -41,7 +42,7 @@ import type { MapDestination, PaneReport } from '../../features/sftp/use-fanout'
 import { AlertDialog } from '../ui/Dialog';
 
 import { ComponentNode } from './ComponentNode';
-import { LineHandle, SendHandle } from './LineHandle';
+import { LineHandle, LineKnot } from './LineHandle';
 import { MapTerminals } from './MapTerminals';
 import type { TerminalWiring } from './MapTerminals';
 import { ComponentWindow } from './ComponentWindow';
@@ -713,7 +714,8 @@ export function MapStage({
     readonly family: 'terminal' | 'files';
     readonly from: Point;
     readonly to: Point;
-    readonly mid: Point;
+    /** Where the handle goes: on the part no window covers, or nowhere. */
+    readonly mid: Point | null;
     readonly members: readonly string[];
     /** The set's switch; `off` on a file-browser line, which has none. */
     readonly state: SwitchState;
@@ -742,13 +744,13 @@ export function MapStage({
         family,
         from,
         to,
-        mid: { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 },
+        mid: visibleMidpoint(from, to, stage.windows),
         members,
         state: family === 'terminal' ? switchState(members, armed, receiving) : 'off',
       });
     }
     return out;
-  }, [anchorBox, armed, componentById, receiving, workspace]);
+  }, [anchorBox, armed, componentById, receiving, stage.windows, workspace]);
   const linkingFrom = stage.linking === null ? null : anchorBox(stage.linking.from);
   const linkingFamily = stage.linking === null ? null : familyOf(componentById.get(stage.linking.from)?.kind ?? 'monitor');
   const menuTitle = (target: string | null): string => {
@@ -998,6 +1000,11 @@ export function MapStage({
                   thumbnail={thumbnail}
                   broadcast={component.kind === 'ssh' ? broadcastOf(component.id) : null}
                   onToggleMute={() => toggleMute(component.id)}
+                  send={
+                    familyOf(component.kind) === 'files' && destinationsOf(workspace, component.id).length > 0
+                      ? { count: (selections.get(component.id) ?? []).length, onSend: () => sendFrom(component.id) }
+                      : null
+                  }
                   bodyId={`map-body-${component.id}`}
                   onStripPointerDown={(event) => stage.onStripPointerDown(component.id, event)}
                   onResizePointerDown={(handleName, event) => stage.onResizePointerDown(component.id, handleName, event)}
@@ -1033,6 +1040,8 @@ export function MapStage({
         />
 
         {lines.map((line) => {
+          const at = line.mid;
+          if (at === null) return null;
           const onContextMenu = (event: React.MouseEvent): void => {
             event.preventDefault();
             event.stopPropagation();
@@ -1040,15 +1049,12 @@ export function MapStage({
             stage.openMenu(`${LINE_TARGET}${line.key}`, { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) });
           };
           if (line.family === 'files') {
-            const count = (selections.get(line.link.a) ?? []).length;
             return (
-              <SendHandle
+              <LineKnot
                 key={line.key}
-                at={line.mid}
-                count={count}
+                at={at}
                 label={lineTitle(line.link)}
-                title={i18n.t(count === 0 ? 'map.line.send.none' : 'map.line.send')}
-                onSend={() => sendFrom(line.link.a)}
+                onOpen={() => stage.openMenu(`${LINE_TARGET}${line.key}`, at)}
                 onContextMenu={onContextMenu}
               />
             );
@@ -1056,7 +1062,7 @@ export function MapStage({
           return (
             <LineHandle
               key={line.key}
-              at={line.mid}
+              at={at}
               state={line.state}
               label={lineTitle(line.link)}
               title={i18n.t(line.state === 'on' ? 'map.line.disarm' : line.state === 'idle' ? 'map.line.idle' : 'map.line.arm')}

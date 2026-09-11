@@ -23,6 +23,7 @@ import {
   removeLink,
   setKey,
   switchState,
+  visibleMidpoint,
 } from '../src/features/map';
 import { EMPTY_WORKSPACE } from '../src/ipc';
 import type { Component, Workspace } from '../src/ipc';
@@ -206,5 +207,25 @@ describe('the switch on a set', () => {
     const receiving = mapReceiving(two, armed, new Set(['t2']), new Set(['t1', 't2']));
     expect(receiving).toEqual([]);
     expect(switchState(pair, armed, receiving)).toBe('idle');
+  });
+});
+
+describe('where a line shows its handle', () => {
+  const from = { x: 0, y: 0 };
+  const to = { x: 320, y: 0 };
+
+  it('at the midpoint when nothing covers the line', () => {
+    expect(visibleMidpoint(from, to, [])).toEqual({ x: 160, y: 0 });
+  });
+
+  it('in the middle of the longest uncovered part', () => {
+    const window = { left: 100, top: -10, width: 120, height: 20 };
+    const at = visibleMidpoint(from, to, [window]);
+    expect(at).not.toBeNull();
+    expect(at?.x).toBeCloseTo(50, 0);
+  });
+
+  it('nowhere when a window covers all of it', () => {
+    expect(visibleMidpoint(from, to, [{ left: -10, top: -10, width: 340, height: 20 }])).toBeNull();
   });
 });

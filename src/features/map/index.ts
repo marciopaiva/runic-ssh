@@ -67,6 +67,7 @@ export {
   RESIZE_HANDLES,
   SNAP_MARGIN,
   edgePoint,
+  visibleMidpoint,
   keepInside,
   terminalBox,
   TERMINAL_INSET,

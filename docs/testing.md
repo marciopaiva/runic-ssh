@@ -950,11 +950,12 @@ file in the home directory of the machine Runic runs on.
 | --- | --- |
 | Right-click the floor | the menu's last entry is "This machine", "the files on this computer"; pick it and a laptop icon joins the ring, and `workspace.json` holds `{"kind": "local"}` with no `host`. Right-click the floor again: the entry is gone, there is one per map |
 | Right-click the laptop | "Open", "Transfer to" with "draw a line to another file browser", "Remove": no "Change host", nothing to edit |
-| Pick "Transfer to", click `lb-01`; again, click `db-01` | two lines with an arrowhead at the far end and a round send button on each, greyed; `links` holds `{"a": <this machine>, "b": …}` twice, one per destination |
-| Open "This machine", click a file's row | the row highlights and both send buttons light up with a `1` badge |
-| Open `lb-01`, click the send button on its line | the file lands in the folder `lb-01`'s window is showing, the transfers bar under the map reports it done, and `lb-01`'s listing shows it; `db-01`, not open, was skipped |
-| Open `db-01` too, click either send button | a question first: "Send to 2 destinations?", naming the item count, the origin and both destinations; "Send" lands the file in both |
-| Right-click a send button | the same menu a terminal line has, "Remove the line"; the sessions stay |
+| Pick "Transfer to", click `lb-01`; again, click `db-01` | two lines with an arrowhead at the far end and a small knot on each; `links` holds `{"a": <this machine>, "b": …}` twice, one per destination |
+| Open "This machine", click a file's row | its strip has a send arrow, greyed until now; the row highlights and the arrow lights up with a `1` badge |
+| Open `lb-01`, click the arrow in "This machine"'s strip | the file lands in the folder `lb-01`'s window is showing, the transfers bar under the map reports it done, and `lb-01`'s listing shows it; `db-01`, not open, was skipped |
+| Open `db-01` too, click the arrow again | a question first: "Send to 2 destinations?", naming the item count, the origin and both destinations; "Send" lands the file in both |
+| Click or right-click a knot | the same menu a terminal line has, "Remove the line"; the sessions stay |
+| Drag `lb-01`'s window over "This machine"'s until they overlap | the knot and the line between them are gone with nothing to draw them on; the arrow in the strip still sends. Drag it away and they are back |
 
 Confirmed on Linux on 2026-09-10, headlessly the same way, in the dev
 build against `runic-test-sshd` on 2223 and 2224, with the file checked on

@@ -28,6 +28,9 @@ interface ComponentWindowProps {
       shows no switch at all (ADR-0065, ADR-0019's per-pane opt-out). */
   readonly broadcast: 'receiving' | 'muted' | 'armed' | null;
   readonly onToggleMute: () => void;
+  /** On a file browser with a line to somewhere: how many entries are
+      selected, and the send. `null` on every other window (ADR-0065). */
+  readonly send: { readonly count: number; readonly onSend: () => void } | null;
   readonly children: ReactNode;
   readonly onStripPointerDown: (event: ReactPointerEvent) => void;
   readonly onResizePointerDown: (handle: ResizeHandle, event: ReactPointerEvent) => void;
@@ -72,6 +75,7 @@ export function ComponentWindow({
   thumbnail,
   broadcast,
   onToggleMute,
+  send,
   children,
   onStripPointerDown,
   onResizePointerDown,
@@ -166,8 +170,30 @@ export function ComponentWindow({
             <BroadcastGlyph className="h-3.5 w-3.5" struck={broadcast === 'muted'} />
           </button>
         )}
+        {send !== null && (
+          <button
+            type="button"
+            title={i18n.t(send.count === 0 ? 'map.window.send.none' : 'map.window.send')}
+            aria-label={i18n.t('map.window.send')}
+            disabled={send.count === 0}
+            className={`relative ml-auto flex h-5 w-5 shrink-0 items-center justify-center rounded ${
+              send.count === 0 ? 'text-ink-faint' : 'text-warn hover:bg-warn-soft'
+            }`}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={send.onSend}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5" aria-hidden="true">
+              <path d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
+            {send.count > 0 && (
+              <span className="bg-surface-base text-warn border-warn absolute -top-1.5 -right-2 rounded-full border px-1 font-mono text-[9px] leading-[12px] font-bold">
+                {send.count}
+              </span>
+            )}
+          </button>
+        )}
         <span
-          className={`${broadcast === null ? 'ml-auto' : ''} text-[10.5px] font-bold tracking-[0.08em]`}
+          className={`${broadcast === null && send === null ? 'ml-auto' : ''} text-[10.5px] font-bold tracking-[0.08em]`}
           style={{ color: kindColor(component.kind) }}
         >
           {component.kind.toUpperCase()}

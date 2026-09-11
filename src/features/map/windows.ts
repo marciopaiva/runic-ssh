@@ -139,6 +139,42 @@ export function edgePoint(centre: Point, size: Size, towards: Point, inset: numb
   return { x: centre.x + ux * t, y: centre.y + uy * t };
 }
 
+/**
+ * The middle of the longest part of a line that no window covers, or
+ * `null` when a window covers all of it.
+ *
+ * A line's handle sits on the line, and a line runs under the windows.
+ * Two windows that overlap, or sit closer than the handle is wide, cover
+ * the line entirely, and a handle at the plain midpoint then floats over
+ * one window's body with no line to belong to. Sampled rather than
+ * clipped exactly: the handle is 36px wide and the windows move under the
+ * pointer, so a rect-by-rect intersection would buy precision nobody can
+ * see.
+ */
+export function visibleMidpoint(from: Point, to: Point, covers: readonly StageRect[], samples: number = 32): Point | null {
+  const inside = (p: Point): boolean =>
+    covers.some((r) => p.x > r.left && p.x < r.left + r.width && p.y > r.top && p.y < r.top + r.height);
+  let bestStart = -1;
+  let bestLength = 0;
+  let start = -1;
+  for (let i = 0; i <= samples; i += 1) {
+    const t = i / samples;
+    const covered = inside({ x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t });
+    if (!covered && start === -1) start = i;
+    if ((covered || i === samples) && start !== -1) {
+      const end = covered ? i - 1 : i;
+      if (end - start + 1 > bestLength) {
+        bestLength = end - start + 1;
+        bestStart = start;
+      }
+      start = -1;
+    }
+  }
+  if (bestStart === -1) return null;
+  const t = (bestStart + (bestLength - 1) / 2) / samples;
+  return { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
+}
+
 /** How far a terminal stays in from its window's sides, so the resize
     handles centred on those edges are never under it. */
 export const TERMINAL_INSET = 4;
