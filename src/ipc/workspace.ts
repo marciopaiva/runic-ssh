@@ -73,10 +73,18 @@ export interface Vision {
   readonly position?: Point;
 }
 
-/** A map inside the map (v0.9.0). */
+/**
+ * A map inside the map (ADR-0068). One level deep: a layer holds
+ * components and visions, never a layer, and a line never joins two
+ * components on different levels.
+ */
 export interface Layer {
   readonly id: string;
+  /** Free text, and unique among layers: the crumb shows it. */
   readonly name: string;
+  /** Where the monolith sits on the outermost ring; absent to let the map
+      place it. Entering and leaving write nothing. */
+  readonly position?: Point;
 }
 
 /**
