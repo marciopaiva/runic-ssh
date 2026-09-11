@@ -69,7 +69,8 @@ Each line is a feature that ships; the record behind it is one click away.
 - **Monitor**: a host's own CPU, memory, disk, network, processes, listening sockets, systemd units and a log file's tail, read over the connection already open, no agent installed anywhere. Read only, by design.
 - **Macros**: a name and a block of text sent as typed, `$host`, `$port` and `$username` resolved per session, from the palette or a docked sidebar.
 - **SFTP beside the terminal**: one source, up to four destinations, folders copied recursively, every name a server sends checked before it is trusted ([ADR-0041](docs/adr/0041-use-russh-sftp-instead-of-writing-the-protocol.md) through [ADR-0050](docs/adr/0050-select-sftp-rows-like-a-file-manager.md)).
-- **A map**: a fifth workspace where a saved host is a component, an icon for a terminal, an SFTP browser or a monitor that opens into its window where it stands; windows drag, resize, snap and minimize back to the icon with the session alive, and the map is saved beside the host book ([ADR-0064](docs/adr/0064-keep-the-map-in-its-own-file-beside-the-host-book.md)). The first layer of the interface the 1.0 line is built on ([the plan](docs/plans/map.md)).
+- **A map**: a workspace where a saved host is a component, an icon for a terminal, an SFTP browser or a monitor that opens into its window where it stands; windows drag, resize, snap and minimize back to the icon with the session alive, and the map is saved beside the host book ([ADR-0064](docs/adr/0064-keep-the-map-in-its-own-file-beside-the-host-book.md)). It is a **preview**, off by default: a fresh install shows the classic navigation, and "Show the map (preview)" in the command palette reveals it ([ADR-0066](docs/adr/0066-ship-the-map-as-an-opt-in-preview-with-classic-as-the-default.md)). The first layer of the interface the 1.0 line is built on ([the plan](docs/plans/map.md)).
+- **Lines on the map**: a line between two terminals broadcasts what you type to every open window on it, under the same rules as Sessions' synchronised typing; a directed line between two file browsers transfers a selection to each destination, with the machine Runic runs on joining the map as a component of its own ([ADR-0065](docs/adr/0065-draw-broadcast-and-fan-out-as-lines-between-components.md)). New in v0.7.0, reached through the preview above.
 - **A command palette** on `Ctrl+Shift+P`; **light and dark** from every toolbar; **English, Brazilian Portuguese and Spanish**, the security copy read by a native speaker before a language is offered ([ADR-0007](docs/adr/0007-localize-in-the-frontend-from-typed-error-codes.md)).
 
 Not yet: session import from OpenSSH and PuTTY, and a signed installer of any
@@ -81,13 +82,13 @@ do is in [`CHANGELOG.md`](CHANGELOG.md), under *Known limitations*, on purpose.
 Installers for all three platforms are attached to each
 [release](https://github.com/marciopaiva/runic-ssh/releases), with a
 `SHA256SUMS` covering every file. Currently
-[v0.6.0](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.6.0):
+[v0.7.0](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.7.0):
 
 | Platform | Download |
 | --- | --- |
-| Windows | [`.msi`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.6.0/Runic-SSH_0.6.0_x64_en-US.msi) (WiX) or [`.exe`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.6.0/Runic-SSH_0.6.0_x64-setup.exe) (NSIS) |
-| macOS | [`.dmg`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.6.0/Runic-SSH_0.6.0_aarch64.dmg), Apple Silicon only |
-| Linux | [`.deb`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.6.0/Runic-SSH_0.6.0_amd64.deb), [`.rpm`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.6.0/Runic-SSH-0.6.0-1.x86_64.rpm), [`.AppImage`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.6.0/Runic-SSH_0.6.0_amd64.AppImage) |
+| Windows | [`.msi`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.7.0/Runic-SSH_0.7.0_x64_en-US.msi) (WiX) or [`.exe`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.7.0/Runic-SSH_0.7.0_x64-setup.exe) (NSIS) |
+| macOS | [`.dmg`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.7.0/Runic-SSH_0.7.0_aarch64.dmg), Apple Silicon only |
+| Linux | [`.deb`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.7.0/Runic-SSH_0.7.0_amd64.deb), [`.rpm`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.7.0/Runic-SSH-0.7.0-1.x86_64.rpm), [`.AppImage`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.7.0/Runic-SSH_0.7.0_amd64.AppImage) |
 
 **Nothing is code-signed.** Windows shows SmartScreen, macOS says the
 application is damaged; both are what an operating system says about a binary
@@ -110,7 +111,7 @@ sha256sum -c SHA256SUMS --ignore-missing   # before installing anything
 - [x] **v0.4.0**: port forwarding, the host book by topology, theme and language everywhere. *2026-09-04*
 - [x] **v0.5.0**: Monitor, no agent installed, and macros. *2026-09-08*
 - [x] **v0.6.0**: the map, first layer: a component is one host in one kind, and its icon opens in place. *2026-09-10*
-- [ ] **v0.7.0**: lines between components: broadcast between terminals, transfer between SFTP browsers.
+- [x] **v0.7.0**: lines between components: broadcast between terminals, transfer between SFTP browsers; the map moves behind a preview. *2026-09-10*
 - [ ] **v0.8.0**: visions: a named set of components that lays itself out and fills the screen.
 - [ ] **v0.9.0**: layers, and the cut: the map replaces Sessions, SFTP and Monitor in the rail.
 - [ ] **v1.0.0**: production grade stability, and a signed installer on every platform.

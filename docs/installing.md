@@ -265,7 +265,7 @@ as of anything else.
 
 ```sh
 sha256sum -c SHA256SUMS --ignore-missing
-sudo apt install ./Runic-SSH_0.6.0_amd64.deb
+sudo apt install ./Runic-SSH_0.7.0_amd64.deb
 ```
 
 The file is `Runic-SSH_...`, capitalised, because the product name is; the
@@ -277,9 +277,9 @@ bundled browser engine. The webview is the system's, which is why the download
 is three megabytes rather than a hundred.
 
 **Installing a second build of the same version does nothing.** `apt` compares
-version numbers, so a rebuild of `0.6.0` over an installed `0.6.0` exits
+version numbers, so a rebuild of `0.7.0` over an installed `0.7.0` exits
 successfully without replacing anything: no error, no warning, and the old
-binary still on disk. A real bump does upgrade normally, so `0.6.0` over `0.5.0`
+binary still on disk. A real bump does upgrade normally, so `0.7.0` over `0.6.0`
 needs none of this. For a rebuild of the same version, force it:
 
 ```sh
