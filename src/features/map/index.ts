@@ -78,6 +78,26 @@ export {
   snapZone,
 } from './windows';
 export type { ResizeHandle, Resized, SnapSide, StageRect, TerminalBox } from './windows';
+export {
+  MAX_VISION_NAME,
+  MEMBER_ICON,
+  REGION,
+  addMember,
+  addVision,
+  findVision,
+  fullScreenFrames,
+  gridFor,
+  layoutVision,
+  moveVision,
+  newVisionId,
+  removeMember,
+  removeVision,
+  renameVision,
+  setVisionOpen,
+  visionOf,
+  visionsOn,
+} from './visions';
+export type { MemberBox, RegionLayout, Shape, VisionOutcome } from './visions';
 export { mapTerminals, mountedOnce } from './mounted';
 export { terminalMenu } from './menu';
 export type { TerminalMenuEntry, TerminalMenuId, TerminalMenuState } from './menu';
