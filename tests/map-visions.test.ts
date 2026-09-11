@@ -201,7 +201,7 @@ describe('the region', () => {
 
   it('never shrinks below the bar and a margin, and never lets a pin sit outside', () => {
     const empty = layoutVision([], { margin: 20, gap: 16, bar: 28 });
-    expect(empty.size).toEqual({ w: 2 * 20 + 96, h: 28 + 2 * 20 + 112 });
+    expect(empty.size).toEqual({ w: 2 * 20 + 160, h: 28 + 2 * 20 + 120 });
 
     const above = layoutVision([{ id: 'a', size: ICON, pinned: { x: -10, y: 5 } }], { margin: 20, gap: 16, bar: 28 });
     /* A pin left of or above the region's own corner is pulled to the margin. */

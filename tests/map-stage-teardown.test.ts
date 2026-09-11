@@ -51,6 +51,7 @@ function Harness({ onApi }: { readonly onApi: (api: ReturnType<typeof useMapStag
   const api = useMapStage({
     workspace: EMPTY_WORKSPACE,
     components: [{ id: 'c1', kind: 'ssh', host: 's1' }],
+    visions: [{ id: 'v1', name: 'v', components: ['c1'], open: false }],
     onChange: () => {},
     radialOptions: () => 3,
     onClick: () => {},
@@ -139,6 +140,13 @@ describe('the map stage tears down what it registers', () => {
       api?.startLink('c1');
     });
     expect(added.get('keydown') ?? 0).toBeGreaterThan(0);
+
+    /* A vision filling the screen listens for Escape too; unmounting in
+       that state must drop the listener with the mode (ADR-0067). */
+    act(() => {
+      api?.enterFullscreen('v1');
+    });
+    expect(added.get('keydown') ?? 0).toBeGreaterThan(1);
 
     act(() => {
       root.unmount();

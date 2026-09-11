@@ -20,8 +20,10 @@ import type { StageRect } from './windows';
 /** The store's own ceiling on a name (`MAX_NAME_LEN` in `config/workspace.rs`). */
 export const MAX_VISION_NAME = 80;
 
-/** A closed component's box at 100%, which is a flowing member's cell when closed. */
-export const MEMBER_ICON: Size = { w: 96, h: 112 };
+/** A closed member's cell at 100%: wider than the glyph, since the cell
+    holds the name and `user@host` under it, which the ring spaces out and a
+    grid would otherwise run together. */
+export const MEMBER_ICON: Size = { w: 160, h: 120 };
 
 /** The room a region keeps around its members, and between them. */
 export const REGION = { margin: 20, gap: 16, bar: 28 } as const;
