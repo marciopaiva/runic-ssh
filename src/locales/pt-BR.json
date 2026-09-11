@@ -27,6 +27,8 @@
   "command.window.maximize": "Maximizar janela",
   "command.window.minimize": "Minimizar janela",
   "command.window.nativeDecorations": "Usar a barra de título do sistema",
+  "command.preview.showMap": "Mostrar o mapa (preview)",
+  "command.preview.hideMap": "Ocultar o mapa",
   "command.window.restore": "Restaurar janela",
   "connecting.body": "Abrindo a conexão. A chave do host é verificada antes de qualquer coisa ser enviada, e a credencial é pedida depois disso, nunca antes.",
   "connecting.cancel": "Cancelar",

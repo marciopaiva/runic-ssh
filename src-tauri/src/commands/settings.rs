@@ -3,7 +3,9 @@
 use serde::Serialize;
 use tauri::{AppHandle, Manager, Runtime};
 
-use crate::config::{apply_locale, apply_theme, Settings, SettingsStore, Theme};
+use crate::config::{
+    apply_locale, apply_preview_features, apply_theme, Settings, SettingsStore, Theme,
+};
 use crate::error::{Error, IpcError};
 
 /// What the frontend needs to decide which language to render in.
@@ -16,6 +18,8 @@ pub struct SettingsView {
     pub native_decorations: bool,
     /// Which palette to paint, or `"system"` to follow the desktop.
     pub theme: Theme,
+    /// Whether the preview features are revealed, the map among them (ADR-0066).
+    pub preview_features: bool,
 }
 
 impl From<Settings> for SettingsView {
@@ -24,6 +28,7 @@ impl From<Settings> for SettingsView {
             locale: settings.locale,
             native_decorations: settings.native_decorations,
             theme: settings.theme,
+            preview_features: settings.preview_features,
         }
     }
 }
@@ -73,6 +78,19 @@ pub async fn set_theme<R: Runtime>(
     Ok(settings.into())
 }
 
+/// Stores whether the preview features are revealed, the map among them.
+///
+/// A plain boolean, like the chrome setting: nothing to validate, so the
+/// core just writes what arrives (ADR-0066).
+#[tauri::command]
+pub async fn set_preview_features<R: Runtime>(
+    app: AppHandle<R>,
+    on: bool,
+) -> Result<SettingsView, IpcError> {
+    let settings = apply_preview_features(&store(&app)?, on)?;
+    Ok(settings.into())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -88,7 +106,7 @@ mod tests {
 
         assert_eq!(
             json,
-            r#"{"locale":null,"nativeDecorations":false,"theme":"system"}"#
+            r#"{"locale":null,"nativeDecorations":false,"theme":"system","previewFeatures":false}"#
         );
     }
 }

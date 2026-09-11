@@ -36,6 +36,8 @@ export interface CommandActions {
   readonly chooseLocale: (locale: string | null) => void;
   /** Hands the title bar to the window manager, or takes it back. */
   readonly useNativeDecorations: (native: boolean) => void;
+  /** Reveals or hides the preview features, the map among them (ADR-0066). */
+  readonly usePreviewFeatures: (on: boolean) => void;
   /** Puts the settings tab on the strip and focuses it. */
   readonly openSettings: () => void;
   /** Divides the panel, or puts it back to one terminal. */
@@ -66,6 +68,8 @@ export interface CommandContext {
   readonly maximized: boolean;
   /** Whether the window manager is currently drawing the title bar. */
   readonly nativeDecorations: boolean;
+  /** Whether the preview features are revealed, the map among them. */
+  readonly previewFeatures: boolean;
   /** How the panel is divided right now. */
   readonly layout: Grid;
   /** Whether what is typed reaches every pane. */
@@ -150,6 +154,7 @@ export function actionCommands(context: CommandContext): readonly Command[] {
     chosenLocale,
     maximized,
     nativeDecorations,
+    previewFeatures,
     layout,
     syncing,
     panesFilled,
@@ -326,6 +331,20 @@ export function actionCommands(context: CommandContext): readonly Command[] {
        docs/installing.md, not in a palette row. */
     keywords: ['decorations', 'titlebar', 'decoracoes', 'decoraciones', 'barra'],
     run: () => actions.useNativeDecorations(!nativeDecorations),
+  });
+
+  /* The one door to the map until it leaves preview (ADR-0066). A fresh
+     install shows the classic navigation, and this reveals the map's rail
+     slot for the curious; turning it off hides the slot again and Home
+     takes over if the map was showing. */
+  commands.push({
+    id: 'preview:map',
+    section: 'actions',
+    title: previewFeatures
+      ? i18n.t('command.preview.hideMap')
+      : i18n.t('command.preview.showMap'),
+    keywords: ['preview', 'map', 'mapa', 'previa', 'previsualizacao', 'experimental'],
+    run: () => actions.usePreviewFeatures(!previewFeatures),
   });
 
   if (chosenLocale !== null) {

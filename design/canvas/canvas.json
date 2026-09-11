@@ -382,6 +382,15 @@
       "h": 900,
       "page": "page-2",
       "title": "Map, lines: broadcast on a terminal line, transfer on directed lines from this machine (v0.7.0, ADR-0065)"
+    },
+    {
+      "file": "PreviewSetting.dc.html",
+      "x": 1560,
+      "y": 10800,
+      "w": 1440,
+      "h": 900,
+      "page": "page-2",
+      "title": "The map behind the preview, classic the default (ADR-0066)"
     }
   ],
   "annotations": [

@@ -1979,7 +1979,7 @@ def build_sessions_proposal_broadcast_multi():
 # artboards already drew the real, current wizard shape, and were held back
 # from the canonical set only by that one still-proposed piece.
 
-def home_rail(workspace="home", badge=None, sftp_badge=None, armed=False):
+def home_rail(workspace="home", badge=None, sftp_badge=None, armed=False, show_map=True):
     """ADR-0029's rail, plus the fourth peer workspace Monitor added beside
     the three ADR-0044 already settled: Home, Monitor, Sessions, SFTP, in
     that order (`ActivityRail.tsx`). No gear (moved to a Home card).
@@ -2023,7 +2023,7 @@ def home_rail(workspace="home", badge=None, sftp_badge=None, armed=False):
       {slot('monitor', workspace == 'monitor', locked=armed)}
       {slot('ssh', workspace == 'sessions', bad=badge)}
       {slot('sftp', workspace == 'sftp', locked=armed, bad=sftp_badge)}
-      {slot('map', workspace == 'map', locked=armed)}
+      {slot('map', workspace == 'map', locked=armed) if show_map else ''}
     </div>"""
 
 def kind_picker(active="direct"):
@@ -3637,6 +3637,46 @@ def build_paste():
                                        sidebar_shell(hdr, rows), home_rail(workspace="sessions", badge="3", armed=True), st))
 
 # ---------- 13. the command palette
+def build_preview_setting():
+    """The preview setting (ADR-0066). A fresh install shows classic
+    navigation and no map; the command palette reveals it. The rail behind
+    the palette is the default state, four slots, no map; the caption shows
+    the fifth slot the command adds."""
+    def prow(icon, name, sub, on=False):
+        bg = f'background: {T["accentsoft"]}; border-radius: 6px;' if on else ''
+        return (f'<div style="display: flex; align-items: center; gap: 11px; padding: 9px 12px; {bg}">'
+                f'{ic(icon, 14, T["accent"] if on else T["faint"])}'
+                f'<span style="font-size: 12.5px; color: {T["ink"] if on else T["ink2"]};">{name}</span>'
+                f'<span class="mono" style="margin-left: auto; font-size: 11px; color: {T["faint"]};">{sub}</span></div>')
+    def sect(x):
+        return f'<div style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.11em; color: {T["faint"]}; padding: 10px 12px 5px;">{x}</div>'
+    map_icon = f'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width: 14px; height: 14px; color: {T["accent"]};">{ICON["map"]}</svg>'
+    caption = (f'<div style="position: absolute; left: 40px; bottom: 34px; max-width: 520px;">'
+               f'<div style="font-size: 10px; font-weight: 700; letter-spacing: 0.11em; color: {T["faint"]};">ADR-0066 &#183; THE MAP IS A PREVIEW</div>'
+               f'<div style="font-size: 12.5px; color: {T["ink2"]}; line-height: 1.55; margin-top: 8px;">A fresh install shows the classic navigation, four slots, and no map. '
+               f'The command reveals the map&#39;s rail slot for the curious; turning it off hides it again, and Home takes over if the map was showing. '
+               f'Classic is the default because it is the finished half.</div></div>')
+    overlay = f"""        <div style="flex: 1; position: relative; display: flex; justify-content: center; padding-top: 70px;">
+          <div style="position: relative; width: 560px; height: fit-content; background: {T['overlay']}; border: 1px solid {T['line2']}; border-radius: 10px; overflow: hidden; box-shadow: 0 18px 50px rgba(0,0,0,0.5);">
+            <div style="display: flex; align-items: center; gap: 11px; padding: 13px 16px; border-bottom: 1px solid {T['line']};">
+              {ic('search', 15, T['faint'])}<span style="font-size: 13.5px; color: {T['ink2']};">preview</span>
+              <div style="flex: 1;"></div><span class="mono" style="font-size: 10.5px; color: {T['off']};">1 of 12</span>
+            </div>
+            <div style="padding: 4px 6px 10px;">
+              {sect('ACTIONS')}
+              <div style="display: flex; align-items: center; gap: 11px; padding: 9px 12px; background: {T['accentsoft']}; border-radius: 6px;">
+                {map_icon}<span style="font-size: 12.5px; color: {T['ink']};">Show the map (preview)</span>
+                <span class="mono" style="margin-left: auto; font-size: 11px; color: {T['faint']};">Enter</span>
+              </div>
+            </div>
+          </div>
+          {caption}
+        </div>"""
+    body = f'      <div style="flex: 1; min-height: 0; display: flex; background: {T["base"]};">{overlay}</div>'
+    st = status(stat_text('No session', T['faint'], mono=False), stat_text('classic', T['faint']))
+    # The rail behind is the default: four slots, no map.
+    write("PreviewSetting.dc.html", page(body, None, home_rail(workspace="home", show_map=False), st))
+
 def build_palette():
     def prow(icon, name, sub, on=False):
         bg = f'background: {T["accentsoft"]}; border-radius: 6px;' if on else ''
@@ -3998,5 +4038,6 @@ else:
                build_monitor_systemd, build_monitor_logs, build_monitor_hosts_empty,
                build_map, build_map_component, build_map_host_popup, build_map_lines,
                build_anatomy, build_tokens,
-               build_hostkeychanged, build_failure, build_paste, build_palette):
+               build_hostkeychanged, build_failure, build_paste, build_palette,
+               build_preview_setting):
         fn()

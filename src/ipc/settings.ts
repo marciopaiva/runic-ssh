@@ -23,6 +23,8 @@ export interface SettingsView {
   readonly nativeDecorations: boolean;
   /** The palette the user chose, or `'system'` to follow the desktop. */
   readonly theme: Theme;
+  /** Whether the preview features are revealed, the map among them (ADR-0066). */
+  readonly previewFeatures: boolean;
 }
 
 export async function getSettings(): Promise<SettingsView> {
@@ -37,4 +39,9 @@ export async function setLocale(locale: string | null): Promise<SettingsView> {
 /** Stores the chosen palette, or pass `'system'` to follow the desktop again. */
 export async function setTheme(theme: Theme): Promise<SettingsView> {
   return invoke<SettingsView>('set_theme', { theme });
+}
+
+/** Reveals or hides the preview features, the map among them (ADR-0066). */
+export async function setPreviewFeatures(on: boolean): Promise<SettingsView> {
+  return invoke<SettingsView>('set_preview_features', { on });
 }
