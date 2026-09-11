@@ -112,8 +112,8 @@ sha256sum -c SHA256SUMS --ignore-missing   # before installing anything
 - [x] **v0.5.0**: Monitor, no agent installed, and macros. *2026-09-08*
 - [x] **v0.6.0**: the map, first layer: a component is one host in one kind, and its icon opens in place. *2026-09-10*
 - [x] **v0.7.0**: lines between components: broadcast between terminals, transfer between SFTP browsers; the map moves behind a preview. *2026-09-10*
-- [ ] **v0.8.0**: visions: a named set of components that lays itself out and fills the screen.
-- [ ] **v0.9.0**: layers, and the cut: the map replaces Sessions, SFTP and Monitor in the rail.
+- [ ] **v0.8.0**: visions, a named set of components that lays itself out and fills the screen; layers, maps inside the map.
+- [ ] **v0.9.0**: refinements, and the classic-versus-map decision the preview is gathering evidence for.
 - [ ] **v1.0.0**: production grade stability, and a signed installer on every platform.
 
 A direction, not a promise. What a tool like this should do next is better

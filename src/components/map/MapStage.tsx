@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, JSX, ReactNode } from 'react';
 
-import type { Component, ComponentKind, Link, Point, Session, SessionHandle, Size, Workspace } from '../../ipc';
+import type { Component, ComponentKind, Link, Point, Session, SessionHandle, Size, Vision, Workspace } from '../../ipc';
 import { isCursorPositionReport } from '../../features/terminal/clipboard';
 import type { MountedTerminal } from '../../features/terminal';
 import type { ClipboardApi } from '../../features/terminal/use-terminal';
@@ -9,6 +9,8 @@ import {
   addComponent,
   addLink,
   addLocal,
+  addMember,
+  addVision,
   canLink,
   changeHost,
   componentsOn,
@@ -23,8 +25,13 @@ import {
   mapInputTargets,
   mapReceiving,
   outsideLink,
+  gridFor,
+  moveVision,
   removeComponent,
   removeLink,
+  removeMember,
+  removeVision,
+  renameVision,
   resetPosition,
   setKey,
   switchState,
@@ -33,9 +40,11 @@ import {
   terminalTreatment,
   toStage,
   visibleMidpoint,
+  visionsOn,
+  REGION,
 } from '../../features/map';
 import type { AddRefusal, HostAsk, SwitchState } from '../../features/map';
-import { HUB, useMapStage } from '../../features/map/use-map-stage';
+import { FULLSCREEN_BAR, HUB, useMapStage } from '../../features/map/use-map-stage';
 import { useTranslator } from '../../features/settings';
 import type { Endpoint, PaneEntry } from '../../features/sftp/endpoint';
 import type { MapDestination, PaneReport } from '../../features/sftp/use-fanout';
@@ -51,15 +60,20 @@ import { HostPicker } from './HostPicker';
 import { HostPopup } from './HostPopup';
 import { MapMenu } from './MapMenu';
 import type { MapMenuItem } from './MapMenu';
+import { NameDialog } from './NameDialog';
 import { Radial } from './Radial';
 import type { RadialOption } from './Radial';
-import { RuneGlyph, kindColor } from './glyphs';
+import { VisionNode } from './VisionNode';
+import { VisionRegion } from './VisionRegion';
+import { ApertureMark, KindGlyph, RuneGlyph, kindColor } from './glyphs';
 
 /** The strip of a window, in stage pixels: what the body sits below. */
 const STRIP = 28;
 
 /** A closed component's box at 100%, for where a line meets its icon. */
 const ICON_BOX: Size = { w: 96, h: 112 };
+/** A closed vision's aperture, for where a line to a member behind it ends. */
+const APERTURE_BOX: Size = { w: 96, h: 96 };
 
 /** The menu target for a line, so one menu path serves nodes and lines. */
 const LINE_TARGET = 'line:';
@@ -139,6 +153,9 @@ interface PickerState {
   readonly refusal: AddRefusal | null;
 }
 
+/** The name being asked for: a new vision's, or a new name for one (ADR-0067). */
+type NamingState = { readonly kind: 'new' } | { readonly kind: 'rename'; readonly id: string };
+
 const CREATE_KINDS: readonly ComponentKind[] = ['ssh', 'sftp', 'monitor'];
 
 /**
@@ -178,10 +195,22 @@ export function MapStage({
      restart never comes up armed, and a set that changed is a new key. */
   const [armed, setArmed] = useState<ReadonlySet<string>>(new Set());
   const [muted, setMuted] = useState<ReadonlySet<string>>(new Set());
+  const [naming, setNaming] = useState<NamingState | null>(null);
+  /* The hosts this map asked `connect` for and has not seen answer or let
+     go of. A member a vision expanded without asking shows its saved state
+     rather than "connecting", since nothing is (ADR-0067, ADR-0053). */
+  const [asked, setAsked] = useState<ReadonlySet<string>>(new Set());
 
   const level = useMemo(() => componentsOn(workspace, null), [workspace]);
+  const levelVisions = useMemo(() => visionsOn(workspace, null), [workspace]);
   const byId = useMemo(() => new Map(hosts.map((host) => [host.id, host])), [hosts]);
   const componentById = useMemo(() => new Map(level.map((component) => [component.id, component])), [level]);
+  const visionById = useMemo(() => new Map(levelVisions.map((vision) => [vision.id, vision])), [levelVisions]);
+  const visionOfMember = useMemo(() => {
+    const map = new Map<string, Vision>();
+    for (const vision of levelVisions) for (const id of vision.components) map.set(id, vision);
+    return map;
+  }, [levelVisions]);
   /* A component's host, `null` for this machine, `undefined` for a remote
      kind whose host the book no longer has (the store drops it next load). */
   const hostOf = useCallback(
@@ -191,12 +220,14 @@ export function MapStage({
   );
   const nameOf = useCallback(
     (id: string): string => {
+      const vision = visionById.get(id);
+      if (vision !== undefined) return vision.name;
       const component = componentById.get(id);
       if (component === undefined) return '';
       const host = hostOf(component);
       return host === null ? i18n.t('map.local.name') : (host?.name ?? '');
     },
-    [componentById, hostOf, i18n],
+    [componentById, hostOf, i18n, visionById],
   );
 
   const kindLabel = useCallback(
@@ -232,7 +263,29 @@ export function MapStage({
             color: kindColor('local'),
           });
         }
+        create.push({ id: 'create:vision', label: i18n.t('map.create.vision'), detail: i18n.t('map.create.vision.detail'), color: 'var(--rs-accent)' });
         return create;
+      }
+      const vision = visionById.get(target);
+      if (vision !== undefined) {
+        /* ADR-0067. Connect all is the one action that starts sessions, and
+           it is offered only while a member has none to start. */
+        const items: (MapMenuItem & { readonly listOnly?: boolean })[] = [
+          vision.open
+            ? { id: 'closeVision', label: i18n.t('map.vision.close'), detail: i18n.t('map.vision.close.detail'), color: 'var(--rs-accent)' }
+            : { id: 'openVision', label: i18n.t('map.vision.open'), detail: i18n.t('map.vision.open.detail'), color: 'var(--rs-accent)' },
+          { id: 'fill', label: i18n.t('map.vision.fill'), detail: i18n.t('map.vision.fill.detail'), color: 'var(--rs-accent)' },
+        ];
+        const unconnected = vision.components.some((id) => {
+          const member = componentById.get(id);
+          return member?.host !== undefined && !handles.has(member.host);
+        });
+        if (unconnected) {
+          items.push({ id: 'connectAll', label: i18n.t('map.vision.connectAll'), detail: i18n.t('map.vision.connectAll.detail'), color: 'var(--rs-ok)' });
+        }
+        items.push({ id: 'rename', label: i18n.t('map.vision.rename'), listOnly: true });
+        items.push({ id: 'removeVision', label: i18n.t('map.vision.remove'), detail: i18n.t('map.vision.remove.detail'), danger: true });
+        return items;
       }
       if (target.startsWith(LINE_TARGET)) {
         return [{ id: 'unlink', label: i18n.t('map.line.remove'), detail: i18n.t('map.line.remove.detail'), danger: true }];
@@ -295,12 +348,24 @@ export function MapStage({
           items.push({ id: 'close', label: i18n.t('map.menu.close'), detail: i18n.t('map.menu.close.detail'), listOnly: true });
         }
       }
-      if (component.position !== undefined) items.push({ id: 'resetPosition', label: i18n.t('map.menu.resetPosition'), listOnly: true });
+      /* Membership (ADR-0067): a member's position is its pin, and "back
+         to the grid" is what dropping it means there; a loose component is
+         offered every vision on this level. */
+      const member = visionOfMember.get(target);
+      if (member !== undefined) {
+        if (component.position !== undefined) items.push({ id: 'resetPosition', label: i18n.t('map.menu.backToGrid'), listOnly: true });
+        items.push({ id: 'leaveVision', label: i18n.t('map.menu.leaveVision'), listOnly: true });
+      } else {
+        if (component.position !== undefined) items.push({ id: 'resetPosition', label: i18n.t('map.menu.resetPosition'), listOnly: true });
+        for (const vision of levelVisions) {
+          items.push({ id: `join:${vision.id}`, label: i18n.t('map.menu.putIn', { name: vision.name }), listOnly: true });
+        }
+      }
       if (component.size !== undefined) items.push({ id: 'defaultSize', label: i18n.t('map.menu.defaultSize'), listOnly: true });
       items.push({ id: 'remove', label: i18n.t('map.menu.remove'), detail: i18n.t('map.menu.remove.detail'), danger: true });
       return items;
     },
-    [componentById, handles, i18n, kindLabel, level, terminals.modifier, workspace],
+    [componentById, handles, i18n, kindLabel, level, levelVisions, terminals.modifier, visionById, visionOfMember, workspace],
   );
 
   /* The hook is declared below and its callbacks are read through these
@@ -309,11 +374,15 @@ export function MapStage({
      and without a stale set of open windows captured by a memoised callback. */
   const openRef = useRef<ReadonlySet<string>>(new Set());
   const collapseRef = useRef<(id: string) => void>(() => {});
-  const openWindowRef = useRef<(id: string) => void>(() => {});
+  const openWindowRef = useRef<(id: string, reveal?: boolean) => void>(() => {});
   const focusRef = useRef<(id: string) => void>(() => {});
   const startLinkRef = useRef<(id: string) => void>(() => {});
   const broadcastRef = useRef<(id: string) => 'receiving' | 'muted' | 'armed' | null>(() => null);
   const toggleMuteRef = useRef<(id: string) => void>(() => {});
+  const openVisionRef = useRef<(id: string) => void>(() => {});
+  const closeVisionRef = useRef<(id: string) => void>(() => {});
+  const enterFullscreenRef = useRef<(id: string) => void>(() => {});
+  const positionsRef = useRef<ReadonlyMap<string, Point>>(new Map());
   /* Each mounted terminal's clipboard, by session (#115). */
   const clipboards = useRef(new Map<string, ClipboardApi>());
   const onClipboardHandle = useCallback((sessionId: string, clipboard: ClipboardApi): void => {
@@ -324,6 +393,13 @@ export function MapStage({
     (component: Component): void => {
       collapseRef.current(component.id);
       if (component.host === undefined) return;
+      const host = component.host;
+      setAsked((current) => {
+        if (!current.has(host)) return current;
+        const next = new Set(current);
+        next.delete(host);
+        return next;
+      });
       const othersOpen = level.some(
         (other) => other.id !== component.id && other.host === component.host && openRef.current.has(other.id),
       );
@@ -339,12 +415,60 @@ export function MapStage({
         if (outcome.ok) onChange(outcome.workspace);
         return;
       }
+      if (action === 'create:vision') {
+        setNaming({ kind: 'new' });
+        return;
+      }
       if (action.startsWith('create:')) {
         const kind = action.slice('create:'.length) as ComponentKind;
         setPicker({ kind, changing: null, refusal: null });
         return;
       }
       if (target === null) return;
+      const vision = visionById.get(target);
+      if (vision !== undefined) {
+        switch (action) {
+          case 'openVision':
+            openVisionRef.current(vision.id);
+            return;
+          case 'closeVision':
+            closeVisionRef.current(vision.id);
+            return;
+          case 'fill':
+            enterFullscreenRef.current(vision.id);
+            return;
+          case 'connectAll': {
+            /* The one action that starts sessions, and each one is asked
+               for by name (ADR-0067): every member without a session, its
+               window opened so the host key question has its surface. */
+            const starting: string[] = [];
+            for (const id of vision.components) {
+              const member = componentById.get(id);
+              if (member?.host === undefined || handles.has(member.host)) continue;
+              openWindowRef.current(id, false);
+              starting.push(member.host);
+              onConnect(member.host);
+            }
+            setAsked((current) => new Set([...current, ...starting]));
+            return;
+          }
+          case 'rename':
+            setNaming({ kind: 'rename', id: vision.id });
+            return;
+          case 'removeVision': {
+            /* Members flowing in the grid have no place of their own; they
+               are left where they were drawn so they do not pile up. */
+            const drops: Record<string, Point> = {};
+            for (const id of vision.components) {
+              const at = positionsRef.current.get(id);
+              if (at !== undefined && componentById.get(id)?.position === undefined) drops[id] = { x: Math.round(at.x), y: Math.round(at.y) };
+            }
+            onChange(removeVision(workspace, vision.id, drops));
+            return;
+          }
+        }
+        return;
+      }
       if (target.startsWith(TERMINAL_TARGET)) {
         const id = target.slice(TERMINAL_TARGET.length);
         const component = componentById.get(id);
@@ -382,11 +506,29 @@ export function MapStage({
       }
       const component = componentById.get(target);
       if (component === undefined) return;
+      if (action.startsWith('join:')) {
+        const visionId = action.slice('join:'.length);
+        const target = visionById.get(visionId);
+        const anchor = positionsRef.current.get(visionId);
+        if (target === undefined || anchor === undefined) return;
+        const anchored = target.position === undefined ? moveVision(workspace, visionId, { x: Math.round(anchor.x), y: Math.round(anchor.y) }) : workspace;
+        onChange(addMember(anchored, visionId, component.id));
+        return;
+      }
       switch (action) {
-        case 'open':
+        case 'open': {
           openWindowRef.current(component.id);
-          if (component.host !== undefined && !handles.has(component.host)) onConnect(component.host);
+          if (component.host === undefined || handles.has(component.host)) return;
+          const host = component.host;
+          setAsked((current) => new Set([...current, host]));
+          onConnect(host);
           return;
+        }
+        case 'leaveVision': {
+          const at = positionsRef.current.get(component.id);
+          onChange(removeMember(workspace, component.id, at === undefined ? undefined : { x: Math.round(at.x), y: Math.round(at.y) }));
+          return;
+        }
         case 'broadcast':
         case 'transfer':
           startLinkRef.current(component.id);
@@ -415,7 +557,7 @@ export function MapStage({
           return;
       }
     },
-    [closeComponent, componentById, handles, onChange, onConnect, onEditHost, workspace],
+    [closeComponent, componentById, handles, onChange, onConnect, onEditHost, visionById, workspace],
   );
 
   /* A click while a line is being drawn is the line's other end, or the
@@ -445,11 +587,18 @@ export function MapStage({
   const stage = useMapStage({
     workspace,
     components: level,
+    visions: levelVisions,
     onChange,
     radialOptions: (id) => actionsFor(id).filter((item) => item.listOnly !== true).length,
     onClick: (id) => {
       if (completeLink(id)) return;
       if (id === HUB) return;
+      const vision = visionById.get(id);
+      if (vision !== undefined) {
+        if (vision.open) focusRef.current(id);
+        else openVisionRef.current(id);
+        return;
+      }
       const component = componentById.get(id);
       if (component === undefined) return;
       if (openRef.current.has(id)) {
@@ -468,6 +617,10 @@ export function MapStage({
   collapseRef.current = stage.collapse;
   openWindowRef.current = stage.openWindow;
   focusRef.current = stage.focus;
+  openVisionRef.current = stage.openVision;
+  closeVisionRef.current = stage.closeVision;
+  enterFullscreenRef.current = stage.enterFullscreen;
+  positionsRef.current = stage.positions;
   startLinkRef.current = stage.startLink;
   cancelLinkRef.current = stage.cancelLink;
   linkingRef.current = stage.linking;
@@ -480,6 +633,12 @@ export function MapStage({
   useEffect(() => {
     onReceivingChange(receiving.length > 0 ? receiving.length : null);
   }, [onReceivingChange, receiving.length]);
+  useEffect(() => {
+    setAsked((current) => {
+      const next = new Set([...current].filter((host) => !handles.has(host)));
+      return next.size === current.size ? current : next;
+    });
+  }, [handles]);
   useEffect(() => () => onReceivingChange(null), [onReceivingChange]);
 
   const toggleArmed = useCallback(
@@ -704,10 +863,17 @@ export function MapStage({
         };
       }
       const at = stage.positions.get(id);
-      if (at === undefined) return null;
-      return { centre: toStage(stage.view, at), size: { w: ICON_BOX.w * stage.view.scale, h: ICON_BOX.h * stage.view.scale } };
+      if (at !== undefined) {
+        return { centre: toStage(stage.view, at), size: { w: ICON_BOX.w * stage.view.scale, h: ICON_BOX.h * stage.view.scale } };
+      }
+      /* A member of a closed vision is behind its aperture, which is where
+         a line to it ends (ADR-0067). */
+      const vision = visionOfMember.get(id);
+      const aperture = vision === undefined ? undefined : stage.positions.get(vision.id);
+      if (aperture === undefined) return null;
+      return { centre: toStage(stage.view, aperture), size: { w: APERTURE_BOX.w * stage.view.scale, h: APERTURE_BOX.h * stage.view.scale } };
     },
-    [stage.positions, stage.view, stage.windows],
+    [stage.positions, stage.view, stage.windows, visionOfMember],
   );
   interface DrawnLine {
     readonly link: Link;
@@ -723,10 +889,15 @@ export function MapStage({
   }
   const lines = useMemo(() => {
     const out: DrawnLine[] = [];
+    if (stage.fullscreen !== null) return out;
     for (const link of workspace.links) {
       const a = componentById.get(link.a);
       const b = componentById.get(link.b);
       if (a === undefined || b === undefined) continue;
+      /* Both ends behind one aperture: nothing to draw between (ADR-0067). */
+      const behindA = stage.positions.has(link.a) ? null : visionOfMember.get(link.a);
+      const behindB = stage.positions.has(link.b) ? null : visionOfMember.get(link.b);
+      if (behindA !== null && behindA !== undefined && behindA === behindB) continue;
       const family = familyOf(a.kind);
       if (family === null || family !== familyOf(b.kind)) continue;
       const boxA = anchorBox(link.a);
@@ -751,7 +922,7 @@ export function MapStage({
       });
     }
     return out;
-  }, [anchorBox, armed, componentById, receiving, stage.windows, workspace]);
+  }, [anchorBox, armed, componentById, receiving, stage.fullscreen, stage.positions, stage.windows, visionOfMember, workspace]);
   const linkingFrom = stage.linking === null ? null : anchorBox(stage.linking.from);
   const linkingFamily = stage.linking === null ? null : familyOf(componentById.get(stage.linking.from)?.kind ?? 'monitor');
   const menuTitle = (target: string | null): string => {
@@ -820,6 +991,7 @@ export function MapStage({
           stage.openMenu(null, { x: event.clientX - rect.left, y: event.clientY - rect.top });
         }}
         onDoubleClick={(event) => {
+          if (stage.fullscreen !== null) return;
           if ((event.target as HTMLElement).closest('[data-component],[data-window],button,input') !== null) return;
           stage.fitAll();
         }}
@@ -838,20 +1010,60 @@ export function MapStage({
           }}
         />
 
-        {/* The world: everything that pans and scales. */}
-        <div className="absolute top-0 left-0 origin-top-left" style={{ transform: worldTransform }}>
+        {/* The regions of the open visions: stage pixels, under the world
+            and the lines, so a member's icon and the line to it paint over
+            the glass, and a press on a member reaches the member rather
+            than the region (ADR-0067). */}
+        {stage.regions.map((region) => {
+          const vision = visionById.get(region.id);
+          if (vision === undefined) return null;
+          return (
+            <div key={region.id} className="absolute inset-0" style={{ pointerEvents: 'none' }}>
+              <div className="pointer-events-auto contents">
+                <VisionRegion
+                  vision={vision}
+                  rect={region}
+                  bar={REGION.bar * stage.view.scale}
+                  focused={stage.focused === region.id}
+                  receiving={stage.dropTarget === region.id}
+                  maximized={region.maximized === null ? null : nameOf(region.maximized)}
+                  onStripPointerDown={(event) => stage.onStripPointerDown(vision.id, event)}
+                  onFocus={() => stage.focus(vision.id)}
+                  onFit={() => stage.fitVision(vision.id)}
+                  onFill={() => stage.enterFullscreen(vision.id)}
+                  onClose={() => stage.closeVision(vision.id)}
+                  onRestore={() => {
+                    if (region.maximized !== null) stage.snapTo(region.maximized, null);
+                  }}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const rect = (event.currentTarget as HTMLElement).closest('[data-map-stage]')?.getBoundingClientRect();
+                    stage.openMenu(vision.id, { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) });
+                  }}
+                />
+              </div>
+            </div>
+          );
+        })}
+
+        {/* The world: everything that pans and scales. Gone while a vision
+            fills the screen; the windows and the terminals are outside it. */}
+        <div className="absolute top-0 left-0 origin-top-left" style={{ transform: worldTransform }} hidden={stage.fullscreen !== null}>
           <svg
             aria-hidden="true"
             className="pointer-events-none absolute overflow-visible"
             style={{ left: -20000, top: -20000, width: 40000, height: 40000 }}
             viewBox="-20000 -20000 40000 40000"
           >
-            {level.map((component) => {
-              const at = stage.positions.get(component.id);
+            {/* A wire from the rune to each node on the ring: a free
+                component or a vision. A member's wire is its vision's. */}
+            {[...level.filter((component) => !visionOfMember.has(component.id)), ...levelVisions].map((node) => {
+              const at = stage.positions.get(node.id);
               if (at === undefined) return null;
               return (
                 <path
-                  key={component.id}
+                  key={node.id}
                   d={`M${String(hub.x)} ${String(hub.y)} Q${String((hub.x + at.x) / 2)} ${String((hub.y + at.y) / 2)} ${String(at.x)} ${String(at.y)}`}
                   fill="none"
                   stroke="var(--rs-border-strong)"
@@ -879,10 +1091,39 @@ export function MapStage({
             }}
           >
             <RuneGlyph />
-            <span className="text-ink-faint font-mono text-[10.5px]">
+            <span className="text-ink-faint font-mono text-[10.5px] whitespace-nowrap">
               {i18n.t(i18n.plural(level.length) === 'one' ? 'map.status.components.one' : 'map.status.components.other', { count: String(level.length) })}
+              {levelVisions.length > 0 &&
+                ` · ${i18n.t(i18n.plural(levelVisions.length) === 'one' ? 'map.status.visions.one' : 'map.status.visions.other', { count: String(levelVisions.length) })}`}
             </span>
           </div>
+
+          {levelVisions.map((vision) => {
+            const at = stage.positions.get(vision.id);
+            if (vision.open || at === undefined) return null;
+            return (
+              <VisionNode
+                key={vision.id}
+                vision={vision}
+                at={at}
+                kinds={vision.components.flatMap((id) => {
+                  const member = componentById.get(id);
+                  return member === undefined ? [] : [member.kind];
+                })}
+                dimmed={stage.linking !== null}
+                dragging={stage.dragging === vision.id}
+                receiving={stage.dropTarget === vision.id}
+                onPointerDown={(event) => stage.onNodePointerDown(vision.id, event)}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  const rect = (event.currentTarget as HTMLElement).closest('[data-map-stage]')?.getBoundingClientRect();
+                  stage.openMenu(vision.id, { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) });
+                }}
+                onKeyOpen={() => stage.openVision(vision.id)}
+              />
+            );
+          })}
 
           {level.map((component) => {
             const host = hostOf(component);
@@ -977,6 +1218,35 @@ export function MapStage({
           </div>
         )}
 
+        {/* The bar over a vision filling the screen: the name, the shape,
+            and the way back. The rest of the stage is the members' cells. */}
+        {stage.fullscreen !== null &&
+          (() => {
+            const vision = visionById.get(stage.fullscreen);
+            if (vision === undefined) return null;
+            const shape = gridFor(vision.components.length);
+            return (
+              <div
+                className="border-line-subtle bg-surface-chrome absolute inset-x-0 top-0 z-[9] flex items-center gap-2.5 border-b px-3"
+                style={{ height: FULLSCREEN_BAR }}
+              >
+                <ApertureMark />
+                <span className="text-ink text-[12px] font-semibold">{vision.name}</span>
+                <span className="text-ink-faint font-mono text-[10.5px]">
+                  {i18n.t('map.vision.shape', { count: String(vision.components.length), columns: String(shape.columns), rows: String(shape.rows) })}
+                </span>
+                <button
+                  type="button"
+                  className="text-ink-muted hover:text-ink ml-auto flex items-center gap-2 text-[11px]"
+                  onClick={stage.exitFullscreen}
+                >
+                  {i18n.t('map.vision.back')}
+                  <kbd className="border-line-strong rounded-[3px] border px-1 py-[1px] font-mono text-[10px]">Esc</kbd>
+                </button>
+              </div>
+            );
+          })()}
+
         {/* The windows: stage pixels, 1:1 whatever the zoom. */}
         {stage.windows.map((window, i) => {
           const component = componentById.get(window.id);
@@ -988,7 +1258,16 @@ export function MapStage({
           if (component.kind === 'local') {
             body = renderSftp(component, null, null, wiringFor(component));
           } else if (handle === undefined || host === null) {
-            body = (component.host === undefined ? null : attemptSurface(component.host)) ?? <ConnectingBody />;
+            /* Expanded by its vision and never asked to connect, a member
+               shows its saved state and the one button that asks (ADR-0067). */
+            const attempt = component.host === undefined ? null : attemptSurface(component.host);
+            body =
+              attempt ??
+              (component.host !== undefined && !asked.has(component.host) ? (
+                <SavedBody kind={component.kind} onConnect={() => act(component.id, 'open')} />
+              ) : (
+                <ConnectingBody />
+              ));
           } else if (component.kind === 'sftp') {
             body = renderSftp(component, host, handle, wiringFor(component));
           } else if (component.kind === 'monitor') {
@@ -1001,7 +1280,7 @@ export function MapStage({
                   component={component}
                   host={host}
                   rect={window}
-                  snapped={window.snapped}
+                  snapped={window.cell ? 'full' : window.snapped}
                   focused={focused}
                   connected={component.kind === 'local' || handle !== undefined}
                   dimmed={stage.linking !== null && outsideLink(workspace, stage.linking.from, component.id)}
@@ -1142,6 +1421,24 @@ export function MapStage({
         </HostPopup>
       )}
 
+      {naming !== null && (
+        <NameDialog
+          title={i18n.t(naming.kind === 'new' ? 'map.vision.name.title.new' : 'map.vision.name.title.rename')}
+          body={i18n.t('map.vision.name.body')}
+          initial={naming.kind === 'rename' ? (visionById.get(naming.id)?.name ?? '') : ''}
+          onSave={(name) => {
+            if (naming.kind === 'rename') {
+              onChange(renameVision(workspace, naming.id, name));
+            } else {
+              const outcome = addVision(workspace, name, null);
+              if (outcome.ok) onChange(outcome.workspace);
+            }
+            setNaming(null);
+          }}
+          onClose={() => setNaming(null)}
+        />
+      )}
+
       <AlertDialog
         open={pendingSend !== null}
         onClose={() => setPendingSend(null)}
@@ -1165,6 +1462,24 @@ export function MapStage({
         cancelText={i18n.t('map.send.cancel')}
         variant="primary"
       />
+    </div>
+  );
+}
+
+/** A member a vision expanded without connecting: what it is, and the ask. */
+function SavedBody({ kind, onConnect }: { readonly kind: ComponentKind; readonly onConnect: () => void }): JSX.Element {
+  const i18n = useTranslator();
+  return (
+    <div className="text-ink-muted flex h-full flex-col items-center justify-center gap-2 text-[12px]">
+      <KindGlyph kind={kind} size={56} />
+      <span>{i18n.t('map.vision.saved')}</span>
+      <button
+        type="button"
+        className="border-accent text-accent hover:bg-accent-soft rounded border px-2.5 py-[3px] text-[11px]"
+        onClick={onConnect}
+      >
+        {i18n.t('map.vision.connect')}
+      </button>
     </div>
   );
 }

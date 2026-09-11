@@ -15,15 +15,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent } from 'react';
 
-import type { Component, Point, Workspace } from '../../ipc';
+import type { Component, Point, Vision, Workspace } from '../../ipc';
 
 import { HOLD_MS, beginPress, holdFired, movePress, radialSegment, releasePress } from './gestures';
 import type { Press } from './gestures';
-import { HOME_VIEW, ZOOM_MAX, ZOOM_MIN, fitTo, pan, placeChildren, ringRadiusFor, toMap, toStage, zoomAt } from './layout';
+import { HOME_VIEW, REFIT_MIN, ZOOM_MAX, ZOOM_MIN, fitTo, pan, placeChildren, ringRadiusFor, toMap, toStage, zoomAt } from './layout';
 import type { Rect, View } from './layout';
 import { moveComponent, resizeComponent, sizeOf } from './model';
+import { MEMBER_ICON, REGION, addMember, fullScreenFrames, layoutVision, moveVision, removeMember, setVisionOpen } from './visions';
+import type { MemberBox } from './visions';
 import { keepInside, resizeFrom, snapRect, snapZone } from './windows';
 import type { ResizeHandle, SnapSide, StageRect } from './windows';
+
+/** The bar over a vision filling the screen, in stage pixels. */
+export const FULLSCREEN_BAR = 36;
+/** Between the cells of a vision filling the screen, in stage pixels. */
+export const FULLSCREEN_GAP = 8;
+/** How near an aperture a drop has to land, in map pixels, to join the vision. */
+const APERTURE_REACH = 64;
+/** How long the view takes to glide to a window that just opened: the
+    `--rs-duration-normal` of ADR-0063, in milliseconds. */
+export const REVEAL_MS = 200;
 
 export interface StageSize {
   readonly width: number;
@@ -55,6 +67,16 @@ export interface LinkingState {
 export interface WindowRect extends StageRect {
   readonly id: string;
   readonly snapped: SnapSide | null;
+  /** A frame the vision fixed, filling the screen or its region: neither
+      dragged nor resized, since its size is the shape's (ADR-0067). */
+  readonly cell: boolean;
+}
+
+/** Where an open vision's region sits on the stage, in stage pixels (ADR-0067). */
+export interface RegionRect extends StageRect {
+  readonly id: string;
+  /** The member maximized inside it, if one is. */
+  readonly maximized: string | null;
 }
 
 export interface MapStageApi {
@@ -68,17 +90,29 @@ export interface MapStageApi {
   readonly linking: LinkingState | null;
   readonly dragging: string | null;
   readonly snapPreview: SnapSide | null;
-  /** Where each node's centre is, in map pixels, drags included. */
+  /** The vision a dragged component would join if dropped now (ADR-0067). */
+  readonly dropTarget: string | null;
+  /** The vision filling the screen, or `null` on the map. */
+  readonly fullscreen: string | null;
+  /** Where each node's centre is, in map pixels, drags included: a free
+      component, a member of an open vision, a vision's own corner
+      (open) or aperture (closed). A member of a closed vision has none. */
   readonly positions: ReadonlyMap<string, Point>;
   /** Where each open window sits, in stage pixels. */
   readonly windows: readonly WindowRect[];
+  /** Where each open vision's region sits, in stage pixels. */
+  readonly regions: readonly RegionRect[];
   readonly setStageElement: (element: HTMLDivElement | null) => void;
   readonly onNodePointerDown: (id: string, event: ReactPointerEvent) => void;
   readonly onStripPointerDown: (id: string, event: ReactPointerEvent) => void;
   readonly onResizePointerDown: (id: string, handle: ResizeHandle, event: ReactPointerEvent) => void;
   readonly onStagePointerDown: (event: ReactPointerEvent) => void;
   readonly onWheel: (event: ReactWheelEvent) => void;
-  readonly openWindow: (id: string) => void;
+  /** Expands a component into its window. The first time, the view glides
+      until the window is centred on the stage, and from below the refit
+      floor it zooms to 1:1 as well, since a window opened is a window
+      about to be typed into; `reveal: false` leaves the view alone. */
+  readonly openWindow: (id: string, reveal?: boolean) => void;
   readonly collapse: (id: string) => void;
   readonly focus: (id: string) => void;
   readonly toggleMaximize: (id: string) => void;
@@ -94,11 +128,22 @@ export interface MapStageApi {
   readonly cancelLink: () => void;
   readonly recenter: () => void;
   readonly fitAll: () => void;
+  /** Opens a vision into its region, or closes it to its aperture with the
+      sessions alive; both are written to the map (ADR-0067). */
+  readonly openVision: (id: string) => void;
+  readonly closeVision: (id: string) => void;
+  /** Every member open in the shape for the count over the whole stage,
+      nothing written; `exitFullscreen` and Escape give back what was. */
+  readonly enterFullscreen: (id: string) => void;
+  readonly exitFullscreen: () => void;
+  readonly fitVision: (id: string) => void;
 }
 
 interface Options {
   readonly workspace: Workspace;
   readonly components: readonly Component[];
+  /** The visions on the same level (ADR-0067). */
+  readonly visions: readonly Vision[];
   readonly onChange: (next: Workspace) => void;
   /** How many radial options a hold on `id` offers; `0` means no radial. */
   readonly radialOptions: (id: string) => number;
@@ -124,7 +169,7 @@ type Tracking =
 /** The hub's own key in the positions map. */
 export const HUB = 'hub';
 
-export function useMapStage({ workspace, components, onChange, radialOptions, onClick, onRadialPick }: Options): MapStageApi {
+export function useMapStage({ workspace, components, visions, onChange, radialOptions, onClick, onRadialPick }: Options): MapStageApi {
   const [view, setView] = useState<View>(HOME_VIEW);
   const [stageSize, setStageSize] = useState<StageSize>({ width: 0, height: 0 });
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
@@ -137,6 +182,12 @@ export function useMapStage({ workspace, components, onChange, radialOptions, on
   const [dragPosition, setDragPosition] = useState<Point | null>(null);
   const [resizing, setResizing] = useState<{ id: string; size: { w: number; h: number }; centre: Point } | null>(null);
   const [snapPreview, setSnapPreview] = useState<SnapSide | null>(null);
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
+  const [fullscreen, setFullscreen] = useState<string | null>(null);
+  /* A window just opened that the view has yet to glide to. */
+  const [reveal, setReveal] = useState<string | null>(null);
+  /* What was open before a vision filled the screen, to give back on exit. */
+  const restoreOpen = useRef<ReadonlySet<string> | null>(null);
 
   const stageRef = useRef<HTMLDivElement | null>(null);
   const tracking = useRef<Tracking | null>(null);
@@ -148,6 +199,10 @@ export function useMapStage({ workspace, components, onChange, radialOptions, on
   workspaceRef.current = workspace;
   const linkingRef = useRef(linking);
   linkingRef.current = linking;
+  const fullscreenRef = useRef(fullscreen);
+  fullscreenRef.current = fullscreen;
+  const openStateRef = useRef(open);
+  openStateRef.current = open;
 
   /* Measured rather than assumed: the ring's radius and the fit-to-all
      scale both depend on how much room the stage actually has. */
@@ -169,24 +224,120 @@ export function useMapStage({ workspace, components, onChange, radialOptions, on
 
   const centre = useMemo<Point>(() => ({ x: stageSize.width / 2, y: stageSize.height / 2 }), [stageSize]);
 
-  const positions = useMemo<ReadonlyMap<string, Point>>(() => {
-    const placed = placeChildren(components, centre, ringRadiusFor(stageSize.width, stageSize.height));
-    const map = new Map<string, Point>([[HUB, centre]]);
-    components.forEach((component, i) => {
-      const at = placed[i] ?? centre;
-      map.set(component.id, dragging === component.id && dragPosition !== null ? dragPosition : at);
-    });
-    if (resizing !== null) map.set(resizing.id, resizing.centre);
+  /* Which vision each component belongs to (ADR-0067). */
+  const membership = useMemo<ReadonlyMap<string, Vision>>(() => {
+    const map = new Map<string, Vision>();
+    for (const vision of visions) for (const id of vision.components) map.set(id, vision);
     return map;
-  }, [components, centre, stageSize, dragging, dragPosition, resizing]);
+  }, [visions]);
+  const componentById = useMemo(() => new Map(components.map((component) => [component.id, component])), [components]);
+
+  /* The free components and the visions share the ring; a member sits in
+     its vision's region, laid out from the vision's corner. A vision being
+     dragged carries its members, since theirs are measured from it. */
+  const laid = useMemo(() => {
+    const nodes = [...components.filter((component) => !membership.has(component.id)), ...visions];
+    const placed = placeChildren(nodes, centre, ringRadiusFor(stageSize.width, stageSize.height));
+    const map = new Map<string, Point>([[HUB, centre]]);
+    nodes.forEach((node, i) => {
+      const at = placed[i] ?? centre;
+      map.set(node.id, dragging === node.id && dragPosition !== null ? dragPosition : at);
+    });
+    const regionSizes = new Map<string, { readonly w: number; readonly h: number }>();
+    for (const vision of visions) {
+      if (!vision.open) continue;
+      const anchor = map.get(vision.id) ?? centre;
+      const members: MemberBox[] = vision.components.flatMap((id) => {
+        const component = componentById.get(id);
+        if (component === undefined) return [];
+        /* A member being dragged keeps its stored place in the layout, so the
+           region neither reflows under it nor grows after it: a region that
+           followed the pointer could never be dragged out of. */
+        /* A maximized member keeps its window's size in the layout too, so
+           the region it fills is as large as the window would be. */
+        return [{ id, size: open.has(id) ? sizeOf(component) : MEMBER_ICON, pinned: component.position ?? null }];
+      });
+      const layout = layoutVision(members);
+      regionSizes.set(vision.id, layout.size);
+      for (const [id, at] of layout.centres) {
+        map.set(id, dragging === id && dragPosition !== null ? dragPosition : { x: anchor.x + at.x, y: anchor.y + at.y });
+      }
+    }
+    if (resizing !== null) map.set(resizing.id, resizing.centre);
+    return { positions: map as ReadonlyMap<string, Point>, regionSizes: regionSizes as ReadonlyMap<string, { readonly w: number; readonly h: number }> };
+  }, [components, componentById, membership, visions, centre, stageSize, dragging, dragPosition, resizing, open, snapped]);
+  const positions = laid.positions;
+
+  /* The region of every open vision, in stage pixels, from its corner. */
+  const regions = useMemo<readonly RegionRect[]>(() => {
+    if (fullscreen !== null) return [];
+    const out: RegionRect[] = [];
+    for (const vision of visions) {
+      const size = laid.regionSizes.get(vision.id);
+      const anchor = positions.get(vision.id);
+      if (size === undefined || anchor === undefined) continue;
+      const corner = toStage(view, anchor);
+      const maximized = vision.components.find((id) => open.has(id) && snapped.get(id) === 'full') ?? null;
+      out.push({ id: vision.id, left: corner.x, top: corner.y, width: size.w * view.scale, height: size.h * view.scale, maximized });
+    }
+    return out;
+  }, [fullscreen, laid.regionSizes, open, positions, snapped, view, visions]);
 
   const windows = useMemo<readonly WindowRect[]>(() => {
     const out: WindowRect[] = [];
+    /* A vision filling the screen: one cell per member in the shape for the
+       count, or the whole floor under the bar for a member maximized there.
+       Frames only; the terminals behind them stay where they are (ADR-0014). */
+    const filling = fullscreen === null ? undefined : visions.find((vision) => vision.id === fullscreen);
+    if (filling !== undefined) {
+      const maximized = filling.components.find((id) => snapped.get(id) === 'full');
+      if (maximized !== undefined) {
+        out.push({
+          id: maximized,
+          snapped: 'full',
+          cell: true,
+          left: 0,
+          top: FULLSCREEN_BAR,
+          width: stageSize.width,
+          height: Math.max(0, stageSize.height - FULLSCREEN_BAR),
+        });
+        return out;
+      }
+      const frames = fullScreenFrames(filling.components, stageSize, { bar: FULLSCREEN_BAR, gap: FULLSCREEN_GAP });
+      /* A member minimized while filling the screen leaves its cell empty
+         rather than reflowing the others, which would move what a person
+         is typing into. */
+      for (const [id, rect] of frames) if (open.has(id)) out.push({ id, snapped: null, cell: true, ...rect });
+      out.sort((a, b) => (a.id === focused ? 1 : 0) - (b.id === focused ? 1 : 0));
+      return out;
+    }
+    const regionById = new Map(regions.map((region) => [region.id, region]));
     for (const component of components) {
       if (!open.has(component.id)) continue;
+      const vision = membership.get(component.id);
       const side = snapped.get(component.id) ?? null;
-      if (side !== null) {
-        out.push({ id: component.id, snapped: side, ...snapRect(side, stageSize.width, stageSize.height) });
+      if (vision !== undefined) {
+        /* A member of a closed vision is behind the aperture; a sibling of a
+           maximized member waits behind it; a maximized member fills the
+           region below its bar, a child window in its parent (ADR-0067). */
+        const region = regionById.get(vision.id);
+        if (region === undefined) continue;
+        if (region.maximized !== null && region.maximized !== component.id) continue;
+        if (region.maximized === component.id) {
+          const bar = REGION.bar * view.scale;
+          out.push({
+            id: component.id,
+            snapped: 'full',
+            cell: true,
+            left: region.left,
+            top: region.top + bar,
+            width: region.width,
+            height: Math.max(0, region.height - bar),
+          });
+          continue;
+        }
+      } else if (side !== null) {
+        out.push({ id: component.id, snapped: side, cell: false, ...snapRect(side, stageSize.width, stageSize.height) });
         continue;
       }
       const size = resizing !== null && resizing.id === component.id ? resizing.size : sizeOf(component);
@@ -195,6 +346,7 @@ export function useMapStage({ workspace, components, onChange, radialOptions, on
       out.push({
         id: component.id,
         snapped: null,
+        cell: false,
         ...keepInside(
           { left: topLeft.x, top: topLeft.y, width: size.w * view.scale, height: size.h * view.scale },
           stageSize.width,
@@ -205,7 +357,29 @@ export function useMapStage({ workspace, components, onChange, radialOptions, on
     /* Focus last, so it paints on top. */
     out.sort((a, b) => (a.id === focused ? 1 : 0) - (b.id === focused ? 1 : 0));
     return out;
-  }, [components, open, snapped, resizing, positions, centre, view, stageSize, focused]);
+  }, [components, fullscreen, visions, membership, regions, open, snapped, resizing, positions, centre, view, stageSize, focused]);
+
+  /* The vision a map point falls in: an open region's rectangle, or an
+     aperture's reach. What a dragged component joins when dropped there. */
+  const visionAt = useCallback(
+    (mapPoint: Point): string | null => {
+      for (const vision of visions) {
+        const anchor = positions.get(vision.id);
+        if (anchor === undefined) continue;
+        if (vision.open) {
+          const size = laid.regionSizes.get(vision.id);
+          if (size === undefined) continue;
+          if (mapPoint.x >= anchor.x && mapPoint.x <= anchor.x + size.w && mapPoint.y >= anchor.y && mapPoint.y <= anchor.y + size.h) {
+            return vision.id;
+          }
+        } else if (Math.hypot(mapPoint.x - anchor.x, mapPoint.y - anchor.y) <= APERTURE_REACH) {
+          return vision.id;
+        }
+      }
+      return null;
+    },
+    [laid.regionSizes, positions, visions],
+  );
 
   const stagePoint = useCallback((event: { clientX: number; clientY: number }): Point => {
     const rect = stageRef.current?.getBoundingClientRect();
@@ -240,10 +414,55 @@ export function useMapStage({ workspace, components, onChange, radialOptions, on
 
   const focus = useCallback((id: string): void => setFocused(id), []);
 
-  const openWindow = useCallback((id: string): void => {
+  /* Glides the view to `target` over the normal duration, easing out, or
+     cuts to it under reduced motion. Shares the fling's frame handle, so a
+     press stops it and the teardown cancels it. */
+  const glideTo = useCallback(
+    (target: View): void => {
+      stopFling();
+      const from = viewRef.current;
+      const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reduced || typeof requestAnimationFrame !== 'function') {
+        setView(target);
+        return;
+      }
+      const started = performance.now();
+      const step = (): void => {
+        const t = Math.min(1, (performance.now() - started) / REVEAL_MS);
+        const eased = 1 - (1 - t) * (1 - t);
+        setView({
+          x: from.x + (target.x - from.x) * eased,
+          y: from.y + (target.y - from.y) * eased,
+          scale: from.scale + (target.scale - from.scale) * eased,
+        });
+        flingFrame.current = t < 1 ? requestAnimationFrame(step) : null;
+      };
+      flingFrame.current = requestAnimationFrame(step);
+    },
+    [stopFling],
+  );
+
+  const openWindow = useCallback((id: string, reveal: boolean = true): void => {
+    const first = !openStateRef.current.has(id);
     setOpen((current) => (current.has(id) ? current : new Set([...current, id])));
     setFocused(id);
+    /* Centre on the first open only: a click on a window already open is
+       focus, not a request to move the map under the others. Filling the
+       screen has no map to move. */
+    if (reveal && first && fullscreenRef.current === null) setReveal(id);
   }, []);
+
+  /* The glide waits for the render that opened the window, since a member
+     of a vision moves when its cell grows from an icon to a window: the
+     centre to reach is the one the layout settles on, not the icon's. */
+  useEffect(() => {
+    if (reveal === null) return;
+    setReveal(null);
+    const at = positions.get(reveal);
+    if (at === undefined) return;
+    const scale = viewRef.current.scale < REFIT_MIN ? 1 : viewRef.current.scale;
+    glideTo({ x: centre.x - at.x * scale, y: centre.y - at.y * scale, scale });
+  }, [centre, glideTo, positions, reveal]);
 
   const collapse = useCallback((id: string): void => {
     setOpen((current) => {
@@ -349,7 +568,8 @@ export function useMapStage({ workspace, components, onChange, radialOptions, on
       event.stopPropagation();
       stopFling();
       setFocused(id);
-      if (snapped.has(id)) return;
+      /* A cell is the shape's, not the pointer's (ADR-0067). */
+      if (snapped.has(id) || fullscreenRef.current !== null) return;
       const at = stagePoint(event);
       const here = positions.get(id) ?? centre;
       const mapAt = toMap(viewRef.current, at);
@@ -365,7 +585,7 @@ export function useMapStage({ workspace, components, onChange, radialOptions, on
       if (event.button !== 0) return;
       event.stopPropagation();
       const component = components.find((one) => one.id === id);
-      if (component === undefined || snapped.has(id)) return;
+      if (component === undefined || snapped.has(id) || fullscreenRef.current !== null) return;
       const size = sizeOf(component);
       tracking.current = {
         kind: 'resize',
@@ -416,9 +636,12 @@ export function useMapStage({ workspace, components, onChange, radialOptions, on
             if (current.press.phase !== 'dragging') clearHold();
             current.press = next;
             const mapAt = toMap(viewRef.current, at);
+            const dropAt = { x: mapAt.x + current.offset.x, y: mapAt.y + current.offset.y };
             setDragging(current.element);
-            setDragPosition({ x: mapAt.x + current.offset.x, y: mapAt.y + current.offset.y });
-            setSnapPreview(snapZone(at, stageSize.width));
+            setDragPosition(dropAt);
+            const isVision = visionsRef.current.some((vision) => vision.id === current.element);
+            setDropTarget(isVision ? null : visionAt(dropAt));
+            setSnapPreview(isVision || membershipRef.current.has(current.element) ? null : snapZone(at, stageSize.width));
           }
           return;
         }
@@ -465,17 +688,46 @@ export function useMapStage({ workspace, components, onChange, radialOptions, on
             setDragging(null);
             setDragPosition(null);
             setSnapPreview(null);
+            setDropTarget(null);
+            const mapAt = toMap(viewRef.current, at);
+            const dropAt = { x: Math.round(mapAt.x + current.offset.x), y: Math.round(mapAt.y + current.offset.y) };
+            const workspace = workspaceRef.current;
+            if (visionsRef.current.some((vision) => vision.id === current.element)) {
+              onChange(moveVision(workspace, current.element, dropAt));
+              return;
+            }
+            /* ADR-0067: dropped in a vision, the component joins it, pinned
+               where it landed; dropped outside its own, it leaves. A member
+               never snaps to the stage's edges, since its window is its
+               vision's to place. */
+            const was = membershipRef.current.get(current.element);
+            const into = visionAt(dropAt);
+            if (into !== null) {
+              const target = visionsRef.current.find((vision) => vision.id === into);
+              const anchor = positionsRef.current.get(into);
+              if (target === undefined || anchor === undefined) return;
+              /* The vision's corner is written first when the map placed it,
+                 so the pin is measured from a place the file knows. */
+              const anchored = target.position === undefined ? moveVision(workspace, into, { x: Math.round(anchor.x), y: Math.round(anchor.y) }) : workspace;
+              const pin = { x: dropAt.x - Math.round(anchor.x), y: dropAt.y - Math.round(anchor.y) };
+              /* Joining a closed vision, the member flows: a pin measured
+                 from an aperture would be a place in a region not yet open. */
+              onChange(
+                was?.id === into
+                  ? moveComponent(anchored, current.element, pin)
+                  : addMember(anchored, into, current.element, target.open ? dropAt : undefined),
+              );
+              return;
+            }
+            if (was !== undefined) {
+              onChange(removeMember(workspace, current.element, dropAt));
+              return;
+            }
             if (side !== null && open.has(current.element)) {
               snapTo(current.element, side);
               return;
             }
-            const mapAt = toMap(viewRef.current, at);
-            onChange(
-              moveComponent(workspaceRef.current, current.element, {
-                x: Math.round(mapAt.x + current.offset.x),
-                y: Math.round(mapAt.y + current.offset.y),
-              }),
-            );
+            onChange(moveComponent(workspace, current.element, dropAt));
             return;
           }
           if (outcome.kind === 'click') onClick(current.element);
@@ -531,9 +783,108 @@ export function useMapStage({ workspace, components, onChange, radialOptions, on
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
       clearHold();
-      stopFling();
     };
-  }, [clearHold, onChange, onClick, onRadialPick, open, snapTo, stagePoint, stageSize.width, stopFling]);
+  }, [clearHold, onChange, onClick, onRadialPick, open, snapTo, stagePoint, stageSize.width, visionAt]);
+
+  /* A frame in flight, a fling or a glide, is cancelled when the stage goes
+     away, and only then: this effect re-registers the listeners above
+     whenever a window opens, which is the very moment a glide starts, so
+     cancelling in that cleanup would end every glide on its first frame. */
+  useEffect(() => () => stopFling(), [stopFling]);
+
+  const visionsRef = useRef(visions);
+  visionsRef.current = visions;
+  const membershipRef = useRef(membership);
+  membershipRef.current = membership;
+  const positionsRef = useRef(positions);
+  positionsRef.current = positions;
+
+  const openVision = useCallback(
+    (id: string): void => {
+      onChange(setVisionOpen(workspaceRef.current, id, true));
+      setFocused(id);
+    },
+    [onChange],
+  );
+  const closeVision = useCallback(
+    (id: string): void => {
+      onChange(setVisionOpen(workspaceRef.current, id, false));
+      setFocused((current) => (current === id ? null : current));
+    },
+    [onChange],
+  );
+
+  const enterFullscreen = useCallback(
+    (id: string): void => {
+      const vision = visionsRef.current.find((one) => one.id === id);
+      if (vision === undefined) return;
+      stopFling();
+      setMenu(null);
+      setRadial(null);
+      setLinking(null);
+      setOpen((current) => {
+        if (restoreOpen.current === null) restoreOpen.current = current;
+        return new Set([...current, ...vision.components]);
+      });
+      setSnapped((current) => {
+        const next = new Map(current);
+        for (const member of vision.components) next.delete(member);
+        return next;
+      });
+      setFullscreen(id);
+      setFocused(vision.components[0] ?? null);
+    },
+    [stopFling],
+  );
+  const exitFullscreen = useCallback((): void => {
+    setFullscreen((current) => {
+      if (current === null) return current;
+      const vision = visionsRef.current.find((one) => one.id === current);
+      const was = restoreOpen.current;
+      restoreOpen.current = null;
+      if (was !== null) setOpen(was);
+      setSnapped((state) => {
+        if (vision === undefined) return state;
+        const next = new Map(state);
+        for (const member of vision.components) next.delete(member);
+        return next;
+      });
+      return null;
+    });
+  }, []);
+
+  /* Escape leaves a vision filling the screen. Listened for only while one
+     is, and removed with it, the way the line's is (ADR-0065);
+     `tests/map-stage-teardown.test.ts` holds that. */
+  useEffect(() => {
+    if (fullscreen === null) return;
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') exitFullscreen();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [exitFullscreen, fullscreen]);
+
+  /* A vision that left the map while filling the screen leaves the mode
+     with it, rather than a bar naming nothing. */
+  useEffect(() => {
+    if (fullscreen !== null && !visions.some((vision) => vision.id === fullscreen)) exitFullscreen();
+  }, [exitFullscreen, fullscreen, visions]);
+
+  const fitVision = useCallback(
+    (id: string): void => {
+      stopFling();
+      const anchor = positions.get(id);
+      const size = laid.regionSizes.get(id);
+      if (anchor === undefined) return;
+      const rect: Rect =
+        size === undefined
+          ? { left: anchor.x - MEMBER_ICON.w / 2, top: anchor.y - MEMBER_ICON.h / 2, right: anchor.x + MEMBER_ICON.w / 2, bottom: anchor.y + MEMBER_ICON.h / 2 }
+          : { left: anchor.x, top: anchor.y, right: anchor.x + size.w, bottom: anchor.y + size.h };
+      setView(fitTo(rect, stageSize.width, stageSize.height));
+    },
+    [laid.regionSizes, positions, stageSize, stopFling],
+  );
 
   const onWheel = useCallback(
     (event: ReactWheelEvent): void => {
@@ -553,15 +904,29 @@ export function useMapStage({ workspace, components, onChange, radialOptions, on
 
   const fitAll = useCallback((): void => {
     stopFling();
-    if (components.length === 0) {
+    if (components.length === 0 && visions.length === 0) {
       setView(HOME_VIEW);
       return;
     }
     let rect: Rect | null = null;
+    const boxes: Rect[] = [];
     for (const component of components) {
-      const at = positions.get(component.id) ?? centre;
+      const at = positions.get(component.id);
+      if (at === undefined) continue;
       const half = open.has(component.id) ? { x: sizeOf(component).w / 2, y: sizeOf(component).h / 2 } : { x: 52, y: 62 };
-      const box: Rect = { left: at.x - half.x, top: at.y - half.y, right: at.x + half.x, bottom: at.y + half.y };
+      boxes.push({ left: at.x - half.x, top: at.y - half.y, right: at.x + half.x, bottom: at.y + half.y });
+    }
+    for (const vision of visions) {
+      const at = positions.get(vision.id);
+      if (at === undefined) continue;
+      const size = laid.regionSizes.get(vision.id);
+      boxes.push(
+        size === undefined
+          ? { left: at.x - 52, top: at.y - 62, right: at.x + 52, bottom: at.y + 62 }
+          : { left: at.x, top: at.y, right: at.x + size.w, bottom: at.y + size.h },
+      );
+    }
+    for (const box of boxes) {
       rect =
         rect === null
           ? box
@@ -573,7 +938,7 @@ export function useMapStage({ workspace, components, onChange, radialOptions, on
             };
     }
     if (rect !== null) setView(fitTo(rect, stageSize.width, stageSize.height));
-  }, [centre, components, open, positions, stageSize, stopFling]);
+  }, [components, visions, laid.regionSizes, open, positions, stageSize, stopFling]);
 
   return {
     view: { ...view, scale: Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, view.scale)) },
@@ -586,8 +951,11 @@ export function useMapStage({ workspace, components, onChange, radialOptions, on
     linking,
     dragging,
     snapPreview,
+    dropTarget,
+    fullscreen,
     positions,
     windows,
+    regions,
     setStageElement,
     onNodePointerDown,
     onStripPointerDown,
@@ -606,5 +974,10 @@ export function useMapStage({ workspace, components, onChange, radialOptions, on
     cancelLink,
     recenter,
     fitAll,
+    openVision,
+    closeVision,
+    enterFullscreen,
+    exitFullscreen,
+    fitVision,
   };
 }

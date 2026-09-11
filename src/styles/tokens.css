@@ -117,6 +117,11 @@
   --rs-map-snap: rgba(34, 180, 239, 0.08);
   --rs-map-radial: rgba(14, 26, 42, 0.9);
   --rs-map-shadow: rgba(0, 0, 0, 0.45);
+  /* A vision's region (ADR-0067): fainter than a window, since windows sit
+     on it, with its own bar and a finer grid than the floor's. */
+  --rs-glass-region: rgba(10, 21, 34, 0.42);
+  --rs-glass-strip: rgba(232, 240, 250, 0.03);
+  --rs-map-region-grid: rgba(94, 200, 245, 0.05);
 }
 
 /* A viewer who has asked their system for light, and has not overridden it
@@ -205,6 +210,9 @@
     --rs-map-snap: rgba(11, 126, 184, 0.1);
     --rs-map-radial: rgba(255, 255, 255, 0.92);
     --rs-map-shadow: rgba(12, 22, 36, 0.18);
+    --rs-glass-region: rgba(255, 255, 255, 0.45);
+    --rs-glass-strip: rgba(12, 22, 36, 0.03);
+    --rs-map-region-grid: rgba(11, 126, 184, 0.07);
   }
 }
 
@@ -293,4 +301,7 @@
   --rs-map-snap: rgba(11, 126, 184, 0.1);
   --rs-map-radial: rgba(255, 255, 255, 0.92);
   --rs-map-shadow: rgba(12, 22, 36, 0.18);
+  --rs-glass-region: rgba(255, 255, 255, 0.45);
+  --rs-glass-strip: rgba(12, 22, 36, 0.03);
+  --rs-map-region-grid: rgba(11, 126, 184, 0.07);
 }

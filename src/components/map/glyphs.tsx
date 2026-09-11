@@ -125,3 +125,48 @@ export function RuneGlyph({ size = 88 }: { readonly size?: number }): JSX.Elemen
     </svg>
   );
 }
+
+/**
+ * A closed vision (ADR-0067): an aperture on the same glass as the rune,
+ * six blades still, a disc at the centre for the count. `highlighted` is
+ * the moment a dragged component would join it if dropped.
+ */
+export function ApertureGlyph({ size = 96, highlighted = false }: { readonly size?: number; readonly highlighted?: boolean }): JSX.Element {
+  const blades = Array.from({ length: 6 }, (_, i) => {
+    const a = (i * 60 * Math.PI) / 180;
+    const b = ((i * 60 + 38) * Math.PI) / 180;
+    return {
+      x1: (48 + 34 * Math.cos(a)).toFixed(1),
+      y1: (48 + 34 * Math.sin(a)).toFixed(1),
+      x2: (48 + 20 * Math.cos(b)).toFixed(1),
+      y2: (48 + 20 * Math.sin(b)).toFixed(1),
+    };
+  });
+  return (
+    <svg
+      viewBox="0 0 96 96"
+      width={size}
+      height={size}
+      style={{ overflow: 'visible', filter: 'drop-shadow(0 8px 14px var(--rs-map-shadow))' }}
+      aria-hidden="true"
+    >
+      <Defs />
+      <circle className="map-glyph-edge" cx="48" cy="48" r="44" fill="url(#map-glass)" stroke={highlighted ? 'var(--rs-glass-edge-hot)' : EDGE} strokeWidth="1.2" />
+      <circle cx="48" cy="48" r="36" fill="none" stroke="var(--rs-border-strong)" strokeWidth="1" strokeDasharray="3 4" />
+      {blades.map((blade, i) => (
+        <line key={i} {...blade} stroke="var(--rs-accent)" strokeOpacity=".55" strokeWidth="1.6" strokeLinecap="round" />
+      ))}
+      <circle cx="48" cy="48" r="17" fill="var(--rs-surface-panel)" stroke={EDGE} strokeWidth="1" />
+    </svg>
+  );
+}
+
+/** The aperture at strip size, for a region's bar and the bar over a vision filling the screen. */
+export function ApertureMark({ size = 14 }: { readonly size?: number }): JSX.Element {
+  return (
+    <svg viewBox="0 0 96 96" width={size} height={size} className="shrink-0" aria-hidden="true">
+      <circle cx="48" cy="48" r="42" fill="none" stroke="var(--rs-accent)" strokeWidth="7" strokeDasharray="22 14" />
+      <circle cx="48" cy="48" r="16" fill="var(--rs-accent)" />
+    </svg>
+  );
+}

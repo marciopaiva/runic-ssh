@@ -88,7 +88,11 @@ pub struct Component {
     /// The layer this sits in, or `None` for the outermost map.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub layer: Option<String>,
-    /// Where the user left it, or `None` to let the map place it.
+    /// Where the user left it, or `None` to let the map place it. While
+    /// the component belongs to a vision this is relative to the vision's
+    /// own `position`, and its presence is the pin: a member with one
+    /// stays where it was left, a member without one flows in the grid
+    /// (ADR-0067).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub position: Option<Point>,
     /// The window size the user chose, or `None` for the kind's default.
@@ -106,18 +110,25 @@ pub struct Link {
     pub b: String,
 }
 
-/// A named set of components that lays itself out (v0.8.0).
+/// A named set of components that lays itself out (ADR-0067).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Vision {
     pub id: String,
     pub name: String,
+    /// The members, in the order the grid lays them out. A component is in
+    /// at most one vision, and every member sits on the vision's own level.
     #[serde(default)]
     pub components: Vec<String>,
     #[serde(default)]
     pub open: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub layer: Option<String>,
+    /// Where the aperture sits closed and where the region's top-left
+    /// corner sits open, or `None` to let the map place it. Members
+    /// measure their own `position` from here.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub position: Option<Point>,
 }
 
 /// A map inside the map (v0.9.0).
@@ -243,7 +254,15 @@ pub fn validate(workspace: &Workspace) -> Result<(), Error> {
         seen_links.push((link.a.as_str(), link.b.as_str()));
     }
 
+    // ADR-0067: a member is in one vision, on the vision's own level, and
+    // named once in it, since the order of the list is the grid's order.
+    let levels: HashMap<&str, Option<&str>> = workspace
+        .components
+        .iter()
+        .map(|component| (component.id.as_str(), component.layer.as_deref()))
+        .collect();
     let mut vision_ids = HashSet::new();
+    let mut members = HashSet::new();
     for vision in &workspace.visions {
         if !acceptable_id(&vision.id) || !vision_ids.insert(vision.id.as_str()) {
             return Err(invalid("vision.id"));
@@ -251,12 +270,26 @@ pub fn validate(workspace: &Workspace) -> Result<(), Error> {
         if !acceptable_name(&vision.name) {
             return Err(invalid("vision.name"));
         }
-        if vision
-            .components
-            .iter()
-            .any(|id| !ids.contains(id.as_str()))
-        {
-            return Err(invalid("vision.components"));
+        if let Some(layer) = vision.layer.as_deref() {
+            if !acceptable_id(layer) {
+                return Err(invalid("vision.layer"));
+            }
+        }
+        for id in &vision.components {
+            let Some(level) = levels.get(id.as_str()) else {
+                return Err(invalid("vision.components"));
+            };
+            if *level != vision.layer.as_deref() {
+                return Err(invalid("vision.components"));
+            }
+            if !members.insert(id.as_str()) {
+                return Err(invalid("vision.components"));
+            }
+        }
+        if let Some(Point { x, y }) = vision.position {
+            if !(x.is_finite() && y.is_finite()) {
+                return Err(invalid("vision.position"));
+            }
         }
     }
 
@@ -394,6 +427,121 @@ mod tests {
             position: None,
             size: None,
         }
+    }
+
+    fn vision(id: &str, members: &[&str]) -> Vision {
+        Vision {
+            id: id.to_owned(),
+            name: id.to_owned(),
+            components: members.iter().map(|id| (*id).to_owned()).collect(),
+            open: true,
+            layer: None,
+            position: Some(Point { x: -300.0, y: 80.0 }),
+        }
+    }
+
+    #[test]
+    fn a_vision_survives_a_restart_with_its_place_and_its_order() {
+        let dir = tempfile::tempdir().expect("a temporary directory");
+        let workspace = Workspace {
+            components: vec![
+                component("c1", ComponentKind::Ssh, "s1"),
+                component("c2", ComponentKind::Ssh, "s2"),
+            ],
+            visions: vec![vision("v1", &["c2", "c1"])],
+            ..Workspace::default()
+        };
+        WorkspaceStore::new(dir.path())
+            .save(&workspace)
+            .expect("save");
+
+        let after_restart = WorkspaceStore::new(dir.path()).load().expect("load");
+        assert_eq!(after_restart, workspace);
+        assert_eq!(
+            after_restart.visions[0].components,
+            vec!["c2".to_owned(), "c1".to_owned()],
+            "the order is the grid's order"
+        );
+    }
+
+    #[test]
+    fn a_vision_from_before_it_had_a_place_reads_with_none() {
+        /* What v0.7.0 could have written for a vision, had anything written
+        one: no `position`. The map places it, the way it places a component
+        without one. */
+        let json = r#"{"components":[{"id":"c1","kind":"ssh","host":"s1"}],"visions":[{"id":"v1","name":"web","components":["c1"]}]}"#;
+        let workspace: Workspace = serde_json::from_str(json).expect("parse");
+
+        assert_eq!(workspace.visions[0].position, None);
+        assert!(!workspace.visions[0].open);
+        assert!(validate(&workspace).is_ok());
+    }
+
+    #[test]
+    fn a_component_is_in_one_vision_and_named_once_in_it() {
+        let two_visions = Workspace {
+            components: vec![component("c1", ComponentKind::Ssh, "s1")],
+            visions: vec![vision("v1", &["c1"]), vision("v2", &["c1"])],
+            ..Workspace::default()
+        };
+        assert!(matches!(
+            validate(&two_visions),
+            Err(Error::InvalidWorkspace { field }) if field == "vision.components"
+        ));
+
+        let twice = Workspace {
+            components: vec![component("c1", ComponentKind::Ssh, "s1")],
+            visions: vec![vision("v1", &["c1", "c1"])],
+            ..Workspace::default()
+        };
+        assert!(matches!(
+            validate(&twice),
+            Err(Error::InvalidWorkspace { field }) if field == "vision.components"
+        ));
+    }
+
+    #[test]
+    fn a_vision_and_its_members_sit_on_one_level() {
+        let workspace = Workspace {
+            components: vec![Component {
+                layer: Some("lab".to_owned()),
+                ..component("c1", ComponentKind::Ssh, "s1")
+            }],
+            visions: vec![vision("v1", &["c1"])],
+            ..Workspace::default()
+        };
+        assert!(matches!(
+            validate(&workspace),
+            Err(Error::InvalidWorkspace { field }) if field == "vision.components"
+        ));
+
+        let same_level = Workspace {
+            visions: vec![Vision {
+                layer: Some("lab".to_owned()),
+                ..vision("v1", &["c1"])
+            }],
+            ..workspace
+        };
+        assert!(validate(&same_level).is_ok());
+    }
+
+    #[test]
+    fn a_vision_is_refused_a_place_that_is_not_a_number() {
+        let workspace = Workspace {
+            components: vec![component("c1", ComponentKind::Ssh, "s1")],
+            visions: vec![Vision {
+                position: Some(Point {
+                    x: f64::NAN,
+                    y: 0.0,
+                }),
+                ..vision("v1", &["c1"])
+            }],
+            ..Workspace::default()
+        };
+        assert!(matches!(
+            validate(&workspace),
+            Err(Error::InvalidWorkspace { field }) if field == "vision.position"
+        ));
     }
 
     #[test]
@@ -627,13 +775,7 @@ mod tests {
                 a: "c1".to_owned(),
                 b: "c2".to_owned(),
             }],
-            visions: vec![Vision {
-                id: "v1".to_owned(),
-                name: "web".to_owned(),
-                components: vec!["c1".to_owned(), "c2".to_owned()],
-                open: true,
-                layer: None,
-            }],
+            visions: vec![vision("v1", &["c1", "c2"])],
             layers: vec![],
         };
 

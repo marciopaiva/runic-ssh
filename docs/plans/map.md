@@ -144,27 +144,47 @@ What the review found, and where it went:
 * Still the maintainer's: whether the menu ships without paste if the
   measurement fails, and the triage of the seven unscheduled issues.
 
-### v0.8.0 Visions
+### v0.8.0 Visions and layers
 
-**Ships:** a vision groups components and their lines; closed it is an icon
+Reshaped on 2026-09-11: the maintainer asked for the whole map model,
+visions and layers, before v0.8.0 opens, so that v0.9.0 holds refinements
+only. Layers move up from v0.9.0 into this release; the cut stays where
+ADR-0066 left it, deferred to the signal the preview gathers.
+
+**Ships, visions (ADR-0067, built 2026-09-11):** a vision groups components and their lines; closed it is an icon
 with the count, open it is a region that lays its members out in ADR-0022's
 shape for the count and sizes itself to them; a member the user drags stays
 where left; double-click fills the screen; a member maximizes inside its
 vision like a child window. Enter a vision full screen and you have the
 Sessions split of ADR-0020 as a state of the vision.
 
-**Model:** `visions` in `workspace.json`: name, components, open, pins, layer.
+**Model:** `visions` in `workspace.json`: name, components (in the grid's
+order), open, position, layer. A member's own `position` is relative to the
+vision's and is the pin; there is no `pins` field (ADR-0067, Option A).
 
-**Closes:** #119 (connect a whole group into a split): open a vision.
+**Closes:** #119 (connect a whole group into a split): fill the screen with
+a vision, which expands and never connects, and Connect all on its menu.
 
-**ADR:** the vision as the successor of the group. **Canvas:**
-`MapVision.dc.html` (closed, open, full screen, child maximized).
+**ADR:** ADR-0067, the vision as the successor of the group. **Canvas:**
+`MapVision.dc.html` (closed, open, child maximized) and
+`MapVisionFull.dc.html` (filling the screen).
 
-**Size:** medium.
+**Ships, layers (ADR-0068):** layers as maps inside the map, one level
+deep: click a layer's monolith to enter, Escape or the crumb returns;
+inside, the monolith is the hub and holds what the rune holds; components
+and visions point at their layer by a field; lines never cross layers.
 
-### v0.9.0 Layers, and the cut
+**Size:** medium, twice.
 
-**Ships:** layers as maps inside the map; then the cut: Sessions, SFTP and
+### v0.9.0 Refinements
+
+Renamed on 2026-09-11 from "Layers, and the cut": layers moved to v0.8.0,
+and the cut is deferred by ADR-0066 until the preview has gathered its
+signal. What is left is the refinement backlog (#381, #360, #353, #262) and
+the ADR-0066 decision itself, whichever way it goes. What follows is the cut
+as planned, kept for the day that decision asks for it.
+
+**Ships, if the cut is chosen:** Sessions, SFTP and
 Monitor leave the rail, which becomes Home and Map. Groups, tabs, the strip,
 the shape control, the SFTP split control and the sessions sidebar are
 deleted with their tests; the palette's session commands point at the map;
@@ -207,7 +227,7 @@ platform, and a `Known limitations` section that says what a map is not.
 | #353 Missing-credential banner | none | v0.9.0, with the long tail |
 
 Milestones to rename or create: `v0.6.0 Components`, `v0.7.0 Lines`,
-`v0.8.0 Visions`, `v0.9.0 Layers and the cut`. The README roadmap lists
+`v0.8.0 Visions and layers`, `v0.9.0 Refinements`. The README roadmap lists
 the same four lines.
 
 ## Rules that hold in every release

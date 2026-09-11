@@ -3367,6 +3367,131 @@ def build_map_lines():
                      f'    <span style="font-size: 11px; color: {T["warn"]}; border: 1px solid {T["warn"]}; border-radius: 4px; padding: 3px 10px;">Turn off</span>')
     write("MapLines.dc.html", page(body, None, home_rail(workspace="map"), st, show_shapes=False))
 
+def map_aperture(x, y, name, count, kinds, size=96):
+    """A closed vision (ADR-0067): an aperture on the same glass as the rune,
+    the member count at its centre and one mark per kind its members hold.
+    Six blades, still: it is an object of the map, not a badge. Click opens
+    it into its region; a line from outside ends at its edge."""
+    import math
+    blades = ""
+    for i in range(6):
+        a = math.radians(i * 60)
+        b = math.radians(i * 60 + 38)
+        x1, y1 = 48 + 34 * math.cos(a), 48 + 34 * math.sin(a)
+        x2, y2 = 48 + 20 * math.cos(b), 48 + 20 * math.sin(b)
+        blades += f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" stroke="{T["accent"]}" stroke-opacity=".55" stroke-width="1.6" stroke-linecap="round"></line>'
+    marks = "".join(f'<span style="width: 7px; height: 7px; border-radius: 50%; background: {map_kind_color(k)};"></span>' for k in kinds)
+    return (f'<div style="position: absolute; left: {x}px; top: {y}px; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 6px;">'
+            f'<div style="position: relative; width: {size}px; height: {size}px;">'
+            f'<svg viewBox="0 0 96 96" style="width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 8px 14px rgba(0,0,0,.45));">{glass_defs()}'
+            f'<circle cx="48" cy="48" r="44" fill="url(#gglass)" stroke="rgba(94,200,245,.38)" stroke-width="1.2"></circle>'
+            f'<circle cx="48" cy="48" r="36" fill="none" stroke="{T["line2"]}" stroke-width="1" stroke-dasharray="3 4"></circle>{blades}'
+            f'<circle cx="48" cy="48" r="17" fill="{T["panel"]}" stroke="rgba(94,200,245,.38)" stroke-width="1"></circle></svg>'
+            f'<span class="mono" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; color: {T["ink"]};">{count}</span></div>'
+            f'<span style="font-size: 11.5px; font-weight: 600; color: {T["ink2"]}; white-space: nowrap;">{name}</span>'
+            f'<span style="display: flex; gap: 4px;">{marks}</span></div>')
+
+def map_region(name, count, members_html, x, y, w, h, focused=False, child=None):
+    """An open vision (ADR-0067): a glass region whose size follows its
+    members, never a handle to resize it. The bar carries a small aperture,
+    the name, the count, and three buttons: fit the view to it, fill the
+    screen with it, close it back to the aperture with the sessions alive.
+    `child` names a member maximized inside, in which case the bar says
+    who waits behind it and the button restores."""
+    edge = "rgba(94,200,245,.45)" if focused else "rgba(94,200,245,.2)"
+    shadow = f"inset 0 1px 0 rgba(232,240,250,.05), {T['shadow_3']}"
+    btn = lambda glyph, title: (f'<span title="{title}" style="width: 26px; height: 24px; border-radius: 4px; display: flex; align-items: center;'
+                                f' justify-content: center; color: {T["muted"]}; font-size: 11px;">{glyph}</span>')
+    mark = (f'<svg viewBox="0 0 96 96" style="width: 14px; height: 14px; flex: none;"><circle cx="48" cy="48" r="42" fill="none" stroke="{T["accent"]}" stroke-width="7" stroke-dasharray="22 14"></circle>'
+            f'<circle cx="48" cy="48" r="16" fill="{T["accent"]}"></circle></svg>')
+    detail = (f'<span style="font-size: 10.5px; color: {T["warn"]};">{child} maximized &middot; {count - 1} waiting</span>' if child
+              else f'<span class="mono" style="font-size: 10.5px; color: {T["faint"]};">{count} components</span>')
+    buttons = (btn("&#10064;", "Restore: the others come back") if child
+               else btn("&#8982;", "Fit the view to this vision") + btn("&#9723;", "Fill the screen with this vision") + btn("&ndash;", "Close to the aperture, the sessions stay"))
+    return (f'<div style="position: absolute; left: {x}px; top: {y}px; width: {w}px; height: {h}px; display: flex; flex-direction: column;'
+            f' background: rgba(10,21,34,.42); border: 1px solid {edge}; border-radius: 10px; box-shadow: {shadow}; overflow: hidden;">'
+            f'<div style="height: 28px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 4px 0 10px; background: rgba(232,240,250,.03); border-bottom: 1px solid rgba(94,200,245,.14); cursor: grab;" title="Drag to move the whole vision; double-click fills the screen">'
+            f'{mark}<span style="font-size: 12px; font-weight: 600; color: {T["ink"]};">{name}</span>{detail}'
+            f'<span style="margin-left: auto; display: flex; align-items: center; gap: 2px;">{buttons}</span></div>'
+            f'<div style="flex: 1; position: relative; background-image: linear-gradient(rgba(94,200,245,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(94,200,245,.05) 1px, transparent 1px); background-size: 28px 28px;">{members_html}</div></div>')
+
+def map_pin(x, y):
+    """The mark on a member the user placed by hand inside its vision: it
+    stays where it was left while the others flow (ADR-0067). "Back to the
+    grid" on its menu takes the pin out."""
+    return (f'<span title="Placed by hand; the others flow around it" style="position: absolute; left: {x}px; top: {y}px; width: 14px; height: 14px; border-radius: 50%; background: {T["base"]}; border: 1px solid {T["accent"]}; display: flex; align-items: center; justify-content: center;">'
+            f'<svg viewBox="0 0 24 24" fill="none" stroke="{T["accent"]}" stroke-width="2.4" stroke-linecap="round" style="width: 9px; height: 9px;"><path d="M12 17v5M8 3h8l-1 6 3 3H6l3-3z"></path></svg></span>')
+
+def map_monitor_body(cpu, mem):
+    """A monitor's window body at map size: the two dials the Monitor
+    workspace opens with, reduced to two bars, which is all the cell has room
+    for when a vision fills the screen."""
+    bar = lambda label, pct, color: (f'<div style="display: flex; align-items: center; gap: 10px;"><span style="width: 34px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; color: {T["faint"]};">{label}</span>'
+                                     f'<span style="flex: 1; height: 6px; border-radius: 3px; background: {T["raised"]}; overflow: hidden;"><span style="display: block; width: {pct}%; height: 100%; background: {color};"></span></span>'
+                                     f'<span class="mono" style="width: 36px; text-align: right; font-size: 11px; color: {T["ink2"]};">{pct}%</span></div>')
+    return (f'<div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; background: {T["panel"]}; flex: 1;">'
+            + bar("CPU", cpu, T["accent"]) + bar("MEM", mem, T["bend"])
+            + f'<span class="mono" style="font-size: 10.5px; color: {T["faint"]};">up 41 days &middot; load 0.42 0.37 0.31</span></div>')
+
+def build_map_vision():
+    """Visions (v0.8.0, ADR-0067), three states on one floor. Left: a closed
+    vision, the aperture with its count and a mark per kind, a line from an
+    outside terminal ending at its edge. Right: an open vision, four members
+    in ADR-0022's 2x2, one open as a window, one placed by hand with the pin
+    mark, the region sized to them. Below: a vision with one member
+    maximized inside it, the bar saying who waits."""
+    term = lambda host, cmd, out: map_terminal_body("deploy", host, [(cmd, out)])
+    label = lambda x, y, text: f'<span style="position: absolute; left: {x}px; top: {y}px; transform: translateX(-50%); font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: {T["faint"]}; white-space: nowrap;">{text}</span>'
+    # A line from an outside terminal stops where the aperture's edge is.
+    wires = map_wire(200, 660, 330, 300) + map_line(118, 300, 282, 300)
+    # The open region: cells as large as their members, the region their union.
+    rx, ry, rw, rh = 560, 70, 780, 450
+    members = (map_window("ssh", "web-01", "deploy@10.4.1.20", term("web-01", "systemctl is-active nginx", "active"), 228, 150, 400, 220, focused=True)
+               + map_component("ssh", "web-02", "deploy@10.4.1.21", 610, 150, state="connected")
+               + map_component("sftp", "web-01", "deploy@10.4.1.20", 228, 350)
+               + map_component("monitor", "db-prod", "postgres@10.4.1.31", 560, 350, state="connected") + map_pin(600, 292))
+    child_members = map_window("monitor", "db-prod", "postgres@10.4.1.31", map_monitor_body(12, 41), 270, 91, 540, 170, focused=False, maximized=True)
+    inner = (map_rune(200, 660)
+             + map_component("ssh", "jump-01", "deploy@10.4.0.2", 110, 300, state="connected")
+             + map_aperture(330, 300, "prod", 3, ["ssh", "ssh", "monitor"])
+             + label(340, 60, "CLOSED: THE COUNT, A MARK PER KIND, A LINE FROM OUTSIDE ENDS AT THE EDGE")
+             + map_region("staging", 4, members, rx, ry, rw, rh, focused=True)
+             + label(950, 530, "OPEN: THE 2x2 OF ADR-0022, ONE WINDOW, ONE PLACED BY HAND, THE REGION SIZED TO THEM")
+             + map_region("data", 3, child_members, 560, 565, 540, 210, child="db-prod")
+             + label(830, 783, "A MEMBER MAXIMIZED INSIDE ITS VISION: THE OTHERS WAIT UNTIL RESTORE"))
+    body = map_toolbar() + map_floor(inner, wires)
+    st = status(stat_text("9 components", T['muted'], mono=False) + "\n" + sep() + "\n" + stat_text("3 visions", T['muted'], mono=False), stat_text("6 connected", T['faint']))
+    write("MapVision.dc.html", page(body, None, home_rail(workspace="map"), st, show_shapes=False))
+
+def build_map_vision_full():
+    """A vision filling the screen (v0.8.0, ADR-0067): every member open in
+    ADR-0022's shape for the count, each 1:1 in its cell, the floor gone. It
+    is the Sessions split as a state of the vision; nothing is written and
+    Escape gives the map back with every session alive. Expanding did not
+    connect anyone: the member without a session shows its saved state."""
+    term = lambda host, cmd, out: map_terminal_body("deploy", host, [(cmd, out)])
+    gap, top = 8, 36
+    cw, ch = (1392 - 3 * gap) // 2, (806 - top - 3 * gap) // 2
+    cell = lambda col, row: (gap + col * (cw + gap) + cw // 2, top + gap + row * (ch + gap) + ch // 2)
+    saved = (f'<div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; background: {T["panel"]};">'
+             f'{map_glyph("sftp", map_kind_color("sftp"))}<span style="font-size: 12px; color: {T["muted"]};">Saved, not connected</span>'
+             f'<span style="font-size: 11px; color: {T["accent"]}; border: 1px solid {T["accent"]}; border-radius: 4px; padding: 3px 10px;">Connect</span></div>')
+    mark = (f'<svg viewBox="0 0 96 96" style="width: 14px; height: 14px; flex: none;"><circle cx="48" cy="48" r="42" fill="none" stroke="{T["accent"]}" stroke-width="7" stroke-dasharray="22 14"></circle>'
+            f'<circle cx="48" cy="48" r="16" fill="{T["accent"]}"></circle></svg>')
+    bar = (f'<div style="position: absolute; left: 0; top: 0; right: 0; height: {top}px; display: flex; align-items: center; gap: 10px; padding: 0 12px; background: {T["chrome"]}; border-bottom: 1px solid {T["line"]};">'
+           f'{mark}<span style="font-size: 12px; font-weight: 600; color: {T["ink"]};">staging</span>'
+           f'<span class="mono" style="font-size: 10.5px; color: {T["faint"]};">4 components &middot; 2x2</span>'
+           f'<span style="margin-left: auto; font-size: 11px; color: {T["muted"]};">Back to the map</span><span class="cap">Esc</span></div>')
+    inner = (bar
+             + map_window("ssh", "web-01", "deploy@10.4.1.20", term("web-01", "systemctl is-active nginx", "active"), *cell(0, 0), cw, ch, focused=True)
+             + map_window("ssh", "web-02", "deploy@10.4.1.21", term("web-02", "systemctl is-active nginx", "active"), *cell(1, 0), cw, ch, focused=False)
+             + map_window("sftp", "web-01", "deploy@10.4.1.20", saved, *cell(0, 1), cw, ch, focused=False)
+             + map_window("monitor", "db-prod", "postgres@10.4.1.31", map_monitor_body(12, 41), *cell(1, 1), cw, ch, focused=False))
+    floor = f'<div style="flex: 1; position: relative; overflow: hidden; background: {T["base"]};">{inner}</div>'
+    body = map_toolbar() + floor
+    st = status(stat_text("9 components", T['muted'], mono=False) + "\n" + sep() + "\n" + stat_text("staging, full screen", T['muted'], mono=False), stat_text("6 connected", T['faint']))
+    write("MapVisionFull.dc.html", page(body, None, home_rail(workspace="map"), st, show_shapes=False))
+
 def build_anatomy():
     def reg(label, w, h, bg, color, note, border=None):
         b = f'border: 1px solid {border};' if border else ''
@@ -4037,6 +4162,7 @@ else:
                build_monitor, build_monitor_processes, build_monitor_ports,
                build_monitor_systemd, build_monitor_logs, build_monitor_hosts_empty,
                build_map, build_map_component, build_map_host_popup, build_map_lines,
+               build_map_vision, build_map_vision_full,
                build_anatomy, build_tokens,
                build_hostkeychanged, build_failure, build_paste, build_palette,
                build_preview_setting):

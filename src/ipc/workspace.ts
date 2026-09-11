@@ -38,7 +38,9 @@ export interface Component {
   readonly host?: string;
   /** The layer this sits in; absent on the outermost map. */
   readonly layer?: string;
-  /** Where the user left it; absent to let the map place it. */
+  /** Where the user left it; absent to let the map place it. Relative to
+      the vision's `position` while the component is a member, and then its
+      presence is the pin (ADR-0067). */
   readonly position?: Point;
   /** The window size the user chose; absent for the kind's default. */
   readonly size?: Size;
@@ -54,13 +56,21 @@ export interface Link {
   readonly b: string;
 }
 
-/** A named set of components that lays itself out (v0.8.0). */
+/**
+ * A named set of components that lays itself out (ADR-0067). `components`
+ * is in the grid's order; a component is in at most one vision, on the
+ * vision's own level.
+ */
 export interface Vision {
   readonly id: string;
   readonly name: string;
   readonly components: readonly string[];
   readonly open: boolean;
   readonly layer?: string;
+  /** Where the aperture sits closed and the region's top-left corner sits
+      open; absent to let the map place it. A member's own `position` is
+      measured from here while it belongs to the vision. */
+  readonly position?: Point;
 }
 
 /** A map inside the map (v0.9.0). */
