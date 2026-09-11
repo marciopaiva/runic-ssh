@@ -130,3 +130,12 @@ it into `docs/measurements/`. v0.9.0 writes the ADR that supersedes ADR-0015,
 0019, 0020, 0029 and 0044 and deletes the old workspaces. Revisit this
 decision if the map does not reach parity by v0.9.0: the fifth rail entry
 was accepted as temporary, and a permanent one is a different decision.
+
+**Follow-up, 2026-09-10 (ADR-0066).** The rollout above is amended. The map
+is not the temporary entry beside the finished workspaces; it is the opt-in
+one, behind a preview setting, with classic navigation the default a fresh
+install lands on. The v0.9.0 cut is deferred, and its direction, whether to
+remove classic, keep both, or cut the map, is left open to be decided on the
+signal the preview gathers. This file-layout decision, the map in its own
+`workspace.json` beside the host book, stands unchanged; only the rail's
+default and the timing of the cut move.
