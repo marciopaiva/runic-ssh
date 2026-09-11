@@ -75,6 +75,35 @@ impl<'de> Deserialize<'de> for Theme {
     }
 }
 
+/// Which navigation the window shows (ADR-0069).
+///
+/// Classic is the four workspaces this project has always had; Map is the
+/// two-slot rail ADR-0064 planned for after the cut, reached without one.
+/// The selector that sets this lives in the shared toolbar and is itself
+/// shown only behind `preview_features` (ADR-0066): the gate is that
+/// setting, this is its surface.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Shell {
+    #[default]
+    Classic,
+    Map,
+}
+
+/// Read the same way [`Theme`] is: an unknown name falls back to the
+/// default rather than failing the whole settings file.
+impl<'de> Deserialize<'de> for Shell {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Ok(match String::deserialize(deserializer)?.as_str() {
+            "map" => Self::Map,
+            _ => Self::Classic,
+        })
+    }
+}
+
 /// Everything the application remembers between launches.
 ///
 /// Every field is optional and defaults sensibly, so a settings file written by
@@ -102,6 +131,9 @@ pub struct Settings {
     /// this decision exists to avoid. Someone who turns it on has opted into
     /// work in progress, the way a pre-release tag is opted into.
     pub preview_features: bool,
+    /// Which navigation is in front (ADR-0069). Classic by default; a
+    /// setting written before this field existed reads as classic too.
+    pub shell: Shell,
 }
 
 /// Reads and writes [`Settings`] under a directory the caller owns.
@@ -253,6 +285,20 @@ pub fn apply_theme(store: &SettingsStore, theme: Theme) -> Result<Settings, Erro
     Ok(settings)
 }
 
+/// Stores which navigation is in front (ADR-0069).
+///
+/// Its own setter for the same reason as [`apply_theme`]: nothing to
+/// validate, since an unknown name never reaches here (the frontend narrows
+/// it, and a malformed wire value the deserializer would reject before this
+/// runs).
+pub fn apply_shell(store: &SettingsStore, shell: Shell) -> Result<Settings, Error> {
+    let mut settings = store.load()?;
+    settings.shell = shell;
+    store.save(&settings)?;
+
+    Ok(settings)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -276,6 +322,7 @@ mod tests {
             native_decorations: true,
             theme: Theme::Light,
             preview_features: true,
+            shell: Shell::Map,
         };
 
         store.save(&settings).expect("save");
@@ -375,6 +422,7 @@ mod tests {
             native_decorations: false,
             theme: Theme::Dark,
             preview_features: false,
+            shell: Shell::Map,
         })
         .expect("serialize");
 
@@ -528,6 +576,51 @@ mod theme_tests {
         fs::write(store.path(), r#"{"theme":3}"#).expect("write");
 
         assert!(matches!(store.load(), Err(Error::SettingsMalformed { .. })));
+    }
+
+    #[test]
+    fn a_shell_this_build_does_not_know_reads_as_classic() {
+        let (store, _dir) = store();
+        fs::write(store.path(), r#"{"locale":"en","shell":"orbit"}"#).expect("write");
+
+        let settings = store
+            .load()
+            .expect("an unknown shell is not a corrupt file");
+        assert_eq!(settings.shell, Shell::Classic);
+        assert_eq!(settings.locale.as_deref(), Some("en"));
+    }
+
+    #[test]
+    fn a_shell_that_is_not_even_a_name_still_fails_the_file() {
+        let (store, _dir) = store();
+        fs::write(store.path(), r#"{"shell":3}"#).expect("write");
+
+        assert!(matches!(store.load(), Err(Error::SettingsMalformed { .. })));
+    }
+
+    #[test]
+    fn choosing_a_shell_leaves_the_other_settings_alone() {
+        let (store, _dir) = store();
+        apply_locale(&store, Some("es".to_owned())).expect("locale");
+        apply_theme(&store, Theme::Dark).expect("theme");
+
+        let settings = apply_shell(&store, Shell::Map).expect("shell");
+
+        assert_eq!(settings.shell, Shell::Map);
+        assert_eq!(settings.locale.as_deref(), Some("es"));
+        assert_eq!(settings.theme, Theme::Dark);
+        assert_eq!(store.load().expect("reload"), settings, "not persisted");
+    }
+
+    #[test]
+    fn the_shell_returns_to_classic() {
+        let (store, _dir) = store();
+        apply_shell(&store, Shell::Map).expect("map");
+
+        assert_eq!(
+            apply_shell(&store, Shell::Classic).expect("classic").shell,
+            Shell::Classic
+        );
     }
 
     #[test]

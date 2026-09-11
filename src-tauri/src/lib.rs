@@ -81,6 +81,7 @@ pub fn run() -> tauri::Result<()> {
             commands::settings::set_locale,
             commands::settings::set_theme,
             commands::settings::set_preview_features,
+            commands::settings::set_shell,
             commands::sessions::list_sessions,
             commands::sessions::save_session,
             commands::sessions::delete_session,
