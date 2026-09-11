@@ -34,9 +34,14 @@ Two things make the question more than a shortcut to the fifth slot:
 
 ### Option A: a selector in the shared toolbar, the map as a shell
 
-A segmented control, `Classic | Map`, at the trailing edge of the shared
-toolbar in every workspace, in the group that holds theme and language,
-separated from them by the same hairline. Choosing Map swaps the shell: the
+A switch, at the trailing edge of the shared toolbar in every workspace, in
+the group that holds theme and language, separated from them by the same
+hairline: `BroadcastButton`'s own shape for a plain two-state choice, not
+`ThemeFold`'s fold of several. It shows the shell in front and switches on
+a click, so seeing the other choice costs nothing the way seeing whether a
+broadcast is armed costs nothing; a fold that opened to reveal one
+alternative would spend a click on what the switch shows at rest. Choosing
+Map swaps the shell: the
 rail becomes Home and Map, the rail ADR-0064 planned, and the map is the
 workspace in front. Choosing Classic brings the four-slot rail back and the
 workspace that was in front before, or Home. The choice is written to

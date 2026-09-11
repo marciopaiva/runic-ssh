@@ -81,7 +81,7 @@ export {
   watchTerminal,
 } from './terminal';
 export type { DiskIoRate, Filesystem, LoadAverage, NetworkRate, SessionStats, SystemStats, Usage } from './terminal';
-export type { SettingsView, Theme } from './settings';
+export type { SettingsView, Shell, Theme } from './settings';
 export {
   FINISHED_EVENT as SFTP_FINISHED_EVENT,
   localListDirectory,

@@ -3,6 +3,10 @@ import type { CSSProperties, DragEvent, JSX, ReactNode } from 'react';
 
 import { ActivityRail } from './components/ActivityRail';
 import type { Workspace } from './components/ActivityRail';
+import { ShellSelector } from './components/ShellSelector';
+import { MapCrumb } from './components/map/MapCrumb';
+import { MapToolbarControls } from './components/map/MapToolbarControls';
+import type { MapToolbarContent } from './components/map/MapStage';
 import { BroadcastButton } from './components/BroadcastButton';
 import { CommandPalette } from './components/CommandPalette';
 import { ConnectingSurface } from './components/ConnectingSurface';
@@ -115,7 +119,7 @@ import type { Component as MapComponent, ComponentKind as MapComponentKind, Work
 import type { MapPaneWiring } from './components/map/MapStage';
 import { mapTerminals, placeSavedHost } from './features/map';
 import type { HostAsk } from './features/map';
-import { useLocale, usePreview, useTheme } from './features/settings';
+import { useLocale, usePreview, useShell, useTheme } from './features/settings';
 import { visibleDestinationRows } from './features/sftp/browser';
 import { endpointKey } from './features/sftp/endpoint';
 import type { DraggedEndpoint, Endpoint, PaneEntry } from './features/sftp/endpoint';
@@ -269,6 +273,7 @@ export function App(): JSX.Element {
   const { i18n, chosen, choose } = useLocale();
   const { theme, chooseTheme } = useTheme();
   const { previewFeatures, choosePreviewFeatures } = usePreview();
+  const { shell, chooseShell } = useShell();
   const [selected, setSelected] = useState<string | null>(null);
   /* Which main area is showing. ADR-0029: Sessions keeps groups, splitting and
      the sync switch; Home holds the dashboard, the host editor and settings,
@@ -277,11 +282,24 @@ export function App(): JSX.Element {
      both live, and a window that opens straight into a pool of hosts has
      nowhere to point a user who has none yet. */
   const [workspace, setWorkspace] = useState<Workspace>('home');
-  /* Turning the preview off while the map is showing leaves nowhere to stand,
-     since its rail slot is gone; fall back to Home (ADR-0066). */
+  /* Turning the preview off while the map shell is in front leaves nowhere
+     to stand, since the switch that reached it is gone too; fall back to
+     classic (ADR-0066, ADR-0069). */
   useEffect(() => {
-    if (!previewFeatures && workspace === 'map') setWorkspace('home');
-  }, [previewFeatures, workspace]);
+    if (!previewFeatures && shell === 'map') void chooseShell('classic');
+  }, [previewFeatures, shell, chooseShell]);
+  /* Every workspace the classic shell shows is gone from the map shell's
+     own rail, and the reverse: the map is gone from classic's. Whatever
+     put `workspace` where it is, a saved session activated from the
+     palette while the shell was mid-switch, say, this keeps the window
+     from settling on a screen its own rail cannot get back to. */
+  useEffect(() => {
+    if (shell === 'map') {
+      if (workspace !== 'home' && workspace !== 'map') setWorkspace('map');
+      return;
+    }
+    if (workspace === 'map') setWorkspace('home');
+  }, [shell, workspace]);
   /* Fetched once: what is running cannot change under a live process, so there
      is nothing to react to and nothing worth re-asking. `null` until the
      first paint after mount, which `StatusBar` already treats as "say
@@ -752,6 +770,10 @@ export function App(): JSX.Element {
      the bar shows whichever workspace is in front, since a keystroke goes
      to the one showing. */
   const [mapReceivingCount, setMapReceivingCount] = useState<number | null>(null);
+  /* The map's own row of the shared toolbar (ADR-0069), reported up by
+     `MapStage` rather than drawn in a second bar there. `null` for the one
+     frame before the map has mounted and said what it shows. */
+  const [mapToolbar, setMapToolbar] = useState<MapToolbarContent | null>(null);
   const hostsReceiving = workspace === 'map' ? mapReceivingCount : armed ? receiving.length : null;
   const lastReceiving = useRef<number | null>(null);
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
@@ -2311,6 +2333,29 @@ export function App(): JSX.Element {
     };
   })();
 
+  /* The toolbar's trailing group of shell-level choices (ADR-0062,
+     ADR-0069): the switch between classic and the map, then theme and
+     language, in every workspace's own row so reaching any of the three
+     never means switching away from whichever workspace is in use. The
+     switch itself only renders behind the preview, the same gate that
+     used to draw the map's own rail slot (ADR-0066). */
+  const shellAndTheme = (
+    <>
+      {previewFeatures && (
+        <>
+          <ShellSelector shell={shell} onChoose={(next) => void chooseShell(next)} />
+          <span className="bg-line-subtle h-4 w-px shrink-0" aria-hidden="true" />
+        </>
+      )}
+      <ThemeLanguageControls
+        theme={theme}
+        onChooseTheme={(next) => void chooseTheme(next)}
+        chosenLocale={chosen}
+        onChooseLocale={(locale) => void choose(locale)}
+      />
+    </>
+  );
+
   return (
     <div className="flex h-full flex-col">
       <Titlebar
@@ -2342,12 +2387,7 @@ export function App(): JSX.Element {
               <MacrosButton open={macrosOpen} onToggle={() => setMacrosOpen((open) => !open)} />
               <ShapeControl layout={layout} onChoose={chooseLayout} />
               <span className="bg-line-subtle h-4 w-px shrink-0" aria-hidden="true" />
-              <ThemeLanguageControls
-                theme={theme}
-                onChooseTheme={(next) => void chooseTheme(next)}
-                chosenLocale={chosen}
-                onChooseLocale={(locale) => void choose(locale)}
-              />
+              {shellAndTheme}
             </>
           }
         />
@@ -2362,50 +2402,41 @@ export function App(): JSX.Element {
               />
               <SftpSplitControl value={destinationSplit} onChange={setDestinationSplit} />
               <span className="bg-line-subtle h-4 w-px shrink-0" aria-hidden="true" />
-              <ThemeLanguageControls
-                theme={theme}
-                onChooseTheme={(next) => void chooseTheme(next)}
-                chosenLocale={chosen}
-                onChooseLocale={(locale) => void choose(locale)}
-              />
+              {shellAndTheme}
             </>
           }
         />
       )}
       {workspace === 'home' && (
         <Toolbar
-          trailing={
-            <ThemeLanguageControls
-              theme={theme}
-              onChooseTheme={(next) => void chooseTheme(next)}
-              chosenLocale={chosen}
-              onChooseLocale={(locale) => void choose(locale)}
-            />
-          }
+          trailing={shellAndTheme}
         />
       )}
       {workspace === 'monitor' && (
         <Toolbar
-          trailing={
-            <ThemeLanguageControls
-              theme={theme}
-              onChooseTheme={(next) => void chooseTheme(next)}
-              chosenLocale={chosen}
-              onChooseLocale={(locale) => void choose(locale)}
-            />
-          }
+          trailing={shellAndTheme}
         />
       )}
 
       {workspace === 'map' && (
         <Toolbar
+          leading={mapToolbar === null ? undefined : <MapCrumb segments={mapToolbar.crumb} {...(mapToolbar.onBack === undefined ? {} : { onBack: mapToolbar.onBack })} />}
           trailing={
-            <ThemeLanguageControls
-              theme={theme}
-              onChooseTheme={(next) => void chooseTheme(next)}
-              chosenLocale={chosen}
-              onChooseLocale={(locale) => void choose(locale)}
-            />
+            <>
+              {mapToolbar !== null && (
+                <>
+                  <MapToolbarControls
+                    query={mapToolbar.query}
+                    onQueryChange={mapToolbar.onQueryChange}
+                    onQuerySubmit={mapToolbar.onQuerySubmit}
+                    zoomPercent={mapToolbar.zoomPercent}
+                    onRecenter={mapToolbar.onRecenter}
+                  />
+                  <span className="bg-line-subtle h-4 w-px shrink-0" aria-hidden="true" />
+                </>
+              )}
+              {shellAndTheme}
+            </>
           }
         />
       )}
@@ -2415,7 +2446,7 @@ export function App(): JSX.Element {
           workspace={workspace}
           sidebarOpen={sidebarOpen}
           armed={armed}
-          showMap={previewFeatures}
+          shell={shell}
           openCount={tabs.length}
           sftpCount={(fanout.source === null ? 0 : 1) + fanout.destinations.filter((d) => d !== null).length}
           onChoose={(next) => {
@@ -3010,6 +3041,7 @@ export function App(): JSX.Element {
               renderMonitor={renderMapMonitor}
               onSend={fanout.sendEntriesBetween}
               onReceivingChange={setMapReceivingCount}
+              onToolbarChange={setMapToolbar}
             />
             <TransfersBar
               transfers={fanout.transfers}

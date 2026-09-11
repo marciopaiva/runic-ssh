@@ -25,7 +25,6 @@ import {
   mapInputTargets,
   mapReceiving,
   outsideLink,
-  gridFor,
   moveVision,
   removeComponent,
   removeLink,
@@ -44,7 +43,7 @@ import {
   REGION,
 } from '../../features/map';
 import type { AddRefusal, HostAsk, SwitchState } from '../../features/map';
-import { FULLSCREEN_BAR, HUB, useMapStage } from '../../features/map/use-map-stage';
+import { HUB, useMapStage } from '../../features/map/use-map-stage';
 import { useTranslator } from '../../features/settings';
 import type { Endpoint, PaneEntry } from '../../features/sftp/endpoint';
 import type { MapDestination, PaneReport } from '../../features/sftp/use-fanout';
@@ -65,7 +64,7 @@ import { Radial } from './Radial';
 import type { RadialOption } from './Radial';
 import { VisionNode } from './VisionNode';
 import { VisionRegion } from './VisionRegion';
-import { ApertureMark, KindGlyph, RuneGlyph, kindColor } from './glyphs';
+import { KindGlyph, RuneGlyph, kindColor } from './glyphs';
 
 /** The strip of a window, in stage pixels: what the body sits below. */
 const STRIP = 28;
@@ -108,6 +107,26 @@ export interface HostPopupState {
   readonly onClose: () => void;
 }
 
+/**
+ * What the map's own row of the shared toolbar shows (ADR-0069): the crumb
+ * (`['Runic']` at the root, `['Runic', name]` a level in, a vision filling
+ * the screen or, once layers exist, a layer entered), the search box, the
+ * zoom reading and Recenter. One row for the whole workspace, not a second
+ * bar under it, and not a bar of its own for filling the screen either;
+ * the crumb's own last segment is where that state and the layer's would
+ * both be said, with `onBack` beside it doing what Escape already does.
+ */
+export interface MapToolbarContent {
+  readonly crumb: readonly string[];
+  /** Absent at the root, where there is nowhere back to go. */
+  readonly onBack?: () => void;
+  readonly query: string;
+  readonly onQueryChange: (value: string) => void;
+  readonly onQuerySubmit: () => void;
+  readonly zoomPercent: number;
+  readonly onRecenter: () => void;
+}
+
 interface MapStageProps {
   readonly workspace: Workspace;
   readonly onChange: (next: Workspace) => void;
@@ -144,6 +163,9 @@ interface MapStageProps {
       `null` with no line armed: the status bar's warning edge and its
       announcement (ADR-0019, ADR-0065). */
   readonly onReceivingChange: (count: number | null) => void;
+  /** Reports the map's own row of the toolbar, so the shell can render it
+      in the shared bar (ADR-0046, ADR-0069) instead of a second one here. */
+  readonly onToolbarChange: (content: MapToolbarContent) => void;
 }
 
 interface PickerState {
@@ -186,6 +208,7 @@ export function MapStage({
   renderMonitor,
   onSend,
   onReceivingChange,
+  onToolbarChange,
 }: MapStageProps): JSX.Element {
   const i18n = useTranslator();
   const [picker, setPicker] = useState<PickerState | null>(null);
@@ -723,6 +746,39 @@ export function MapStage({
     [hostOf, i18n, needle],
   );
 
+  const onQuerySubmit = useCallback((): void => {
+    const first = level.find(matches);
+    if (first !== undefined) act(first.id, stage.open.has(first.id) ? 'collapse' : 'open');
+  }, [act, level, matches, stage.open]);
+
+  /* The map's own row of the shared toolbar (ADR-0069): the crumb, search,
+     zoom and Recenter, reported up rather than drawn in a second bar here.
+     Memoised so a drag, which re-renders this component every pointer
+     move without moving the view, does not hand the shell a new object
+     every frame; only what the toolbar actually shows changes its
+     identity. */
+  const fullscreenVision = stage.fullscreen === null ? undefined : visionById.get(stage.fullscreen);
+  const crumb = useMemo<readonly string[]>(
+    () => (fullscreenVision === undefined ? [i18n.t('map.crumb.root')] : [i18n.t('map.crumb.root'), fullscreenVision.name]),
+    [fullscreenVision, i18n],
+  );
+  const zoomPercent = Math.round(stage.view.scale * 100);
+  const toolbarContent = useMemo<MapToolbarContent>(
+    () => ({
+      crumb,
+      ...(fullscreenVision === undefined ? {} : { onBack: stage.exitFullscreen }),
+      query,
+      onQueryChange: setQuery,
+      onQuerySubmit,
+      zoomPercent,
+      onRecenter: stage.recenter,
+    }),
+    [crumb, fullscreenVision, onQuerySubmit, query, stage.exitFullscreen, stage.recenter, zoomPercent],
+  );
+  useEffect(() => {
+    onToolbarChange(toolbarContent);
+  }, [onToolbarChange, toolbarContent]);
+
   /* The file browsers the map mounts report where they are and what is
      selected, for the send button on a line (ADR-0065). One wiring per
      component, made once, so a pane's effect does not re-run per render. */
@@ -941,34 +997,6 @@ export function MapStage({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="border-line-subtle bg-surface-panel flex h-[34px] shrink-0 items-center gap-2 border-b px-2.5">
-        <span className="text-ink text-[12px] font-semibold">{i18n.t('map.crumb.root')}</span>
-        <span className="flex-1" />
-        <input
-          type="search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key !== 'Enter') return;
-            const first = level.find(matches);
-            if (first !== undefined) act(first.id, stage.open.has(first.id) ? 'collapse' : 'open');
-          }}
-          placeholder={i18n.t('map.toolbar.search')}
-          aria-label={i18n.t('map.toolbar.search')}
-          className="bg-surface-input border-line-subtle focus:border-accent text-ink h-6 w-[280px] rounded border px-2 text-[12px] outline-none"
-        />
-        <span className="text-ink-faint font-mono text-[10.5px] tabular-nums">
-          {i18n.t('map.toolbar.zoom', { percent: String(Math.round(stage.view.scale * 100)) })}
-        </span>
-        <button
-          type="button"
-          className="border-line-subtle text-ink-muted hover:text-ink hover:border-line-strong h-6 rounded border px-2.5 text-[11px]"
-          onClick={stage.recenter}
-        >
-          {i18n.t('map.toolbar.recenter')}
-        </button>
-      </div>
-
       <div
         ref={stage.setStageElement}
         data-map-stage=""
@@ -1217,35 +1245,6 @@ export function MapStage({
             <span className="text-ink-faint text-[11px]">{i18n.t('map.linking.cancel')}</span>
           </div>
         )}
-
-        {/* The bar over a vision filling the screen: the name, the shape,
-            and the way back. The rest of the stage is the members' cells. */}
-        {stage.fullscreen !== null &&
-          (() => {
-            const vision = visionById.get(stage.fullscreen);
-            if (vision === undefined) return null;
-            const shape = gridFor(vision.components.length);
-            return (
-              <div
-                className="border-line-subtle bg-surface-chrome absolute inset-x-0 top-0 z-[9] flex items-center gap-2.5 border-b px-3"
-                style={{ height: FULLSCREEN_BAR }}
-              >
-                <ApertureMark />
-                <span className="text-ink text-[12px] font-semibold">{vision.name}</span>
-                <span className="text-ink-faint font-mono text-[10.5px]">
-                  {i18n.t('map.vision.shape', { count: String(vision.components.length), columns: String(shape.columns), rows: String(shape.rows) })}
-                </span>
-                <button
-                  type="button"
-                  className="text-ink-muted hover:text-ink ml-auto flex items-center gap-2 text-[11px]"
-                  onClick={stage.exitFullscreen}
-                >
-                  {i18n.t('map.vision.back')}
-                  <kbd className="border-line-strong rounded-[3px] border px-1 py-[1px] font-mono text-[10px]">Esc</kbd>
-                </button>
-              </div>
-            );
-          })()}
 
         {/* The windows: stage pixels, 1:1 whatever the zoom. */}
         {stage.windows.map((window, i) => {

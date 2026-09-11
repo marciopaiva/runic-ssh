@@ -2755,19 +2755,18 @@ def toolbar_group_divider():
 
 
 def shell_selector(active="classic"):
-    """ADR-0069: the shell, classic or map, chosen from the toolbar, in the
-    group that already holds the two other set-once choices, theme and
-    language (ADR-0062). Present only with the preview on (ADR-0066); a
-    fresh install never sees it. Folded like `split_control()`: two
-    buttons, the current one raised."""
-    out = []
-    for key, icon, label in (("classic", "ssh", "Classic"), ("map", "map", "Map")):
-        on = key == active
-        bg = f'background: {T["raised"]};' if on else ''
-        color = T['accent'] if on else T['faint']
-        out.append(f'<div title="{label} navigation" style="height: 22px; padding: 0 8px; border-radius: 4px; {bg} display: flex; align-items: center; gap: 6px; color: {color};">'
-                   f'{ic(icon, 13, color)}<span style="font-size: 11px; font-weight: 600; color: {color};">{label}</span></div>')
-    return '<div style="flex: none; display: flex; align-items: center; gap: 2px;">' + "".join(out) + '</div>'
+    """ADR-0069: the shell, classic or map, switched from the toolbar. A
+    plain two-state switch, `BroadcastButton`'s own shape, not
+    `theme_language_toolbar_controls()`'s fold of several: it shows the
+    shell in front and the click is the switch, so seeing the other
+    choice costs nothing, the way `map_switch()` reads on or off with no
+    menu to open first. Present only with the preview on (ADR-0066); a
+    fresh install never sees it."""
+    on_map = active == "map"
+    icon = "map" if on_map else "ssh"
+    label = "Map" if on_map else "Classic"
+    return (f'<div title="Switch to {"classic" if on_map else "the map"}" style="height: 22px; padding: 0 8px; border-radius: 4px; display: flex; align-items: center; gap: 6px; color: {T["faint"]};">'
+            f'{ic(icon, 13, T["faint"])}<span style="font-size: 11px; font-weight: 600; color: {T["faint"]};">{label}</span></div>')
 
 def theme_language_toolbar_controls():
     """ADR-0059: folded behind one button each, not drawn flat. The first
