@@ -56,6 +56,7 @@ function Harness({
     workspace,
     components: workspace.components,
     visions: workspace.visions,
+    layers: workspace.layers,
     onChange,
     radialOptions: () => 0,
     onClick: () => {},

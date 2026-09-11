@@ -7,6 +7,7 @@ import type { MountedTerminal } from '../../features/terminal';
 import type { ClipboardApi } from '../../features/terminal/use-terminal';
 import {
   addComponent,
+  addLayer,
   addLink,
   addLocal,
   addMember,
@@ -24,12 +25,16 @@ import {
   localOn,
   mapInputTargets,
   mapReceiving,
+  moveToLayer,
   outsideLink,
   moveVision,
+  moveVisionToLayer,
   removeComponent,
+  removeLayer,
   removeLink,
   removeMember,
   removeVision,
+  renameLayer,
   renameVision,
   resetPosition,
   setKey,
@@ -62,9 +67,10 @@ import type { MapMenuItem } from './MapMenu';
 import { NameDialog } from './NameDialog';
 import { Radial } from './Radial';
 import type { RadialOption } from './Radial';
+import { MonolithNode } from './MonolithNode';
 import { VisionNode } from './VisionNode';
 import { VisionRegion } from './VisionRegion';
-import { KindGlyph, RuneGlyph, kindColor } from './glyphs';
+import { KindGlyph, MonolithGlyph, RuneGlyph, kindColor } from './glyphs';
 
 /** The strip of a window, in stage pixels: what the body sits below. */
 const STRIP = 28;
@@ -175,8 +181,11 @@ interface PickerState {
   readonly refusal: AddRefusal | null;
 }
 
-/** The name being asked for: a new vision's, or a new name for one (ADR-0067). */
-type NamingState = { readonly kind: 'new' } | { readonly kind: 'rename'; readonly id: string };
+/** The name being asked for: a new vision's or layer's, or a new name for
+    one (ADR-0067, ADR-0068). */
+type NamingState =
+  | { readonly target: 'vision' | 'layer'; readonly kind: 'new' }
+  | { readonly target: 'vision' | 'layer'; readonly kind: 'rename'; readonly id: string };
 
 const CREATE_KINDS: readonly ComponentKind[] = ['ssh', 'sftp', 'monitor'];
 
@@ -219,13 +228,23 @@ export function MapStage({
   const [armed, setArmed] = useState<ReadonlySet<string>>(new Set());
   const [muted, setMuted] = useState<ReadonlySet<string>>(new Set());
   const [naming, setNaming] = useState<NamingState | null>(null);
+  /* Which layer is in view: `null` at the outermost map, an id one level
+     in. State of the stage, not of the file (ADR-0068): a fresh launch
+     always opens on the rune, and entering or leaving writes nothing. */
+  const [currentLayer, setCurrentLayer] = useState<string | null>(null);
+  const leaveLayer = useCallback((): void => setCurrentLayer(null), []);
   /* The hosts this map asked `connect` for and has not seen answer or let
      go of. A member a vision expanded without asking shows its saved state
      rather than "connecting", since nothing is (ADR-0067, ADR-0053). */
   const [asked, setAsked] = useState<ReadonlySet<string>>(new Set());
 
-  const level = useMemo(() => componentsOn(workspace, null), [workspace]);
-  const levelVisions = useMemo(() => visionsOn(workspace, null), [workspace]);
+  const level = useMemo(() => componentsOn(workspace, currentLayer), [workspace, currentLayer]);
+  const levelVisions = useMemo(() => visionsOn(workspace, currentLayer), [workspace, currentLayer]);
+  /* A layer holds no layer (ADR-0068): the outermost map's own monoliths,
+     none once inside one. */
+  const levelLayers = useMemo(() => (currentLayer === null ? workspace.layers : []), [workspace, currentLayer]);
+  const layerById = useMemo(() => new Map(workspace.layers.map((layer) => [layer.id, layer])), [workspace]);
+  const currentLayerObj = currentLayer === null ? undefined : layerById.get(currentLayer);
   const byId = useMemo(() => new Map(hosts.map((host) => [host.id, host])), [hosts]);
   const componentById = useMemo(() => new Map(level.map((component) => [component.id, component])), [level]);
   const visionById = useMemo(() => new Map(levelVisions.map((vision) => [vision.id, vision])), [levelVisions]);
@@ -243,6 +262,8 @@ export function MapStage({
   );
   const nameOf = useCallback(
     (id: string): string => {
+      const layer = layerById.get(id);
+      if (layer !== undefined) return layer.name;
       const vision = visionById.get(id);
       if (vision !== undefined) return vision.name;
       const component = componentById.get(id);
@@ -250,7 +271,7 @@ export function MapStage({
       const host = hostOf(component);
       return host === null ? i18n.t('map.local.name') : (host?.name ?? '');
     },
-    [componentById, hostOf, i18n, visionById],
+    [componentById, hostOf, i18n, layerById, visionById],
   );
 
   const kindLabel = useCallback(
@@ -278,7 +299,7 @@ export function MapStage({
           color: kindColor(kind),
         }));
         /* One local machine per level (ADR-0065): offered until it is there. */
-        if (localOn(workspace, null) === undefined) {
+        if (localOn(workspace, currentLayer) === undefined) {
           create.push({
             id: 'create:local',
             label: kindLabel('local'),
@@ -287,7 +308,19 @@ export function MapStage({
           });
         }
         create.push({ id: 'create:vision', label: i18n.t('map.create.vision'), detail: i18n.t('map.create.vision.detail'), color: 'var(--rs-accent)' });
+        /* A layer holds no layer (ADR-0068): offered only at the root. */
+        if (currentLayer === null) {
+          create.push({ id: 'create:layer', label: i18n.t('map.create.layer'), detail: i18n.t('map.create.layer.detail'), color: 'var(--rs-accent)' });
+        }
         return create;
+      }
+      const layer = layerById.get(target);
+      if (layer !== undefined) {
+        return [
+          { id: 'enter', label: i18n.t('map.layer.enter'), detail: i18n.t('map.layer.enter.detail'), color: 'var(--rs-accent)' },
+          { id: 'renameLayer', label: i18n.t('map.layer.rename'), listOnly: true },
+          { id: 'removeLayer', label: i18n.t('map.layer.remove'), detail: i18n.t('map.layer.remove.detail'), danger: true },
+        ];
       }
       const vision = visionById.get(target);
       if (vision !== undefined) {
@@ -307,6 +340,15 @@ export function MapStage({
           items.push({ id: 'connectAll', label: i18n.t('map.vision.connectAll'), detail: i18n.t('map.vision.connectAll.detail'), color: 'var(--rs-ok)' });
         }
         items.push({ id: 'rename', label: i18n.t('map.vision.rename'), listOnly: true });
+        /* ADR-0068 follow-up: every layer plus the rune, the vision and
+           every member moving with it in one call. */
+        for (const other of workspace.layers) {
+          if (other.id === vision.layer) continue;
+          items.push({ id: `moveVision:${other.id}`, label: i18n.t('map.menu.moveTo', { name: other.name }), listOnly: true });
+        }
+        if (vision.layer !== undefined) {
+          items.push({ id: 'moveVision:root', label: i18n.t('map.menu.moveToRoot'), listOnly: true });
+        }
         items.push({ id: 'removeVision', label: i18n.t('map.vision.remove'), detail: i18n.t('map.vision.remove.detail'), danger: true });
         return items;
       }
@@ -383,12 +425,21 @@ export function MapStage({
         for (const vision of levelVisions) {
           items.push({ id: `join:${vision.id}`, label: i18n.t('map.menu.putIn', { name: vision.name }), listOnly: true });
         }
+        /* ADR-0068 follow-up: every layer plus the rune. Only a free
+           component, since a member moves with its vision, not on its own. */
+        for (const other of workspace.layers) {
+          if (other.id === component.layer) continue;
+          items.push({ id: `move:${other.id}`, label: i18n.t('map.menu.moveTo', { name: other.name }), listOnly: true });
+        }
+        if (component.layer !== undefined) {
+          items.push({ id: 'move:root', label: i18n.t('map.menu.moveToRoot'), listOnly: true });
+        }
       }
       if (component.size !== undefined) items.push({ id: 'defaultSize', label: i18n.t('map.menu.defaultSize'), listOnly: true });
       items.push({ id: 'remove', label: i18n.t('map.menu.remove'), detail: i18n.t('map.menu.remove.detail'), danger: true });
       return items;
     },
-    [componentById, handles, i18n, kindLabel, level, levelVisions, terminals.modifier, visionById, visionOfMember, workspace],
+    [componentById, currentLayer, handles, i18n, kindLabel, layerById, level, levelVisions, terminals.modifier, visionById, visionOfMember, workspace],
   );
 
   /* The hook is declared below and its callbacks are read through these
@@ -434,12 +485,16 @@ export function MapStage({
   const act = useCallback(
     (target: string | null, action: string): void => {
       if (action === 'create:local') {
-        const outcome = addLocal(workspace);
+        const outcome = addLocal(workspace, currentLayer);
         if (outcome.ok) onChange(outcome.workspace);
         return;
       }
       if (action === 'create:vision') {
-        setNaming({ kind: 'new' });
+        setNaming({ target: 'vision', kind: 'new' });
+        return;
+      }
+      if (action === 'create:layer') {
+        setNaming({ target: 'layer', kind: 'new' });
         return;
       }
       if (action.startsWith('create:')) {
@@ -448,8 +503,28 @@ export function MapStage({
         return;
       }
       if (target === null) return;
+      const layer = layerById.get(target);
+      if (layer !== undefined) {
+        switch (action) {
+          case 'enter':
+            setCurrentLayer(layer.id);
+            return;
+          case 'renameLayer':
+            setNaming({ target: 'layer', kind: 'rename', id: layer.id });
+            return;
+          case 'removeLayer':
+            onChange(removeLayer(workspace, layer.id));
+            return;
+        }
+        return;
+      }
       const vision = visionById.get(target);
       if (vision !== undefined) {
+        if (action.startsWith('moveVision:')) {
+          const destination = action.slice('moveVision:'.length);
+          onChange(moveVisionToLayer(workspace, vision.id, destination === 'root' ? null : destination));
+          return;
+        }
         switch (action) {
           case 'openVision':
             openVisionRef.current(vision.id);
@@ -476,7 +551,7 @@ export function MapStage({
             return;
           }
           case 'rename':
-            setNaming({ kind: 'rename', id: vision.id });
+            setNaming({ target: 'vision', kind: 'rename', id: vision.id });
             return;
           case 'removeVision': {
             /* Members flowing in the grid have no place of their own; they
@@ -538,6 +613,11 @@ export function MapStage({
         onChange(addMember(anchored, visionId, component.id));
         return;
       }
+      if (action.startsWith('move:')) {
+        const destination = action.slice('move:'.length);
+        onChange(moveToLayer(workspace, component.id, destination === 'root' ? null : destination));
+        return;
+      }
       switch (action) {
         case 'open': {
           openWindowRef.current(component.id);
@@ -580,7 +660,7 @@ export function MapStage({
           return;
       }
     },
-    [closeComponent, componentById, handles, onChange, onConnect, onEditHost, visionById, workspace],
+    [closeComponent, componentById, currentLayer, handles, layerById, onChange, onConnect, onEditHost, visionById, workspace],
   );
 
   /* A click while a line is being drawn is the line's other end, or the
@@ -611,11 +691,17 @@ export function MapStage({
     workspace,
     components: level,
     visions: levelVisions,
+    layers: levelLayers,
     onChange,
     radialOptions: (id) => actionsFor(id).filter((item) => item.listOnly !== true).length,
     onClick: (id) => {
       if (completeLink(id)) return;
       if (id === HUB) return;
+      const layer = layerById.get(id);
+      if (layer !== undefined) {
+        setCurrentLayer(layer.id);
+        return;
+      }
       const vision = visionById.get(id);
       if (vision !== undefined) {
         if (vision.open) focusRef.current(id);
@@ -647,6 +733,44 @@ export function MapStage({
   startLinkRef.current = stage.startLink;
   cancelLinkRef.current = stage.cancelLink;
   linkingRef.current = stage.linking;
+
+  /* Entering or leaving a layer starts the view fresh, the way the map
+     itself opens: a position on one level's own ring means nothing on
+     another's, so the pan and zoom that got here do not carry over
+     (ADR-0068). */
+  useEffect(() => {
+    stage.recenter();
+    // Only the level itself decides this, not `stage.recenter`'s own
+    // identity, which changes every render: recentring on every render
+    // would fight a pan or a zoom the moment either starts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentLayer]);
+
+  /* Escape leaves a layer, the way it leaves a vision filling the screen;
+     guarded off while anything else on the map has its own Escape to
+     answer first (found running this: closing the menu with Escape left
+     the layer in the same keystroke too, since both listeners sat on
+     `window` at once), so one Escape undoes one thing at a time
+     (ADR-0068). */
+  useEffect(() => {
+    if (
+      currentLayer === null ||
+      stage.linking !== null ||
+      stage.fullscreen !== null ||
+      stage.menu !== null ||
+      stage.radial !== null ||
+      picker !== null ||
+      naming !== null ||
+      hostPopup !== null
+    ) {
+      return undefined;
+    }
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') leaveLayer();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [currentLayer, leaveLayer, stage.linking, stage.fullscreen, stage.menu, stage.radial, picker, naming, hostPopup]);
 
   /* ADR-0065, ADR-0019's rules on a set of terminal lines. `stage.open` is
      the map's "showing": a collapsed window is spared the way a tab behind
@@ -721,7 +845,7 @@ export function MapStage({
       if (picker === null) return;
       const outcome =
         picker.changing === null
-          ? addComponent(workspace, picker.kind, sessionId, hosts)
+          ? addComponent(workspace, picker.kind, sessionId, hosts, currentLayer)
           : changeHost(workspace, picker.changing, sessionId, hosts);
       if (!outcome.ok) {
         setPicker({ ...picker, refusal: outcome.refusal });
@@ -730,7 +854,7 @@ export function MapStage({
       onChange(outcome.workspace);
       setPicker(null);
     },
-    [hosts, onChange, picker, workspace],
+    [currentLayer, hosts, onChange, picker, workspace],
   );
 
   const thumbnail = terminalTreatment(stage.view.scale) === 'thumbnail';
@@ -758,22 +882,29 @@ export function MapStage({
      every frame; only what the toolbar actually shows changes its
      identity. */
   const fullscreenVision = stage.fullscreen === null ? undefined : visionById.get(stage.fullscreen);
-  const crumb = useMemo<readonly string[]>(
-    () => (fullscreenVision === undefined ? [i18n.t('map.crumb.root')] : [i18n.t('map.crumb.root'), fullscreenVision.name]),
-    [fullscreenVision, i18n],
-  );
+  /* A layer entered grows the crumb the way a vision filling the screen
+     does (ADR-0068); both together grow it twice, and `onBack` undoes the
+     more recent one first, the same order Escape already leaves them in. */
+  const crumb = useMemo<readonly string[]>(() => {
+    const segments = [i18n.t('map.crumb.root')];
+    if (currentLayerObj !== undefined) segments.push(currentLayerObj.name);
+    if (fullscreenVision !== undefined) segments.push(fullscreenVision.name);
+    return segments;
+  }, [currentLayerObj, fullscreenVision, i18n]);
   const zoomPercent = Math.round(stage.view.scale * 100);
+  const onBack =
+    fullscreenVision !== undefined ? stage.exitFullscreen : currentLayerObj !== undefined ? leaveLayer : undefined;
   const toolbarContent = useMemo<MapToolbarContent>(
     () => ({
       crumb,
-      ...(fullscreenVision === undefined ? {} : { onBack: stage.exitFullscreen }),
+      ...(onBack === undefined ? {} : { onBack }),
       query,
       onQueryChange: setQuery,
       onQuerySubmit,
       zoomPercent,
       onRecenter: stage.recenter,
     }),
-    [crumb, fullscreenVision, onQuerySubmit, query, stage.exitFullscreen, stage.recenter, zoomPercent],
+    [crumb, onBack, onQuerySubmit, query, stage.recenter, zoomPercent],
   );
   useEffect(() => {
     onToolbarChange(toolbarContent);
@@ -982,7 +1113,7 @@ export function MapStage({
   const linkingFrom = stage.linking === null ? null : anchorBox(stage.linking.from);
   const linkingFamily = stage.linking === null ? null : familyOf(componentById.get(stage.linking.from)?.kind ?? 'monitor');
   const menuTitle = (target: string | null): string => {
-    if (target === null || target === HUB) return i18n.t('map.crumb.root');
+    if (target === null || target === HUB) return currentLayerObj?.name ?? i18n.t('map.crumb.root');
     if (target.startsWith(LINE_TARGET)) {
       const line = lines.find((one) => `${LINE_TARGET}${one.key}` === target);
       return line === undefined ? '' : lineTitle(line.link);
@@ -1084,9 +1215,10 @@ export function MapStage({
             style={{ left: -20000, top: -20000, width: 40000, height: 40000 }}
             viewBox="-20000 -20000 40000 40000"
           >
-            {/* A wire from the rune to each node on the ring: a free
-                component or a vision. A member's wire is its vision's. */}
-            {[...level.filter((component) => !visionOfMember.has(component.id)), ...levelVisions].map((node) => {
+            {/* A wire from the hub to each node on the ring: a free
+                component, a vision, or a layer. A member's wire is its
+                vision's. */}
+            {[...level.filter((component) => !visionOfMember.has(component.id)), ...levelVisions, ...levelLayers].map((node) => {
               const at = stage.positions.get(node.id);
               if (at === undefined) return null;
               return (
@@ -1106,7 +1238,7 @@ export function MapStage({
           <div
             role="button"
             tabIndex={0}
-            aria-label={i18n.t('map.crumb.root')}
+            aria-label={currentLayerObj?.name ?? i18n.t('map.crumb.root')}
             data-component={HUB}
             className="absolute flex -translate-x-1/2 -translate-y-1/2 cursor-pointer flex-col items-center gap-1.5 select-none"
             style={{ left: hub.x, top: hub.y }}
@@ -1118,13 +1250,43 @@ export function MapStage({
               stage.openMenu(HUB, { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) });
             }}
           >
-            <RuneGlyph />
+            {/* The layer's own monolith stands where the rune stands
+                outside one, and holds what the rune holds (ADR-0068). */}
+            {currentLayerObj === undefined ? <RuneGlyph /> : <MonolithGlyph count={level.length + levelVisions.length} hub />}
+            {currentLayerObj !== undefined && (
+              <span className="text-ink text-[12px] font-semibold whitespace-nowrap">{currentLayerObj.name}</span>
+            )}
             <span className="text-ink-faint font-mono text-[10.5px] whitespace-nowrap">
               {i18n.t(i18n.plural(level.length) === 'one' ? 'map.status.components.one' : 'map.status.components.other', { count: String(level.length) })}
               {levelVisions.length > 0 &&
                 ` · ${i18n.t(i18n.plural(levelVisions.length) === 'one' ? 'map.status.visions.one' : 'map.status.visions.other', { count: String(levelVisions.length) })}`}
             </span>
           </div>
+
+          {levelLayers.map((layer) => {
+            const at = stage.positions.get(layer.id);
+            if (at === undefined) return null;
+            const held = workspace.components.filter((component) => component.layer === layer.id).length
+              + workspace.visions.filter((vision) => vision.layer === layer.id).length;
+            return (
+              <MonolithNode
+                key={layer.id}
+                layer={layer}
+                at={at}
+                count={held}
+                dimmed={stage.linking !== null}
+                dragging={stage.dragging === layer.id}
+                onPointerDown={(event) => stage.onNodePointerDown(layer.id, event)}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  const rect = (event.currentTarget as HTMLElement).closest('[data-map-stage]')?.getBoundingClientRect();
+                  stage.openMenu(layer.id, { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) });
+                }}
+                onKeyOpen={() => setCurrentLayer(layer.id)}
+              />
+            );
+          })}
 
           {levelVisions.map((vision) => {
             const at = stage.positions.get(vision.id);
@@ -1406,7 +1568,7 @@ export function MapStage({
           refusal={picker.refusal}
           onPick={pick}
           onNewHost={(name) => {
-            const ask: HostAsk = { kind: picker.changing === null ? picker.kind : null, changing: picker.changing };
+            const ask: HostAsk = { kind: picker.changing === null ? picker.kind : null, changing: picker.changing, layer: currentLayer };
             setPicker(null);
             onNewHost(name, ask);
           }}
@@ -1422,14 +1584,34 @@ export function MapStage({
 
       {naming !== null && (
         <NameDialog
-          title={i18n.t(naming.kind === 'new' ? 'map.vision.name.title.new' : 'map.vision.name.title.rename')}
-          body={i18n.t('map.vision.name.body')}
-          initial={naming.kind === 'rename' ? (visionById.get(naming.id)?.name ?? '') : ''}
+          title={i18n.t(
+            naming.target === 'layer'
+              ? naming.kind === 'new'
+                ? 'map.layer.name.title.new'
+                : 'map.layer.name.title.rename'
+              : naming.kind === 'new'
+                ? 'map.vision.name.title.new'
+                : 'map.vision.name.title.rename',
+          )}
+          body={i18n.t(naming.target === 'layer' ? 'map.layer.name.body' : 'map.vision.name.body')}
+          initial={
+            naming.kind !== 'rename'
+              ? ''
+              : (naming.target === 'layer' ? layerById.get(naming.id)?.name : visionById.get(naming.id)?.name) ?? ''
+          }
           onSave={(name) => {
-            if (naming.kind === 'rename') {
+            if (naming.target === 'layer') {
+              if (naming.kind === 'rename') {
+                const outcome = renameLayer(workspace, naming.id, name);
+                if (outcome.ok) onChange(outcome.workspace);
+              } else {
+                const outcome = addLayer(workspace, name);
+                if (outcome.ok) onChange(outcome.workspace);
+              }
+            } else if (naming.kind === 'rename') {
               onChange(renameVision(workspace, naming.id, name));
             } else {
-              const outcome = addVision(workspace, name, null);
+              const outcome = addVision(workspace, name, currentLayer);
               if (outcome.ok) onChange(outcome.workspace);
             }
             setNaming(null);

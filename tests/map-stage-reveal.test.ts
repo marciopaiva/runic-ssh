@@ -51,6 +51,7 @@ function Harness({ onApi }: { readonly onApi: (api: Api) => void }): null {
     workspace: WORKSPACE,
     components: WORKSPACE.components,
     visions: [],
+    layers: [],
     onChange: () => {},
     radialOptions: () => 0,
     onClick: () => {},
