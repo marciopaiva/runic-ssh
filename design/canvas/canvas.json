@@ -391,6 +391,24 @@
       "h": 900,
       "page": "page-2",
       "title": "The map behind the preview, classic the default (ADR-0066)"
+    },
+    {
+      "file": "MapVision.dc.html",
+      "x": 0,
+      "y": 11880,
+      "w": 1440,
+      "h": 900,
+      "page": "page-2",
+      "title": "Map, visions: closed as an aperture, open as a region in ADR-0022's shape, a member maximized inside (v0.8.0, ADR-0067)"
+    },
+    {
+      "file": "MapVisionFull.dc.html",
+      "x": 1560,
+      "y": 11880,
+      "w": 1440,
+      "h": 900,
+      "page": "page-2",
+      "title": "Map, a vision filling the screen: the Sessions split as a state of the vision (v0.8.0, ADR-0067)"
     }
   ],
   "annotations": [
