@@ -33,6 +33,8 @@ export const SOURCE_CATALOG = {
   "command.window.maximize": "Maximize window",
   "command.window.minimize": "Minimize window",
   "command.window.nativeDecorations": "Use the system title bar",
+  "command.preview.showMap": "Show the map (preview)",
+  "command.preview.hideMap": "Hide the map",
   "command.window.restore": "Restore window",
   "connecting.body": "Opening the connection. The host key is checked before anything is sent, and the credential is asked for after that, never before.",
   "connecting.cancel": "Cancel",

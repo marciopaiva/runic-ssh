@@ -115,7 +115,7 @@ import type { Component as MapComponent, ComponentKind as MapComponentKind, Work
 import type { MapPaneWiring } from './components/map/MapStage';
 import { mapTerminals, placeSavedHost } from './features/map';
 import type { HostAsk } from './features/map';
-import { useLocale, useTheme } from './features/settings';
+import { useLocale, usePreview, useTheme } from './features/settings';
 import { visibleDestinationRows } from './features/sftp/browser';
 import { endpointKey } from './features/sftp/endpoint';
 import type { DraggedEndpoint, Endpoint, PaneEntry } from './features/sftp/endpoint';
@@ -268,6 +268,7 @@ export function App(): JSX.Element {
   const { chrome, maximized, act, refused, nativeDecorations, useNativeDecorations } = useChrome();
   const { i18n, chosen, choose } = useLocale();
   const { theme, chooseTheme } = useTheme();
+  const { previewFeatures, choosePreviewFeatures } = usePreview();
   const [selected, setSelected] = useState<string | null>(null);
   /* Which main area is showing. ADR-0029: Sessions keeps groups, splitting and
      the sync switch; Home holds the dashboard, the host editor and settings,
@@ -276,6 +277,11 @@ export function App(): JSX.Element {
      both live, and a window that opens straight into a pool of hosts has
      nowhere to point a user who has none yet. */
   const [workspace, setWorkspace] = useState<Workspace>('home');
+  /* Turning the preview off while the map is showing leaves nowhere to stand,
+     since its rail slot is gone; fall back to Home (ADR-0066). */
+  useEffect(() => {
+    if (!previewFeatures && workspace === 'map') setWorkspace('home');
+  }, [previewFeatures, workspace]);
   /* Fetched once: what is running cannot change under a live process, so there
      is nothing to react to and nothing worth re-asking. `null` until the
      first paint after mount, which `StatusBar` already treats as "say
@@ -1716,6 +1722,7 @@ export function App(): JSX.Element {
       chosenLocale: chosen,
       maximized,
       nativeDecorations,
+      previewFeatures,
       layout,
       syncing: sync,
       panesFilled: filled,
@@ -1746,12 +1753,13 @@ export function App(): JSX.Element {
         window: act,
         chooseLocale: (locale) => void choose(locale),
         useNativeDecorations,
+        usePreviewFeatures: choosePreviewFeatures,
         openSettings,
         runMacro,
         openMacros: () => setMacrosOpen(true),
       },
     }),
-    [i18n, sessions, tabs, activeId, chosen, maximized, nativeDecorations, act, choose, closeFocus, activate, useNativeDecorations, openSettings, resolvedFocus, focusOn, entries, chooseLayout, layout, sync, filled, muted, armed, receiving, groups, focusedGroup, editorTabs, moveTo, closeGroup, macros, runMacro],
+    [i18n, sessions, tabs, activeId, chosen, maximized, nativeDecorations, previewFeatures, act, choose, closeFocus, activate, useNativeDecorations, choosePreviewFeatures, openSettings, resolvedFocus, focusOn, entries, chooseLayout, layout, sync, filled, muted, armed, receiving, groups, focusedGroup, editorTabs, moveTo, closeGroup, macros, runMacro],
   );
 
   const sources = useMemo(
@@ -2407,6 +2415,7 @@ export function App(): JSX.Element {
           workspace={workspace}
           sidebarOpen={sidebarOpen}
           armed={armed}
+          showMap={previewFeatures}
           openCount={tabs.length}
           sftpCount={(fanout.source === null ? 0 : 1) + fanout.destinations.filter((d) => d !== null).length}
           onChoose={(next) => {

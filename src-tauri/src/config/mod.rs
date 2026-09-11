@@ -93,6 +93,15 @@ pub struct Settings {
     pub native_decorations: bool,
     /// Which palette to paint, or to follow the desktop.
     pub theme: Theme,
+    /// Whether the preview features are revealed, the map among them (ADR-0066).
+    ///
+    /// Off by default, so a fresh install shows the classic navigation and no
+    /// map. The map is built across three minors and is unfinished until the
+    /// last of them; a default of `true` would put that unfinished surface in
+    /// front of every user who never opens a setting, which is the perception
+    /// this decision exists to avoid. Someone who turns it on has opted into
+    /// work in progress, the way a pre-release tag is opted into.
+    pub preview_features: bool,
 }
 
 /// Reads and writes [`Settings`] under a directory the caller owns.
@@ -219,6 +228,18 @@ pub fn apply_native_decorations(store: &SettingsStore, native: bool) -> Result<S
     Ok(settings)
 }
 
+/// Stores whether the preview features are revealed (ADR-0066).
+///
+/// Its own setter, like the others here: a call that takes a whole `Settings`
+/// is a call that resets whatever the caller was not thinking about.
+pub fn apply_preview_features(store: &SettingsStore, on: bool) -> Result<Settings, Error> {
+    let mut settings = store.load()?;
+    settings.preview_features = on;
+    store.save(&settings)?;
+
+    Ok(settings)
+}
+
 /// Stores which palette to paint.
 ///
 /// Its own setter for the same reason as [`apply_native_decorations`]: a call
@@ -254,6 +275,7 @@ mod tests {
             locale: Some("pt-BR".to_owned()),
             native_decorations: true,
             theme: Theme::Light,
+            preview_features: true,
         };
 
         store.save(&settings).expect("save");
@@ -352,6 +374,7 @@ mod tests {
             locale: Some("en".to_owned()),
             native_decorations: false,
             theme: Theme::Dark,
+            preview_features: false,
         })
         .expect("serialize");
 
@@ -374,6 +397,25 @@ mod decoration_tests {
     }
 
     #[test]
+    fn the_preview_is_hidden_by_default() {
+        /* ADR-0066: a fresh install shows classic navigation and no map. A
+        default of `true` would put the unfinished map in front of everyone
+        who never opens a setting, which is the perception the decision
+        avoids. */
+        assert!(!Settings::default().preview_features);
+    }
+
+    #[test]
+    fn turning_the_preview_on_leaves_the_rest_alone() {
+        let (store, _dir) = store();
+        apply_theme(&store, Theme::Dark).expect("theme");
+        apply_preview_features(&store, true).expect("preview");
+        let settings = store.load().expect("load");
+        assert!(settings.preview_features);
+        assert_eq!(settings.theme, Theme::Dark);
+    }
+
+    #[test]
     fn the_drawn_chrome_is_the_default() {
         /* ADR-0005 chose the drawn title bar and this is the escape hatch from
         it, not a preference with two equal sides. A default of `true` would
@@ -392,6 +434,7 @@ mod decoration_tests {
         let settings = store.load().expect("an older file must still load");
         assert_eq!(settings.locale.as_deref(), Some("pt-BR"));
         assert!(!settings.native_decorations);
+        assert!(!settings.preview_features);
     }
 
     #[test]

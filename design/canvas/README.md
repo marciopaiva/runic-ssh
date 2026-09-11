@@ -82,6 +82,7 @@ ADR-0020 exists to stop.
 | `MapComponent.dc.html` | Map, one component in every state: saved, collapsed with the session alive, open, the host key question inside its window, a host that did not answer inside its window |
 | `MapHostPopup.dc.html` | Map, the host popup: the Home wizard's own form in a dialog over the map, reached from the picker, the window title and the context menu |
 | `MapLines.dc.html` | Map, lines (ADR-0065): three terminals on one line with its switch armed, two receiving and one muted from its strip; the local machine as a component, three files selected, two directed lines to two hosts with a knot on each, and the arrow in its strip that sends to both |
+| `PreviewSetting.dc.html` | The map behind the preview setting (ADR-0066): the command palette revealing the map's rail slot, over the default four-slot rail with no map, classic being the default a fresh install lands on |
 | `SftpFileOps.dc.html` | Creating, renaming and deleting a file or folder in place (ADR-0048) |
 | `SftpFolderCopy.dc.html` | Copying a folder: one still in progress, one finished with failures (ADR-0049) |
 | `SftpDeleteConfirm.dc.html` | The one question a delete always asks first, scoped to the pane that asked (ADR-0050) |

@@ -111,6 +111,9 @@ interface ActivityRailProps {
    * the list" becomes the useful question.
    */
   readonly onChoose: (workspace: Workspace) => void;
+  /** Whether the map slot is drawn. Off until the preview is turned on, so a
+      fresh install shows the classic navigation and no map (ADR-0066). */
+  readonly showMap: boolean;
 }
 
 /**
@@ -133,6 +136,7 @@ export function ActivityRail({
   openCount,
   sftpCount,
   onChoose,
+  showMap,
 }: ActivityRailProps): JSX.Element {
   const i18n = useTranslator();
 
@@ -264,32 +268,35 @@ export function ActivityRail({
         </svg>
       </RailSlot>
 
-      {/* ADR-0064: the map, a fifth workspace beside the three it will
-          replace in v0.9.0. Live while armed for the same reason Sessions
-          is: its terminals receive keystrokes, and a broadcast in progress
-          is exactly what somebody switching to the map may want to see. */}
-      <RailSlot
-        on={workspace === 'map'}
-        tone={armed ? 'warn' : 'accent'}
-        label={i18n.t('map.rail')}
-        onClick={() => onChoose('map')}
-      >
-        <svg
-          viewBox="0 0 24 24"
-          className="h-[21px] w-[21px]"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
+      {/* ADR-0064: the map, a workspace beside the classic ones. Behind the
+          preview until it is finished (ADR-0066), so `showMap` gates it. Live
+          while armed for the same reason Sessions is: its terminals receive
+          keystrokes, and a broadcast in progress is exactly what somebody
+          switching to the map may want to see. */}
+      {showMap && (
+        <RailSlot
+          on={workspace === 'map'}
+          tone={armed ? 'warn' : 'accent'}
+          label={i18n.t('map.rail')}
+          onClick={() => onChoose('map')}
         >
-          <circle cx="12" cy="6" r="2.4" />
-          <circle cx="5.5" cy="17" r="2.4" />
-          <circle cx="18.5" cy="17" r="2.4" />
-          <path d="M10.6 8.2l-3.7 6.4M13.4 8.2l3.7 6.4M8 17h8" />
-        </svg>
-      </RailSlot>
+          <svg
+            viewBox="0 0 24 24"
+            className="h-[21px] w-[21px]"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="6" r="2.4" />
+            <circle cx="5.5" cy="17" r="2.4" />
+            <circle cx="18.5" cy="17" r="2.4" />
+            <path d="M10.6 8.2l-3.7 6.4M13.4 8.2l3.7 6.4M8 17h8" />
+          </svg>
+        </RailSlot>
+      )}
 
       <div className="flex-1" />
     </nav>

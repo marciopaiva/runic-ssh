@@ -65,6 +65,7 @@ function actions(): CommandActions & { readonly calls: string[] } {
     window: (action) => calls.push(`window:${action}`),
     chooseLocale: (locale) => calls.push(`locale:${locale ?? 'system'}`),
     useNativeDecorations: (native) => calls.push(`decorations:${native}`),
+    usePreviewFeatures: (on) => calls.push(`preview:${on}`),
     splitPanel: (kind) => calls.push(`split:${kind}`),
     moveTabToGroup: (at) => calls.push(`group:move:${at}`),
     closeGroup: () => calls.push('group:close'),
@@ -82,6 +83,7 @@ function context(overrides: Partial<CommandContext> = {}): CommandContext {
     activeId: null,
     chosenLocale: null,
     nativeDecorations: false,
+    previewFeatures: false,
     maximized: false,
     layout: '1x1',
     syncing: false,
@@ -473,6 +475,18 @@ describe('the window decoration hatch', () => {
       ?.run();
 
     expect(called.calls).toEqual(['decorations:true', 'decorations:false']);
+  });
+
+  it('the preview command reveals the map, and hides it once on', () => {
+    const off = actionCommands(context({ previewFeatures: false })).find((c) => c.id === 'preview:map');
+    const on = actionCommands(context({ previewFeatures: true })).find((c) => c.id === 'preview:map');
+    expect(off?.title).toContain('Show');
+    expect(on?.title).toContain('Hide');
+    const called = actions();
+    actionCommands(context({ previewFeatures: false, actions: called }))
+      .find((c) => c.id === 'preview:map')
+      ?.run();
+    expect(called.calls).toContain('preview:true');
   });
 
   it('is findable by what a stuck user would type, in three languages', () => {

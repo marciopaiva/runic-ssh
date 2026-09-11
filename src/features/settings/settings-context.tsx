@@ -18,6 +18,7 @@ import type { Translator } from '../../lib/i18n';
 import {
   getSettings,
   setLocale as persistLocale,
+  setPreviewFeatures as persistPreview,
   setTheme as persistTheme,
 } from '../../ipc/settings';
 import type { Theme } from '../../ipc/settings';
@@ -35,6 +36,10 @@ interface SettingsValue {
   readonly theme: Theme;
   /** Persists a palette, or `'system'` to follow the desktop again. */
   readonly chooseTheme: (theme: Theme) => Promise<void>;
+  /** Whether the preview features are revealed, the map among them (ADR-0066). */
+  readonly previewFeatures: boolean;
+  /** Reveals or hides the preview features. */
+  readonly choosePreviewFeatures: (on: boolean) => Promise<void>;
 }
 
 const SettingsContext = createContext<SettingsValue | undefined>(undefined);
@@ -43,6 +48,7 @@ export function SettingsProvider({ children }: { children: ReactNode }): JSX.Ele
   const [chosen, setChosen] = useState<string | null>(null);
   const [active, setActive] = useState<string>(DEFAULT_LOCALE);
   const [theme, setTheme] = useState<Theme>('system');
+  const [previewFeatures, setPreviewFeatures] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,6 +63,7 @@ export function SettingsProvider({ children }: { children: ReactNode }): JSX.Ele
         setChosen(settings.locale);
         if (settings.locale !== null) setActive(settings.locale);
         setTheme(settings.theme);
+        setPreviewFeatures(settings.previewFeatures);
       } catch {
         /* A settings file that cannot be read is not a reason to refuse to
            start. The system language and the system palette are both correct
@@ -91,9 +98,14 @@ export function SettingsProvider({ children }: { children: ReactNode }): JSX.Ele
     setTheme(settings.theme);
   }, []);
 
+  const choosePreviewFeatures = useCallback(async (on: boolean): Promise<void> => {
+    const settings = await persistPreview(on);
+    setPreviewFeatures(settings.previewFeatures);
+  }, []);
+
   const value = useMemo<SettingsValue>(
-    () => ({ i18n: createTranslator(active), chosen, choose, theme, chooseTheme }),
-    [active, chosen, choose, theme, chooseTheme],
+    () => ({ i18n: createTranslator(active), chosen, choose, theme, chooseTheme, previewFeatures, choosePreviewFeatures }),
+    [active, chosen, choose, theme, chooseTheme, previewFeatures, choosePreviewFeatures],
   );
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
@@ -112,6 +124,10 @@ export function useLocale(): Pick<SettingsValue, 'i18n' | 'chosen' | 'choose'> {
 }
 
 export function useTheme(): Pick<SettingsValue, 'theme' | 'chooseTheme'> {
+  return useSettings();
+}
+
+export function usePreview(): Pick<SettingsValue, 'previewFeatures' | 'choosePreviewFeatures'> {
   return useSettings();
 }
 
