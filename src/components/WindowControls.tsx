@@ -50,7 +50,11 @@ export function WindowControls({ controls, onAct }: { readonly controls: readonl
       {controls.map((control) => (
         <Button
           key={control.action}
-          variant={control.destructive ? 'danger' : 'ghost'}
+          /* Ghost at rest for all three, the close one turning red under
+             the pointer: the Windows convention, and what the canvas draws.
+             ADR-0063's adoption put close on the danger variant, which is
+             red at rest, and the hover below had nothing left to do. */
+          variant="ghost"
           size="sm"
           onClick={() => onAct(control.action)}
           aria-label={i18n.t(control.label)}
