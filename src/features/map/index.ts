@@ -30,8 +30,9 @@ export {
   mapReceiving,
   removeLink,
   setKey,
+  switchState,
 } from './lines';
-export type { Family, LinkOutcome, LinkRefusal } from './lines';
+export type { Family, LinkOutcome, LinkRefusal, SwitchState } from './lines';
 export {
   HOME_VIEW,
   HONEYCOMB_STEP,

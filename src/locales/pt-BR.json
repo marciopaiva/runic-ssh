@@ -250,6 +250,7 @@
   "map.linking.hint": "Clique em outro terminal para ligá-lo com uma linha. Esc cancela.",
   "map.linking.hint.files": "Clique em outro navegador de arquivos para enviar a ele. Esc cancela.",
   "map.line.arm": "Digitar em todos os terminais desta linha de uma vez",
+  "map.line.idle": "Armada, sem alcançar ninguém: uma janela recebendo não é transmissão. Clique para desligar",
   "map.line.disarm": "Parar de digitar em todos os terminais desta linha",
   "map.line.remove": "Remover a linha",
   "map.line.remove.detail": "as sessões continuam",

@@ -2,6 +2,10 @@ import type { JSX } from 'react';
 
 interface BroadcastGlyphProps {
   readonly className: string;
+  /** A bar across it: this window spared itself (ADR-0065). Struck rather
+      than faded, because a decision a person has to find again should not
+      be the dimmest thing in the strip. */
+  readonly struck?: boolean;
 }
 
 /**
@@ -13,12 +17,13 @@ interface BroadcastGlyphProps {
  * draws its own pill-and-knob switch; ADR-0046's follow-up tracks moving it
  * to this glyph too.
  */
-export function BroadcastGlyph({ className }: BroadcastGlyphProps): JSX.Element {
+export function BroadcastGlyph({ className, struck = false }: BroadcastGlyphProps): JSX.Element {
   return (
     <svg viewBox="0 0 24 24" className={className} fill="none" aria-hidden="true">
       <circle cx="12" cy="19" r="1.6" fill="currentColor" stroke="none" />
       <path d="M8 15.5a5.5 5.5 0 0 1 8 0" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
       <path d="M4.5 12a10 10 0 0 1 15 0" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      {struck && <path d="M5 5 L19 19" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />}
     </svg>
   );
 }

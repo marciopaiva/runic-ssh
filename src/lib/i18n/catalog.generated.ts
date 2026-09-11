@@ -257,6 +257,7 @@ export const SOURCE_CATALOG = {
   "map.linking.hint.files": "Click another file browser to send to it. Esc cancels.",
   "map.line.arm": "Type into every terminal on this line at once",
   "map.line.disarm": "Stop typing into every terminal on this line",
+  "map.line.idle": "Armed, reaching nobody: one receiving window is no broadcast. Click to turn it off",
   "map.line.remove": "Remove the line",
   "map.line.remove.detail": "the sessions stay",
   "map.line.title": "{a} and {b}",

@@ -22,6 +22,7 @@ import {
   removeComponent,
   removeLink,
   setKey,
+  switchState,
 } from '../src/features/map';
 import { EMPTY_WORKSPACE } from '../src/ipc';
 import type { Component, Workspace } from '../src/ipc';
@@ -184,5 +185,26 @@ describe('where a keystroke typed in a map window goes', () => {
   it('ignores a key for a set that no longer exists', () => {
     const stale = new Set([setKey(['t1', 't2'])]);
     expect(mapInputTargets(linked, 'h1', stale, none, all)).toEqual(['h1']);
+  });
+});
+
+describe('the switch on a set', () => {
+  const pair = ['t1', 't2'];
+  const armed = new Set([setKey(pair)]);
+
+  it('is off until the set is armed', () => {
+    expect(switchState(pair, new Set(), ['t1', 't2'])).toBe('off');
+    expect(switchState(['t1'], armed, [])).toBe('off');
+  });
+
+  it('is on while somebody on the set receives', () => {
+    expect(switchState(pair, armed, ['t1', 't2'])).toBe('on');
+  });
+
+  it('is idle when the set is armed and nobody receives: one window spared itself', () => {
+    const two = map([ssh('t1'), ssh('t2')], [{ a: 't1', b: 't2' }]);
+    const receiving = mapReceiving(two, armed, new Set(['t2']), new Set(['t1', 't2']));
+    expect(receiving).toEqual([]);
+    expect(switchState(pair, armed, receiving)).toBe('idle');
   });
 });

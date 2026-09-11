@@ -1,14 +1,15 @@
 import type { JSX, MouseEvent as ReactMouseEvent } from 'react';
 
 import type { Point } from '../../ipc';
+import type { SwitchState } from '../../features/map';
 
 import { BroadcastGlyph } from '../BroadcastGlyph';
 
 interface LineHandleProps {
   /** The line's midpoint between the two ends' borders, in stage pixels. */
   readonly at: Point;
-  /** Whether the set this line is on is armed. */
-  readonly on: boolean;
+  /** Off, on, or armed with nobody to reach (`idle`). */
+  readonly state: SwitchState;
   readonly label: string;
   readonly title: string;
   readonly onToggle: () => void;
@@ -70,30 +71,33 @@ export function SendHandle({ at, count, label, title, onSend, onContextMenu }: S
  *
  * On or off is told by colour and by the knob's side, the same two ways
  * `SyncToggle` tells it in Sessions, so a person who learnt one has learnt
- * the other.
+ * the other. Armed with nobody to reach keeps the knob on its "on" side
+ * and hollows the fill: the set is armed, nothing is being broadcast, and
+ * the status bar, which says nothing, is not contradicted.
  */
-export function LineHandle({ at, on, label, title, onToggle, onContextMenu }: LineHandleProps): JSX.Element {
+export function LineHandle({ at, state, label, title, onToggle, onContextMenu }: LineHandleProps): JSX.Element {
+  const look =
+    state === 'on'
+      ? 'bg-warn border-warn justify-end'
+      : state === 'idle'
+        ? 'bg-surface-raised border-warn justify-end'
+        : 'bg-surface-raised border-line-strong justify-start';
+  const knob = state === 'on' ? 'bg-surface-base text-warn' : state === 'idle' ? 'bg-warn text-surface-base' : 'bg-ink-muted text-surface-base';
   return (
     <button
       type="button"
       role="switch"
-      aria-checked={on}
+      aria-checked={state !== 'off'}
       aria-label={label}
       title={title}
       data-line-handle=""
-      className={`absolute z-[100] flex h-5 w-9 -translate-x-1/2 -translate-y-1/2 items-center rounded-full border shadow-3 transition-colors duration-fast ${
-        on ? 'bg-warn border-warn justify-end' : 'bg-surface-raised border-line-strong justify-start'
-      }`}
+      className={`absolute z-[100] flex h-5 w-9 -translate-x-1/2 -translate-y-1/2 items-center rounded-full border shadow-3 transition-colors duration-fast ${look}`}
       style={{ left: at.x, top: at.y }}
       onPointerDown={(event) => event.stopPropagation()}
       onClick={onToggle}
       onContextMenu={onContextMenu}
     >
-      <span
-        className={`mx-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full ${
-          on ? 'bg-surface-base text-warn' : 'bg-ink-muted text-surface-base'
-        }`}
-      >
+      <span className={`mx-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full ${knob}`}>
         <BroadcastGlyph className="h-2.5 w-2.5" />
       </span>
     </button>

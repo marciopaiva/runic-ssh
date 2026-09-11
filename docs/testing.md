@@ -929,7 +929,7 @@ on 2223, both as SSH components.
 | Open both windows | the line now runs between the two windows' borders, and moves with them when one is dragged |
 | Click the switch | it turns on in the warning colour, both windows take the warning edge and a broadcast glyph in their strips, the status bar's top edge goes warning with `SYNC 2` |
 | Type `echo hi` Enter into `web-01` | both shells run it |
-| Click `db-01`'s glyph in its strip | its edge and `web-01`'s go back to normal and the status bar clears: one receiving window is no broadcast; typing into `web-01` reaches only it. The switch stays on, the set is armed with nobody to reach |
+| Click `db-01`'s glyph in its strip | its glyph is struck through, its edge and `web-01`'s go back to normal and the status bar clears: one receiving window is no broadcast; typing into `web-01` reaches only it. The switch stays on its "on" side but goes hollow, and the line to the rest stroke: the set is armed with nobody to reach |
 | Right-click the switch | a menu titled with both names offers "Remove the line"; pick it and the line and the glyphs are gone, `links` is empty, both sessions stay |
 | Collapse a window on an armed line | it is spared while collapsed, the way a tab behind another is |
 

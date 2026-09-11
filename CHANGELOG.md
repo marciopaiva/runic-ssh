@@ -18,8 +18,9 @@ with the caveat that anything below 1.0 may break, and this project intends to.
   switch at its midpoint. On, what is typed into any window on the line
   reaches every open window on it, under the same rules as Sessions'
   synchronised typing: off by default, off again whenever the set changes,
-  each window able to spare itself from its strip, and one receiving window
-  treated as no broadcast at all. The map's switch and Sessions' are two
+  each window able to spare itself from its strip (its glyph struck through
+  while spared), and one receiving window treated as no broadcast at all,
+  which the switch shows by going hollow: armed, reaching nobody. The map's switch and Sessions' are two
   switches: a keystroke is routed by where it was typed, never through both.
   Lines are saved in `workspace.json`; whether one is armed is not.
 - Lines between file browsers on the map, and this machine as a component.

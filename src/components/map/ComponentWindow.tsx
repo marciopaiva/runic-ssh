@@ -158,14 +158,12 @@ export function ComponentWindow({
             className={`ml-auto flex h-5 w-5 shrink-0 items-center justify-center rounded ${
               broadcast === 'receiving'
                 ? 'text-warn hover:bg-warn-soft'
-                : broadcast === 'muted'
-                  ? 'text-ink-faint hover:bg-surface-raised opacity-60'
-                  : 'text-ink-muted hover:bg-surface-raised'
+                : 'text-ink-muted hover:bg-surface-raised'
             }`}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={onToggleMute}
           >
-            <BroadcastGlyph className="h-3.5 w-3.5" />
+            <BroadcastGlyph className="h-3.5 w-3.5" struck={broadcast === 'muted'} />
           </button>
         )}
         <span

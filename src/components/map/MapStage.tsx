@@ -26,12 +26,13 @@ import {
   removeLink,
   resetPosition,
   setKey,
+  switchState,
   terminalBox,
   terminalMenu,
   terminalTreatment,
   toStage,
 } from '../../features/map';
-import type { AddRefusal, HostAsk } from '../../features/map';
+import type { AddRefusal, HostAsk, SwitchState } from '../../features/map';
 import { HUB, useMapStage } from '../../features/map/use-map-stage';
 import { useTranslator } from '../../features/settings';
 import type { Endpoint, PaneEntry } from '../../features/sftp/endpoint';
@@ -714,7 +715,8 @@ export function MapStage({
     readonly to: Point;
     readonly mid: Point;
     readonly members: readonly string[];
-    readonly on: boolean;
+    /** The set's switch; `off` on a file-browser line, which has none. */
+    readonly state: SwitchState;
   }
   const lines = useMemo(() => {
     const out: DrawnLine[] = [];
@@ -742,11 +744,11 @@ export function MapStage({
         to,
         mid: { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 },
         members,
-        on: family === 'terminal' && armed.has(setKey(members)),
+        state: family === 'terminal' ? switchState(members, armed, receiving) : 'off',
       });
     }
     return out;
-  }, [anchorBox, armed, componentById, workspace]);
+  }, [anchorBox, armed, componentById, receiving, workspace]);
   const linkingFrom = stage.linking === null ? null : anchorBox(stage.linking.from);
   const linkingFamily = stage.linking === null ? null : familyOf(componentById.get(stage.linking.from)?.kind ?? 'monitor');
   const menuTitle = (target: string | null): string => {
@@ -937,9 +939,9 @@ export function MapStage({
                 y1={line.from.y}
                 x2={line.to.x}
                 y2={line.to.y}
-                stroke={line.on || line.family === 'files' ? 'var(--rs-state-warn)' : 'var(--rs-border-strong)'}
-                strokeWidth={line.on ? 1.8 : 1.4}
-                opacity={line.on ? 0.9 : line.family === 'files' ? 0.6 : 0.8}
+                stroke={line.state === 'on' || line.family === 'files' ? 'var(--rs-state-warn)' : 'var(--rs-border-strong)'}
+                strokeWidth={line.state === 'on' ? 1.8 : 1.4}
+                opacity={line.state === 'on' ? 0.9 : line.family === 'files' ? 0.6 : 0.8}
                 markerEnd={line.family === 'files' ? 'url(#map-arrowhead)' : undefined}
               />
             ))}
@@ -1055,9 +1057,9 @@ export function MapStage({
             <LineHandle
               key={line.key}
               at={line.mid}
-              on={line.on}
+              state={line.state}
               label={lineTitle(line.link)}
-              title={i18n.t(line.on ? 'map.line.disarm' : 'map.line.arm')}
+              title={i18n.t(line.state === 'on' ? 'map.line.disarm' : line.state === 'idle' ? 'map.line.idle' : 'map.line.arm')}
               onToggle={() => toggleArmed(line.members)}
               onContextMenu={onContextMenu}
             />

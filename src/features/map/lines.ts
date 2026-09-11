@@ -184,6 +184,24 @@ export function mapReceiving(
   return out;
 }
 
+/** What a set's switch shows: off; on, with somebody to reach; or armed
+    with nobody to reach, which ADR-0019's one-receiving-is-none rule makes
+    a state of its own. */
+export type SwitchState = 'off' | 'idle' | 'on';
+
+/**
+ * The switch of the set `members` belong to, given who is receiving.
+ *
+ * `idle` is the case a person makes by sparing one of two windows: the set
+ * is armed, the status bar says nothing is synchronised, and a switch that
+ * still read "on" would be the map contradicting the status bar. The line
+ * and the switch draw this state; `mapReceiving` already decides it.
+ */
+export function switchState(members: readonly string[], armed: ReadonlySet<string>, receiving: readonly string[]): SwitchState {
+  if (members.length < 2 || !armed.has(setKey(members))) return 'off';
+  return members.some((id) => receiving.includes(id)) ? 'on' : 'idle';
+}
+
 /**
  * Which hosts a keystroke typed in the window of `fromHost` reaches.
  *
