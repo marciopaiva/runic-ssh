@@ -105,6 +105,33 @@ export function moveVision(workspace: Workspace, id: string, position: Point): W
   return replaceVision(workspace, id, (vision) => ({ ...vision, position }));
 }
 
+/**
+ * Moves a vision, and every member with it, to `layer`, or back to the
+ * outermost map with `null` (ADR-0068): the two can only ever agree, so
+ * they move together in one call. The vision's own aperture position
+ * resets, since a place on one level's ring means nothing on another's; a
+ * member's pin stays, since it is relative to the vision's own corner and
+ * not to the layer.
+ */
+export function moveVisionToLayer(workspace: Workspace, id: string, layer: string | null): Workspace {
+  const vision = findVision(workspace, id);
+  if (vision === undefined) return workspace;
+  const members = new Set(vision.components);
+  return {
+    ...workspace,
+    visions: workspace.visions.map((one) => {
+      if (one.id !== id) return one;
+      const { position: _dropped, layer: _current, ...rest } = one;
+      return layer === null ? rest : { ...rest, layer };
+    }),
+    components: workspace.components.map((component) => {
+      if (!members.has(component.id)) return component;
+      const { layer: _current, ...rest } = component;
+      return layer === null ? rest : { ...rest, layer };
+    }),
+  };
+}
+
 /** A vision's corner on the map: where it was left, or the origin until the
     stage has placed it and written that place back. */
 function anchorOf(vision: Vision): Point {

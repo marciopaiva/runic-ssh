@@ -43,6 +43,7 @@ function Harness({ stage, onApi }: { readonly stage: HTMLDivElement; readonly on
     workspace: EMPTY_WORKSPACE,
     components: [{ id: 'c1', kind: 'ssh', host: 's1' }],
     visions: [],
+    layers: [],
     onChange: () => {},
     radialOptions: () => 3,
     onClick: () => {},

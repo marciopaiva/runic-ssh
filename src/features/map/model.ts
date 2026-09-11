@@ -193,6 +193,18 @@ export function resetPosition(workspace: Workspace, id: string): Workspace {
   return replace(workspace, id, ({ position: _dropped, ...component }) => component);
 }
 
+/**
+ * Moves a free component to `layer`, or back to the outermost map with
+ * `null` (ADR-0068). Its position goes with the move: a place on one
+ * level's own ring means nothing on another's. A member of a vision moves
+ * with the vision, not on its own; `moveVisionToLayer` is that call.
+ */
+export function moveToLayer(workspace: Workspace, id: string, layer: string | null): Workspace {
+  return replace(workspace, id, ({ position: _dropped, layer: _current, ...component }) =>
+    layer === null ? component : { ...component, layer },
+  );
+}
+
 /** The size the user pulled it to, never below {@link MIN_SIZE}. */
 export function resizeComponent(workspace: Workspace, id: string, size: Size): Workspace {
   const clamped: Size = {
@@ -221,6 +233,12 @@ export function sizeOf(component: Component): Size {
 export interface HostAsk {
   readonly kind: ComponentKind | null;
   readonly changing: string | null;
+  /** Which level the host lands on when the ask creates a component
+      (ADR-0068). Carried through `App.tsx`'s own round trip, which does
+      not otherwise know which layer the map was showing when the editor
+      opened; ignored when `changing` names an existing component, whose
+      own level does not move for having its host pointed elsewhere. */
+  readonly layer: string | null;
 }
 
 /**
@@ -240,7 +258,7 @@ export function placeSavedHost(
     return outcome.ok ? outcome.workspace : null;
   }
   if (ask.kind !== null) {
-    const outcome = addComponent(workspace, ask.kind, host, hosts);
+    const outcome = addComponent(workspace, ask.kind, host, hosts, ask.layer);
     return outcome.ok ? outcome.workspace : null;
   }
   return workspace;

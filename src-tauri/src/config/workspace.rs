@@ -131,12 +131,21 @@ pub struct Vision {
     pub position: Option<Point>,
 }
 
-/// A map inside the map (v0.9.0).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// A map inside the map (ADR-0068). One level deep: a layer holds
+/// components and visions, never a layer, and a line never joins two
+/// components on different levels.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Layer {
     pub id: String,
+    /// Free text, and unique among layers: the crumb shows it, and two
+    /// layers with the same name would be two crumbs saying one thing.
     pub name: String,
+    /// Where the monolith sits on the outermost ring, or `None` to let the
+    /// map place it. Entering and leaving write nothing; only this field
+    /// says where the layer itself sits.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub position: Option<Point>,
 }
 
 /// Everything the Map workspace remembers between launches.
@@ -172,6 +181,24 @@ fn invalid(field: &str) -> Error {
 /// two shells on one connection, which `open_terminal` refuses (ADR-0014)
 /// and which waits for #120.
 pub fn validate(workspace: &Workspace) -> Result<(), Error> {
+    // ADR-0068: validated first, so `component.layer` and `vision.layer` can
+    // be checked against a real layer below rather than only for shape.
+    let mut layer_ids = HashSet::new();
+    let mut layer_names = HashSet::new();
+    for layer in &workspace.layers {
+        if !acceptable_id(&layer.id) || !layer_ids.insert(layer.id.as_str()) {
+            return Err(invalid("layer.id"));
+        }
+        if !acceptable_name(&layer.name) || !layer_names.insert(layer.name.trim()) {
+            return Err(invalid("layer.name"));
+        }
+        if let Some(Point { x, y }) = layer.position {
+            if !(x.is_finite() && y.is_finite()) {
+                return Err(invalid("layer.position"));
+            }
+        }
+    }
+
     let mut ids = HashSet::new();
     let mut surfaces = HashSet::new();
     for component in &workspace.components {
@@ -200,7 +227,7 @@ pub fn validate(workspace: &Workspace) -> Result<(), Error> {
             return Err(invalid("component.kind"));
         }
         if let Some(layer) = component.layer.as_deref() {
-            if !acceptable_id(layer) {
+            if !layer_ids.contains(layer) {
                 return Err(invalid("component.layer"));
             }
         }
@@ -226,6 +253,11 @@ pub fn validate(workspace: &Workspace) -> Result<(), Error> {
         .iter()
         .map(|component| (component.id.as_str(), component.kind))
         .collect();
+    let levels: HashMap<&str, Option<&str>> = workspace
+        .components
+        .iter()
+        .map(|component| (component.id.as_str(), component.layer.as_deref()))
+        .collect();
     let mut seen_links: Vec<(&str, &str)> = Vec::new();
     for link in &workspace.links {
         if link.a == link.b {
@@ -244,6 +276,12 @@ pub fn validate(workspace: &Workspace) -> Result<(), Error> {
         if *from == ComponentKind::Local && *to == ComponentKind::Local {
             return Err(invalid("link"));
         }
+        // ADR-0068: a line never crosses a level. `levels` is filled above
+        // from the same components loop, so a link naming a component this
+        // loop has not already refused as missing carries a real level.
+        if levels.get(link.a.as_str()) != levels.get(link.b.as_str()) {
+            return Err(invalid("link"));
+        }
         let duplicate = seen_links.iter().any(|(a, b)| {
             (*a == link.a && *b == link.b)
                 || (family == Family::Terminal && *a == link.b && *b == link.a)
@@ -256,11 +294,7 @@ pub fn validate(workspace: &Workspace) -> Result<(), Error> {
 
     // ADR-0067: a member is in one vision, on the vision's own level, and
     // named once in it, since the order of the list is the grid's order.
-    let levels: HashMap<&str, Option<&str>> = workspace
-        .components
-        .iter()
-        .map(|component| (component.id.as_str(), component.layer.as_deref()))
-        .collect();
+    // `levels` is the one the link loop above already built.
     let mut vision_ids = HashSet::new();
     let mut members = HashSet::new();
     for vision in &workspace.visions {
@@ -271,7 +305,7 @@ pub fn validate(workspace: &Workspace) -> Result<(), Error> {
             return Err(invalid("vision.name"));
         }
         if let Some(layer) = vision.layer.as_deref() {
-            if !acceptable_id(layer) {
+            if !layer_ids.contains(layer) {
                 return Err(invalid("vision.layer"));
             }
         }
@@ -290,16 +324,6 @@ pub fn validate(workspace: &Workspace) -> Result<(), Error> {
             if !(x.is_finite() && y.is_finite()) {
                 return Err(invalid("vision.position"));
             }
-        }
-    }
-
-    let mut layer_ids = HashSet::new();
-    for layer in &workspace.layers {
-        if !acceptable_id(&layer.id) || !layer_ids.insert(layer.id.as_str()) {
-            return Err(invalid("layer.id"));
-        }
-        if !acceptable_name(&layer.name) {
-            return Err(invalid("layer.name"));
         }
     }
 
@@ -440,6 +464,17 @@ mod tests {
         }
     }
 
+    fn layer(id: &str) -> Layer {
+        Layer {
+            id: id.to_owned(),
+            name: id.to_owned(),
+            position: Some(Point {
+                x: 600.0,
+                y: -120.0,
+            }),
+        }
+    }
+
     #[test]
     fn a_vision_survives_a_restart_with_its_place_and_its_order() {
         let dir = tempfile::tempdir().expect("a temporary directory");
@@ -508,6 +543,7 @@ mod tests {
                 ..component("c1", ComponentKind::Ssh, "s1")
             }],
             visions: vec![vision("v1", &["c1"])],
+            layers: vec![layer("lab")],
             ..Workspace::default()
         };
         assert!(matches!(
@@ -542,6 +578,160 @@ mod tests {
             validate(&workspace),
             Err(Error::InvalidWorkspace { field }) if field == "vision.position"
         ));
+    }
+
+    #[test]
+    fn a_component_or_a_vision_names_a_layer_the_file_actually_has() {
+        let workspace = Workspace {
+            components: vec![Component {
+                layer: Some("ghost".to_owned()),
+                ..component("c1", ComponentKind::Ssh, "s1")
+            }],
+            ..Workspace::default()
+        };
+        assert!(matches!(
+            validate(&workspace),
+            Err(Error::InvalidWorkspace { field }) if field == "component.layer"
+        ));
+
+        let named = Workspace {
+            components: vec![component("c1", ComponentKind::Ssh, "s1")],
+            visions: vec![Vision {
+                layer: Some("ghost".to_owned()),
+                ..vision("v1", &[])
+            }],
+            ..Workspace::default()
+        };
+        assert!(matches!(
+            validate(&named),
+            Err(Error::InvalidWorkspace { field }) if field == "vision.layer"
+        ));
+
+        let real = Workspace {
+            layers: vec![layer("ghost")],
+            ..named
+        };
+        assert!(validate(&real).is_ok());
+    }
+
+    #[test]
+    fn a_line_never_crosses_a_layer() {
+        let workspace = Workspace {
+            components: vec![
+                Component {
+                    layer: Some("lab".to_owned()),
+                    ..component("c1", ComponentKind::Ssh, "s1")
+                },
+                component("c2", ComponentKind::Ssh, "s2"),
+            ],
+            links: vec![Link {
+                a: "c1".to_owned(),
+                b: "c2".to_owned(),
+            }],
+            layers: vec![layer("lab")],
+            ..Workspace::default()
+        };
+        assert!(matches!(
+            validate(&workspace),
+            Err(Error::InvalidWorkspace { field }) if field == "link"
+        ));
+
+        let same_level = Workspace {
+            links: vec![Link {
+                a: "c1".to_owned(),
+                b: "c2".to_owned(),
+            }],
+            components: vec![
+                Component {
+                    layer: Some("lab".to_owned()),
+                    ..component("c1", ComponentKind::Ssh, "s1")
+                },
+                Component {
+                    layer: Some("lab".to_owned()),
+                    ..component("c2", ComponentKind::Ssh, "s2")
+                },
+            ],
+            ..workspace
+        };
+        assert!(validate(&same_level).is_ok());
+    }
+
+    #[test]
+    fn two_layers_never_share_a_name_or_an_id() {
+        let workspace = Workspace {
+            layers: vec![
+                layer("a"),
+                Layer {
+                    id: "b".to_owned(),
+                    ..layer("a")
+                },
+            ],
+            ..Workspace::default()
+        };
+        assert!(matches!(
+            validate(&workspace),
+            Err(Error::InvalidWorkspace { field }) if field == "layer.name"
+        ));
+
+        let same_id = Workspace {
+            layers: vec![
+                layer("a"),
+                Layer {
+                    name: "other".to_owned(),
+                    ..layer("a")
+                },
+            ],
+            ..Workspace::default()
+        };
+        assert!(matches!(
+            validate(&same_id),
+            Err(Error::InvalidWorkspace { field }) if field == "layer.id"
+        ));
+    }
+
+    #[test]
+    fn a_layer_is_refused_a_place_that_is_not_a_number() {
+        let workspace = Workspace {
+            layers: vec![Layer {
+                position: Some(Point {
+                    x: f64::NAN,
+                    y: 0.0,
+                }),
+                ..layer("a")
+            }],
+            ..Workspace::default()
+        };
+        assert!(matches!(
+            validate(&workspace),
+            Err(Error::InvalidWorkspace { field }) if field == "layer.position"
+        ));
+    }
+
+    #[test]
+    fn a_layer_survives_a_restart_with_its_place() {
+        let dir = tempfile::tempdir().expect("a temporary directory");
+        let workspace = Workspace {
+            layers: vec![layer("lab")],
+            ..Workspace::default()
+        };
+        WorkspaceStore::new(dir.path())
+            .save(&workspace)
+            .expect("save");
+
+        let after_restart = WorkspaceStore::new(dir.path()).load().expect("load");
+        assert_eq!(after_restart, workspace);
+    }
+
+    #[test]
+    fn a_layer_from_before_it_had_a_place_reads_with_none() {
+        /* What a file written before ADR-0068 could hold: a layer with no
+        `position`. The map places it, the way it places a component or a
+        vision without one. */
+        let json = r#"{"layers":[{"id":"l1","name":"lab"}]}"#;
+        let workspace: Workspace = serde_json::from_str(json).expect("parse");
+
+        assert_eq!(workspace.layers[0].position, None);
+        assert!(validate(&workspace).is_ok());
     }
 
     #[test]
@@ -741,14 +931,18 @@ mod tests {
             refused(vec![local("l1"), local("l2")]),
             Some(Error::InvalidWorkspace { field }) if field == "component.kind"
         ));
-        assert!(refused(vec![
-            local("l1"),
-            Component {
-                layer: Some("k".to_owned()),
-                ..local("l2")
-            }
-        ])
-        .is_none());
+        assert!(validate(&Workspace {
+            components: vec![
+                local("l1"),
+                Component {
+                    layer: Some("k".to_owned()),
+                    ..local("l2")
+                },
+            ],
+            layers: vec![layer("k")],
+            ..Workspace::default()
+        })
+        .is_ok());
 
         let pruned = prune(
             Workspace {

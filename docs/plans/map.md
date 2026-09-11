@@ -169,12 +169,27 @@ a vision, which expands and never connects, and Connect all on its menu.
 `MapVision.dc.html` (closed, open, child maximized) and
 `MapVisionFull.dc.html` (filling the screen).
 
-**Ships, layers (ADR-0068):** layers as maps inside the map, one level
-deep: click a layer's monolith to enter, Escape or the crumb returns;
-inside, the monolith is the hub and holds what the rune holds; components
-and visions point at their layer by a field; lines never cross layers.
+**Ships, layers (ADR-0068, built 2026-09-11):** layers as maps inside the
+map, one level deep: click a layer's monolith to enter, Escape or the
+crumb returns; inside, the monolith is the hub and holds what the rune
+holds; components and visions point at their layer by a field; lines never
+cross layers. A "Move to" section on every component and vision menu
+closes the ADR's own follow-up: every layer, plus the rune from inside
+one.
+
+**Model:** `layers` in `workspace.json`: id, name, position. Which layer is
+in view is the stage's own state, never written to the file.
+
+**ADR:** ADR-0068, one level deep. **Canvas:** `MapLayer.dc.html` (from
+outside) and `MapLayerInside.dc.html` (the monolith as hub).
 
 **Size:** medium, twice.
+
+This closes the map's model, ADR-0064 through ADR-0068, across v0.6.0 to
+v0.8.0: component, line, vision, layer, each the object the prototype
+settled before any of them had code. What is left is what ADR-0066
+deferred, cut or keep both, and the refinement backlog v0.9.0 already
+names.
 
 ### v0.9.0 Refinements
 

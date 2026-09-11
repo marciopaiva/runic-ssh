@@ -170,3 +170,56 @@ export function ApertureMark({ size = 14 }: { readonly size?: number }): JSX.Ele
     </svg>
   );
 }
+
+/**
+ * The monolith (ADR-0068): a layer's own glass slab, a doorway icon and
+ * the count of what it holds. `hub` draws it at the size it stands at when
+ * the layer is entered, where the rune stands outside one; otherwise it is
+ * the size the closed ring draws it at, a door among the components and
+ * visions it shares the ring with.
+ */
+export function MonolithGlyph({ count, hub = false, highlighted = false }: { readonly count: number; readonly hub?: boolean; readonly highlighted?: boolean }): JSX.Element {
+  const w = hub ? 100 : 78;
+  const h = hub ? 132 : 108;
+  const icon = hub ? 26 : 20;
+  return (
+    <div
+      style={{
+        position: 'relative',
+        width: w,
+        height: h,
+        borderRadius: 6,
+        background: 'linear-gradient(170deg, var(--rs-surface-raised), var(--rs-surface-panel))',
+        border: `1px solid ${highlighted ? 'var(--rs-glass-edge-hot)' : 'var(--rs-glass-edge-strong)'}`,
+        boxShadow: 'inset 0 1px 0 var(--rs-glass-top), var(--rs-shadow-3)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+      }}
+    >
+      <span
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          left: 10,
+          right: 10,
+          top: 0,
+          height: 2,
+          borderRadius: '0 0 2px 2px',
+          background: 'linear-gradient(90deg, transparent, var(--rs-accent-bright), transparent)',
+          opacity: 0.7,
+        }}
+      />
+      <svg viewBox="0 0 24 24" fill="none" stroke="var(--rs-accent)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" style={{ width: icon, height: icon }} aria-hidden="true">
+        <path d="M4 21V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16" />
+        <path d="M9 21v-6h6v6" />
+        <path d="M2 21h20" />
+      </svg>
+      <span className="mono" style={{ fontSize: 10.5, color: 'var(--rs-text-faint)' }}>
+        {count}
+      </span>
+    </div>
+  );
+}

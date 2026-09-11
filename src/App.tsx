@@ -647,7 +647,7 @@ export function App(): JSX.Element {
          same editor in a popup, rather than by switching the workspace out
          from under the click. */
       if (mapConnectTargets.current.has(sessionId)) {
-        openEditorOnMap({ kind: 'existing', sessionId: target }, { kind: null, changing: null });
+        openEditorOnMap({ kind: 'existing', sessionId: target }, { kind: null, changing: null, layer: null });
       } else {
         openEditor({ kind: 'existing', sessionId: target });
       }
@@ -3032,7 +3032,7 @@ export function App(): JSX.Element {
               onDisconnect={disconnect}
               attemptSurface={mapAttemptSurface}
               onEditHost={(sessionId) =>
-                openEditorOnMap({ kind: 'existing', sessionId }, { kind: null, changing: null })
+                openEditorOnMap({ kind: 'existing', sessionId }, { kind: null, changing: null, layer: null })
               }
               onNewHost={(name, ask) => openEditorOnMap({ kind: 'new' }, ask, name)}
               hostPopup={mapHostPopup}

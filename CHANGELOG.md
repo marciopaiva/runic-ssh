@@ -26,6 +26,19 @@ with the caveat that anything below 1.0 may break, and this project intends to.
   region like a child window. Filling the screen never connects: a member
   without a session shows its saved state and one button, and Connect all
   on the vision's menu is the action that asks (#119).
+- Layers on the map (ADR-0068), one level deep. Hold the rune for Layer and
+  name it; the monolith it draws shares the ring with components and
+  visions. Click enters it: the crumb grows by its name, the hub becomes
+  the monolith and holds what the rune holds outside one, and Escape or the
+  crumb's own back arrow returns. A line never crosses a layer. Every
+  component and vision menu gained a "Move to" section, every layer plus
+  the rune, and the layer's own menu removes it, moving what it held back
+  to the outermost map without closing anything.
+- A shell switch, classic or the map (ADR-0069), behind the preview the
+  fifth rail slot used to be. Choosing Map swaps the rail to Home and Map
+  alone; choosing Classic brings the four workspaces back. The map's own
+  crumb, search, zoom and Recenter moved into the one shared toolbar every
+  workspace already had, in place of a second bar under it.
 
 ## [0.7.0] — 2026-09-10
 

@@ -52,6 +52,7 @@ function Harness({ onApi }: { readonly onApi: (api: ReturnType<typeof useMapStag
     workspace: EMPTY_WORKSPACE,
     components: [{ id: 'c1', kind: 'ssh', host: 's1' }],
     visions: [{ id: 'v1', name: 'v', components: ['c1'], open: false }],
+    layers: [],
     onChange: () => {},
     radialOptions: () => 3,
     onClick: () => {},

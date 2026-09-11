@@ -15,7 +15,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent } from 'react';
 
-import type { Component, Point, Vision, Workspace } from '../../ipc';
+import type { Component, Layer, Point, Vision, Workspace } from '../../ipc';
 
 import { HOLD_MS, beginPress, holdFired, movePress, radialSegment, releasePress } from './gestures';
 import type { Press } from './gestures';
@@ -24,6 +24,7 @@ import type { Rect, View } from './layout';
 import { moveComponent, resizeComponent, sizeOf } from './model';
 import { MEMBER_ICON, REGION, addMember, fullScreenFrames, layoutVision, moveVision, removeMember, setVisionOpen } from './visions';
 import type { MemberBox } from './visions';
+import { moveLayer } from './layers';
 import { keepInside, resizeFrom, snapRect, snapZone } from './windows';
 import type { ResizeHandle, SnapSide, StageRect } from './windows';
 
@@ -149,6 +150,9 @@ interface Options {
   readonly components: readonly Component[];
   /** The visions on the same level (ADR-0067). */
   readonly visions: readonly Vision[];
+  /** The layers on the same level: always the outermost's own, since a
+      layer holds no layer (ADR-0068). Empty while inside one. */
+  readonly layers: readonly Layer[];
   readonly onChange: (next: Workspace) => void;
   /** How many radial options a hold on `id` offers; `0` means no radial. */
   readonly radialOptions: (id: string) => number;
@@ -174,7 +178,7 @@ type Tracking =
 /** The hub's own key in the positions map. */
 export const HUB = 'hub';
 
-export function useMapStage({ workspace, components, visions, onChange, radialOptions, onClick, onRadialPick }: Options): MapStageApi {
+export function useMapStage({ workspace, components, visions, layers, onChange, radialOptions, onClick, onRadialPick }: Options): MapStageApi {
   const [view, setView] = useState<View>(HOME_VIEW);
   const [stageSize, setStageSize] = useState<StageSize>({ width: 0, height: 0 });
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
@@ -241,7 +245,7 @@ export function useMapStage({ workspace, components, visions, onChange, radialOp
      its vision's region, laid out from the vision's corner. A vision being
      dragged carries its members, since theirs are measured from it. */
   const laid = useMemo(() => {
-    const nodes = [...components.filter((component) => !membership.has(component.id)), ...visions];
+    const nodes = [...components.filter((component) => !membership.has(component.id)), ...visions, ...layers];
     const placed = placeChildren(nodes, centre, ringRadiusFor(stageSize.width, stageSize.height));
     const map = new Map<string, Point>([[HUB, centre]]);
     nodes.forEach((node, i) => {
@@ -270,7 +274,7 @@ export function useMapStage({ workspace, components, visions, onChange, radialOp
     }
     if (resizing !== null) map.set(resizing.id, resizing.centre);
     return { positions: map as ReadonlyMap<string, Point>, regionSizes: regionSizes as ReadonlyMap<string, { readonly w: number; readonly h: number }> };
-  }, [components, componentById, membership, visions, centre, stageSize, dragging, dragPosition, resizing, open, snapped]);
+  }, [components, componentById, membership, visions, layers, centre, stageSize, dragging, dragPosition, resizing, open, snapped]);
   const positions = laid.positions;
 
   /* The region of every open vision, in stage pixels, from its corner. */
@@ -645,8 +649,9 @@ export function useMapStage({ workspace, components, visions, onChange, radialOp
             setDragging(current.element);
             setDragPosition(dropAt);
             const isVision = visionsRef.current.some((vision) => vision.id === current.element);
-            setDropTarget(isVision ? null : visionAt(dropAt));
-            setSnapPreview(isVision || membershipRef.current.has(current.element) ? null : snapZone(at, stageSize.width));
+            const isLayer = layersRef.current.some((layer) => layer.id === current.element);
+            setDropTarget(isVision || isLayer ? null : visionAt(dropAt));
+            setSnapPreview(isVision || isLayer || membershipRef.current.has(current.element) ? null : snapZone(at, stageSize.width));
           }
           return;
         }
@@ -697,6 +702,10 @@ export function useMapStage({ workspace, components, visions, onChange, radialOp
             const mapAt = toMap(viewRef.current, at);
             const dropAt = { x: Math.round(mapAt.x + current.offset.x), y: Math.round(mapAt.y + current.offset.y) };
             const workspace = workspaceRef.current;
+            if (layersRef.current.some((layer) => layer.id === current.element)) {
+              onChange(moveLayer(workspace, current.element, dropAt));
+              return;
+            }
             if (visionsRef.current.some((vision) => vision.id === current.element)) {
               onChange(moveVision(workspace, current.element, dropAt));
               return;
@@ -799,6 +808,8 @@ export function useMapStage({ workspace, components, visions, onChange, radialOp
 
   const visionsRef = useRef(visions);
   visionsRef.current = visions;
+  const layersRef = useRef(layers);
+  layersRef.current = layers;
   const membershipRef = useRef(membership);
   membershipRef.current = membership;
   const positionsRef = useRef(positions);
@@ -909,7 +920,7 @@ export function useMapStage({ workspace, components, visions, onChange, radialOp
 
   const fitAll = useCallback((): void => {
     stopFling();
-    if (components.length === 0 && visions.length === 0) {
+    if (components.length === 0 && visions.length === 0 && layers.length === 0) {
       setView(HOME_VIEW);
       return;
     }
@@ -931,6 +942,11 @@ export function useMapStage({ workspace, components, visions, onChange, radialOp
           : { left: at.x, top: at.y, right: at.x + size.w, bottom: at.y + size.h },
       );
     }
+    for (const layer of layers) {
+      const at = positions.get(layer.id);
+      if (at === undefined) continue;
+      boxes.push({ left: at.x - 46, top: at.y - 66, right: at.x + 46, bottom: at.y + 66 });
+    }
     for (const box of boxes) {
       rect =
         rect === null
@@ -943,7 +959,7 @@ export function useMapStage({ workspace, components, visions, onChange, radialOp
             };
     }
     if (rect !== null) setView(fitTo(rect, stageSize.width, stageSize.height));
-  }, [components, visions, laid.regionSizes, open, positions, stageSize, stopFling]);
+  }, [components, visions, layers, laid.regionSizes, open, positions, stageSize, stopFling]);
 
   return {
     view: { ...view, scale: Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, view.scale)) },
