@@ -409,6 +409,24 @@
       "h": 900,
       "page": "page-2",
       "title": "Map, a vision filling the screen: the Sessions split as a state of the vision (v0.8.0, ADR-0067)"
+    },
+    {
+      "file": "MapLayer.dc.html",
+      "x": 0,
+      "y": 12960,
+      "w": 1440,
+      "h": 900,
+      "page": "page-2",
+      "title": "Map, layers from outside: two monoliths on the ring beside the loose components and a vision (v0.8.0, ADR-0068)"
+    },
+    {
+      "file": "MapLayerInside.dc.html",
+      "x": 1560,
+      "y": 12960,
+      "w": 1440,
+      "h": 900,
+      "page": "page-2",
+      "title": "Map, inside a layer: the crumb grown by one, the monolith as the hub, the way back (v0.8.0, ADR-0068)"
     }
   ],
   "annotations": [

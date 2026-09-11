@@ -16,6 +16,14 @@ import { invoke } from '@tauri-apps/api/core';
  */
 export type Theme = 'system' | 'light' | 'dark';
 
+/**
+ * Which navigation is in front (ADR-0069): the four workspaces this project
+ * has always had, or the two-slot rail ADR-0064 planned for after the cut,
+ * reached without one. The same two names the core serializes;
+ * `tests/ipc-contract.test.ts` pins them the way `Theme`'s are pinned.
+ */
+export type Shell = 'classic' | 'map';
+
 export interface SettingsView {
   /** The locale the user chose, or `null` to follow the operating system. */
   readonly locale: string | null;
@@ -25,6 +33,8 @@ export interface SettingsView {
   readonly theme: Theme;
   /** Whether the preview features are revealed, the map among them (ADR-0066). */
   readonly previewFeatures: boolean;
+  /** Which navigation is in front, classic or the map (ADR-0069). */
+  readonly shell: Shell;
 }
 
 export async function getSettings(): Promise<SettingsView> {
@@ -44,4 +54,11 @@ export async function setTheme(theme: Theme): Promise<SettingsView> {
 /** Reveals or hides the preview features, the map among them (ADR-0066). */
 export async function setPreviewFeatures(on: boolean): Promise<SettingsView> {
   return invoke<SettingsView>('set_preview_features', { on });
+}
+
+/** Switches the shell: classic keeps the four workspaces this project has
+    always had, map is the two-slot rail ADR-0064 planned for after the cut
+    (ADR-0069). */
+export async function setShell(shell: Shell): Promise<SettingsView> {
+  return invoke<SettingsView>('set_shell', { shell });
 }

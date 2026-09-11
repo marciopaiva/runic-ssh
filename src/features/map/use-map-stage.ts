@@ -27,8 +27,13 @@ import type { MemberBox } from './visions';
 import { keepInside, resizeFrom, snapRect, snapZone } from './windows';
 import type { ResizeHandle, SnapSide, StageRect } from './windows';
 
-/** The bar over a vision filling the screen, in stage pixels. */
-export const FULLSCREEN_BAR = 36;
+/** Space reserved above a vision filling the screen, in stage pixels.
+    Zero: what used to be a bar drawn inside the stage is now the map's own
+    row of the shared toolbar (ADR-0069), outside the stage entirely. Kept
+    as a named constant rather than folded away, since `fullScreenFrames`
+    still takes a `bar` and a future full-screen surface with its own
+    in-stage strip has somewhere to put a number. */
+export const FULLSCREEN_BAR = 0;
 /** Between the cells of a vision filling the screen, in stage pixels. */
 export const FULLSCREEN_GAP = 8;
 /** How near an aperture a drop has to land, in map pixels, to join the vision. */

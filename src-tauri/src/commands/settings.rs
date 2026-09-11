@@ -4,7 +4,8 @@ use serde::Serialize;
 use tauri::{AppHandle, Manager, Runtime};
 
 use crate::config::{
-    apply_locale, apply_preview_features, apply_theme, Settings, SettingsStore, Theme,
+    apply_locale, apply_preview_features, apply_shell, apply_theme, Settings, SettingsStore, Shell,
+    Theme,
 };
 use crate::error::{Error, IpcError};
 
@@ -20,6 +21,8 @@ pub struct SettingsView {
     pub theme: Theme,
     /// Whether the preview features are revealed, the map among them (ADR-0066).
     pub preview_features: bool,
+    /// Which navigation is in front, classic or the map (ADR-0069).
+    pub shell: Shell,
 }
 
 impl From<Settings> for SettingsView {
@@ -29,6 +32,7 @@ impl From<Settings> for SettingsView {
             native_decorations: settings.native_decorations,
             theme: settings.theme,
             preview_features: settings.preview_features,
+            shell: settings.shell,
         }
     }
 }
@@ -91,6 +95,20 @@ pub async fn set_preview_features<R: Runtime>(
     Ok(settings.into())
 }
 
+/// Stores which navigation is in front (ADR-0069).
+///
+/// A typed value, like `set_theme`: a shell the core does not know is
+/// refused by the deserializer before this runs, so there is no validation
+/// here to forget.
+#[tauri::command]
+pub async fn set_shell<R: Runtime>(
+    app: AppHandle<R>,
+    shell: Shell,
+) -> Result<SettingsView, IpcError> {
+    let settings = apply_shell(&store(&app)?, shell)?;
+    Ok(settings.into())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -106,7 +124,7 @@ mod tests {
 
         assert_eq!(
             json,
-            r#"{"locale":null,"nativeDecorations":false,"theme":"system","previewFeatures":false}"#
+            r#"{"locale":null,"nativeDecorations":false,"theme":"system","previewFeatures":false,"shell":"classic"}"#
         );
     }
 }

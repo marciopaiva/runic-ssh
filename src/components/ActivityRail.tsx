@@ -92,6 +92,12 @@ function RailSlot({
 /** Which main area the window is showing. */
 export type Workspace = 'home' | 'sessions' | 'sftp' | 'monitor' | 'map';
 
+/** Which navigation is in front (ADR-0069): the four workspaces this
+    project has always had, or the two-slot rail ADR-0064 planned for
+    after the cut, reached from the shell switch in the shared toolbar
+    instead of a fifth slot here. */
+export type Shell = 'classic' | 'map';
+
 interface ActivityRailProps {
   /** Which workspace is showing right now. */
   readonly workspace: Workspace;
@@ -111,9 +117,10 @@ interface ActivityRailProps {
    * the list" becomes the useful question.
    */
   readonly onChoose: (workspace: Workspace) => void;
-  /** Whether the map slot is drawn. Off until the preview is turned on, so a
-      fresh install shows the classic navigation and no map (ADR-0066). */
-  readonly showMap: boolean;
+  /** Which navigation this rail is drawing (ADR-0069): the classic four
+      slots, or Home and Map alone. The map is never a fifth slot beside
+      the others; the shell switch in the toolbar is what reaches it. */
+  readonly shell: Shell;
 }
 
 /**
@@ -136,9 +143,76 @@ export function ActivityRail({
   openCount,
   sftpCount,
   onChoose,
-  showMap,
+  shell,
 }: ActivityRailProps): JSX.Element {
   const i18n = useTranslator();
+
+  const home = (
+    <RailSlot
+      on={workspace === 'home'}
+      tone={armed ? 'warn' : 'accent'}
+      locked={armed}
+      label={i18n.t(
+        armed
+          ? 'rail.home.locked'
+          : workspace === 'home'
+            ? sidebarOpen
+              ? 'rail.home.hide'
+              : 'rail.home.show'
+            : 'rail.home',
+      )}
+      onClick={() => onChoose('home')}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        className="h-[21px] w-[21px]"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+      </svg>
+    </RailSlot>
+  );
+
+  const map = (
+    <RailSlot on={workspace === 'map'} tone={armed ? 'warn' : 'accent'} label={i18n.t('map.rail')} onClick={() => onChoose('map')}>
+      <svg
+        viewBox="0 0 24 24"
+        className="h-[21px] w-[21px]"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <circle cx="12" cy="6" r="2.4" />
+        <circle cx="5.5" cy="17" r="2.4" />
+        <circle cx="18.5" cy="17" r="2.4" />
+        <path d="M10.6 8.2l-3.7 6.4M13.4 8.2l3.7 6.4M8 17h8" />
+      </svg>
+    </RailSlot>
+  );
+
+  if (shell === 'map') {
+    /* ADR-0069: the rail ADR-0064 always planned for after the cut,
+       reached without one. Home stays the host book in both shells. */
+    return (
+      <nav
+        aria-label={i18n.t('rail.label')}
+        className="bg-surface-chrome border-line-subtle flex w-12 shrink-0 flex-col items-center border-r py-1.5"
+      >
+        {home}
+        {map}
+        <div className="flex-1" />
+      </nav>
+    );
+  }
 
   return (
     <nav
@@ -147,35 +221,7 @@ export function ActivityRail({
     >
       {/* Held shut while armed, the way the gear used to be: switching away is
           not what somebody reaching for it mid-broadcast meant to do. */}
-      <RailSlot
-        on={workspace === 'home'}
-        tone={armed ? 'warn' : 'accent'}
-        locked={armed}
-        label={i18n.t(
-          armed
-            ? 'rail.home.locked'
-            : workspace === 'home'
-              ? sidebarOpen
-                ? 'rail.home.hide'
-                : 'rail.home.show'
-              : 'rail.home',
-        )}
-        onClick={() => onChoose('home')}
-      >
-        <svg
-          viewBox="0 0 24 24"
-          className="h-[21px] w-[21px]"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-          <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-        </svg>
-      </RailSlot>
+      {home}
 
       {/* One host's own vital signs, drilled into. Held shut while armed for
           the same reason Home and SFTP are: there is nothing here to
@@ -267,36 +313,6 @@ export function ActivityRail({
           <path d="M4 6.5h6l1.6 2H20v9.5H4z" />
         </svg>
       </RailSlot>
-
-      {/* ADR-0064: the map, a workspace beside the classic ones. Behind the
-          preview until it is finished (ADR-0066), so `showMap` gates it. Live
-          while armed for the same reason Sessions is: its terminals receive
-          keystrokes, and a broadcast in progress is exactly what somebody
-          switching to the map may want to see. */}
-      {showMap && (
-        <RailSlot
-          on={workspace === 'map'}
-          tone={armed ? 'warn' : 'accent'}
-          label={i18n.t('map.rail')}
-          onClick={() => onChoose('map')}
-        >
-          <svg
-            viewBox="0 0 24 24"
-            className="h-[21px] w-[21px]"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <circle cx="12" cy="6" r="2.4" />
-            <circle cx="5.5" cy="17" r="2.4" />
-            <circle cx="18.5" cy="17" r="2.4" />
-            <path d="M10.6 8.2l-3.7 6.4M13.4 8.2l3.7 6.4M8 17h8" />
-          </svg>
-        </RailSlot>
-      )}
 
       <div className="flex-1" />
     </nav>
