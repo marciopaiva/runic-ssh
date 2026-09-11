@@ -98,6 +98,16 @@ export {
   visionsOn,
 } from './visions';
 export type { MemberBox, RegionLayout, Shape, VisionOutcome } from './visions';
+export {
+  MAX_LAYER_NAME,
+  addLayer,
+  findLayer,
+  moveLayer,
+  newLayerId,
+  removeLayer,
+  renameLayer,
+} from './layers';
+export type { LayerOutcome } from './layers';
 export { mapTerminals, mountedOnce } from './mounted';
 export { terminalMenu } from './menu';
 export type { TerminalMenuEntry, TerminalMenuId, TerminalMenuState } from './menu';
