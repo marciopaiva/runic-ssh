@@ -40,7 +40,7 @@ ADR-0020 exists to stop.
 | Page | What is on it |
 | --- | --- |
 | `System` | The anatomy and its seven rules, and the token, type, density and marker sheet |
-| `Surfaces` | Forty-two screens |
+| `Surfaces` | Forty-four screens |
 | `Variants` | Light, and the same window in pt-BR and neutral es |
 
 ## Files
@@ -85,6 +85,8 @@ ADR-0020 exists to stop.
 | `PreviewSetting.dc.html` | The map behind the preview setting (ADR-0066): the command palette revealing the map's rail slot, over the default four-slot rail with no map, classic being the default a fresh install lands on |
 | `MapVision.dc.html` | Map, visions (ADR-0067): closed, an aperture with the count and a mark per kind, a line from outside ending at its edge; open, a region in ADR-0022's shape for the count, one member open as a window, one placed by hand with the pin mark, the region sized to them; a third vision with one member maximized inside it, the bar saying who waits |
 | `MapVisionFull.dc.html` | Map, a vision filling the screen (ADR-0067): every member open in the shape for the count, each 1:1 in its cell, the floor gone, Esc giving the map back; the member without a session shows its saved state, since expanding does not connect |
+| `MapLayer.dc.html` | Map, layers from outside (ADR-0068): two monoliths on the ring beside the loose components and a closed vision, each a door into its own map; the rune is the layer with no name |
+| `MapLayerInside.dc.html` | Map, inside a layer (ADR-0068): the crumb grown by one, the monolith standing where the rune stood and holding what it holds, the layer's own components and vision on its ring, and the way back in the toolbar with Escape |
 | `SftpFileOps.dc.html` | Creating, renaming and deleting a file or folder in place (ADR-0048) |
 | `SftpFolderCopy.dc.html` | Copying a folder: one still in progress, one finished with failures (ADR-0049) |
 | `SftpDeleteConfirm.dc.html` | The one question a delete always asks first, scoped to the pane that asked (ADR-0050) |

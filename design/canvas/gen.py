@@ -1979,7 +1979,7 @@ def build_sessions_proposal_broadcast_multi():
 # artboards already drew the real, current wizard shape, and were held back
 # from the canonical set only by that one still-proposed piece.
 
-def home_rail(workspace="home", badge=None, sftp_badge=None, armed=False, show_map=True):
+def home_rail(workspace="home", badge=None, sftp_badge=None, armed=False, show_map=True, shell="classic"):
     """ADR-0029's rail, plus the fourth peer workspace Monitor added beside
     the three ADR-0044 already settled: Home, Monitor, Sessions, SFTP, in
     that order (`ActivityRail.tsx`). No gear (moved to a Home card).
@@ -2003,6 +2003,10 @@ def home_rail(workspace="home", badge=None, sftp_badge=None, armed=False, show_m
     and `HostsAccess.dc.html` had nothing left holding them out of the
     canonical set."""
     accent = T['warn'] if armed else T['accent']
+    # ADR-0069: the map shell's rail is Home and Map, the rail ADR-0064
+    # planned for after the cut, reached by the toolbar's selector instead.
+    if shell == "map":
+        show_map = True
     def slot(icon, on, locked=False, bad=None):
         color = T['ink'] if on else (T['off'] if locked else T['faint'])
         bar = (f'<div style="position: absolute; left: 0; top: 8px; bottom: 8px; width: 2px;'
@@ -2018,6 +2022,11 @@ def home_rail(workspace="home", badge=None, sftp_badge=None, armed=False, show_m
                          f' position: absolute; right: 7px; bottom: 8px;">{ICON["lock"]}</svg>')
         return (f'<div style="width: 100%; height: 44px; display: flex; align-items: center; justify-content: center;'
                 f' position: relative; color: {color};">{bar}{ic(icon, 21, cls="rail-ic")}{badge_html}{lock_html}</div>')
+    if shell == "map":
+        return f"""    <div style="width: 48px; flex: none; background: {T['chrome']}; border-right: 1px solid {T['line']}; display: flex; flex-direction: column; align-items: center; padding: 6px 0;">
+      {slot('home', workspace == 'home', locked=armed)}
+      {slot('map', workspace == 'map', locked=armed)}
+    </div>"""
     return f"""    <div style="width: 48px; flex: none; background: {T['chrome']}; border-right: 1px solid {T['line']}; display: flex; flex-direction: column; align-items: center; padding: 6px 0;">
       {slot('home', workspace == 'home', locked=armed)}
       {slot('monitor', workspace == 'monitor', locked=armed)}
@@ -2745,6 +2754,21 @@ def toolbar_group_divider():
     return f'<span style="width: 1px; height: 16px; background: {T["line"]}; flex: none;"></span>'
 
 
+def shell_selector(active="classic"):
+    """ADR-0069: the shell, classic or map, chosen from the toolbar, in the
+    group that already holds the two other set-once choices, theme and
+    language (ADR-0062). Present only with the preview on (ADR-0066); a
+    fresh install never sees it. Folded like `split_control()`: two
+    buttons, the current one raised."""
+    out = []
+    for key, icon, label in (("classic", "ssh", "Classic"), ("map", "map", "Map")):
+        on = key == active
+        bg = f'background: {T["raised"]};' if on else ''
+        color = T['accent'] if on else T['faint']
+        out.append(f'<div title="{label} navigation" style="height: 22px; padding: 0 8px; border-radius: 4px; {bg} display: flex; align-items: center; gap: 6px; color: {color};">'
+                   f'{ic(icon, 13, color)}<span style="font-size: 11px; font-weight: 600; color: {color};">{label}</span></div>')
+    return '<div style="flex: none; display: flex; align-items: center; gap: 2px;">' + "".join(out) + '</div>'
+
 def theme_language_toolbar_controls():
     """ADR-0059: folded behind one button each, not drawn flat. The first
     cut (ADR-0052) put every choice as its own chip, seven of them, citing
@@ -3365,7 +3389,7 @@ def build_map_lines():
     st = status_warn(stat_text("6 components", T['muted'], mono=False) + "\n" + sep() + "\n" + stat_text("5 connected", T['faint']),
                      f'    <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: {T["warnsoft"]}; background: {T["warn"]}; border-radius: 4px; padding: 4px 10px;">TYPING INTO 2 WINDOWS</span>\n'
                      f'    <span style="font-size: 11px; color: {T["warn"]}; border: 1px solid {T["warn"]}; border-radius: 4px; padding: 3px 10px;">Turn off</span>')
-    write("MapLines.dc.html", page(body, None, home_rail(workspace="map"), st, show_shapes=False))
+    write("MapLines.dc.html", page(body, None, home_rail(workspace="map", shell="map"), st, show_shapes=False))
 
 def map_aperture(x, y, name, count, kinds, size=96):
     """A closed vision (ADR-0067): an aperture on the same glass as the rune,
@@ -3461,36 +3485,80 @@ def build_map_vision():
              + label(830, 783, "A MEMBER MAXIMIZED INSIDE ITS VISION: THE OTHERS WAIT UNTIL RESTORE"))
     body = map_toolbar() + map_floor(inner, wires)
     st = status(stat_text("9 components", T['muted'], mono=False) + "\n" + sep() + "\n" + stat_text("3 visions", T['muted'], mono=False), stat_text("6 connected", T['faint']))
-    write("MapVision.dc.html", page(body, None, home_rail(workspace="map"), st, show_shapes=False))
+    write("MapVision.dc.html", page(body, None, home_rail(workspace="map", shell="map"), st, show_shapes=False))
 
 def build_map_vision_full():
     """A vision filling the screen (v0.8.0, ADR-0067): every member open in
     ADR-0022's shape for the count, each 1:1 in its cell, the floor gone. It
     is the Sessions split as a state of the vision; nothing is written and
-    Escape gives the map back with every session alive. Expanding did not
-    connect anyone: the member without a session shows its saved state."""
+    Escape gives the map back with every session alive. The one toolbar
+    says where you are, the crumb grown by the vision's name, with Escape
+    beside it; no bar of the mode's own. Expanding did not connect anyone:
+    the member without a session shows its saved state."""
     term = lambda host, cmd, out: map_terminal_body("deploy", host, [(cmd, out)])
-    gap, top = 8, 36
+    gap, top = 8, 0
     cw, ch = (1392 - 3 * gap) // 2, (806 - top - 3 * gap) // 2
     cell = lambda col, row: (gap + col * (cw + gap) + cw // 2, top + gap + row * (ch + gap) + ch // 2)
     saved = (f'<div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; background: {T["panel"]};">'
              f'{map_glyph("sftp", map_kind_color("sftp"))}<span style="font-size: 12px; color: {T["muted"]};">Saved, not connected</span>'
              f'<span style="font-size: 11px; color: {T["accent"]}; border: 1px solid {T["accent"]}; border-radius: 4px; padding: 3px 10px;">Connect</span></div>')
-    mark = (f'<svg viewBox="0 0 96 96" style="width: 14px; height: 14px; flex: none;"><circle cx="48" cy="48" r="42" fill="none" stroke="{T["accent"]}" stroke-width="7" stroke-dasharray="22 14"></circle>'
-            f'<circle cx="48" cy="48" r="16" fill="{T["accent"]}"></circle></svg>')
-    bar = (f'<div style="position: absolute; left: 0; top: 0; right: 0; height: {top}px; display: flex; align-items: center; gap: 10px; padding: 0 12px; background: {T["chrome"]}; border-bottom: 1px solid {T["line"]};">'
-           f'{mark}<span style="font-size: 12px; font-weight: 600; color: {T["ink"]};">staging</span>'
-           f'<span class="mono" style="font-size: 10.5px; color: {T["faint"]};">4 components &middot; 2x2</span>'
-           f'<span style="margin-left: auto; font-size: 11px; color: {T["muted"]};">Back to the map</span><span class="cap">Esc</span></div>')
-    inner = (bar
-             + map_window("ssh", "web-01", "deploy@10.4.1.20", term("web-01", "systemctl is-active nginx", "active"), *cell(0, 0), cw, ch, focused=True)
+    inner = (map_window("ssh", "web-01", "deploy@10.4.1.20", term("web-01", "systemctl is-active nginx", "active"), *cell(0, 0), cw, ch, focused=True)
              + map_window("ssh", "web-02", "deploy@10.4.1.21", term("web-02", "systemctl is-active nginx", "active"), *cell(1, 0), cw, ch, focused=False)
              + map_window("sftp", "web-01", "deploy@10.4.1.20", saved, *cell(0, 1), cw, ch, focused=False)
              + map_window("monitor", "db-prod", "postgres@10.4.1.31", map_monitor_body(12, 41), *cell(1, 1), cw, ch, focused=False))
     floor = f'<div style="flex: 1; position: relative; overflow: hidden; background: {T["base"]};">{inner}</div>'
-    body = map_toolbar() + floor
+    body = map_toolbar(("Runic", "staging")) + floor
     st = status(stat_text("9 components", T['muted'], mono=False) + "\n" + sep() + "\n" + stat_text("staging, full screen", T['muted'], mono=False), stat_text("6 connected", T['faint']))
-    write("MapVisionFull.dc.html", page(body, None, home_rail(workspace="map"), st, show_shapes=False))
+    write("MapVisionFull.dc.html", page(body, None, home_rail(workspace="map", shell="map"), st, show_shapes=False))
+
+def map_monolith(x, y, name, count, hub=False):
+    """A layer (ADR-0068): the monolith, a tall glass slab with a light on
+    its top edge, the name and what it holds. On the ring it is a door;
+    inside its layer it stands where the rune stood, and holds what the
+    rune holds."""
+    w, h = (100, 132) if hub else (78, 108)
+    return (f'<div style="position: absolute; left: {x}px; top: {y}px; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 6px;">'
+            f'<div style="position: relative; width: {w}px; height: {h}px; border-radius: 6px; background: linear-gradient(170deg, rgba(21,37,54,.85), rgba(12,21,34,.85));'
+            f' border: 1px solid rgba(94,200,245,.38); box-shadow: inset 0 1px 0 rgba(232,240,250,.06), {T["shadow_3"]}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;">'
+            f'<span style="position: absolute; left: 10px; right: 10px; top: 0; height: 2px; border-radius: 0 0 2px 2px; background: linear-gradient(90deg, transparent, {T["accent2"]}, transparent); opacity: .7;"></span>'
+            f'<svg viewBox="0 0 24 24" fill="none" stroke="{T["accent"]}" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" style="width: {26 if hub else 20}px; height: {26 if hub else 20}px;"><path d="M4 21V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16"></path><path d="M9 21v-6h6v6"></path><path d="M2 21h20"></path></svg>'
+            f'<span class="mono" style="font-size: 10.5px; color: {T["muted"]};">{count}</span></div>'
+            f'<span style="font-size: {12 if hub else 11.5}px; font-weight: 600; color: {T["ink"] if hub else T["ink2"]}; white-space: nowrap;">{name}</span></div>')
+
+def build_map_layer():
+    """Layers (ADR-0068), from outside: two monoliths on the ring beside the
+    loose components and a closed vision, each a door into its own map. The
+    rune is the layer with no name."""
+    cx, cy = 696, 420
+    nodes = [(cx - 380, cy - 130), (cx + 60, cy - 220), (cx + 400, cy - 90), (cx - 300, cy + 190), (cx + 320, cy + 200)]
+    wires = "".join(map_wire(cx, cy, x, y) for x, y in nodes)
+    inner = (map_rune(cx, cy)
+             + map_monolith(*nodes[0], "Produção", "7")
+             + map_monolith(*nodes[1], "Lab", "3")
+             + map_component("ssh", "jump-01", "deploy@10.4.0.2", *nodes[2], state="connected")
+             + map_aperture(*nodes[3], "staging", 4, ["ssh", "ssh", "ssh", "monitor"])
+             + map_component("local", "This machine", "", *nodes[4], state="connected")
+             + f'<span style="position: absolute; left: {cx}px; top: {cy + 60}px; transform: translateX(-50%); font-size: 10.5px; color: {T["faint"]}; font-family: JetBrains Mono, monospace; white-space: nowrap;">2 components &middot; 1 vision &middot; 2 layers</span>')
+    body = map_toolbar() + map_floor(inner, wires)
+    st = status(stat_text("12 components", T['muted'], mono=False) + "\n" + sep() + "\n" + stat_text("2 layers", T['muted'], mono=False), stat_text("3 connected", T['faint']))
+    write("MapLayer.dc.html", page(body, None, home_rail(workspace="map", shell="map"), st, show_shapes=False))
+
+def build_map_layer_inside():
+    """Inside a layer (ADR-0068): the crumb grown by one, the monolith where
+    the rune stood and holding what it holds, the layer's own components
+    and vision on its ring, and the way back in the toolbar."""
+    cx, cy = 696, 420
+    nodes = [(cx - 360, cy - 150), (cx + 380, cy - 160), (cx - 80, cy + 230), (cx + 300, cy + 190)]
+    wires = "".join(map_wire(cx, cy, x, y) for x, y in nodes)
+    term = lambda host, cmd, out: map_terminal_body("marcio", host, [(cmd, out)])
+    inner = (map_monolith(cx, cy, "Lab", "3", hub=True)
+             + map_window("ssh", "lab-k8s-01", "marcio@10.9.0.11", term("lab-k8s-01", "kubectl get nodes", "lab-k8s-01   Ready   control-plane   41d   v1.31.2"), *nodes[0], 520, 300, focused=True)
+             + map_component("monitor", "proxmox", "root@10.9.0.2", *nodes[1], state="connected")
+             + map_component("sftp", "lab-k8s-01", "marcio@10.9.0.11", *nodes[2])
+             + map_aperture(*nodes[3], "cluster", 3, ["ssh", "ssh", "ssh"]))
+    body = map_toolbar(("Runic", "Lab")) + map_floor(inner, wires)
+    st = status(stat_text("3 components", T['muted'], mono=False) + "\n" + sep() + "\n" + stat_text("in Lab", T['muted'], mono=False), stat_text("2 connected", T['faint']))
+    write("MapLayerInside.dc.html", page(body, None, home_rail(workspace="map", shell="map"), st, show_shapes=False))
 
 def build_anatomy():
     def reg(label, w, h, bg, color, note, border=None):
@@ -3763,10 +3831,12 @@ def build_paste():
 
 # ---------- 13. the command palette
 def build_preview_setting():
-    """The preview setting (ADR-0066). A fresh install shows classic
-    navigation and no map; the command palette reveals it. The rail behind
-    the palette is the default state, four slots, no map; the caption shows
-    the fifth slot the command adds."""
+    """The preview setting (ADR-0066, amended by ADR-0069). A fresh install
+    shows classic navigation and no map; the command palette reveals it.
+    The rail behind the palette is the default state, four slots, no map;
+    what the command adds is the shell selector in the toolbar, Classic
+    raised, beside theme and language, drawn here as it will look the
+    moment after Enter."""
     def prow(icon, name, sub, on=False):
         bg = f'background: {T["accentsoft"]}; border-radius: 6px;' if on else ''
         return (f'<div style="display: flex; align-items: center; gap: 11px; padding: 9px 12px; {bg}">'
@@ -3779,7 +3849,8 @@ def build_preview_setting():
     caption = (f'<div style="position: absolute; left: 40px; bottom: 34px; max-width: 520px;">'
                f'<div style="font-size: 10px; font-weight: 700; letter-spacing: 0.11em; color: {T["faint"]};">ADR-0066 &#183; THE MAP IS A PREVIEW</div>'
                f'<div style="font-size: 12.5px; color: {T["ink2"]}; line-height: 1.55; margin-top: 8px;">A fresh install shows the classic navigation, four slots, and no map. '
-               f'The command reveals the map&#39;s rail slot for the curious; turning it off hides it again, and Home takes over if the map was showing. '
+               f'The command reveals the shell selector in the toolbar, Classic raised; choosing Map swaps the whole shell, the rail becoming Home and Map. '
+               f'Turning the preview off hides the selector again, and classic takes over if the map was showing. '
                f'Classic is the default because it is the finished half.</div></div>')
     overlay = f"""        <div style="flex: 1; position: relative; display: flex; justify-content: center; padding-top: 70px;">
           <div style="position: relative; width: 560px; height: fit-content; background: {T['overlay']}; border: 1px solid {T['line2']}; border-radius: 10px; overflow: hidden; box-shadow: 0 18px 50px rgba(0,0,0,0.5);">
@@ -3797,7 +3868,8 @@ def build_preview_setting():
           </div>
           {caption}
         </div>"""
-    body = f'      <div style="flex: 1; min-height: 0; display: flex; background: {T["base"]};">{overlay}</div>'
+    body = (toolbar_row(right_html=shell_selector("classic") + toolbar_group_divider() + theme_language_toolbar_controls())
+            + f'      <div style="flex: 1; min-height: 0; display: flex; background: {T["base"]};">{overlay}</div>')
     st = status(stat_text('No session', T['faint'], mono=False), stat_text('classic', T['faint']))
     # The rail behind is the default: four slots, no map.
     write("PreviewSetting.dc.html", page(body, None, home_rail(workspace="home", show_map=False), st))
@@ -4051,14 +4123,31 @@ def map_floor(inner_html, wires_html="", w=1392, h=806):
             f'<svg style="position: absolute; inset: 0; width: {w}px; height: {h}px;">{wires_html}</svg>'
             f'{inner_html}</div>')
 
-def map_toolbar(zoom="100%"):
-    search = (f'<div style="width: 300px; height: 24px; background: {T["input"]}; border: 1px solid {T["line"]}; border-radius: 4px; display: flex; align-items: center; gap: 8px; padding: 0 8px;">'
-              f'{ic("search", 14, T["faint"])}<span style="font-size: 12px; color: {T["faint"]};">Search hosts and components</span>'
-              f'<span class="cap" style="margin-left: auto;">Ctrl K</span></div>')
-    crumb = f'<span style="font-size: 12px; font-weight: 600; color: {T["ink"]};">Runic</span>'
-    zoomlbl = f'<span class="mono" style="font-size: 10.5px; color: {T["faint"]};">{zoom}</span>'
-    recenter = f'<span style="height: 24px; padding: 0 10px; border: 1px solid {T["line"]}; border-radius: 4px; font-size: 11px; color: {T["muted"]}; display: flex; align-items: center;">Recenter</span>'
-    return toolbar_row(right_html=search + zoomlbl + recenter, left_html=crumb)
+def map_toolbar(trail=("Runic",), zoom="100%"):
+    """The map's one toolbar: the shared row of ADR-0046, not a second row
+    of the map's own. The crumb leads, and grows by a level inside a layer
+    (ADR-0068) and by the vision's name while one fills the screen
+    (ADR-0067), with Escape beside it as the way back; the map's own
+    controls trail (search, zoom, recenter), then the divider and the
+    theme and language pair every toolbar carries (ADR-0062)."""
+    # The first segment is the rune's level, drawn as Home's own icon rather
+    # than a word (the maintainer's edit on the review canvas, 2026-09-11):
+    # the crumb's root is the map's front door, and the rail already names
+    # it by that icon.
+    parts = [f'<span title="Runic" style="display: flex; align-items: center; color: {T["ink"] if len(trail) == 1 else T["muted"]};">{ic("home", 14)}</span>']
+    for i, name in enumerate(trail[1:]):
+        last = i == len(trail) - 2
+        parts.append(f'<span style="font-size: 12px; color: {T["faint"]};">&rsaquo;</span>')
+        parts.append(f'<span style="font-size: 12px; font-weight: 600; color: {T["ink"] if last else T["muted"]};">{name}</span>')
+    if len(trail) > 1:
+        parts.append(f'<span class="cap" style="margin-left: 6px;" title="Back">Esc</span>')
+    crumb = '<span style="display: flex; align-items: center; gap: 6px;">' + "".join(parts) + '</span>'
+    search = (f'<div style="width: 280px; flex: none; height: 24px; background: {T["input"]}; border: 1px solid {T["line"]}; border-radius: 4px; display: flex; align-items: center; gap: 8px; padding: 0 8px;">'
+              f'{ic("search", 14, T["faint"])}<span style="font-size: 12px; color: {T["faint"]}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Search hosts and components</span>'
+              f'<span class="cap" style="margin-left: auto; white-space: nowrap;">Ctrl K</span></div>')
+    zoomlbl = f'<span class="mono" style="font-size: 10.5px; color: {T["faint"]}; white-space: nowrap;">{zoom}</span>'
+    recenter = f'<span style="height: 24px; flex: none; padding: 0 10px; border: 1px solid {T["line"]}; border-radius: 4px; font-size: 11px; color: {T["muted"]}; display: flex; align-items: center; white-space: nowrap;">Recenter</span>'
+    return toolbar_row(left_html=crumb, right_html=search + zoomlbl + recenter + toolbar_group_divider() + shell_selector("map") + toolbar_group_divider() + theme_language_toolbar_controls())
 
 def map_terminal_body(user, host, lines):
     return (f'<div class="term" style="padding: 8px 12px; font-size: 12px;">'
@@ -4078,7 +4167,7 @@ def build_map():
              + map_component("monitor", "db-prod", "postgres@10.4.1.31", cx + 120, cy + 230, state="connected"))
     body = map_toolbar() + map_floor(inner, wires)
     st = status(stat_text("3 components", T['muted'], mono=False), stat_text("2 connected", T['faint']))
-    write("Map.dc.html", page(body, None, home_rail(workspace="map"), st, show_shapes=False))
+    write("Map.dc.html", page(body, None, home_rail(workspace="map", shell="map"), st, show_shapes=False))
 
 def build_map_component():
     """One component in every state it can be in, on the same floor: saved
@@ -4111,7 +4200,7 @@ def build_map_component():
              + map_window("ssh", "stg-app", "deploy@10.9.0.5", failure, 900, 610, 420, 280, focused=False) + label(900, 445, "DID NOT ANSWER, INSIDE THE WINDOW"))
     body = map_toolbar() + map_floor(inner)
     st = status(stat_text("5 components", T['muted'], mono=False), stat_text("3 connected", T['faint']))
-    write("MapComponent.dc.html", page(body, None, home_rail(workspace="map"), st, show_shapes=False))
+    write("MapComponent.dc.html", page(body, None, home_rail(workspace="map", shell="map"), st, show_shapes=False))
 
 def build_map_host_popup():
     """The host popup over the map: the Home wizard's own General, Topology
@@ -4141,7 +4230,7 @@ def build_map_host_popup():
             f'<div style="flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column;">{panel}</div></div></div>')
     body = map_toolbar() + map_floor(inner + veil)
     st = status(stat_text("2 components", T['muted'], mono=False), stat_text("1 connected", T['faint']))
-    write("MapHostPopup.dc.html", page(body, None, home_rail(workspace="map"), st, show_shapes=False))
+    write("MapHostPopup.dc.html", page(body, None, home_rail(workspace="map", shell="map"), st, show_shapes=False))
 
 
 if LIGHT_MODE:
@@ -4162,7 +4251,7 @@ else:
                build_monitor, build_monitor_processes, build_monitor_ports,
                build_monitor_systemd, build_monitor_logs, build_monitor_hosts_empty,
                build_map, build_map_component, build_map_host_popup, build_map_lines,
-               build_map_vision, build_map_vision_full,
+               build_map_vision, build_map_vision_full, build_map_layer, build_map_layer_inside,
                build_anatomy, build_tokens,
                build_hostkeychanged, build_failure, build_paste, build_palette,
                build_preview_setting):
