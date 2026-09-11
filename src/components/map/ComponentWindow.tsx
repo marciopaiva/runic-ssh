@@ -19,6 +19,9 @@ interface ComponentWindowProps {
   readonly snapped: SnapSide | null;
   readonly focused: boolean;
   readonly connected: boolean;
+  /** Out of reach of the line being drawn: the origin, or the other
+      family. Faded like an icon the search does not match. */
+  readonly dimmed: boolean;
   /** Whether the body is drawn at all. Below the measured floor the window
       is a thumbnail and its body is left empty (ADR-0064's follow-up). */
   readonly thumbnail: boolean;
@@ -72,6 +75,7 @@ export function ComponentWindow({
   snapped,
   focused,
   connected,
+  dimmed,
   thumbnail,
   broadcast,
   onToggleMute,
@@ -100,9 +104,9 @@ export function ComponentWindow({
     <section
       data-window={component.id}
       aria-label={name}
-      className={`absolute flex flex-col overflow-hidden border transition-[box-shadow,border-color] duration-normal ${
+      className={`absolute flex flex-col overflow-hidden border transition-[box-shadow,border-color,opacity] duration-normal ${
         maximized ? 'rounded-none' : 'rounded-[7px]'
-      } ${edge} ${focused ? 'shadow-5' : 'shadow-3'}`}
+      } ${edge} ${focused ? 'shadow-5' : 'shadow-3'} ${dimmed ? 'opacity-20' : ''}`}
       style={{
         left: rect.left,
         top: rect.top,

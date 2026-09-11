@@ -184,6 +184,15 @@ export function mapReceiving(
   return out;
 }
 
+/**
+ * Whether `id` is out of reach while a line is being drawn from `from`:
+ * the origin itself, or anything the line could not join. Drawn dimmed,
+ * icon and window alike, so what is left lit is what a click completes.
+ */
+export function outsideLink(workspace: Workspace, from: string, id: string): boolean {
+  return from === id || canLink(workspace, from, id) !== null;
+}
+
 /** What a set's switch shows: off; on, with somebody to reach; or armed
     with nobody to reach, which ADR-0019's one-receiving-is-none rule makes
     a state of its own. */

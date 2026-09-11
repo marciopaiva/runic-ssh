@@ -28,6 +28,7 @@ export {
   linkedSets,
   mapInputTargets,
   mapReceiving,
+  outsideLink,
   removeLink,
   setKey,
   switchState,

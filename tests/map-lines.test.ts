@@ -19,6 +19,7 @@ import {
   linkedSets,
   mapInputTargets,
   mapReceiving,
+  outsideLink,
   removeComponent,
   removeLink,
   setKey,
@@ -227,5 +228,21 @@ describe('where a line shows its handle', () => {
 
   it('nowhere when a window covers all of it', () => {
     expect(visibleMidpoint(from, to, [{ left: -10, top: -10, width: 340, height: 20 }])).toBeNull();
+  });
+});
+
+describe('while a line is being drawn', () => {
+  const mixed = map([ssh('t1'), ssh('t2'), sftp('f1'), monitor('m1')], [{ a: 't1', b: 't2' }]);
+
+  it('the origin, the other family and what is already joined are out of reach', () => {
+    expect(outsideLink(mixed, 't1', 't1')).toBe(true);
+    expect(outsideLink(mixed, 't1', 'f1')).toBe(true);
+    expect(outsideLink(mixed, 't1', 'm1')).toBe(true);
+    expect(outsideLink(mixed, 't1', 't2')).toBe(true);
+  });
+
+  it('a free member of the same family is not', () => {
+    const three = map([ssh('t1'), ssh('t2'), ssh('t3')], [{ a: 't1', b: 't2' }]);
+    expect(outsideLink(three, 't1', 't3')).toBe(false);
   });
 });

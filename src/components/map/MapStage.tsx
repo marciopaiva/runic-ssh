@@ -22,6 +22,7 @@ import {
   localOn,
   mapInputTargets,
   mapReceiving,
+  outsideLink,
   removeComponent,
   removeLink,
   resetPosition,
@@ -894,12 +895,7 @@ export function MapStage({
                 host={host}
                 at={at}
                 connected={component.host !== undefined && handles.has(component.host)}
-                dimmed={
-                  !matches(component) ||
-                  (stage.linking !== null &&
-                    stage.linking.from !== component.id &&
-                    canLink(workspace, stage.linking.from, component.id) !== null)
-                }
+                dimmed={!matches(component) || (stage.linking !== null && outsideLink(workspace, stage.linking.from, component.id))}
                 dragging={stage.dragging === component.id}
                 onPointerDown={(event) => stage.onNodePointerDown(component.id, event)}
                 onContextMenu={(event) => {
@@ -960,13 +956,24 @@ export function MapStage({
             )}
           </svg>
         )}
+        {/* The hint as a bar under the toolbar rather than on the pointer,
+            which covered the target's label at the moment of reaching it. */}
         {stage.linking !== null && (
           <div
             aria-live="polite"
-            className="bg-surface-panel border-line-strong text-ink-secondary pointer-events-none absolute z-[105] rounded border px-2 py-1 text-[11px] whitespace-nowrap shadow-3"
-            style={{ left: stage.linking.pointer.x + 16, top: stage.linking.pointer.y + 16 }}
+            className="border-line-strong text-ink-secondary pointer-events-none absolute inset-x-0 top-0 z-[105] flex h-8 items-center gap-2.5 border-b px-3.5 text-[11.5px]"
+            style={{ background: 'var(--rs-glass-panel)', backdropFilter: 'blur(var(--rs-glass-blur))', WebkitBackdropFilter: 'blur(var(--rs-glass-blur))' }}
           >
+            <span className="text-accent flex shrink-0 items-center" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" className="h-3.5 w-3.5">
+                <circle cx="5" cy="12" r="2.5" />
+                <circle cx="19" cy="12" r="2.5" />
+                <path d="M7.5 12h9" />
+              </svg>
+            </span>
             {i18n.t(linkingFamily === 'files' ? 'map.linking.hint.files' : 'map.linking.hint')}
+            <kbd className="border-line-strong ml-auto rounded-[3px] border px-1 py-[1px] font-mono text-[10px]">Esc</kbd>
+            <span className="text-ink-faint text-[11px]">{i18n.t('map.linking.cancel')}</span>
           </div>
         )}
 
@@ -997,6 +1004,7 @@ export function MapStage({
                   snapped={window.snapped}
                   focused={focused}
                   connected={component.kind === 'local' || handle !== undefined}
+                  dimmed={stage.linking !== null && outsideLink(workspace, stage.linking.from, component.id)}
                   thumbnail={thumbnail}
                   broadcast={component.kind === 'ssh' ? broadcastOf(component.id) : null}
                   onToggleMute={() => toggleMute(component.id)}

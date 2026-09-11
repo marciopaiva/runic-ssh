@@ -924,7 +924,7 @@ on 2223, both as SSH components.
 | Do this | Expect |
 | --- | --- |
 | Right-click `web-01`'s icon | the menu has "Broadcast", with "draw a line to another terminal" beside it; a map with one terminal has no such entry |
-| Pick it, move the pointer | a dashed line follows the pointer from the icon, a hint says to click another terminal or press Esc, and everything that cannot be joined is dimmed; a press on the floor or Esc ends it with no line |
+| Pick it, move the pointer | a dashed line follows the pointer from the icon; a bar under the toolbar says to click another terminal, with Esc to cancel at its end; the icon it started from and everything that cannot be joined, icon or window, are dimmed; a press on the floor or Esc ends it with no line |
 | Click `db-01`'s icon | a solid line between the two icons' borders with a switch at its midpoint, off; `workspace.json` holds `{"a": …, "b": …}` under `links` |
 | Open both windows | the line now runs between the two windows' borders, and moves with them when one is dragged |
 | Click the switch | it turns on in the warning colour, both windows take the warning edge and a broadcast glyph in their strips, the status bar's top edge goes warning with `SYNC 2` |
