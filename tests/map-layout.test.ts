@@ -43,8 +43,16 @@ describe('placing children', () => {
   });
 
   it('uses a ring up to the limit and a honeycomb beyond it', () => {
-    const few = placeChildren(Array.from({ length: RING_MAX }, () => ({})), CENTRE, 50);
-    const many = placeChildren(Array.from({ length: RING_MAX + 1 }, () => ({})), CENTRE, 50);
+    const few = placeChildren(
+      Array.from({ length: RING_MAX }, (_, i) => ({ id: `c${String(i)}` })),
+      CENTRE,
+      50,
+    );
+    const many = placeChildren(
+      Array.from({ length: RING_MAX + 1 }, (_, i) => ({ id: `c${String(i)}` })),
+      CENTRE,
+      50,
+    );
 
     const radius = (p: { x: number; y: number }) => Math.round(Math.hypot(p.x - CENTRE.x, p.y - CENTRE.y));
     expect(new Set(few.map(radius))).toEqual(new Set([50]));
@@ -52,12 +60,31 @@ describe('placing children', () => {
   });
 
   it('keeps a child where the user left it without moving the others', () => {
-    const pinned = placeChildren([{}, { position: { x: 7, y: 7 } }, {}], CENTRE, 50);
-    const free = placeChildren([{}, {}, {}], CENTRE, 50);
+    const slots = new Map<string, number>();
+    const free = placeChildren([{ id: 'a' }, { id: 'b' }, { id: 'c' }], CENTRE, 50, slots);
+    const pinned = placeChildren([{ id: 'a' }, { id: 'b', position: { x: 7, y: 7 } }, { id: 'c' }], CENTRE, 50, slots);
 
     expect(pinned[1]).toEqual({ x: 7, y: 7 });
     expect(pinned[0]).toEqual(free[0]);
     expect(pinned[2]).toEqual(free[2]);
+  });
+
+  it('leaves every other child on its own slot when one leaves the set (#387)', () => {
+    const slots = new Map<string, number>();
+    const before = placeChildren([{ id: 'a' }, { id: 'b' }, { id: 'c' }], CENTRE, 50, slots);
+    const after = placeChildren([{ id: 'a' }, { id: 'c' }], CENTRE, 50, slots);
+
+    expect(after[0]).toEqual(before[0]);
+    expect(after[1]).toEqual(before[2]);
+  });
+
+  it('gives a returning child a free slot rather than reusing a live one', () => {
+    const slots = new Map<string, number>();
+    placeChildren([{ id: 'a' }, { id: 'b' }], CENTRE, 50, slots);
+    placeChildren([{ id: 'a' }], CENTRE, 50, slots);
+    const back = placeChildren([{ id: 'a' }, { id: 'b' }], CENTRE, 50, slots);
+
+    expect(new Set(back.map((p) => `${String(p.x)},${String(p.y)}`)).size).toBe(2);
   });
 });
 

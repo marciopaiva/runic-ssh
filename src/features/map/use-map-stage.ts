@@ -241,12 +241,19 @@ export function useMapStage({ workspace, components, visions, layers, onChange, 
   }, [visions]);
   const componentById = useMemo(() => new Map(components.map((component) => [component.id, component])), [components]);
 
+  /* Which slot each free ring or honeycomb node holds, remembered by id for
+     the life of the stage: leaving the set (a component joining a vision,
+     say) frees only that id's own slot, so a sibling that stayed never
+     moves (found live: dragging a component into a vision reshuffled a
+     layer nobody touched, #387). */
+  const ringSlotsRef = useRef(new Map<string, number>());
+
   /* The free components and the visions share the ring; a member sits in
      its vision's region, laid out from the vision's corner. A vision being
      dragged carries its members, since theirs are measured from it. */
   const laid = useMemo(() => {
     const nodes = [...components.filter((component) => !membership.has(component.id)), ...visions, ...layers];
-    const placed = placeChildren(nodes, centre, ringRadiusFor(stageSize.width, stageSize.height));
+    const placed = placeChildren(nodes, centre, ringRadiusFor(stageSize.width, stageSize.height), ringSlotsRef.current);
     const map = new Map<string, Point>([[HUB, centre]]);
     nodes.forEach((node, i) => {
       const at = placed[i] ?? centre;

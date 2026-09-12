@@ -56,41 +56,103 @@ export function ringPositions(count: number, centre: Point, radius: number): rea
   return out;
 }
 
+/** The slot's own position on the honeycomb's concentric hexagonal rings:
+    six on the first, twelve on the second, eighteen on the third. Depends
+    only on the slot number, never on how many are placed overall, so a
+    node keeps its cell when the count above or below it changes. */
+export function honeycombSlotPosition(slot: number, centre: Point, step: number = HONEYCOMB_STEP): Point {
+  let ring = 1;
+  let base = 0;
+  while (slot >= base + 6 * ring) {
+    base += 6 * ring;
+    ring += 1;
+  }
+  const slots = 6 * ring;
+  const k = slot - base;
+  const radius = step * ring;
+  const offset = ring % 2 === 0 ? Math.PI / slots : 0;
+  const angle = (k / slots) * Math.PI * 2 - Math.PI / 2 + offset;
+  return { x: centre.x + Math.cos(angle) * radius, y: centre.y + Math.sin(angle) * radius };
+}
+
 /**
  * Positions for `count` children around `centre` on concentric hexagonal
  * rings: six on the first, twelve on the second, eighteen on the third.
  */
 export function honeycombPositions(count: number, centre: Point, step: number = HONEYCOMB_STEP): readonly Point[] {
-  const out: Point[] = [];
-  let ring = 1;
-  while (out.length < count) {
-    const slots = 6 * ring;
-    const radius = step * ring;
-    const offset = ring % 2 === 0 ? Math.PI / slots : 0;
-    for (let k = 0; k < slots && out.length < count; k += 1) {
-      const angle = (k / slots) * Math.PI * 2 - Math.PI / 2 + offset;
-      out.push({ x: centre.x + Math.cos(angle) * radius, y: centre.y + Math.sin(angle) * radius });
-    }
-    ring += 1;
+  return Array.from({ length: count }, (_, slot) => honeycombSlotPosition(slot, centre, step));
+}
+
+/** A fixed compass of `RING_MAX` points around `centre`: the slot's own
+    position never depends on how many of the eight are actually occupied,
+    so removing one node from the ring never moves another. */
+export function ringSlotPosition(slot: number, centre: Point, radius: number): Point {
+  const angle = (slot / RING_MAX) * Math.PI * 2 - Math.PI / 2;
+  return { x: centre.x + Math.cos(angle) * radius, y: centre.y + Math.sin(angle) * radius };
+}
+
+/** Fills the ring's eight compass points in an order that keeps any
+    partial occupancy spread out, rather than bunched on one side: slots
+    fill 0, 4, 2, 6, 1, 5, 3, 7, never plain ascending order. */
+const RING_FILL_ORDER: readonly number[] = [0, 4, 2, 6, 1, 5, 3, 7];
+
+/**
+ * Assigns each id in `ids` a stable slot number, remembered in `slots`
+ * across calls. An id keeps the slot it already holds; a slot freed by an
+ * id no longer present becomes free for the next id that needs one, taken
+ * from `order` when it names one, otherwise the lowest free slot. `slots`
+ * is the caller's own memory, mutated in place, normally a value that
+ * lives as long as the map does: a component that leaves the ring (joining
+ * a vision, say) must free only its own slot, not shift every id that
+ * happened to sit after it.
+ */
+export function assignSlots(ids: readonly string[], slots: Map<string, number>, order: readonly number[] = []): readonly number[] {
+  const present = new Set(ids);
+  for (const id of slots.keys()) {
+    if (!present.has(id)) slots.delete(id);
   }
-  return out;
+  const taken = new Set(slots.values());
+  return ids.map((id) => {
+    const held = slots.get(id);
+    if (held !== undefined) return held;
+    let next = order.find((slot) => !taken.has(slot));
+    if (next === undefined) {
+      next = 0;
+      while (taken.has(next)) next += 1;
+    }
+    taken.add(next);
+    slots.set(id, next);
+    return next;
+  });
 }
 
 /**
- * Where each child goes: its own position if it has one, otherwise its slot
- * on the ring or the honeycomb, in order. The slots are computed for the
- * whole set so that moving one child does not reshuffle the others.
+ * Where each child goes: its own position if it has one, otherwise a slot
+ * on the ring or the honeycomb, remembered by id in `slots` so a child
+ * leaving the set (a component joining a vision, say) never moves a
+ * sibling that stayed. Whether the set fits the ring or spills to the
+ * honeycomb is decided by how many still need a slot, the pinned ones
+ * costing nothing.
  */
-export function placeChildren<T extends { readonly position?: Point }>(
+export function placeChildren<T extends { readonly id: string; readonly position?: Point }>(
   children: readonly T[],
   centre: Point,
   ringRadius: number,
+  slots: Map<string, number> = new Map(),
 ): readonly Point[] {
-  const slots =
-    children.length <= RING_MAX
-      ? ringPositions(children.length, centre, ringRadius)
-      : honeycombPositions(children.length, centre);
-  return children.map((child, i) => child.position ?? slots[i] ?? centre);
+  const free = children.filter((child) => child.position === undefined);
+  const onRing = free.length <= RING_MAX;
+  const assigned = assignSlots(
+    free.map((child) => child.id),
+    slots,
+    onRing ? RING_FILL_ORDER : [],
+  );
+  const bySlot = new Map(free.map((child, i) => [child.id, assigned[i] ?? 0]));
+  return children.map((child) => {
+    if (child.position !== undefined) return child.position;
+    const slot = bySlot.get(child.id) ?? 0;
+    return onRing ? ringSlotPosition(slot, centre, ringRadius) : honeycombSlotPosition(slot, centre);
+  });
 }
 
 /** The ring's radius for a stage of this size: a third of its shorter side. */
