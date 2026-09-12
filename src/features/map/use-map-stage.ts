@@ -470,15 +470,28 @@ export function useMapStage({ workspace, components, visions, layers, onChange, 
 
   /* The glide waits for the render that opened the window, since a member
      of a vision moves when its cell grows from an icon to a window: the
-     centre to reach is the one the layout settles on, not the icon's. */
+     centre to reach is the one the layout settles on, not the icon's.
+
+     A member of an open vision reveals the whole region, not just its own
+     point: the region grows to fit the window that just opened, and
+     centring on that window alone left a sibling, and the vision's own
+     bar, off stage with nothing to say they had gone anywhere. */
   useEffect(() => {
     if (reveal === null) return;
     setReveal(null);
+    const vision = membership.get(reveal);
+    const regionSize = vision === undefined ? undefined : laid.regionSizes.get(vision.id);
+    if (vision !== undefined && regionSize !== undefined) {
+      const anchor = positions.get(vision.id);
+      if (anchor === undefined) return;
+      glideTo(fitTo({ left: anchor.x, top: anchor.y, right: anchor.x + regionSize.w, bottom: anchor.y + regionSize.h }, stageSize.width, stageSize.height));
+      return;
+    }
     const at = positions.get(reveal);
     if (at === undefined) return;
     const scale = viewRef.current.scale < REFIT_MIN ? 1 : viewRef.current.scale;
     glideTo({ x: centre.x - at.x * scale, y: centre.y - at.y * scale, scale });
-  }, [centre, glideTo, positions, reveal]);
+  }, [centre, glideTo, laid.regionSizes, membership, positions, reveal, stageSize]);
 
   const collapse = useCallback((id: string): void => {
     setOpen((current) => {
