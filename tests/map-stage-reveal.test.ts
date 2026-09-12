@@ -18,9 +18,10 @@ import { act, createElement, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { REFIT_MIN } from '../src/features/map';
+import { REFIT_MIN, fitTo, layoutVision } from '../src/features/map';
 import { REVEAL_MS, useMapStage } from '../src/features/map/use-map-stage';
-import type { Workspace } from '../src/ipc';
+import type { Rect } from '../src/features/map';
+import type { Vision, Workspace } from '../src/ipc';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean;
@@ -241,5 +242,112 @@ describe('opening a window reveals it', () => {
     act(() => {
       root.render(createElement(Harness, { onApi: (next) => (api = next) }));
     });
+  });
+});
+
+describe('opening a member of a vision reveals the whole region', () => {
+  const VISION: Vision = { id: 'v1', name: 'v', components: ['c1', 'c2'], open: true, position: { x: 100, y: 100 } };
+  const VISION_WORKSPACE: Workspace = {
+    components: [
+      { id: 'c1', kind: 'ssh', host: 's1' },
+      { id: 'c2', kind: 'ssh', host: 's2' },
+    ],
+    links: [],
+    visions: [VISION],
+    layers: [],
+  };
+
+  function VisionHarness({ onApi }: { readonly onApi: (api: Api) => void }): null {
+    const api = useMapStage({
+      workspace: VISION_WORKSPACE,
+      components: VISION_WORKSPACE.components,
+      visions: VISION_WORKSPACE.visions,
+      layers: VISION_WORKSPACE.layers,
+      onChange: () => {},
+      radialOptions: () => 0,
+      onClick: () => {},
+      onRadialPick: () => {},
+    });
+    const [stage] = useState(() => {
+      const element = document.createElement('div');
+      Object.defineProperty(element, 'clientWidth', { value: STAGE.width });
+      Object.defineProperty(element, 'clientHeight', { value: STAGE.height });
+      return element;
+    });
+    api.setStageElement(stage);
+    useEffect(() => {
+      onApi(api);
+    });
+    useEffect(() => {
+      document.body.appendChild(stage);
+      return () => stage.remove();
+    }, [stage]);
+    return null;
+  }
+
+  let originalObserver: typeof ResizeObserver | undefined;
+  let host: HTMLDivElement;
+  let root: ReturnType<typeof createRoot>;
+  let api: Api | null;
+
+  beforeEach(() => {
+    originalObserver = globalThis.ResizeObserver;
+    globalThis.ResizeObserver = FakeResizeObserver as unknown as typeof ResizeObserver;
+    window.matchMedia = ((query: string) => ({ matches: query.includes('reduce') })) as unknown as typeof window.matchMedia;
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    api = null;
+    act(() => {
+      root.render(createElement(VisionHarness, { onApi: (next) => (api = next) }));
+    });
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    host.remove();
+    if (originalObserver === undefined) {
+      // @ts-expect-error restoring an environment without ResizeObserver
+      delete globalThis.ResizeObserver;
+    } else {
+      globalThis.ResizeObserver = originalObserver;
+    }
+  });
+
+  const regionRect = (members: readonly { readonly id: string; readonly open: boolean }[]): Rect => {
+    const layout = layoutVision(
+      members.map((member) => ({
+        id: member.id,
+        size: member.open ? { w: 560, h: 360 } : { w: 160, h: 120 },
+        pinned: null,
+      })),
+    );
+    return { left: 100, top: 100, right: 100 + layout.size.w, bottom: 100 + layout.size.h };
+  };
+
+  it('fits the region, not just the member, so a sibling and the vision bar stay in view', () => {
+    act(() => {
+      api?.openWindow('c1');
+    });
+    const firstRect = regionRect([
+      { id: 'c1', open: true },
+      { id: 'c2', open: false },
+    ]);
+    expect(api?.view).toEqual(fitTo(firstRect, STAGE.width, STAGE.height));
+
+    act(() => {
+      api?.openWindow('c2');
+    });
+    const secondRect = regionRect([
+      { id: 'c1', open: true },
+      { id: 'c2', open: true },
+    ]);
+    expect(api?.view).toEqual(fitTo(secondRect, STAGE.width, STAGE.height));
+    /* The region grew to the right to fit the second window; a fix that
+       still centred on c2 alone would have left the vision's own bar,
+       anchored at the region's left edge, off stage. */
+    expect(api?.view.x).toBeLessThan(0);
   });
 });
