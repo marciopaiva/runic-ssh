@@ -1340,7 +1340,7 @@ export function MapStage({
             );
           })}
 
-          {level.length === 0 && (
+          {level.length === 0 && levelVisions.length === 0 && levelLayers.length === 0 && (
             <div
               className="text-ink-faint absolute -translate-x-1/2 text-center text-[11.5px] leading-relaxed whitespace-nowrap"
               style={{ left: hub.x, top: hub.y + 92 }}
