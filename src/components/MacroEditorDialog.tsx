@@ -136,6 +136,15 @@ function MacroEditorForm({ macro, onSave, onClose, nameRef }: MacroEditorFormPro
               <button
                 key={token}
                 type="button"
+                /* Out of the tab sequence on purpose: this sits between the
+                   name field and the editor in the markup, and a click is
+                   the only gesture this needs. Left tabbable, a Tab from
+                   the name field landed here instead of the editor, and
+                   the first space in whatever a person typed next (most
+                   commands have one) activated the focused button rather
+                   than reaching the editor at all, inserting $host, $port
+                   or $username into text that was never asking for it. */
+                tabIndex={-1}
                 onClick={() => editor.current?.insertAtCursor(token)}
                 aria-label={i18n.t('macros.editor.insertVariable', { name: token })}
                 title={i18n.t('macros.editor.insertVariable', { name: token })}
