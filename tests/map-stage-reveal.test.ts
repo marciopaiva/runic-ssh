@@ -18,7 +18,7 @@ import { act, createElement, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { REFIT_MIN, fitTo, layoutVision } from '../src/features/map';
+import { HOME_VIEW, REFIT_MIN, fitTo, layoutVision } from '../src/features/map';
 import { REVEAL_MS, useMapStage } from '../src/features/map/use-map-stage';
 import type { Rect } from '../src/features/map';
 import type { Vision, Workspace } from '../src/ipc';
@@ -349,5 +349,93 @@ describe('opening a member of a vision reveals the whole region', () => {
        still centred on c2 alone would have left the vision's own bar,
        anchored at the region's left edge, off stage. */
     expect(api?.view.x).toBeLessThan(0);
+  });
+});
+
+function wheelZoomOut(): React.WheelEvent {
+  return { deltaY: 1, clientX: 0, clientY: 0, target: null, preventDefault: () => {} } as unknown as React.WheelEvent;
+}
+
+describe('recentring a layer glides home (#387)', () => {
+  let originalObserver: typeof ResizeObserver | undefined;
+  let host: HTMLDivElement;
+  let root: ReturnType<typeof createRoot>;
+  let api: Api | null;
+  let frames: FrameRequestCallback[];
+  let reduced: boolean;
+
+  beforeEach(() => {
+    originalObserver = globalThis.ResizeObserver;
+    globalThis.ResizeObserver = FakeResizeObserver as unknown as typeof ResizeObserver;
+    frames = [];
+    reduced = true;
+    window.matchMedia = ((query: string) => ({ matches: reduced && query.includes('reduce') })) as unknown as typeof window.matchMedia;
+    window.requestAnimationFrame = ((callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    }) as typeof window.requestAnimationFrame;
+    window.cancelAnimationFrame = (() => {}) as typeof window.cancelAnimationFrame;
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    api = null;
+    act(() => {
+      root.render(createElement(Harness, { onApi: (next) => (api = next) }));
+    });
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    host.remove();
+    if (originalObserver === undefined) {
+      // @ts-expect-error restoring an environment without ResizeObserver
+      delete globalThis.ResizeObserver;
+    } else {
+      globalThis.ResizeObserver = originalObserver;
+    }
+  });
+
+  it('cuts straight home under reduced motion, same as a manual recenter', () => {
+    act(() => {
+      api?.onWheel(wheelZoomOut());
+    });
+    expect(api?.view).not.toEqual(HOME_VIEW);
+    act(() => {
+      api?.glideHome();
+    });
+    expect(api?.view).toEqual(HOME_VIEW);
+  });
+
+  it('glides home over the normal duration with motion allowed', () => {
+    reduced = false;
+    act(() => {
+      api?.onWheel(wheelZoomOut());
+    });
+    const before = api?.view;
+    expect(before).not.toEqual(HOME_VIEW);
+
+    const now = vi.spyOn(performance, 'now');
+    now.mockReturnValue(1000);
+    act(() => {
+      api?.glideHome();
+    });
+    expect(frames).toHaveLength(1);
+
+    now.mockReturnValue(1000 + REVEAL_MS / 2);
+    act(() => {
+      frames[0]?.(0);
+    });
+    const midway = api?.view;
+    expect(midway).not.toEqual(HOME_VIEW);
+    expect(midway).not.toEqual(before);
+
+    now.mockReturnValue(1000 + REVEAL_MS);
+    act(() => {
+      frames[1]?.(0);
+    });
+    expect(api?.view).toEqual(HOME_VIEW);
+    now.mockRestore();
   });
 });
