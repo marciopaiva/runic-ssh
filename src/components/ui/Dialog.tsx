@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode, useRef } from 'react';
+import { Fragment, type MutableRefObject, type ReactNode, useRef } from 'react';
 import { Dialog as HeadlessDialog, Transition } from '@headlessui/react';
 import { cn } from '../../lib/classnames';
 import { XIcon } from './icons';
@@ -13,6 +13,13 @@ export interface DialogProps {
   readonly showCloseButton?: boolean;
   readonly closeOnOverlayClick?: boolean;
   readonly className?: string;
+  /** Where focus lands when the dialog opens. Headless UI defaults to the
+      first focusable descendant, which for a form is whatever happens to
+      sit first in the markup rather than the field a person actually
+      means to start in: the macro editor's own segmented pick used to
+      win that race, so every keystroke typed right after opening it,
+      expecting a name field, went nowhere. */
+  readonly initialFocus?: MutableRefObject<HTMLElement | null>;
 }
 
 const SIZES: Record<NonNullable<DialogProps['size']>, string> = {
@@ -33,11 +40,12 @@ export function Dialog({
   showCloseButton = true,
   closeOnOverlayClick = true,
   className,
+  initialFocus,
 }: DialogProps) {
   const dialogRef = useRef<HTMLElement>(null);
 
   return (
-    <HeadlessDialog open={open} onClose={onClose}>
+    <HeadlessDialog open={open} onClose={onClose} {...(initialFocus ? { initialFocus } : {})}>
       <Transition.Child
         as={Fragment}
         enter="transition-opacity duration-200 ease-out"

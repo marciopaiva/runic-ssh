@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import type { FormEvent, JSX } from 'react';
+import type { FormEvent, JSX, MutableRefObject } from 'react';
 
 import { useTranslator } from '../features/settings';
 import { asIpcError } from '../ipc';
@@ -29,20 +29,28 @@ const KINDS: readonly MacroKind[] = ['sequential', 'script'];
  */
 export function MacroEditorDialog({ open, macro, onSave, onClose }: MacroEditorDialogProps): JSX.Element {
   const i18n = useTranslator();
+  /* Headless UI otherwise focuses the first focusable descendant once the
+     dialog opens, which is the kind pick, not this: a name typed right
+     away, before touching anything with the mouse, went nowhere. Declared
+     here rather than inside `MacroEditorForm` because `Dialog` needs it
+     too, and stays stable across the form's own remounts below (the ref
+     object, not what it points at, is what `initialFocus` holds onto). */
+  const name = useRef<HTMLInputElement>(null);
 
   return (
     <Dialog
       open={open}
       onClose={onClose}
       size="full"
+      initialFocus={name}
       title={macro === null ? i18n.t('macros.editor.new') : i18n.t('macros.editor.editTitle', { name: macro.name })}
     >
       {/* Keyed so a different macro, or a fresh draft, always starts from
-          a clean slate: the name field, the kind pick and the editor's own
-          text are held outside React state (a ref, or state seeded once),
-          the same reason the inline form this replaces used to key its
-          own <form> by `mode.editingId`. */}
-      <MacroEditorForm key={macro?.id ?? 'new'} macro={macro} onSave={onSave} onClose={onClose} />
+          a clean slate: the kind pick and the editor's own text are held
+          outside React state (a ref, or state seeded once), the same
+          reason the inline form this replaces used to key its own <form>
+          by `mode.editingId`. */}
+      <MacroEditorForm key={macro?.id ?? 'new'} macro={macro} onSave={onSave} onClose={onClose} nameRef={name} />
     </Dialog>
   );
 }
@@ -51,14 +59,14 @@ interface MacroEditorFormProps {
   readonly macro: Macro | null;
   readonly onSave: (draft: MacroDraft) => Promise<Macro>;
   readonly onClose: () => void;
+  readonly nameRef: MutableRefObject<HTMLInputElement | null>;
 }
 
-function MacroEditorForm({ macro, onSave, onClose }: MacroEditorFormProps): JSX.Element {
+function MacroEditorForm({ macro, onSave, onClose, nameRef }: MacroEditorFormProps): JSX.Element {
   const i18n = useTranslator();
   const [kind, setKind] = useState<MacroKind>(macro?.kind ?? 'sequential');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const name = useRef<HTMLInputElement>(null);
   const text = useRef(macro?.text ?? '');
   const editor = useRef<CodeEditorHandle>(null);
 
@@ -77,7 +85,7 @@ function MacroEditorForm({ macro, onSave, onClose }: MacroEditorFormProps): JSX.
     setBusy(true);
     void onSave({
       ...(macro === null ? {} : { id: macro.id }),
-      name: name.current?.value ?? '',
+      name: nameRef.current?.value ?? '',
       kind,
       text: text.current,
     })
@@ -111,7 +119,7 @@ function MacroEditorForm({ macro, onSave, onClose }: MacroEditorFormProps): JSX.
       <label className="flex flex-col gap-1">
         <span className="text-ink-faint text-[11px]">{i18n.t('macros.editor.name')}</span>
         <input
-          ref={name}
+          ref={nameRef}
           name="name"
           type="text"
           defaultValue={macro?.name ?? ''}
