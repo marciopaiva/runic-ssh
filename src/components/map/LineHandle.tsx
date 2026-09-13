@@ -11,7 +11,6 @@ interface LineHandleProps {
   /** Off, on, or armed with nobody to reach (`idle`). */
   readonly state: SwitchState;
   readonly label: string;
-  readonly title: string;
   readonly onToggle: () => void;
   readonly onContextMenu: (event: ReactMouseEvent) => void;
 }
@@ -57,22 +56,26 @@ export function LineKnot({ at, label, onOpen, onContextMenu }: LineKnotProps): J
  * the other. Armed with nobody to reach keeps the knob on its "on" side
  * and hollows the fill: the set is armed, nothing is being broadcast, and
  * the status bar, which says nothing, is not contradicted.
+ *
+ * No `title`: WebKitGTK's native tooltip outlived the click that opened
+ * the line's own menu or its send confirmation, floating over both. The
+ * menu already says what the switch does; `aria-label` alone covers the
+ * rest (#381).
  */
-export function LineHandle({ at, state, label, title, onToggle, onContextMenu }: LineHandleProps): JSX.Element {
+export function LineHandle({ at, state, label, onToggle, onContextMenu }: LineHandleProps): JSX.Element {
   const look =
     state === 'on'
       ? 'bg-warn border-warn justify-end'
       : state === 'idle'
         ? 'bg-surface-raised border-warn justify-end'
-        : 'bg-surface-raised border-line-strong justify-start';
-  const knob = state === 'on' ? 'bg-surface-base text-warn' : state === 'idle' ? 'bg-warn text-surface-base' : 'bg-ink-muted text-surface-base';
+        : 'bg-surface-raised border-line-subtle justify-start hover:border-ink-faint';
+  const knob = state === 'on' ? 'bg-surface-base text-warn' : state === 'idle' ? 'bg-warn text-surface-base' : 'bg-ink-secondary text-surface-base';
   return (
     <button
       type="button"
       role="switch"
       aria-checked={state !== 'off'}
       aria-label={label}
-      title={title}
       data-line-handle=""
       className={`absolute z-[100] flex h-5 w-9 -translate-x-1/2 -translate-y-1/2 items-center rounded-full border shadow-3 transition-colors duration-fast ${look}`}
       style={{ left: at.x, top: at.y }}

@@ -2092,6 +2092,7 @@ export function App(): JSX.Element {
           onDragEntriesStart={null}
           onDragEntriesEnd={null}
           onSelectionChange={pane.onSelectionChange}
+          embedded
         />
       );
     },

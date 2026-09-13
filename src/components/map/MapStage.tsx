@@ -39,6 +39,7 @@ import {
   resetPosition,
   setKey,
   switchState,
+  isLinux,
   terminalBox,
   terminalMenu,
   terminalTreatment,
@@ -250,6 +251,9 @@ export function MapStage({
      rather than "connecting", since nothing is (ADR-0067, ADR-0053). */
   const [asked, setAsked] = useState<ReadonlySet<string>>(new Set());
 
+  /* Read once: the platform a window runs on does not change under it. */
+  const pasteAllowed = useMemo(() => !isLinux(navigator.userAgent), []);
+
   const level = useMemo(() => componentsOn(workspace, currentLayer), [workspace, currentLayer]);
   const levelVisions = useMemo(() => visionsOn(workspace, currentLayer), [workspace, currentLayer]);
   /* A layer holds no layer (ADR-0068): the outermost map's own monoliths,
@@ -376,11 +380,12 @@ export function MapStage({
           hasSelection: clipboard?.hasSelection() ?? false,
           reachable: level.some((other) => other.id !== id && canLink(workspace, id, other.id) === null),
           broadcast: broadcastRef.current(id),
+          pasteAllowed,
         });
         /* The shortcut beside each entry is the point of the menu (#115): a
-           person who opens it learns the key exists. On WebKitGTK the Paste
-           entry is that signpost and no more; see
-           `docs/measurements/terminal-menu-clipboard.md`. */
+           person who opens it learns the key exists. On WebKitGTK, Paste
+           is greyed and that shortcut is the only way in: a script cannot
+           drive it, see `docs/measurements/terminal-menu-clipboard.md`. */
         const shortcut = (key: string): string =>
           i18n.t(terminals.modifier === 'meta' ? 'map.terminal.shortcut.meta' : 'map.terminal.shortcut.control', { key });
         const labels: Record<(typeof entries)[number]['id'], { readonly label: string; readonly detail?: string; readonly color?: string }> = {
@@ -1556,7 +1561,6 @@ export function MapStage({
               at={at}
               state={line.state}
               label={lineTitle(line.link)}
-              title={i18n.t(line.state === 'on' ? 'map.line.disarm' : line.state === 'idle' ? 'map.line.idle' : 'map.line.arm')}
               onToggle={() => toggleArmed(line.members)}
               onContextMenu={onContextMenu}
             />

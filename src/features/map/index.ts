@@ -116,3 +116,4 @@ export type { LayerOutcome } from './layers';
 export { mapTerminals, mountedOnce } from './mounted';
 export { terminalMenu } from './menu';
 export type { TerminalMenuEntry, TerminalMenuId, TerminalMenuState } from './menu';
+export { isLinux } from './platform';
