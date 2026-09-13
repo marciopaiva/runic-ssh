@@ -128,7 +128,14 @@ function MacroEditorForm({ macro, onSave, onClose, nameRef }: MacroEditorFormPro
         />
       </label>
 
-      <label className="flex min-h-0 flex-1 flex-col gap-1">
+      {/* A `<div>`, not a `<label>`: with three chip buttons and the editor
+          all nested inside one label, a click on any of the label's own
+          dead space (padding, the gap between rows) forwarded natively
+          to the first control inside it, the $host chip, however far the
+          click actually landed from it. `CodeEditor` carries its own
+          `aria-label` below, so nothing here loses accessibility by not
+          being a real label. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-1">
         <span className="flex items-center justify-between gap-2">
           <span className="text-ink-faint text-[11px]">{i18n.t('macros.editor.text')}</span>
           <span className="flex gap-1">
@@ -164,7 +171,7 @@ function MacroEditorForm({ macro, onSave, onClose, nameRef }: MacroEditorFormPro
           ariaLabel={i18n.t('macros.editor.text')}
           className="min-h-0 flex-1"
         />
-      </label>
+      </div>
 
       <p className="text-ink-faint text-[11px]">
         {i18n.t(kind === 'script' ? 'macros.editor.variablesHintScript' : 'macros.editor.variablesHint')}
