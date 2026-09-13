@@ -48,7 +48,7 @@ function tab(sessionId: string): Tab {
 }
 
 function macro(id: string, name: string): Macro {
-  return { id, name, text: `systemctl status ${name}\n` };
+  return { id, name, kind: 'sequential', text: `systemctl status ${name}\n` };
 }
 
 function actions(): CommandActions & { readonly calls: string[] } {

@@ -20,6 +20,11 @@
     "prose": "node scripts/prose.mjs"
   },
   "dependencies": {
+    "@codemirror/commands": "^6.11.0",
+    "@codemirror/language": "^6.12.4",
+    "@codemirror/legacy-modes": "^6.5.4",
+    "@codemirror/state": "^6.7.4",
+    "@codemirror/view": "^6.43.11",
     "@headlessui/react": "^2.2.10",
     "@tauri-apps/api": "^2.11.1",
     "@xterm/addon-fit": "^0.11.0",

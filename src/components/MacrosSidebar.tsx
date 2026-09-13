@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import type { FormEvent, JSX, KeyboardEvent } from 'react';
+import type { JSX, KeyboardEvent } from 'react';
 
 import { useTranslator } from '../features/settings';
-import { asIpcError } from '../ipc';
 import type { Macro, MacroDraft } from '../ipc';
+
+import { MacroEditorDialog } from './MacroEditorDialog';
 
 interface MacrosSidebarProps {
   readonly macros: readonly Macro[];
@@ -44,9 +45,9 @@ const PENCIL_ICON = (
 type Mode = { readonly kind: 'list' } | { readonly kind: 'form'; readonly editingId: string | null };
 
 /**
- * A docked panel, not a modal: create, edit, delete and, first, since it
- * is the reason this exists, run a saved macro without leaving whatever
- * else is on screen.
+ * A docked panel: the list, create, edit (through `MacroEditorDialog`,
+ * ADR-0070), delete and, first, since it is the reason this exists, run a
+ * saved macro without leaving whatever else is on screen.
  *
  * Reached from `MacrosButton` in the Sessions toolbar and, still, from the
  * palette's own "Manage macros" entry; running a macro also still works
@@ -63,11 +64,8 @@ export function MacrosSidebar({
   const i18n = useTranslator();
   const [mode, setMode] = useState<Mode>({ kind: 'list' });
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const panel = useRef<HTMLDivElement>(null);
-  const text = useRef<HTMLTextAreaElement>(null);
 
   /* Trimmed and lower-cased once here rather than per row: the same shape
      `filterGroups` already uses for the sessions list. */
@@ -89,47 +87,6 @@ export function MacrosSidebar({
   const openForm = (editingId: string | null): void => {
     setMode({ kind: 'form', editingId });
     setConfirmingDeleteId(null);
-    setError(null);
-  };
-
-  const reportFailure = (rejection: unknown): void => {
-    const failure = asIpcError(rejection);
-    if (failure?.code === 'invalidMacro') {
-      setError(
-        i18n.t(failure.field === 'name' ? 'macros.editor.error.name' : 'macros.editor.error.text'),
-      );
-      return;
-    }
-    setError(i18n.t('macros.editor.error.generic'));
-  };
-
-  const submit = (event: FormEvent<HTMLFormElement>): void => {
-    event.preventDefault();
-    if (mode.kind !== 'form') return;
-    const fields = new FormData(event.currentTarget);
-    const name = String(fields.get('name') ?? '');
-    const text = String(fields.get('text') ?? '');
-
-    setError(null);
-    setBusy(true);
-    void onSave({ ...(mode.editingId === null ? {} : { id: mode.editingId }), name, text })
-      .then(() => setMode({ kind: 'list' }))
-      .catch(reportFailure)
-      .finally(() => setBusy(false));
-  };
-
-  /* The textarea is uncontrolled, read through `FormData` on submit, so a
-     chip writes straight into its DOM value rather than through React
-     state: there is nothing else the value needs to stay in sync with. */
-  const insertVariable = (token: string): void => {
-    const el = text.current;
-    if (el === null) return;
-    const start = el.selectionStart ?? el.value.length;
-    const end = el.selectionEnd ?? el.value.length;
-    el.value = el.value.slice(0, start) + token + el.value.slice(end);
-    el.focus();
-    const caret = start + token.length;
-    el.setSelectionRange(caret, caret);
   };
 
   const remove = (id: string): void => {
@@ -138,21 +95,19 @@ export function MacrosSidebar({
       return;
     }
     setConfirmingDeleteId(null);
-    setError(null);
-    void onDelete(id)
-      .then(() => {
-        if (mode.kind === 'form' && mode.editingId === id) setMode({ kind: 'list' });
-      })
-      .catch(reportFailure);
+    void onDelete(id).then(() => {
+      if (mode.kind === 'form' && mode.editingId === id) setMode({ kind: 'list' });
+    });
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
-    if (event.key !== 'Escape') return;
+    /* The dialog owns Escape while it is open (`Dialog`'s own headlessui
+       behavior calls its `onClose`); this only ever fires once focus is
+       back in the docked panel, so closing the whole sidebar is always
+       the right thing for it to do. */
+    if (event.key !== 'Escape' || mode.kind !== 'list') return;
     event.preventDefault();
-    /* Escape backs out of the form first, closing only takes a second
-       press: the same "one thing at a time" this panel does for delete. */
-    if (mode.kind === 'form') setMode({ kind: 'list' });
-    else onClose();
+    onClose();
   };
 
   return (
@@ -167,17 +122,15 @@ export function MacrosSidebar({
           {i18n.t('macros.sidebar.title')}
         </span>
         <div className="flex items-center gap-1">
-          {mode.kind === 'list' && (
-            <button
-              type="button"
-              onClick={() => openForm(null)}
-              aria-label={i18n.t('macros.editor.new')}
-              title={i18n.t('macros.editor.new')}
-              className="text-ink-faint hover:text-ink flex h-6 w-6 items-center justify-center rounded"
-            >
-              {PLUS_ICON}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => openForm(null)}
+            aria-label={i18n.t('macros.editor.new')}
+            title={i18n.t('macros.editor.new')}
+            className="text-ink-faint hover:text-ink flex h-6 w-6 items-center justify-center rounded"
+          >
+            {PLUS_ICON}
+          </button>
           <button
             type="button"
             onClick={onClose}
@@ -190,7 +143,7 @@ export function MacrosSidebar({
         </div>
       </div>
 
-      {mode.kind === 'list' && macros.length > 0 && (
+      {macros.length > 0 && (
         <div className="relative px-3.5 pt-2.5 pb-1.5">
           <svg
             viewBox="0 0 24 24"
@@ -217,124 +170,60 @@ export function MacrosSidebar({
         </div>
       )}
 
-      {mode.kind === 'list' ? (
-        <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-2">
-          {macros.length === 0 ? (
-            <p className="text-ink-faint p-2 text-[12px]">{i18n.t('macros.editor.empty')}</p>
-          ) : shown.length === 0 ? (
-            <div className="flex flex-1 flex-col items-center justify-center gap-1.5 px-4 py-8 text-center">
-              <p className="text-ink-secondary text-[12.5px] font-semibold">
-                {i18n.t('macros.sidebar.filter.empty.title')}
-              </p>
-              <p className="text-ink-faint text-[11.5px] leading-snug text-pretty">
-                {i18n.t('macros.sidebar.filter.empty.body')}
-              </p>
-            </div>
-          ) : (
-            shown.map((macro) => (
-              <div
-                key={macro.id}
-                className="hover:bg-surface-raised flex items-center gap-1 rounded"
-              >
-                <button
-                  type="button"
-                  onClick={() => onRun(macro)}
-                  className="text-ink-secondary hover:text-ink min-w-0 flex-1 truncate rounded px-2 py-1.5 text-left text-[12.5px]"
-                >
-                  {macro.name}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openForm(macro.id)}
-                  aria-label={i18n.t('macros.sidebar.edit', { name: macro.name })}
-                  title={i18n.t('macros.sidebar.edit', { name: macro.name })}
-                  className="text-ink-faint hover:text-ink shrink-0 rounded p-1.5"
-                >
-                  {PENCIL_ICON}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => remove(macro.id)}
-                  aria-label={i18n.t('macros.editor.delete', { name: macro.name })}
-                  className={`shrink-0 rounded px-1.5 py-1 text-[10.5px] font-semibold ${
-                    confirmingDeleteId === macro.id
-                      ? 'text-danger'
-                      : 'text-ink-faint hover:text-danger'
-                  }`}
-                >
-                  {confirmingDeleteId === macro.id ? i18n.t('macros.editor.deleteConfirm') : '×'}
-                </button>
-              </div>
-            ))
-          )}
-        </div>
-      ) : (
-        <form
-          key={mode.editingId ?? 'new'}
-          onSubmit={submit}
-          className="flex min-h-0 flex-1 flex-col gap-3 p-3"
-        >
-          <button
-            type="button"
-            onClick={() => setMode({ kind: 'list' })}
-            className="text-ink-faint hover:text-ink self-start text-[11.5px]"
-          >
-            {i18n.t('macros.sidebar.back')}
-          </button>
-
-          <label className="flex flex-col gap-1">
-            <span className="text-ink-faint text-[11px]">{i18n.t('macros.editor.name')}</span>
-            <input
-              name="name"
-              type="text"
-              defaultValue={editing?.name ?? ''}
-              required
-              className="bg-surface-base border-line-subtle text-ink h-8 rounded border px-2 text-[12.5px]"
-            />
-          </label>
-
-          <label className="flex min-h-0 flex-1 flex-col gap-1">
-            <span className="flex items-center justify-between gap-2">
-              <span className="text-ink-faint text-[11px]">{i18n.t('macros.editor.text')}</span>
-              <span className="flex gap-1">
-                {(['$host', '$port', '$username'] as const).map((token) => (
-                  <button
-                    key={token}
-                    type="button"
-                    onClick={() => insertVariable(token)}
-                    aria-label={i18n.t('macros.editor.insertVariable', { name: token })}
-                    title={i18n.t('macros.editor.insertVariable', { name: token })}
-                    className="text-accent bg-accent/10 hover:bg-accent/20 rounded px-1.5 py-0.5 font-mono text-[9.5px] font-bold"
-                  >
-                    {token}
-                  </button>
-                ))}
-              </span>
-            </span>
-            <textarea
-              ref={text}
-              name="text"
-              defaultValue={editing?.text ?? ''}
-              required
-              className="bg-surface-base border-line-subtle text-ink min-h-0 flex-1 resize-none rounded border p-2 font-mono text-[12px]"
-            />
-          </label>
-
-          <p className="text-ink-faint text-[11px]">{i18n.t('macros.editor.variablesHint')}</p>
-
-          {error !== null && <p className="text-danger text-[11.5px]">{error}</p>}
-
-          <div className="flex justify-end gap-2">
-            <button
-              type="submit"
-              disabled={busy}
-              className="bg-accent text-surface-base h-8 rounded px-4 text-[12.5px] font-semibold disabled:opacity-40"
-            >
-              {i18n.t('macros.editor.save')}
-            </button>
+      <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-2">
+        {macros.length === 0 ? (
+          <p className="text-ink-faint p-2 text-[12px]">{i18n.t('macros.editor.empty')}</p>
+        ) : shown.length === 0 ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-1.5 px-4 py-8 text-center">
+            <p className="text-ink-secondary text-[12.5px] font-semibold">
+              {i18n.t('macros.sidebar.filter.empty.title')}
+            </p>
+            <p className="text-ink-faint text-[11.5px] leading-snug text-pretty">
+              {i18n.t('macros.sidebar.filter.empty.body')}
+            </p>
           </div>
-        </form>
-      )}
+        ) : (
+          shown.map((macro) => (
+            <div key={macro.id} className="hover:bg-surface-raised flex items-center gap-1 rounded">
+              <button
+                type="button"
+                onClick={() => onRun(macro)}
+                className="text-ink-secondary hover:text-ink min-w-0 flex-1 truncate rounded px-2 py-1.5 text-left text-[12.5px]"
+              >
+                {macro.name}
+              </button>
+              <button
+                type="button"
+                onClick={() => openForm(macro.id)}
+                aria-label={i18n.t('macros.sidebar.edit', { name: macro.name })}
+                title={i18n.t('macros.sidebar.edit', { name: macro.name })}
+                className="text-ink-faint hover:text-ink shrink-0 rounded p-1.5"
+              >
+                {PENCIL_ICON}
+              </button>
+              <button
+                type="button"
+                onClick={() => remove(macro.id)}
+                aria-label={i18n.t('macros.editor.delete', { name: macro.name })}
+                className={`shrink-0 rounded px-1.5 py-1 text-[10.5px] font-semibold ${
+                  confirmingDeleteId === macro.id
+                    ? 'text-danger'
+                    : 'text-ink-faint hover:text-danger'
+                }`}
+              >
+                {confirmingDeleteId === macro.id ? i18n.t('macros.editor.deleteConfirm') : '×'}
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+
+      <MacroEditorDialog
+        open={mode.kind === 'form'}
+        macro={editing}
+        onSave={onSave}
+        onClose={() => setMode({ kind: 'list' })}
+      />
     </div>
   );
 }

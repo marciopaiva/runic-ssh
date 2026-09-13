@@ -41,7 +41,7 @@ import { Toolbar } from './components/Toolbar';
 import { TransfersBar } from './components/TransfersBar';
 import { actionCommands, macroCommands, sessionCommands, usePalette } from './features/commands';
 import type { CommandContext } from './features/commands';
-import { applyVariables, useMacros } from './features/macros';
+import { applyVariables, ensureTrailingNewline, useMacros, wrapScript } from './features/macros';
 import {
   focusAfter,
   focusAfterClosing,
@@ -902,9 +902,12 @@ export function App(): JSX.Element {
           sessionId === macroTargetId
             ? session
             : sessions.find((live) => live.session.id === sessionId)?.session;
-        return target === undefined
-          ? []
-          : [{ sessionId, text: applyVariables(macro.text, target) }];
+        if (target === undefined) return [];
+        const text =
+          macro.kind === 'script'
+            ? wrapScript(macro.text, target)
+            : ensureTrailingNewline(applyVariables(macro.text, target));
+        return [{ sessionId, text }];
       });
 
       sendEach(
