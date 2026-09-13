@@ -26,22 +26,18 @@
 
 ## Why this exists
 
-Connecting to a server is something a sysadmin does fifty times a day, and the
-tools for it are either twenty years old or expensive. The good parts of the
-expensive ones are not hard problems: a session manager that is pleasant to use,
-SFTP beside the terminal, tunnels that are not a command line argument. They are
-just behind a licence.
+A sysadmin connects to a server fifty times a day, and the tools for it are
+either twenty years old or expensive. The good parts of the expensive ones,
+a pleasant session manager, SFTP beside the terminal, tunnels that aren't a
+command-line flag, aren't hard problems. They're just behind a licence.
 
 **Runic SSH puts those in something free, small enough to audit, and owned by
-the people who use it.** Rust and Tauri 2.0 in the core, React in the webview,
-`russh` in process rather than an OpenSSH binary, and the OS keychain for
-secrets. Every architectural decision has a record saying what was chosen,
-what it cost, and what it rules out, so somebody who did not write this can
-still change it.
+the people who use it.** Rust and Tauri 2.0, `russh` in process instead of an
+OpenSSH binary, the OS keychain for secrets, and a decision record for every
+architectural choice.
 
-The name is the runic alphabets: carved symbols used to write, to remember, and
-to cross distances. A rune fits in the hand. So should the tool that carries
-your keys.
+The name is the runic alphabets: symbols carved to write, remember, and cross
+distances. A rune fits in the hand. So should the tool that carries your keys.
 
 ## What it looks like
 
@@ -59,19 +55,18 @@ two sessions side by side, SFTP.
 
 Each line is a feature that ships; the record behind it is one click away.
 
-- **Host keys verified, always.** An unknown key prompts with its fingerprint and randomart and will not arm the trust button until you say you checked it elsewhere; a changed key blocks; `@revoked` and `@cert-authority` refuse with no override ([ADR-0009](docs/adr/0009-parse-known-hosts-ourselves.md)).
-- **Credentials never reach the interface in plain text.** Typed in the host's own editor, resolved against the OS keychain at the moment of use, kept once, for the run, or for good ([ADR-0004](docs/adr/0004-store-credentials-in-the-os-keychain.md), [ADR-0025](docs/adr/0025-keep-a-credential-for-the-life-of-the-run.md), [ADR-0057](docs/adr/0057-collect-the-target-credential-before-save.md)).
-- **A host book organized by how hosts connect.** A bastion nests what it carries; General, Topology, Access and Forwarding are one screen ([ADR-0056](docs/adr/0056-retire-the-two-step-host-wizard.md), [ADR-0060](docs/adr/0060-organize-the-host-book-by-topology-not-a-free-text-group.md)).
-- **Hosts reached through a bastion**, both keys verified, both hops authenticated end to end, the bastion never seeing the far host's credential ([ADR-0023](docs/adr/0023-carry-a-session-on-a-channel-through-a-bastion.md)).
-- **Port forwarding**, local, remote and dynamic (SOCKS), saved per host and started when it connects ([ADR-0054](docs/adr/0054-forward-ports-local-remote-and-dynamic.md)).
-- **Groups**, two to nine rectangles of tabs, and **typing into all of them at once**, off by default and loud when on ([ADR-0019](docs/adr/0019-split-the-panel-into-panes-and-type-into-all-of-them.md), [ADR-0020](docs/adr/0020-put-the-tabs-in-groups-and-the-activities-in-a-rail.md)).
-- **A terminal per session** (xterm.js) with copy and paste that shows you a multi-line paste before a shell runs it ([ADR-0018](docs/adr/0018-copy-and-paste-through-the-browsers-own-clipboard-events.md)).
-- **Monitor**: a host's own CPU, memory, disk, network, processes, listening sockets, systemd units and a log file's tail, read over the connection already open, no agent installed anywhere. Read only, by design.
-- **Macros**: a name and a block of text sent as typed, `$host`, `$port` and `$username` resolved per session, from the palette or a docked sidebar.
-- **SFTP beside the terminal**: one source, up to four destinations, folders copied recursively, every name a server sends checked before it is trusted ([ADR-0041](docs/adr/0041-use-russh-sftp-instead-of-writing-the-protocol.md) through [ADR-0050](docs/adr/0050-select-sftp-rows-like-a-file-manager.md)).
-- **A map**: a workspace where a saved host is a component, an icon for a terminal, an SFTP browser or a monitor that opens into its window where it stands; windows drag, resize, snap and minimize back to the icon with the session alive, and the map is saved beside the host book ([ADR-0064](docs/adr/0064-keep-the-map-in-its-own-file-beside-the-host-book.md)). It is a **preview**, off by default: a fresh install shows the classic navigation, and "Show the map (preview)" in the command palette reveals it ([ADR-0066](docs/adr/0066-ship-the-map-as-an-opt-in-preview-with-classic-as-the-default.md)). The first layer of the interface the 1.0 line is built on ([the plan](docs/plans/map.md)).
-- **Lines on the map**: a line between two terminals broadcasts what you type to every open window on it, under the same rules as Sessions' synchronised typing; a directed line between two file browsers transfers a selection to each destination, with the machine Runic runs on joining the map as a component of its own ([ADR-0065](docs/adr/0065-draw-broadcast-and-fan-out-as-lines-between-components.md)). New in v0.7.0, reached through the preview above.
-- **A command palette** on `Ctrl+Shift+P`; **light and dark** from every toolbar; **English, Brazilian Portuguese and Spanish**, the security copy read by a native speaker before a language is offered ([ADR-0007](docs/adr/0007-localize-in-the-frontend-from-typed-error-codes.md)).
+- **Host keys verified, always.** An unknown key needs a fingerprint check before you can trust it; a changed key blocks outright ([ADR-0009](docs/adr/0009-parse-known-hosts-ourselves.md)).
+- **Credentials never reach the interface in plain text.** Resolved from the OS keychain at the moment of use, kept for a run or for good ([ADR-0004](docs/adr/0004-store-credentials-in-the-os-keychain.md)).
+- **A host book organized by how hosts connect.** A bastion nests the hosts behind it ([ADR-0060](docs/adr/0060-organize-the-host-book-by-topology-not-a-free-text-group.md)).
+- **Hosts reached through a bastion**, both hops verified, the bastion never seeing the far host's credential ([ADR-0023](docs/adr/0023-carry-a-session-on-a-channel-through-a-bastion.md)).
+- **Port forwarding**, local, remote and dynamic (SOCKS), saved per host ([ADR-0054](docs/adr/0054-forward-ports-local-remote-and-dynamic.md)).
+- **Groups of tabs, and typing into all of them at once**, off by default ([ADR-0020](docs/adr/0020-put-the-tabs-in-groups-and-the-activities-in-a-rail.md)).
+- **A terminal per session** (xterm.js), with a multi-line paste shown to you before a shell runs it ([ADR-0018](docs/adr/0018-copy-and-paste-through-the-browsers-own-clipboard-events.md)).
+- **Monitor**: CPU, memory, disk, network, processes and logs, read over the connection already open. No agent installed.
+- **Macros**: sequential, typed straight into the shell, or a script that runs isolated with `$host`/`$port`/`$username` as real variables ([ADR-0070](docs/adr/0070-split-macros-into-sequential-and-script-types.md)).
+- **SFTP beside the terminal**: one source, up to four destinations, folders copied recursively ([ADR-0041](docs/adr/0041-use-russh-sftp-instead-of-writing-the-protocol.md)).
+- **A map**: a saved host becomes a component you place, wired with lines that broadcast typing or transfer files, grouped into named visions, or nested in layers ([ADR-0064](docs/adr/0064-keep-the-map-in-its-own-file-beside-the-host-book.md), [ADR-0067](docs/adr/0067-make-the-vision-the-successor-of-the-group.md), [ADR-0068](docs/adr/0068-nest-the-map-one-level-deep-with-layers.md)). Still a **preview**: off by default, revealed from the command palette ([ADR-0066](docs/adr/0066-ship-the-map-as-an-opt-in-preview-with-classic-as-the-default.md)).
+- **A command palette** on `Ctrl+Shift+P`; **light and dark** everywhere; **English, Brazilian Portuguese and Spanish**, security copy reviewed before a language ships ([ADR-0007](docs/adr/0007-localize-in-the-frontend-from-typed-error-codes.md)).
 
 Not yet: session import from OpenSSH and PuTTY, and a signed installer of any
 kind. Those are the roadmap, not this list. What each release still does not
@@ -82,13 +77,13 @@ do is in [`CHANGELOG.md`](CHANGELOG.md), under *Known limitations*, on purpose.
 Installers for all three platforms are attached to each
 [release](https://github.com/marciopaiva/runic-ssh/releases), with a
 `SHA256SUMS` covering every file. Currently
-[v0.7.0](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.7.0):
+[v0.8.0](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.8.0):
 
 | Platform | Download |
 | --- | --- |
-| Windows | [`.msi`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.7.0/Runic-SSH_0.7.0_x64_en-US.msi) (WiX) or [`.exe`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.7.0/Runic-SSH_0.7.0_x64-setup.exe) (NSIS) |
-| macOS | [`.dmg`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.7.0/Runic-SSH_0.7.0_aarch64.dmg), Apple Silicon only |
-| Linux | [`.deb`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.7.0/Runic-SSH_0.7.0_amd64.deb), [`.rpm`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.7.0/Runic-SSH-0.7.0-1.x86_64.rpm), [`.AppImage`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.7.0/Runic-SSH_0.7.0_amd64.AppImage) |
+| Windows | [`.msi`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.8.0/Runic-SSH_0.8.0_x64_en-US.msi) (WiX) or [`.exe`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.8.0/Runic-SSH_0.8.0_x64-setup.exe) (NSIS) |
+| macOS | [`.dmg`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.8.0/Runic-SSH_0.8.0_aarch64.dmg), Apple Silicon only |
+| Linux | [`.deb`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.8.0/Runic-SSH_0.8.0_amd64.deb), [`.rpm`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.8.0/Runic-SSH-0.8.0-1.x86_64.rpm), [`.AppImage`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.8.0/Runic-SSH_0.8.0_amd64.AppImage) |
 
 **Nothing is code-signed.** Windows shows SmartScreen, macOS says the
 application is damaged; both are what an operating system says about a binary
@@ -112,7 +107,7 @@ sha256sum -c SHA256SUMS --ignore-missing   # before installing anything
 - [x] **v0.5.0**: Monitor, no agent installed, and macros. *2026-09-08*
 - [x] **v0.6.0**: the map, first layer: a component is one host in one kind, and its icon opens in place. *2026-09-10*
 - [x] **v0.7.0**: lines between components: broadcast between terminals, transfer between SFTP browsers; the map moves behind a preview. *2026-09-10*
-- [ ] **v0.8.0**: visions, a named set of components that lays itself out and fills the screen; layers, maps inside the map.
+- [x] **v0.8.0**: visions, a named set of components that lays itself out and fills the screen; layers, maps inside the map; macros gain a script type, isolated with real variables. *2026-09-13*
 - [ ] **v0.9.0**: refinements, and the classic-versus-map decision the preview is gathering evidence for.
 - [ ] **v1.0.0**: production grade stability, and a signed installer on every platform.
 

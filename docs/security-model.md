@@ -306,12 +306,26 @@ silence, and silence here costs one empty card.
 
 ## What a macro carries
 
-A macro (`config/macros.rs`) is a name and up to 4000 bytes of text, sent to a
-session's terminal exactly as saved, through the same path a confirmed paste
-already uses. It is not a credential and is not stored like one: `macros.json`
-sits beside `sessions.json`, in plain JSON, with the config directory's own
-permissions and nothing more. Rule 1 does not apply to it because nothing
-about it is meant to be secret.
+A macro (`config/macros.rs`) is a name, a kind, and up to 4000 bytes of text.
+It is not a credential and is not stored like one: `macros.json` sits beside
+`sessions.json`, in plain JSON, with the config directory's own permissions
+and nothing more. Rule 1 does not apply to it because nothing about it is
+meant to be secret.
+
+The kind decides how the text reaches the terminal, not what it is allowed
+to say (ADR-0070). A sequential macro is sent exactly as saved, through the
+same path a confirmed paste already uses, into the shell the session already
+has open. A script macro is instead wrapped in a heredoc and piped into a
+fresh interpreter on the far side, with `$host`, `$port` and `$username`
+exported as that interpreter's own variables rather than substituted into
+the text ahead of time: nothing in the macro's own text can widen what those
+three carry, and nothing the script does to the shell (a `cd`, an export)
+outlives it in the session's own interactive shell. Neither kind is scanned,
+sandboxed beyond that isolation, or treated as more trustworthy than the
+other: the frontend picks the interpreter from a leading `#!` line
+(`sh` if there is none) and sends it to a host the session is already
+authenticated to, the same host every other keystroke in that terminal
+already reaches.
 
 That is the exposure worth writing down. Nothing stops a person from saving a
 token, a password or an `export SECRET=...` line as a macro, and if they do,

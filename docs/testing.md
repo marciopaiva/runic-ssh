@@ -769,34 +769,60 @@ the two fixtures are driven back to back.
 
 ### Macros
 
-One saved host connected, in Sessions. The macros sidebar opens from the
-toolbar icon beside Broadcast; the same list is under **Snippets** in the
-command palette.
+One saved host connected, in Sessions or on the Map: the toolbar icon
+beside Broadcast and the docked sidebar it opens work from either
+workspace, targeting whichever terminal is focused there. The same list is
+under **Snippets** in the command palette.
 
 | Do this | Expect |
 | --- | --- |
 | Toolbar icon | a docked panel on the right, "No macros saved yet", a `+` in its header |
-| `+`, then Name `where am i`, Text `echo target=`, click the `$host` chip, type `:`, click `$port`, type ` as `, click `$username`, press Return, Save | the list shows `where am i`; `macros.json` in the config dir holds exactly `"echo target=$host:$port as $username\n"` |
-| Click the macro's name | the focused terminal runs `echo target=127.0.0.1:2227 as ansible` and prints it; the cursor is back in the terminal, no click needed |
-| Split into two columns, drag the second session's tab into the empty group, arm Broadcast, click the macro again | both terminals run it at once, each with its own values: `127.0.0.1:2227 as ansible` on one, `127.0.0.1:2222 as deploy` on the other; no confirmation in between |
+| `+` | a popup, "New macro", Sequential/Script pick (Sequential selected), the cursor already in the Name field |
+| Type `where am i`, click into the text editor below, type `echo target=`, click the `$host` chip, type `:`, click `$port`, type ` as `, click `$username`, Save | the list shows `where am i`; `macros.json` in the config dir holds `"kind":"sequential"` and text `"echo target=$host:$port as $username\n"` |
+| Click the macro's name, a Sessions terminal focused | it runs `echo target=127.0.0.1:2227 as ansible` in that terminal and prints it; the cursor is back in the terminal, no click needed |
+| Switch to the Map, focus a different terminal there, click the same macro in the map's own Macros sidebar | it runs in the map terminal, not the one left open in Sessions |
+| Edit the macro, pick Script, replace the text with `echo "$host running as $username"`, Save, run it again | a fresh `sh` prints the line; typing into the terminal right after shows no `$host`/`$port`/`$username` left over in the shell's own environment |
+| Split into two columns in Sessions, drag the second session's tab into the empty group, arm Broadcast, click the sequential macro again | both terminals run it at once, each with its own values: `127.0.0.1:2227 as ansible` on one, `127.0.0.1:2222 as deploy` on the other; no confirmation in between |
 | Close the sidebar, `Ctrl+Shift+P`, type `where` | the palette opens with `where am i` under Snippets |
 
-Confirmed on Linux on 2026-09-08, headlessly on a private `Xvfb` display,
-against `runic-test-systemd` and `runic-test-sshd`, every row as written.
-Two things found on the way, neither of which the rows above depend on:
+Confirmed on Linux on 2026-09-13, headlessly on a private `Xvfb` display,
+against `runic-test-sshd` and a second fixture on port 2223, every row as
+written. The popup (ADR-0070) replaced the sidebar's own inline form once a
+script's text needed a real editor and the two kinds needed a pick, neither
+of which fit the sidebar's 300px panel. Four bugs surfaced on the way, none
+of which the rows above still depend on:
 
-* **The palette's shortcut does nothing while the sidebar is open** (#352).
-  `usePalette` still takes the `suspended` flag #347 added for the
-  full-screen editor that #348 replaced with this docked panel. With a
-  terminal focused the keystroke falls through to the shell. The last row
-  above closes the sidebar first for that reason, and the row is written
-  that way on purpose until #352 lands.
-* The tab drag in the fourth row needs real steps, not a jump, exactly as
-  "What synthetic input can and cannot drive" below already says; a
-  single-jump attempt left the tab where it was and the row looked like
-  a webview ignoring the gesture. Clicking a host in the sidebar with the
-  empty group selected opens it in the focused group, not the selected
-  one, so the drag is the only scripted way to fill a second group.
+* Headless UI's `Dialog` autofocused the Sequential/Script pick on open,
+  not the Name field: typing right away, before touching anything with the
+  mouse, went nowhere. Fixed by passing `initialFocus`.
+* The three variable chips sat in the tab order between Name and the
+  editor: a Tab from Name landed on `$host`, and the next space in almost
+  any real command activated the focused button, inserting it. Fixed with
+  `tabIndex={-1}` on the chips.
+* The Text field's caption and its three chips were nested inside the same
+  `<label>` as the editor; a click anywhere in the label's own dead space
+  forwarded to the first control inside it, the `$host` chip, however far
+  the click landed from it. Fixed by using a plain `<div>` instead.
+* A macro run against a terminal that only existed on the Map did nothing:
+  the fix that dedupes a map-mounted terminal against the classic tab
+  strip and the fix that fans a macro out across an armed broadcast line
+  the way a keystroke already does were both written and verified earlier,
+  then left unmerged while this popup work changed `App.tsx`'s shape
+  under them. Reapplied against the file as it stood once the popup
+  landed (#397).
+* **The palette's shortcut does nothing while the sidebar is open** (#352),
+  unrelated to the popup above. `usePalette` still takes the `suspended`
+  flag #347 added for the full-screen editor that #348 replaced with this
+  docked panel. With a terminal focused the keystroke falls through to the
+  shell. The last row above closes the sidebar first for that reason, and
+  the row is written that way on purpose until #352 lands.
+
+The tab drag needed to fill a second group needs real steps, not a jump,
+exactly as "What synthetic input can and cannot drive" below already says;
+a single-jump attempt left the tab where it was and the row looked like a
+webview ignoring the gesture. Clicking a host in the sidebar with the empty
+group selected opens it in the focused group, not the selected one, so the
+drag is the only scripted way to fill a second group.
 
 ### Port forwarding (ADR-0054)
 

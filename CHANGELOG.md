@@ -11,6 +11,16 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-09-13
+
+Visions and layers finish the map's spatial model this release (ADR-0067,
+ADR-0068): a named set of components that lays itself out and fills the
+screen, and a map nested inside the map. Macros gain a script type alongside
+today's sequential behavior (ADR-0070), edited in a popup instead of the
+sidebar's own textarea. Five lower-severity findings from the v0.7.0 line UI
+review (#381) are cleared on the way. The Sessions, SFTP and Monitor
+workspaces stay exactly as they were until v0.9.0 cuts them.
+
 ### Added
 
 - Visions on the map (ADR-0067). Hold the rune, or right-click the floor,
@@ -30,15 +40,73 @@ with the caveat that anything below 1.0 may break, and this project intends to.
   name it; the monolith it draws shares the ring with components and
   visions. Click enters it: the crumb grows by its name, the hub becomes
   the monolith and holds what the rune holds outside one, and Escape or the
-  crumb's own back arrow returns. A line never crosses a layer. Every
-  component and vision menu gained a "Move to" section, every layer plus
-  the rune, and the layer's own menu removes it, moving what it held back
-  to the outermost map without closing anything.
+  crumb's own back arrow returns, gliding there the same way opening a
+  window already does rather than cutting. A line never crosses a layer.
+  Drop a free component or a whole vision onto a layer's monolith to move
+  it in, the same gesture joining a vision already teaches; every component
+  and vision menu also gained a "Move to" section, every layer plus the
+  rune, and the layer's own menu removes it, moving what it held back to
+  the outermost map without closing anything.
 - A shell switch, classic or the map (ADR-0069), behind the preview the
   fifth rail slot used to be. Choosing Map swaps the rail to Home and Map
   alone; choosing Classic brings the four workspaces back. The map's own
   crumb, search, zoom and Recenter moved into the one shared toolbar every
   workspace already had, in place of a second bar under it.
+- Each node on the map's ring keeps a stable slot across renders: moving one
+  component, into a vision or out of one, no longer reflows every other
+  node to a new position (#387).
+- Macros reach every workspace, not just the classic tab strip. The toolbar
+  button and docked sidebar work from the map too, targeting whichever
+  terminal is focused there, and a macro run against an armed broadcast
+  line reaches everything on it, the same way a typed keystroke already
+  does.
+- A macro gains a kind: sequential, today's behavior, unchanged; or script,
+  which pipes its text into a fresh interpreter through a heredoc instead
+  of typing it into the open shell, so `$host`/`$port`/`$username` are that
+  interpreter's own variables and a `cd` or an export inside it does not
+  outlive the macro (ADR-0070). The interpreter is read off a leading `#!`
+  line, `sh` by default. The sidebar's inline form is now a popup, its text
+  edited with line numbers and shell syntax highlighting instead of a plain
+  textarea.
+
+### Fixed
+
+- The User and Port fields in the host form sat a couple of pixels out of
+  line under WebKitGTK, a CSS grid quirk; both render at the same height
+  now (#381).
+- A Monitor component on the map stopped rendering below roughly 60-75%
+  zoom, the floor that blanks an illegible terminal grid; a monitor's own
+  dashboard isn't a fixed-glyph grid, so it keeps rendering at any zoom.
+- A map line's own switch and knot no longer carry a native tooltip that
+  outlived the click, lingering over the menu or the send confirmation
+  underneath it (#381).
+- The map's broadcast switch, off, no longer reads as a disabled control;
+  the two now carry a real visual difference (#381).
+- "Paste" in the map terminal's menu is disabled on Linux instead of doing
+  nothing: WebKitGTK still refuses a paste driven by a script there (#381).
+- An SFTP browser mounted on the map no longer draws its own header
+  underneath the window's strip, which already said the same thing (#381).
+- A file's modified date no longer wraps onto a second line in the SFTP
+  column that shows it (#381).
+
+### Known limitations
+
+- The map is still a preview, off by default; "Show the map (preview)" in
+  the command palette reveals it (ADR-0066).
+- Opening a vision to fill the screen still cuts to it instead of gliding,
+  unlike every other map transition now: fullscreen renders in a different
+  coordinate system than the rest of the map and needs its own scoping
+  before it can animate the same way (#387).
+- Dragging a component over an open vision can overlap the dragged item's
+  own label with the vision's name at the same point, both illegible until
+  you drop (#387).
+- A script macro's interpreter, read off a leading `#!` line, has to
+  already exist on the remote host; nothing checks or falls back beyond
+  defaulting to `sh`.
+- On Linux, pasting into the map terminal's menu still only works from
+  Ctrl-Shift-V, not the menu entry itself, for the reason above
+  (`docs/measurements/terminal-menu-clipboard.md`). Windows has not been
+  measured.
 
 ## [0.7.0] — 2026-09-10
 
