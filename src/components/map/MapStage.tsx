@@ -172,6 +172,11 @@ interface MapStageProps {
   /** Reports the map's own row of the toolbar, so the shell can render it
       in the shared bar (ADR-0046, ADR-0069) instead of a second one here. */
   readonly onToolbarChange: (content: MapToolbarContent) => void;
+  /** The session id behind the focused SSH terminal, or `null` off one:
+      what a macro run from the shared toolbar or the palette while on the
+      map reaches, since the map has no tab strip of its own to read a
+      focus from (#352's sibling gap). */
+  readonly onFocusedSessionChange: (sessionId: string | null) => void;
 }
 
 interface PickerState {
@@ -218,6 +223,7 @@ export function MapStage({
   onSend,
   onReceivingChange,
   onToolbarChange,
+  onFocusedSessionChange,
 }: MapStageProps): JSX.Element {
   const i18n = useTranslator();
   const [picker, setPicker] = useState<PickerState | null>(null);
@@ -910,6 +916,19 @@ export function MapStage({
   useEffect(() => {
     onToolbarChange(toolbarContent);
   }, [onToolbarChange, toolbarContent]);
+
+  /* The session behind the focused terminal, so a macro run from the
+     shared toolbar or the palette reaches it: the map has no tab strip of
+     its own for the shell's `activeId` to read. `componentById` holds a
+     vision's member the same as a loose component, so a member focused
+     inside its open vision resolves here too. */
+  const focusedSessionId = useMemo(() => {
+    const focused = stage.focused === null ? undefined : componentById.get(stage.focused);
+    return focused?.kind === 'ssh' ? (focused.host ?? null) : null;
+  }, [componentById, stage.focused]);
+  useEffect(() => {
+    onFocusedSessionChange(focusedSessionId);
+  }, [focusedSessionId, onFocusedSessionChange]);
 
   /* The file browsers the map mounts report where they are and what is
      selected, for the send button on a line (ADR-0065). One wiring per

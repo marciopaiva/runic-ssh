@@ -774,6 +774,11 @@ export function App(): JSX.Element {
      `MapStage` rather than drawn in a second bar there. `null` for the one
      frame before the map has mounted and said what it shows. */
   const [mapToolbar, setMapToolbar] = useState<MapToolbarContent | null>(null);
+  /* The session behind the map's own focused terminal: what a macro run
+     from the map reaches, since the map has no tab strip of its own for
+     `activeId` to read. `null` off any SSH terminal, or off the map
+     entirely. */
+  const [mapFocusedSession, setMapFocusedSession] = useState<string | null>(null);
   const hostsReceiving = workspace === 'map' ? mapReceivingCount : armed ? receiving.length : null;
   const lastReceiving = useRef<number | null>(null);
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
@@ -872,23 +877,29 @@ export function App(): JSX.Element {
     focusFns.current.get(sessionId)?.();
   }, []);
 
+  /* The map has no tab strip of its own, so `activeId` (the classic strip's
+     focus) means nothing there; the map's own focused terminal, reported up
+     by `MapStage`, stands in for it while that workspace is the one shown. */
+  const macroTargetId = workspace === 'map' ? mapFocusedSession : activeId;
+
   /* A macro's own text, resolved separately against each host it is about to
      reach, so `$host`/`$port`/`$username` name that host rather than
      whichever session was focused. Sent the same way a confirmed paste
      already is, with newlines turned into the carriage return a terminal
      expects (`preparePaste`). Runs immediately, on every host sync reaches:
      picking a macro is already the deliberate act, the same way running any
-     other saved command is. */
+     other saved command is. Sync only ever groups the classic strip's own
+     panes, so a map target simply never matches more than itself. */
   const runMacro = useCallback(
     (macro: Macro): void => {
-      if (activeId === null) return;
-      const session = sessions.find((live) => live.session.id === activeId)?.session;
+      if (macroTargetId === null) return;
+      const session = sessions.find((live) => live.session.id === macroTargetId)?.session;
       if (session === undefined) return;
 
-      const targets = inputTargets(groups, activeId, sync, muted);
+      const targets = inputTargets(groups, macroTargetId, sync, muted);
       const entries = targets.flatMap((sessionId) => {
         const target =
-          sessionId === activeId
+          sessionId === macroTargetId
             ? session
             : sessions.find((live) => live.session.id === sessionId)?.session;
         return target === undefined
@@ -904,9 +915,9 @@ export function App(): JSX.Element {
       );
       /* Run from the sidebar, so the keyboard is sitting on a button there
          until this hands it back to the shell the macro just spoke to. */
-      focusTerminal(activeId);
+      focusTerminal(macroTargetId);
     },
-    [activeId, sessions, groups, sync, muted, sendEach, focusTerminal],
+    [macroTargetId, sessions, groups, sync, muted, sendEach, focusTerminal],
   );
 
   /* Which rectangle a session's surfaces belong in, or `null` when it is not
@@ -1741,6 +1752,7 @@ export function App(): JSX.Element {
       sessions,
       tabs,
       activeId,
+      macroTargetId,
       chosenLocale: chosen,
       maximized,
       nativeDecorations,
@@ -1781,7 +1793,7 @@ export function App(): JSX.Element {
         openMacros: () => setMacrosOpen(true),
       },
     }),
-    [i18n, sessions, tabs, activeId, chosen, maximized, nativeDecorations, previewFeatures, act, choose, closeFocus, activate, useNativeDecorations, choosePreviewFeatures, openSettings, resolvedFocus, focusOn, entries, chooseLayout, layout, sync, filled, muted, armed, receiving, groups, focusedGroup, editorTabs, moveTo, closeGroup, macros, runMacro],
+    [i18n, sessions, tabs, activeId, macroTargetId, chosen, maximized, nativeDecorations, previewFeatures, act, choose, closeFocus, activate, useNativeDecorations, choosePreviewFeatures, openSettings, resolvedFocus, focusOn, entries, chooseLayout, layout, sync, filled, muted, armed, receiving, groups, focusedGroup, editorTabs, moveTo, closeGroup, macros, runMacro],
   );
 
   const sources = useMemo(
@@ -2435,6 +2447,8 @@ export function App(): JSX.Element {
                   <span className="bg-line-subtle h-4 w-px shrink-0" aria-hidden="true" />
                 </>
               )}
+              <MacrosButton open={macrosOpen} onToggle={() => setMacrosOpen((open) => !open)} />
+              <span className="bg-line-subtle h-4 w-px shrink-0" aria-hidden="true" />
               {shellAndTheme}
             </>
           }
@@ -3042,6 +3056,7 @@ export function App(): JSX.Element {
               onSend={fanout.sendEntriesBetween}
               onReceivingChange={setMapReceivingCount}
               onToolbarChange={setMapToolbar}
+              onFocusedSessionChange={setMapFocusedSession}
             />
             <TransfersBar
               transfers={fanout.transfers}
@@ -3052,6 +3067,19 @@ export function App(): JSX.Element {
               onDismissFolder={fanout.dismissFolderCopy}
             />
           </main>
+        )}
+
+        {/* Docked the same way as the classic strip's own (line 2786): a
+            flex sibling after the map's `flex-1` main, not an overlay, so it
+            takes space from the map rather than floating over it. */}
+        {workspace === 'map' && macrosOpen && (
+          <MacrosSidebar
+            macros={macros}
+            onRun={runMacro}
+            onSave={saveMacroDraft}
+            onDelete={removeMacro}
+            onClose={() => setMacrosOpen(false)}
+          />
         )}
       </div>
 
