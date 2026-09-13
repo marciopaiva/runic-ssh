@@ -1277,6 +1277,7 @@ export function MapStage({
                 count={held}
                 dimmed={stage.linking !== null}
                 dragging={stage.dragging === layer.id}
+                receiving={stage.dropTarget === layer.id}
                 onPointerDown={(event) => stage.onNodePointerDown(layer.id, event)}
                 onContextMenu={(event) => {
                   event.preventDefault();

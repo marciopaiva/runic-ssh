@@ -21,8 +21,8 @@ import { HOLD_MS, beginPress, holdFired, movePress, radialSegment, releasePress 
 import type { Press } from './gestures';
 import { HOME_VIEW, REFIT_MIN, ZOOM_MAX, ZOOM_MIN, fitTo, pan, placeChildren, ringRadiusFor, toMap, toStage, zoomAt } from './layout';
 import type { Rect, View } from './layout';
-import { moveComponent, resizeComponent, sizeOf } from './model';
-import { MEMBER_ICON, REGION, addMember, fullScreenFrames, layoutVision, moveVision, removeMember, setVisionOpen } from './visions';
+import { moveComponent, moveToLayer, resizeComponent, sizeOf } from './model';
+import { MEMBER_ICON, REGION, addMember, fullScreenFrames, layoutVision, moveVision, moveVisionToLayer, removeMember, setVisionOpen } from './visions';
 import type { MemberBox } from './visions';
 import { moveLayer } from './layers';
 import { keepInside, resizeFrom, snapRect, snapZone } from './windows';
@@ -400,6 +400,22 @@ export function useMapStage({ workspace, components, visions, layers, onChange, 
     [laid.regionSizes, positions, visions],
   );
 
+  /* The layer a map point falls in: a monolith is always closed on its own
+     level (ADR-0068 holds no layer inside a layer), so its reach is an
+     aperture's, never a region. What a dragged vision or free component
+     moves into when dropped there. */
+  const layerAt = useCallback(
+    (mapPoint: Point): string | null => {
+      for (const layer of layers) {
+        const anchor = positions.get(layer.id);
+        if (anchor === undefined) continue;
+        if (Math.hypot(mapPoint.x - anchor.x, mapPoint.y - anchor.y) <= APERTURE_REACH) return layer.id;
+      }
+      return null;
+    },
+    [layers, positions],
+  );
+
   const stagePoint = useCallback((event: { clientX: number; clientY: number }): Point => {
     const rect = stageRef.current?.getBoundingClientRect();
     return { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) };
@@ -673,8 +689,13 @@ export function useMapStage({ workspace, components, visions, layers, onChange, 
             setDragPosition(dropAt);
             const isVision = visionsRef.current.some((vision) => vision.id === current.element);
             const isLayer = layersRef.current.some((layer) => layer.id === current.element);
-            setDropTarget(isVision || isLayer ? null : visionAt(dropAt));
-            setSnapPreview(isVision || isLayer || membershipRef.current.has(current.element) ? null : snapZone(at, stageSize.width));
+            const isMember = membershipRef.current.has(current.element);
+            /* A layer never joins anything (ADR-0068); a vision moves only
+               into a layer, never another vision; a member moves only
+               between visions, the same restriction its context menu holds
+               (#387: a member moves with its vision, not on its own). */
+            setDropTarget(isLayer ? null : isVision ? layerAt(dropAt) : isMember ? visionAt(dropAt) : (visionAt(dropAt) ?? layerAt(dropAt)));
+            setSnapPreview(isVision || isLayer || isMember ? null : snapZone(at, stageSize.width));
           }
           return;
         }
@@ -730,7 +751,11 @@ export function useMapStage({ workspace, components, visions, layers, onChange, 
               return;
             }
             if (visionsRef.current.some((vision) => vision.id === current.element)) {
-              onChange(moveVision(workspace, current.element, dropAt));
+              /* ADR-0068 follow-up: dropped on a layer's monolith, the
+                 vision and every member move there in one call, the same
+                 as the "move to" menu entry does. */
+              const layer = layerAt(dropAt);
+              onChange(layer !== null ? moveVisionToLayer(workspace, current.element, layer) : moveVision(workspace, current.element, dropAt));
               return;
             }
             /* ADR-0067: dropped in a vision, the component joins it, pinned
@@ -755,6 +780,16 @@ export function useMapStage({ workspace, components, visions, layers, onChange, 
                   : addMember(anchored, into, current.element, target.open ? dropAt : undefined),
               );
               return;
+            }
+            /* ADR-0068 follow-up: only a free component, the same restriction
+               its context menu holds ("a member moves with its vision, not
+               on its own") since a member's level follows its vision's. */
+            if (was === undefined) {
+              const layer = layerAt(dropAt);
+              if (layer !== null) {
+                onChange(moveToLayer(workspace, current.element, layer));
+                return;
+              }
             }
             if (was !== undefined) {
               onChange(removeMember(workspace, current.element, dropAt));
@@ -821,7 +856,7 @@ export function useMapStage({ workspace, components, visions, layers, onChange, 
       window.removeEventListener('pointercancel', onUp);
       clearHold();
     };
-  }, [clearHold, onChange, onClick, onRadialPick, open, snapTo, stagePoint, stageSize.width, visionAt]);
+  }, [clearHold, layerAt, onChange, onClick, onRadialPick, open, snapTo, stagePoint, stageSize.width, visionAt]);
 
   /* A frame in flight, a fling or a glide, is cancelled when the stage goes
      away, and only then: this effect re-registers the listeners above

@@ -11,6 +11,9 @@ interface MonolithNodeProps {
   readonly count: number;
   readonly dimmed: boolean;
   readonly dragging: boolean;
+  /** A vision or a free component is being dragged over it and would move
+      there if dropped (ADR-0068 follow-up). */
+  readonly receiving: boolean;
   readonly onPointerDown: (event: ReactPointerEvent) => void;
   readonly onContextMenu: (event: React.MouseEvent) => void;
   readonly onKeyOpen: () => void;
@@ -25,7 +28,7 @@ interface MonolithNodeProps {
  * Presentational, like `ComponentNode` and `VisionNode`: the stage decides
  * what the press was.
  */
-export function MonolithNode({ layer, at, count, dimmed, dragging, onPointerDown, onContextMenu, onKeyOpen }: MonolithNodeProps): JSX.Element {
+export function MonolithNode({ layer, at, count, dimmed, dragging, receiving, onPointerDown, onContextMenu, onKeyOpen }: MonolithNodeProps): JSX.Element {
   return (
     <div
       role="button"
@@ -46,8 +49,8 @@ export function MonolithNode({ layer, at, count, dimmed, dragging, onPointerDown
         }
       }}
     >
-      <div className="transition-transform duration-normal group-hover:-translate-y-0.5">
-        <MonolithGlyph count={count} />
+      <div className={`relative transition-transform duration-normal group-hover:-translate-y-0.5 ${receiving ? 'scale-110' : ''}`}>
+        <MonolithGlyph count={count} highlighted={receiving} />
       </div>
       <span className="text-ink-secondary group-hover:text-ink max-w-[140px] truncate text-[11.5px] font-semibold">{layer.name}</span>
     </div>

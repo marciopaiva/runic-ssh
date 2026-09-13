@@ -115,9 +115,13 @@ opened in v0.6.0. Everything that already took a `layer` argument starts
 being called with one. A layer is a place, so a person with two clients or
 three environments stops seeing them on one ring.
 
-**Bad**: a component or vision moves between levels only by its menu
+**Bad**: ~~a component or vision moves between levels only by its menu
 (there is no region to drop it in), which is one more entry in a menu
-already carrying membership. A layer's monolith is on the ring with the
+already carrying membership.~~ Resolved: dropping a free component or a
+whole vision on a layer's monolith moves it there too now, the monolith's
+own aperture-reach standing in for a region a layer, always closed on its
+own level, never has (#387). The menu entry stays, for a layer out of
+reach on a zoomed-out map. A layer's monolith is on the ring with the
 components, so a map with many layers and many loose components shares one
 ring between them, and the honeycomb past eight. Search finds only the
 level in view.
