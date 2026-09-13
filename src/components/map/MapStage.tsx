@@ -177,6 +177,11 @@ interface MapStageProps {
       map reaches, since the map has no tab strip of its own to read a
       focus from (#352's sibling gap). */
   readonly onFocusedSessionChange: (sessionId: string | null) => void;
+  /** Reports the map's own broadcast reach, so a macro run from the map
+      fans out the same set a typed keystroke would (`routedTerminals`
+      below), instead of landing on the focused terminal alone: the map's
+      armed sets are local state here, invisible to the shell otherwise. */
+  readonly onMapReachChange: (reach: (fromHost: string) => readonly string[]) => void;
 }
 
 interface PickerState {
@@ -224,6 +229,7 @@ export function MapStage({
   onReceivingChange,
   onToolbarChange,
   onFocusedSessionChange,
+  onMapReachChange,
 }: MapStageProps): JSX.Element {
   const i18n = useTranslator();
   const [picker, setPicker] = useState<PickerState | null>(null);
@@ -846,6 +852,18 @@ export function MapStage({
     }),
     [armed, muted, stage.open, terminals, workspace],
   );
+
+  /* The same fan-out `routedTerminals.onInput` computes for a typed
+     keystroke, handed to the shell so `runMacro` can reach a set instead
+     of the one focused host: a macro is a burst of bytes on its own
+     channel (`sendEach`), not a keystroke passing through `onInput`. */
+  const mapReach = useCallback(
+    (fromHost: string): readonly string[] => mapInputTargets(workspace, fromHost, armed, muted, stage.open),
+    [armed, muted, stage.open, workspace],
+  );
+  useEffect(() => {
+    onMapReachChange(mapReach);
+  }, [mapReach, onMapReachChange]);
 
   const pick = useCallback(
     (sessionId: string): void => {
