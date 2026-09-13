@@ -1446,7 +1446,11 @@ export function MapStage({
                   focused={focused}
                   connected={component.kind === 'local' || handle !== undefined}
                   dimmed={stage.linking !== null && outsideLink(workspace, stage.linking.from, component.id)}
-                  thumbnail={thumbnail}
+                  /* The measured floor (`docs/measurements/terminal-under-zoom.md`)
+                     is a fixed-glyph terminal grid going illegible, not a
+                     dashboard: a monitor stays a monitor under the same zoom
+                     that blanks a terminal or a file listing. */
+                  thumbnail={thumbnail && component.kind !== 'monitor'}
                   broadcast={component.kind === 'ssh' ? broadcastOf(component.id) : null}
                   onToggleMute={() => toggleMute(component.id)}
                   send={
