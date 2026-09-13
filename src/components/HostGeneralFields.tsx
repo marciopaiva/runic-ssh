@@ -125,9 +125,9 @@ export function HostGeneralFields({
     <div className="flex flex-col gap-3">
       {field('host', i18n.t('session.editor.host'), { ref: firstRef })}
 
-      <div className="grid grid-cols-[1fr_96px] gap-3">
-        {field('user', i18n.t('session.editor.user'))}
-        {field('port', i18n.t('session.editor.port'))}
+      <div className="flex gap-3">
+        <div className="min-w-0 flex-1">{field('user', i18n.t('session.editor.user'))}</div>
+        <div className="w-24">{field('port', i18n.t('session.editor.port'))}</div>
       </div>
 
       {duplicate !== null && (
