@@ -76,3 +76,22 @@ a grid mixing two sessions of the application shows two clocks in its
 status bars.
 
 Nothing in frame is a real address, a real host name or a real key of anyone's.
+
+### `screenshot-map-*.png` (v0.8.0)
+
+One 1440x900 window capture, the map workspace: two SSH terminals,
+`runic-web-01` and `runic-web-02`, wired by a line with its broadcast
+switch armed at the midpoint. Unlike the grid, this is a single real window
+rather than four tiled quadrants, since the map is one workspace, not four.
+
+Taken on 2026-09-13 on `:58` from `pnpm tauri dev`, on a fresh
+`XDG_CONFIG_HOME` seeded with two of this project's own fixtures,
+`runic-web-01` (`deploy@127.0.0.1:2222`) and `runic-web-02`
+(`deploy@127.0.0.1:2223`), both connected live and placed on the map with
+the command palette's "Show the map (preview)". A line was drawn between
+their two terminal windows and armed, then the windows were spread apart so
+the line's own switch sits clear of both, at the midpoint the line itself
+already computes.
+
+Nothing in frame is a real address, a real host name or a real key of
+anyone's.
