@@ -19,6 +19,24 @@ use super::is_deceptive;
 
 pub const MACROS_FILE: &str = "macros.json";
 
+/// How a macro's text reaches the terminal.
+///
+/// `Sequential` types the text into the shell that is already open, exactly
+/// as before this existed. `Script` wraps it in a heredoc piped into a fresh
+/// interpreter (ADR-0070): isolated from the session it runs in, so a `cd`
+/// or an export inside it does not outlive the macro, and
+/// `$host`/`$port`/`$username` become that interpreter's own variables
+/// rather than text substituted ahead of time. The wrapping itself is a
+/// frontend concern (`features/macros/script.ts`); the core only remembers
+/// which one a saved macro asked for.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MacroKind {
+    #[default]
+    Sequential,
+    Script,
+}
+
 /// How long a macro's saved text may be.
 ///
 /// Generous for a snippet, small next to an actual paste: a macro is meant
@@ -36,10 +54,16 @@ pub struct Macro {
     /// own identity while the name changes.
     pub id: String,
     pub name: String,
-    /// Sent to the terminal exactly as saved, byte for byte: whether it ends
-    /// in a newline (and so runs as a command) or not (and so waits for one)
-    /// is entirely up to what was saved, the same way it already is for a
-    /// paste.
+    /// Absent on a macro saved before ADR-0070 (`#[serde(default)]`), which
+    /// reads as `Sequential`: exactly the behavior it already had.
+    #[serde(default)]
+    pub kind: MacroKind,
+    /// A `Sequential` macro's own text, sent to the terminal exactly as
+    /// saved, byte for byte, except that a run always ensures a trailing
+    /// newline so the last line is not left typed but never submitted
+    /// (`ensureTrailingNewline` on the frontend). A `Script` macro's text is
+    /// the body a heredoc wraps around; what actually reaches the terminal
+    /// for one is not this string alone.
     pub text: String,
 }
 
@@ -67,6 +91,8 @@ pub struct MacroDraft {
     #[serde(default)]
     pub id: Option<String>,
     pub name: String,
+    #[serde(default)]
+    pub kind: MacroKind,
     pub text: String,
 }
 
@@ -200,6 +226,7 @@ pub fn save_macro(store: &MacroStore, draft: MacroDraft) -> Result<Macro, Error>
             let saved = Macro {
                 id,
                 name: draft.name.trim().to_owned(),
+                kind: draft.kind,
                 text: draft.text,
             };
             macros.items[index] = saved.clone();
@@ -209,6 +236,7 @@ pub fn save_macro(store: &MacroStore, draft: MacroDraft) -> Result<Macro, Error>
             let saved = Macro {
                 id: new_id(&macros, &draft),
                 name: draft.name.trim().to_owned(),
+                kind: draft.kind,
                 text: draft.text,
             };
             macros.items.push(saved.clone());
@@ -245,6 +273,7 @@ mod tests {
         MacroDraft {
             id: None,
             name: name.to_owned(),
+            kind: MacroKind::Sequential,
             text: format!("systemctl status {name}\n"),
         }
     }
@@ -301,6 +330,7 @@ mod tests {
             MacroDraft {
                 id: Some(created.id.clone()),
                 name: "nginx status".to_owned(),
+                kind: MacroKind::Sequential,
                 text: "systemctl status nginx\n".to_owned(),
             },
         )
@@ -412,6 +442,7 @@ mod tests {
             MacroDraft {
                 id: None,
                 name: "  nginx  ".to_owned(),
+                kind: MacroKind::Sequential,
                 text: "systemctl status nginx\n".to_owned(),
             },
         )
@@ -443,11 +474,13 @@ mod tests {
                 Macro {
                     id: "a".to_owned(),
                     name: "nginx".to_owned(),
+                    kind: MacroKind::Sequential,
                     text: "systemctl status nginx\n".to_owned(),
                 },
                 Macro {
                     id: "b".to_owned(),
                     name: "disk".to_owned(),
+                    kind: MacroKind::Script,
                     text: "df -h".to_owned(),
                 },
             ],
@@ -455,5 +488,37 @@ mod tests {
 
         store.save(&macros).expect("save");
         assert_eq!(store.load().expect("load"), macros);
+    }
+
+    #[test]
+    fn a_macro_saved_before_kind_existed_reads_as_sequential() {
+        let (store, _dir) = store();
+        fs::write(
+            store.path(),
+            r#"[{"id":"a","name":"nginx","text":"systemctl status nginx\n"}]"#,
+        )
+        .expect("write");
+
+        let loaded = store.load().expect("load");
+        assert_eq!(loaded.items[0].kind, MacroKind::Sequential);
+    }
+
+    #[test]
+    fn a_script_macro_remembers_its_kind_across_a_restart() {
+        let dir = tempfile::tempdir().expect("a temporary directory");
+        let saved = save_macro(
+            &MacroStore::new(dir.path()),
+            MacroDraft {
+                kind: MacroKind::Script,
+                ..draft("provision")
+            },
+        )
+        .expect("save");
+
+        let after_restart = MacroStore::new(dir.path()).load().expect("load");
+        assert_eq!(
+            after_restart.find(&saved.id).map(|m| m.kind),
+            Some(MacroKind::Script)
+        );
     }
 }

@@ -33,3 +33,16 @@ export function applyVariables(text: string, session: MacroVariables): string {
     .replace(/\$port\b/g, String(session.port))
     .replace(/\$username\b/g, session.user);
 }
+
+/**
+ * A trailing newline, added only if the text does not already end in one.
+ *
+ * `Macro.text` is sent as saved, and a macro whose last line has no
+ * newline is a line typed but never submitted: the shell sits there
+ * holding it, waiting for an Enter that never comes. Nobody saving a
+ * macro means that, so a run always ensures one, regardless of what was
+ * actually stored.
+ */
+export function ensureTrailingNewline(text: string): string {
+  return text.endsWith('\n') ? text : `${text}\n`;
+}
