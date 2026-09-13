@@ -3559,6 +3559,119 @@ def build_map_layer_inside():
     st = status(stat_text("3 components", T['muted'], mono=False) + "\n" + sep() + "\n" + stat_text("in Lab", T['muted'], mono=False), stat_text("2 connected", T['faint']))
     write("MapLayerInside.dc.html", page(body, None, home_rail(workspace="map", shell="map"), st, show_shapes=False))
 
+# ---------- macro editor: ADR-0070, the popup replacing the inline sidebar form
+def macro_row(name, active=False):
+    bg = f'background: {T["raised"]};' if active else ''
+    return (f'<div style="display: flex; align-items: center; gap: 4px; border-radius: 6px; {bg} padding: 2px;">'
+            f'<span style="flex: 1; min-width: 0; padding: 6px 8px; font-size: 12.5px; color: {T["ink2"]};'
+            f' overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{name}</span>'
+            f'{ic("pencil", 12, T["accent"] if active else T["faint"])}'
+            f'<span style="color: {T["faint"]}; font-size: 10.5px; padding: 0 4px;">&times;</span></div>')
+
+def macros_panel():
+    header = (f'<div style="padding: 12px; display: flex; align-items: center; justify-content: space-between;'
+              f' border-bottom: 1px solid {T["line"]};">'
+              f'<span style="font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: {T["faint"]};">MACROS</span>'
+              f'<div style="display: flex; gap: 6px; color: {T["faint"]};">{ic("plus", 13)}{ic("close", 13)}</div></div>')
+    rows = "\n".join([
+        macro_row("restart nginx"),
+        macro_row("provision new deploy key", active=True),
+        macro_row("tail app log"),
+    ])
+    return (f'    <div style="width: 260px; flex: none; background: {T["panel"]}; border-left: 1px solid {T["line"]};'
+            f' display: flex; flex-direction: column;">{header}'
+            f'<div style="flex: 1; padding: 6px; display: flex; flex-direction: column; gap: 2px;">{rows}</div></div>')
+
+def macro_type_picker(active="script"):
+    """Two pills, not `kind_picker()`'s three: sequential keeps today's
+    paste-into-the-open-shell behavior, script wraps the text in an
+    isolated heredoc (ADR-0070). No icon per pill, since neither reads
+    faster with one than the plain word already does."""
+    kinds = [("sequential", "Sequential"), ("script", "Script")]
+    out = []
+    for key, label in kinds:
+        on = key == active
+        border = T['accent'] if on else T['line']
+        bg = f'background: {T["accentsoft"]};' if on else ''
+        color = T['ink'] if on else T['ink2']
+        out.append(f'<span style="border: 1px solid {border}; {bg} border-radius: 5px; padding: 6px 14px;'
+                    f' font-size: 12px; font-weight: 600; color: {color};">{label}</span>')
+    return f'<div style="display: flex; gap: 6px;">{"".join(out)}</div>'
+
+def code_line(n, spans_html, gutter_w=28):
+    return (f'<div style="display: flex;">'
+            f'<span class="mono" style="width: {gutter_w}px; flex: none; text-align: right; padding-right: 10px;'
+            f' color: {T["off"]}; font-size: 11.5px; user-select: none;">{n}</span>'
+            f'<span class="mono" style="font-size: 11.5px; color: {T["ink2"]}; white-space: pre;">{spans_html}</span></div>')
+
+def sh_tok(text, kind=None):
+    color = {"kw": T['bend'], "str": T['ok'], "comment": T['faint'], "var": T['accent2']}.get(kind, T['ink2'])
+    return f'<span style="color: {color};">{text}</span>'
+
+def build_macro_editor():
+    """The macro form as a popup (ADR-0070), replacing the inline form
+    `MacrosSidebar.tsx` used to draw in its own 300px-wide docked panel: a
+    script's text needs a real editor, not a textarea the width of a
+    sidebar. The background is the same docked macros list the form used
+    to grow out of, so the popup's own "Back" reads as returning to it.
+
+    The editor's gutter and syntax tint stand in for CodeMirror
+    (`@codemirror/view`'s `lineNumbers()`, `@codemirror/legacy-modes`'
+    shell stream language): what the mockup needs is the shape line
+    numbers and highlighting give the panel, not a running instance of
+    the library itself."""
+    g1 = group(strip([tab("web-01", "deploy@10.4.1.20", "on", dot="check")], actions=False),
+               term(prompt("deploy", "web-01", "") + CURSOR))
+    background_row = f'<div style="flex: 1; padding: 8px;">{g1}</div>{macros_panel()}'
+    sb = sessions_sidebar(active="web-01", states={"web-01": "ok"}, staging=False)
+
+    code = "\n".join([
+        code_line(1, sh_tok("#!/bin/sh", "comment")),
+        code_line(2, sh_tok("# provisions a fresh deploy key for ", "comment") + sh_tok("$host", "var")),
+        code_line(3, sh_tok("if", "kw") + " [ " + sh_tok("$port", "var") + " = " + sh_tok('"22"', "str") + " ]; " + sh_tok("then", "kw")),
+        code_line(4, "&nbsp;&nbsp;ssh-keygen -t ed25519 -f " + sh_tok('"$HOME/.ssh/$username"', "var") + " -N " + sh_tok('""', "str")),
+        code_line(5, sh_tok("fi", "kw")),
+        code_line(6, "echo " + sh_tok('"done for $username@$host"', "str")),
+    ])
+
+    header = (f'<div style="padding: 14px 18px; border-bottom: 1px solid {T["line"]}; display: flex;'
+              f' align-items: center; justify-content: space-between;">'
+              f'<div><div style="font-size: 13.5px; font-weight: 700; color: {T["ink"]};">Edit macro</div>'
+              f'<div style="font-size: 11px; color: {T["faint"]}; margin-top: 2px;">provision new deploy key</div></div>'
+              f'{ic("close", 15, T["faint"])}</div>')
+
+    chips = "".join(
+        f'<span style="font-size: 9.5px; font-weight: 700; font-family: ui-monospace, monospace; color: {T["accent"]};'
+        f' background: {T["accentsoft"]}; border-radius: 4px; padding: 2px 6px; margin-right: 6px;">{t}</span>'
+        for t in ("$host", "$port", "$username")
+    )
+
+    body = f"""
+      <div style="padding: 18px; display: flex; flex-direction: column; gap: 14px;">
+        {macro_type_picker("script")}
+        <div>{wizard_label('Name')}{wizard_field('provision new deploy key', mono=False)}</div>
+        <div>
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px;">
+            {wizard_label('Text')}<div>{chips}</div>
+          </div>
+          <div style="background: {T['terminal']}; border: 1px solid {T['line']}; border-radius: 6px; padding: 10px 8px; line-height: 19px;">
+{code}
+          </div>
+          {wizard_hint('Runs isolated: a leading #! line picks the interpreter (sh by default). cd and exported variables here do not reach the session afterward.')}
+        </div>
+        {wizard_actions(("Cancel", False), ("Save", True))}
+      </div>"""
+
+    veil = (f'<div style="position: absolute; inset: 0; background: rgba(7,14,24,.72); display: flex;'
+            f' align-items: center; justify-content: center;">'
+            f'<div style="width: 640px; max-height: 760px; display: flex; flex-direction: column;'
+            f' background: {T["overlay"]}; border: 1px solid {T["line2"]}; border-radius: 10px; box-shadow: {T["shadow_5"]}; overflow: hidden;">'
+            f'{header}{body}</div></div>')
+
+    main_body = f'      <div style="position: relative; flex: 1; min-height: 0; display: flex;">{background_row}{veil}</div>'
+    st = status(stat_session("deploy@10.4.1.20"), stat_text("Editing a macro", T['faint'], mono=False))
+    write("MacroEditor.dc.html", page(main_body, sb, home_rail(workspace="sessions", badge="1"), st, show_shapes=False))
+
 def build_anatomy():
     def reg(label, w, h, bg, color, note, border=None):
         b = f'border: 1px solid {border};' if border else ''
@@ -4250,6 +4363,7 @@ else:
                build_monitor_systemd, build_monitor_logs, build_monitor_hosts_empty,
                build_map, build_map_component, build_map_host_popup, build_map_lines,
                build_map_vision, build_map_vision_full, build_map_layer, build_map_layer_inside,
+               build_macro_editor,
                build_anatomy, build_tokens,
                build_hostkeychanged, build_failure, build_paste, build_palette,
                build_preview_setting):

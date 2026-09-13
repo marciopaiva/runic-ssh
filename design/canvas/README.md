@@ -87,6 +87,7 @@ ADR-0020 exists to stop.
 | `MapVisionFull.dc.html` | Map, a vision filling the screen (ADR-0067): every member open in the shape for the count, each 1:1 in its cell, the floor gone, Esc giving the map back; the member without a session shows its saved state, since expanding does not connect |
 | `MapLayer.dc.html` | Map, layers from outside (ADR-0068): two monoliths on the ring beside the loose components and a closed vision, each a door into its own map; the rune is the layer with no name |
 | `MapLayerInside.dc.html` | Map, inside a layer (ADR-0068): the crumb grown by one, the monolith standing where the rune stood and holding what it holds, the layer's own components and vision on its ring, and the way back in the toolbar with Escape |
+| `MacroEditor.dc.html` | The macro form as a popup (ADR-0070), open over Sessions with the docked macros list still showing behind it: the sequential/script type pills, the name field, a script's own line-numbered, syntax-tinted editor standing in for CodeMirror, and the isolation hint below it |
 | `SftpFileOps.dc.html` | Creating, renaming and deleting a file or folder in place (ADR-0048) |
 | `SftpFolderCopy.dc.html` | Copying a folder: one still in progress, one finished with failures (ADR-0049) |
 | `SftpDeleteConfirm.dc.html` | The one question a delete always asks first, scoped to the pane that asked (ADR-0050) |
