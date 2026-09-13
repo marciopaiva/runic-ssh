@@ -51,6 +51,15 @@ two sessions side by side, SFTP.
   <img src="assets/screenshot-grid-dark.png" alt="Four workspaces of Runic SSH in one grid: the Home host book with a bastion carrying a nested target host and its editor open; Monitor showing a host's own CPU, memory, swap, load, network and disk usage; two sessions open side by side in Sessions with the MOTD printed into a fresh shell; SFTP browsing a host's own files" width="880">
 </picture>
 
+The map (still a preview): two hosts wired with a line, its switch armed so
+either terminal reaches the other as it's typed into.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-map-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="assets/screenshot-map-light.png">
+  <img src="assets/screenshot-map-dark.png" alt="Runic SSH's map workspace: two SSH terminals, runic-web-01 and runic-web-02, wired by a line with its broadcast switch armed at the midpoint" width="880">
+</picture>
+
 ## What works today
 
 Each line is a feature that ships; the record behind it is one click away.
