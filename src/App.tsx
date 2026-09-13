@@ -117,7 +117,7 @@ import {
 import type { Keep, Macro, Secret, Session, SessionDraft, SessionHandle, SuggestedMethod } from './ipc';
 import type { Component as MapComponent, ComponentKind as MapComponentKind, Workspace as MapWorkspaceModel } from './ipc';
 import type { MapPaneWiring } from './components/map/MapStage';
-import { mapTerminals, placeSavedHost } from './features/map';
+import { mapTerminals, mountedOnce, placeSavedHost } from './features/map';
 import type { HostAsk } from './features/map';
 import { useLocale, usePreview, useShell, useTheme } from './features/settings';
 import { visibleDestinationRows } from './features/sftp/browser';
@@ -681,6 +681,11 @@ export function App(): JSX.Element {
   const stats = useSessionStats(activeHandle);
   /* One terminal per open session, kept mounted across tab switches. */
   const mounted = useMemo(() => mountedTerminals(tabs), [tabs]);
+  /* The map's own mounted terminals, kept fresh for `sendEach` below without
+     forcing it to be declared after `mapMounted` exists: a session mounted
+     only through the map, never a classic tab, has no entry in `mounted`
+     on its own. */
+  const mapMountedRef = useRef<typeof mounted>([]);
   /* Every open session goes in a group; nothing else does any more
      (ADR-0029, ADR-0044). That is what makes rule 3 of ADR-0020 true within
      the Sessions workspace rather than across the whole window: a group's
@@ -779,6 +784,15 @@ export function App(): JSX.Element {
      `activeId` to read. `null` off any SSH terminal, or off the map
      entirely. */
   const [mapFocusedSession, setMapFocusedSession] = useState<string | null>(null);
+  /* The map's own broadcast reach, reported up by `MapStage` the same way
+     `focusFns` is: a macro run from the map fans out to an armed set the
+     same way a typed keystroke does, instead of landing on the focused
+     terminal alone. A ref rather than state since nothing here needs to
+     re-render when it changes; `runMacro` only ever reads it at call time. */
+  const mapReachRef = useRef<(fromHost: string) => readonly string[]>(() => []);
+  const onMapReachChange = useCallback((reach: (fromHost: string) => readonly string[]): void => {
+    mapReachRef.current = reach;
+  }, []);
   const hostsReceiving = workspace === 'map' ? mapReceivingCount : armed ? receiving.length : null;
   const lastReceiving = useRef<number | null>(null);
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
@@ -860,8 +874,9 @@ export function App(): JSX.Element {
      express. */
   const sendEach = useCallback(
     (entries: readonly { readonly sessionId: string; readonly bytes: Uint8Array }[]): void => {
+      const reachable = mountedOnce(mounted, mapMountedRef.current);
       for (const entry of entries) {
-        const target = mounted.find((candidate) => candidate.sessionId === entry.sessionId);
+        const target = reachable.find((candidate) => candidate.sessionId === entry.sessionId);
         if (target === undefined) continue;
         void sendInput(target.handle, entry.bytes).catch(() => {});
       }
@@ -886,17 +901,20 @@ export function App(): JSX.Element {
      reach, so `$host`/`$port`/`$username` name that host rather than
      whichever session was focused. Sent the same way a confirmed paste
      already is, with newlines turned into the carriage return a terminal
-     expects (`preparePaste`). Runs immediately, on every host sync reaches:
-     picking a macro is already the deliberate act, the same way running any
-     other saved command is. Sync only ever groups the classic strip's own
-     panes, so a map target simply never matches more than itself. */
+     expects (`preparePaste`). Runs immediately, on every host the target's
+     own broadcast reaches: picking a macro is already the deliberate act,
+     the same way running any other saved command is. The classic strip and
+     the map each arm broadcast on their own state (`sync`/`groups` versus
+     `mapReachRef`), so which one is asked follows the workspace the target
+     came from, the same split `macroTargetId` itself already makes. */
   const runMacro = useCallback(
     (macro: Macro): void => {
       if (macroTargetId === null) return;
       const session = sessions.find((live) => live.session.id === macroTargetId)?.session;
       if (session === undefined) return;
 
-      const targets = inputTargets(groups, macroTargetId, sync, muted);
+      const targets =
+        workspace === 'map' ? mapReachRef.current(macroTargetId) : inputTargets(groups, macroTargetId, sync, muted);
       const entries = targets.flatMap((sessionId) => {
         const target =
           sessionId === macroTargetId
@@ -920,7 +938,7 @@ export function App(): JSX.Element {
          until this hands it back to the shell the macro just spoke to. */
       focusTerminal(macroTargetId);
     },
-    [macroTargetId, sessions, groups, sync, muted, sendEach, focusTerminal],
+    [macroTargetId, sessions, groups, sync, muted, sendEach, focusTerminal, workspace],
   );
 
   /* Which rectangle a session's surfaces belong in, or `null` when it is not
@@ -2034,6 +2052,7 @@ export function App(): JSX.Element {
      is what the shell wires into each of them, the same things Sessions'
      stack gets. */
   const mapMounted = useMemo(() => mapTerminals(mapWorkspace.components, mapHandles), [mapWorkspace, mapHandles]);
+  mapMountedRef.current = mapMounted;
   const mapTerminalWiring = useMemo(
     () => ({
       mounted: mapMounted,
@@ -3060,6 +3079,7 @@ export function App(): JSX.Element {
               onReceivingChange={setMapReceivingCount}
               onToolbarChange={setMapToolbar}
               onFocusedSessionChange={setMapFocusedSession}
+              onMapReachChange={onMapReachChange}
             />
             <TransfersBar
               transfers={fanout.transfers}
