@@ -4141,9 +4141,8 @@ def map_toolbar(trail=("Runic",), zoom="100%"):
     if len(trail) > 1:
         parts.append(f'<span class="cap" style="margin-left: 6px;" title="Back">Esc</span>')
     crumb = '<span style="display: flex; align-items: center; gap: 6px;">' + "".join(parts) + '</span>'
-    search = (f'<div style="width: 280px; flex: none; height: 24px; background: {T["input"]}; border: 1px solid {T["line"]}; border-radius: 4px; display: flex; align-items: center; gap: 8px; padding: 0 8px;">'
-              f'{ic("search", 14, T["faint"])}<span style="font-size: 12px; color: {T["faint"]}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Search hosts and components</span>'
-              f'<span class="cap" style="margin-left: auto; white-space: nowrap;">Ctrl K</span></div>')
+    search = (f'<div style="width: 220px; flex: none; height: 24px; background: {T["input"]}; border: 1px solid {T["line"]}; border-radius: 4px; display: flex; align-items: center; gap: 8px; padding: 0 8px;">'
+              f'{ic("search", 14, T["faint"])}<span style="font-size: 12px; color: {T["faint"]}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Search hosts and components</span></div>')
     zoomlbl = f'<span class="mono" style="font-size: 10.5px; color: {T["faint"]}; white-space: nowrap;">{zoom}</span>'
     recenter = f'<span style="height: 24px; flex: none; padding: 0 10px; border: 1px solid {T["line"]}; border-radius: 4px; font-size: 11px; color: {T["muted"]}; display: flex; align-items: center; white-space: nowrap;">Recenter</span>'
     return toolbar_row(left_html=crumb, right_html=search + zoomlbl + recenter + toolbar_group_divider() + shell_selector("map") + toolbar_group_divider() + theme_language_toolbar_controls())

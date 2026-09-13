@@ -133,6 +133,9 @@ export interface MapStageApi {
   readonly startLink: (from: string) => void;
   readonly cancelLink: () => void;
   readonly recenter: () => void;
+  /** Recenter's own glide: entering or leaving a layer moves the view the
+      way opening a window does, not a manual reset's instant snap. */
+  readonly glideHome: () => void;
   readonly fitAll: () => void;
   /** Opens a vision into its region, or closes it to its aperture with the
       sessions alive; both are written to the map (ADR-0067). */
@@ -938,6 +941,10 @@ export function useMapStage({ workspace, components, visions, layers, onChange, 
     setView(HOME_VIEW);
   }, [stopFling]);
 
+  const glideHome = useCallback((): void => {
+    glideTo(HOME_VIEW);
+  }, [glideTo]);
+
   const fitAll = useCallback((): void => {
     stopFling();
     if (components.length === 0 && visions.length === 0 && layers.length === 0) {
@@ -1014,6 +1021,7 @@ export function useMapStage({ workspace, components, visions, layers, onChange, 
     startLink,
     cancelLink,
     recenter,
+    glideHome,
     fitAll,
     openVision,
     closeVision,

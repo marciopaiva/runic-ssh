@@ -737,10 +737,11 @@ export function MapStage({
   /* Entering or leaving a layer starts the view fresh, the way the map
      itself opens: a position on one level's own ring means nothing on
      another's, so the pan and zoom that got here do not carry over
-     (ADR-0068). */
+     (ADR-0068). Glides there rather than cutting, the same courtesy
+     opening a window already gets (#387). */
   useEffect(() => {
-    stage.recenter();
-    // Only the level itself decides this, not `stage.recenter`'s own
+    stage.glideHome();
+    // Only the level itself decides this, not `stage.glideHome`'s own
     // identity, which changes every render: recentring on every render
     // would fight a pan or a zoom the moment either starts.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1340,7 +1341,7 @@ export function MapStage({
             );
           })}
 
-          {level.length === 0 && (
+          {level.length === 0 && levelVisions.length === 0 && levelLayers.length === 0 && (
             <div
               className="text-ink-faint absolute -translate-x-1/2 text-center text-[11.5px] leading-relaxed whitespace-nowrap"
               style={{ left: hub.x, top: hub.y + 92 }}
