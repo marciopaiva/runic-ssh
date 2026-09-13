@@ -46,12 +46,29 @@ workflow produced, and it is the answer to "is this usable yet".
 
 | Platform | Installed and driven | Version | Where the file came from |
 | --- | --- | --- | --- |
-| Linux, `.deb` | **yes**, 2026-09-10 | 0.7.0 | **downloaded from the release** |
+| Linux, `.deb` | **yes**, 2026-09-13 | 0.8.0 | **downloaded from the release** |
 | Linux, `.rpm` | no | | no RPM distribution to hand |
 | Linux, `.AppImage` | no | | discouraged anyway, see below |
 | Windows, `.exe` (NSIS) | **yes**, 2026-08-26 | 0.1.1 | **a workflow artifact, copied in through WSL** |
 | Windows, `.msi` (WiX) | built, not installed | | the NSIS package was the one exercised |
 | macOS, `.dmg` | **no** | | needs an Apple Silicon Mac |
+
+**The 0.8.0 `.deb` was downloaded from the release**, every file on the
+page (six installers plus `SHA256SUMS`) accounted for in the sums list, and
+`Runic-SSH_0.8.0_amd64.deb`'s own line checked with `sha256sum -c
+--ignore-missing` (`OK`). Installed over the 0.7.0 package already on this
+machine with `apt install ./Runic-SSH_0.8.0_amd64.deb`, an upgrade rather
+than a fresh install. Driven as the installed `/usr/bin/runic-ssh`, which
+serves the bundled frontend, on an isolated display with a fresh
+`XDG_CONFIG_HOME`: it launched and the status bar read `v0.8.0`. Connected
+to a fresh host, opened Macros, created a script macro (`echo
+target=$host:$port as $username`) through the new popup, confirming the
+Name field already had focus on open, and ran it: the terminal showed the
+`sh <<'RUNIC_MACRO_...'` heredoc with `$host`, `$port` and `$username`
+exported as real variables ahead of the echo, and the correct line printed
+back. Visions, layers and the five #398 findings were driven on the
+development build during the same release, not re-driven on the package;
+`docs/testing.md`'s own rows stand for them.
 
 **The 0.7.0 `.deb` was downloaded from the release**, its line in
 `SHA256SUMS` checked with `sha256sum -c --ignore-missing` (`OK`), and installed
