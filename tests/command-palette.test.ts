@@ -81,6 +81,7 @@ function context(overrides: Partial<CommandContext> = {}): CommandContext {
     sessions: [],
     tabs: [],
     activeId: null,
+    macroTargetId: null,
     chosenLocale: null,
     nativeDecorations: false,
     previewFeatures: false,
@@ -610,7 +611,7 @@ describe('macros', () => {
 
   it('offers every saved macro, under snippets, once a session is active', () => {
     const commands = macroCommands(
-      context({ activeId: 'a', macros: [macro('m1', 'nginx'), macro('m2', 'disk')] }),
+      context({ macroTargetId: 'a', macros: [macro('m1', 'nginx'), macro('m2', 'disk')] }),
     );
 
     expect(commands.filter((entry) => entry.section === 'snippets').map((entry) => entry.title)).toEqual([
@@ -622,10 +623,18 @@ describe('macros', () => {
   it('runs the macro it names', () => {
     const act = actions();
     const target = macro('m1', 'nginx');
-    macroCommands(context({ activeId: 'a', macros: [target], actions: act }))
+    macroCommands(context({ macroTargetId: 'a', macros: [target], actions: act }))
       .find((entry) => entry.id === 'macro:m1')
       ?.run();
 
     expect(act.calls).toEqual(['macro:m1']);
+  });
+
+  it('reads the map’s own focused terminal, not the classic strip’s, once that is the workspace shown', () => {
+    /* `activeId` alone (the classic strip) must not be enough: on the map,
+       `macroTargetId` is the map's own focused terminal instead (#352's
+       sibling gap), and the two are never the same field. */
+    const commands = macroCommands(context({ activeId: 'a', macros: [macro('m1', 'nginx')] }));
+    expect(commands.map((entry) => entry.id)).not.toContain('macro:m1');
   });
 });

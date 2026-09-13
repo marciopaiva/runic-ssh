@@ -63,6 +63,10 @@ export interface CommandContext {
   readonly sessions: readonly LiveSession[];
   readonly tabs: readonly Tab[];
   readonly activeId: string | null;
+  /** What a macro reaches: `activeId` on the classic strip, the map's own
+      focused terminal while that workspace is shown, since the map has no
+      strip of its own for `activeId` to mean anything there. */
+  readonly macroTargetId: string | null;
   /** `null` while the language follows the operating system. */
   readonly chosenLocale: string | null;
   readonly maximized: boolean;
@@ -370,10 +374,10 @@ export function actionCommands(context: CommandContext): readonly Command[] {
  * works. "Manage macros" needs no session at all, so it is never gated.
  */
 export function macroCommands(context: CommandContext): readonly Command[] {
-  const { i18n, macros, activeId, actions } = context;
+  const { i18n, macros, macroTargetId, actions } = context;
   const commands: Command[] = [];
 
-  if (activeId !== null) {
+  if (macroTargetId !== null) {
     for (const macro of macros) {
       commands.push({
         id: `macro:${macro.id}`,
