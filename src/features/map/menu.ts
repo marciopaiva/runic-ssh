@@ -22,12 +22,16 @@ export interface TerminalMenuState {
   readonly reachable: boolean;
   /** The window's place on an armed set, or `null` off any. */
   readonly broadcast: 'receiving' | 'muted' | 'armed' | null;
+  /** False on Linux/WebKitGTK, where a scripted paste does nothing
+      (`docs/measurements/terminal-menu-clipboard.md`): the entry stays,
+      greyed, its shortcut still the way in (#381). */
+  readonly pasteAllowed: boolean;
 }
 
-export function terminalMenu({ hasSelection, reachable, broadcast }: TerminalMenuState): readonly TerminalMenuEntry[] {
+export function terminalMenu({ hasSelection, reachable, broadcast, pasteAllowed }: TerminalMenuState): readonly TerminalMenuEntry[] {
   const entries: TerminalMenuEntry[] = [
     { id: 'copy', disabled: !hasSelection },
-    { id: 'paste', disabled: false },
+    { id: 'paste', disabled: !pasteAllowed },
   ];
   if (reachable) entries.push({ id: 'broadcast', disabled: false });
   if (broadcast === 'muted') entries.push({ id: 'unmute', disabled: false });
