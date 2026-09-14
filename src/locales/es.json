@@ -90,7 +90,7 @@
   "failure.unreachable.title": "No se pudo alcanzar el host",
   "failure.vault.body": "No se pudo acceder al almacén interno en este momento. Aún puede conectarse escribiendo la credencial.",
   "failure.vault.title": "No se pudo leer la credencial guardada",
-  "forward.add": "+ Añadir reenvío",
+  "forward.add": "Añadir reenvío",
   "forward.bindPort": "Puerto local",
   "forward.bindPort.placeholder": "Puerto",
   "forward.dynamic.hint": "Un proxy SOCKS local",

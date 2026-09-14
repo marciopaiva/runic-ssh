@@ -6,6 +6,7 @@ import type { ResizeHandle, SnapSide } from '../../features/map';
 import { useTranslator } from '../../features/settings';
 
 import { BroadcastGlyph } from '../BroadcastGlyph';
+import { SendIcon } from '../ui/icons';
 
 import { kindColor } from './glyphs';
 
@@ -186,9 +187,7 @@ export function ComponentWindow({
             onPointerDown={(event) => event.stopPropagation()}
             onClick={send.onSend}
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5" aria-hidden="true">
-              <path d="M5 12h14M13 6l6 6-6 6" />
-            </svg>
+            <SendIcon className="h-3.5 w-3.5" />
             {send.count > 0 && (
               <span className="bg-surface-base text-warn border-warn absolute -top-1.5 -right-2 rounded-full border px-1 font-mono text-[9px] leading-[12px] font-bold">
                 {send.count}

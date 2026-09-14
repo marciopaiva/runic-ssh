@@ -1,5 +1,16 @@
 import { type SVGProps } from 'react';
 
+/*
+ * None of these carry a size. A call site sets one with `className`, and
+ * the scale to pick from is these three, not a fourth: `h-3 w-3` (12px) for
+ * a glyph sitting inline beside small text, where a button is not being
+ * drawn around it; `h-3.5 w-3.5` (14px), the default for an icon-only
+ * button in a toolbar or a list row; `h-4 w-4` (16px) for chrome with more
+ * room to give it, a dialog header's close button among them. Never an
+ * arbitrary pixel value (`h-[13px]`): if 14px is meant, `h-3.5 w-3.5` says
+ * so and matches every other 14px glyph in the tree.
+ */
+
 export function XIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 10 10" fill="none" aria-hidden="true" {...props}>

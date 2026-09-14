@@ -3,6 +3,7 @@ import type { JSX } from 'react';
 import { useTranslator } from '../features/settings';
 import { paletteKeys } from '../features/status';
 import type { CommandModifier } from '../ipc';
+import { LogoMark } from './LogoMark';
 
 interface EmptyPanelProps {
   readonly modifier: CommandModifier;
@@ -42,29 +43,11 @@ export function EmptyPanel({ modifier, variant = 'panel', title, body }: EmptyPa
     <div className="flex h-full flex-col items-center justify-center gap-10 p-8">
       {variant === 'panel' ? (
         <div className="flex items-center gap-3.5" aria-hidden="true">
-          <svg viewBox="0 0 24 24" className="h-16 w-16" fill="none">
-            <circle cx="9.5" cy="12" r="7" className="stroke-brand-start" strokeWidth="1.2" />
-            <circle cx="14.5" cy="12" r="7" className="stroke-brand-end" strokeWidth="1.2" />
-            <path
-              d="M12 6.5v11M12 10l3-2.5M12 14l3 2.5M12 12l-2.6-2.2"
-              className="stroke-brand-rune"
-              strokeWidth="1.2"
-              strokeLinecap="round"
-            />
-          </svg>
+          <LogoMark className="h-16 w-16" />
           <span className="text-ink text-[27px] font-extrabold tracking-tight">{i18n.t('app.name')}</span>
         </div>
       ) : (
-        <svg viewBox="0 0 24 24" className="h-[46px] w-[46px] opacity-50" fill="none" aria-hidden="true">
-          <circle cx="9.5" cy="12" r="7" className="stroke-brand-start" strokeWidth="1.2" />
-          <circle cx="14.5" cy="12" r="7" className="stroke-brand-end" strokeWidth="1.2" />
-          <path
-            d="M12 6.5v11M12 10l3-2.5M12 14l3 2.5M12 12l-2.6-2.2"
-            className="stroke-brand-rune"
-            strokeWidth="1.2"
-            strokeLinecap="round"
-          />
-        </svg>
+        <LogoMark className="h-[46px] w-[46px] opacity-50" />
       )}
 
       <div className="flex flex-col items-center gap-[7px]">

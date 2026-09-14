@@ -16,6 +16,7 @@ import type { CommandModifier } from '../ipc';
 
 import { EmptyPanel } from './EmptyPanel';
 import { HostKindIcon } from './HostKindIcon';
+import { PlusIcon, SearchIcon } from './ui/icons';
 
 interface HostsSectionProps {
   readonly sessions: readonly LiveSession[];
@@ -102,26 +103,13 @@ export function HostsSection({
             aria-pressed={creatingNew}
             className={creatingNew ? 'text-accent shrink-0' : 'text-ink-muted hover:text-ink shrink-0'}
           >
-            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" aria-hidden="true">
-              <path d="M8 3.5v9M3.5 8h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
+            <PlusIcon className="h-3.5 w-3.5" />
           </button>
         </header>
 
         {sessions.length > 0 && (
           <div className="relative px-3.5 pb-2">
-            <svg
-              viewBox="0 0 24 24"
-              className="text-ink-faint pointer-events-none absolute top-1/2 left-6 h-3.5 w-3.5 -translate-y-1/2"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              aria-hidden="true"
-            >
-              <circle cx="10.5" cy="10.5" r="6" />
-              <path d="M15 15l4.5 4.5" />
-            </svg>
+            <SearchIcon className="text-ink-faint pointer-events-none absolute top-1/2 left-6 h-3.5 w-3.5 -translate-y-1/2" />
             <input
               type="text"
               value={query}

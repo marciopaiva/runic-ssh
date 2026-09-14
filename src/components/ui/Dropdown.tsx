@@ -2,7 +2,7 @@ import { Fragment, type ReactNode } from 'react';
 import { Menu, Transition } from '@headlessui/react';
 import { motion } from 'framer-motion';
 import { cn } from '../../lib/classnames';
-import { ChevronDownIcon } from './icons';
+import { CheckIcon, ChevronDownIcon } from './icons';
 
 export interface DropdownOption {
   readonly value: string;
@@ -112,9 +112,7 @@ function DropdownOptionItem({
             {icon && <span className="flex-shrink-0 h-4 w-4">{icon}</span>}
             <span className="truncate flex-1">{label}</span>
             {isSelected && (
-              <svg className="flex-shrink-0 h-4 w-4 text-accent" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <path d="M13.5 3.5 5 12 2.5 9.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <CheckIcon className="flex-shrink-0 h-4 w-4 text-accent" />
             )}
           </motion.button>
         )}

@@ -176,9 +176,9 @@ function Row({
     >
       <span className="text-ink2 flex min-w-0 flex-1 items-center gap-2.5">
         {isDir ? (
-          <FolderIcon className="text-ink-faint h-[13px] w-[13px] shrink-0" />
+          <FolderIcon className="text-ink-faint h-3.5 w-3.5 shrink-0" />
         ) : (
-          <FileIcon className="text-ink-faint h-[13px] w-[13px] shrink-0" />
+          <FileIcon className="text-ink-faint h-3.5 w-3.5 shrink-0" />
         )}
         {editing === null ? (
           <span className="text-ink truncate font-mono text-[12px]">{name}</span>
@@ -303,7 +303,7 @@ function NavBar({
       </Tooltip>
       <Tooltip content={i18n.t('sftp.nav.refresh')} side="bottom">
         <Button variant="ghost" size="sm" onClick={onRefresh} aria-label={i18n.t('sftp.nav.refresh')} className="h-5 w-5">
-          <RefreshCwIcon className="h-3 w-3" />
+          <RefreshCwIcon className="h-3.5 w-3.5" />
         </Button>
       </Tooltip>
       <Tooltip content={i18n.t('sftp.menu.rename')} side="bottom">

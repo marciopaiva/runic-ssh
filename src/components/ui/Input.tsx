@@ -1,6 +1,7 @@
 import { forwardRef, type ChangeEvent, type ReactNode, useId, useRef, useState } from 'react';
 import { motion, type HTMLMotionProps } from 'framer-motion';
 import { cn } from '../../lib/classnames';
+import { WarningIcon } from './icons';
 
 export interface InputProps extends Omit<HTMLMotionProps<'input'>, 'children' | 'size' | 'onChange'> {
   readonly label?: string;
@@ -144,15 +145,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.1 }}
           >
-            <svg className="h-3 w-3 flex-shrink-0" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path
-                d="M8 1.8 1.5 13.2h13L8 1.8ZM8 6.2v3.4M8 11.4h.01"
-                stroke="currentColor"
-                strokeWidth="1.4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+            <WarningIcon className="h-3 w-3 flex-shrink-0" />
             {error}
           </motion.p>
         )}

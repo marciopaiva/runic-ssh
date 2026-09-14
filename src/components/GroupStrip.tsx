@@ -11,7 +11,7 @@ import { SessionMarker } from './SessionMarker';
 import { SyncToggle } from './SyncToggle';
 import type { SyncState } from './SyncToggle';
 import { Button } from './ui/Button';
-import { XIcon } from './ui/icons';
+import { EditIcon, SettingsIcon, XIcon } from './ui/icons';
 
 /** What a tab says it is, for a session, a host form or the settings page. */
 export interface EditorTab {
@@ -301,28 +301,9 @@ export function GroupStrip({
             >
               {entry.kind === 'session' && tab !== null && <SessionMarker kind={tab.kind} />}
 
-              {entry.kind === 'editor' && (
-                <svg viewBox="0 0 16 16" className="h-3 w-3 shrink-0" fill="none" aria-hidden="true">
-                  <path
-                    d="M11.2 2.4l2.4 2.4-7.4 7.4-3 .6.6-3z"
-                    stroke="currentColor"
-                    strokeWidth="1.3"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              )}
+              {entry.kind === 'editor' && <EditIcon className="h-3 w-3 shrink-0" />}
 
-              {entry.kind === 'settings' && (
-                <svg viewBox="0 0 16 16" className="h-3 w-3 shrink-0" fill="none" aria-hidden="true">
-                  <circle cx="8" cy="8" r="2.4" stroke="currentColor" strokeWidth="1.3" />
-                  <path
-                    d="M8 1.4v1.8M8 12.8v1.8M14.6 8h-1.8M3.2 8H1.4M12.7 3.3l-1.3 1.3M4.6 11.4l-1.3 1.3M12.7 12.7l-1.3-1.3M4.6 4.6L3.3 3.3"
-                    stroke="currentColor"
-                    strokeWidth="1.3"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              )}
+              {entry.kind === 'settings' && <SettingsIcon className="h-3 w-3 shrink-0" />}
 
               <span className="max-w-[180px] truncate">{title}</span>
 
@@ -352,9 +333,7 @@ export function GroupStrip({
               title={closeLabel}
               className="h-4 w-4"
             >
-              <svg viewBox="0 0 10 10" className="h-2 w-2" fill="none" aria-hidden="true">
-                <path d="M0.5 0.5l9 9M9.5 0.5l-9 9" stroke="currentColor" strokeWidth="1.4" />
-              </svg>
+              <XIcon className="h-2 w-2" />
             </Button>
 
             {hasKeyboard && sync === 'on' && (
