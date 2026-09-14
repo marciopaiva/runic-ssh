@@ -3,7 +3,7 @@ import type { JSX, ReactNode } from 'react';
 import { useTranslator } from '../features/settings';
 import { Button } from './ui/Button';
 import { cn } from '../lib/classnames';
-import { FolderIcon, HomeIcon, LockIcon, MonitorIcon, TerminalIcon } from './ui/icons';
+import { FolderIcon, HomeIcon, LockIcon, MapIcon, MonitorIcon, TerminalIcon } from './ui/icons';
 
 interface RailSlotProps {
   /** Whether the thing this slot leads to is what the sidebar is showing. */
@@ -169,21 +169,7 @@ export function ActivityRail({
 
   const map = (
     <RailSlot on={workspace === 'map'} tone={armed ? 'warn' : 'accent'} label={i18n.t('map.rail')} onClick={() => onChoose('map')}>
-      <svg
-        viewBox="0 0 24 24"
-        className="h-[21px] w-[21px]"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
-      >
-        <circle cx="12" cy="6" r="2.4" />
-        <circle cx="5.5" cy="17" r="2.4" />
-        <circle cx="18.5" cy="17" r="2.4" />
-        <path d="M10.6 8.2l-3.7 6.4M13.4 8.2l3.7 6.4M8 17h8" />
-      </svg>
+      <MapIcon className="h-[21px] w-[21px]" />
     </RailSlot>
   );
 
