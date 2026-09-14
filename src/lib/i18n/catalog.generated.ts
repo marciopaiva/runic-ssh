@@ -96,7 +96,7 @@ export const SOURCE_CATALOG = {
   "failure.unreachable.title": "Could not reach the host",
   "failure.vault.body": "The internal vault could not be reached right now. You can still connect by typing the credential.",
   "failure.vault.title": "The saved credential could not be read",
-  "forward.add": "+ Add forward",
+  "forward.add": "Add forward",
   "forward.bindPort": "Bind port",
   "forward.bindPort.placeholder": "Port",
   "forward.dynamic.hint": "A local SOCKS proxy",

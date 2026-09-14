@@ -4,6 +4,7 @@ import { EMPTY_FORWARD, FORWARD_KIND_LABEL, parsePort } from '../features/sessio
 import type { DraftField, ForwardDraft } from '../features/sessions';
 import { useTranslator } from '../features/settings';
 import type { ForwardKind } from '../ipc';
+import { PlusIcon, XIcon } from './ui/icons';
 
 interface ForwardsFieldsProps {
   readonly value: readonly ForwardDraft[];
@@ -99,9 +100,7 @@ export function ForwardsFields({ value, wrong, onChange }: ForwardsFieldsProps):
                 title={i18n.t('forward.remove')}
                 className="text-ink-faint hover:text-ink ml-auto flex h-4 w-4 shrink-0 items-center justify-center rounded"
               >
-                <svg viewBox="0 0 10 10" className="h-2 w-2" fill="none" aria-hidden="true">
-                  <path d="M0.5 0.5l9 9M9.5 0.5l-9 9" stroke="currentColor" strokeWidth="1.4" />
-                </svg>
+                <XIcon className="h-2 w-2" />
               </button>
             </div>
 
@@ -155,8 +154,9 @@ export function ForwardsFields({ value, wrong, onChange }: ForwardsFieldsProps):
       <button
         type="button"
         onClick={() => onChange([...value, EMPTY_FORWARD])}
-        className="text-accent self-start text-[12px] hover:underline"
+        className="text-accent hover:underline self-start flex items-center gap-1 text-[12px]"
       >
+        <PlusIcon className="h-3 w-3" />
         {i18n.t('forward.add')}
       </button>
     </div>

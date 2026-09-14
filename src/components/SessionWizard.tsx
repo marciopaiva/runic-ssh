@@ -643,7 +643,7 @@ export function SessionWizard({
             )}
           </FormSection>
           {/* ADR-0061: `ForwardsFields` already renders nothing but its own
-              "+ Add forward" link for an empty list; the only change here
+              "Add forward" link for an empty list; the only change here
               is whether `FormSection`'s border and heading wrap it, which
               they earn back the instant a forward exists. */}
           {values.forwards.length > 0 ? (

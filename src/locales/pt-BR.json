@@ -90,7 +90,7 @@
   "failure.unreachable.title": "Não foi possível alcançar o host",
   "failure.vault.body": "O vault interno não pôde ser acessado agora. Você ainda pode conectar digitando a credencial.",
   "failure.vault.title": "A credencial salva não pôde ser lida",
-  "forward.add": "+ Adicionar encaminhamento",
+  "forward.add": "Adicionar encaminhamento",
   "forward.bindPort": "Porta local",
   "forward.bindPort.placeholder": "Porta",
   "forward.dynamic.hint": "Um proxy SOCKS local",
