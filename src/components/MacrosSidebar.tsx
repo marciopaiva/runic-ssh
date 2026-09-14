@@ -5,7 +5,7 @@ import { useTranslator } from '../features/settings';
 import type { Macro, MacroDraft } from '../ipc';
 
 import { MacroEditorDialog } from './MacroEditorDialog';
-import { EditIcon, PlusIcon, SearchIcon, XIcon } from './ui/icons';
+import { EditIcon, PlusIcon, SearchIcon, TrashIcon, XIcon } from './ui/icons';
 
 interface MacrosSidebarProps {
   readonly macros: readonly Macro[];
@@ -179,7 +179,7 @@ export function MacrosSidebar({
                 {confirmingDeleteId === macro.id ? (
                   i18n.t('macros.editor.deleteConfirm')
                 ) : (
-                  <XIcon className="h-2.5 w-2.5" />
+                  <TrashIcon className="h-3.5 w-3.5" />
                 )}
               </button>
             </div>
