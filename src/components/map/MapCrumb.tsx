@@ -2,22 +2,23 @@ import type { JSX } from 'react';
 
 import { useTranslator } from '../../features/settings';
 import { Kbd } from '../ui/Kbd';
-import { HomeIcon } from '../ui/icons';
+import { MapIcon } from '../ui/icons';
 
 interface MapCrumbProps {
-  /** `segments[0]` is always the root; drawn as the rail's own Home glyph
-      rather than its name, since the crumb's root is the map's front door
-      and the rail already names it that way (the maintainer's own edit,
-      carried from the review canvas into the shipped toolbar). */
+  /** `segments[0]` is always the root; drawn as the rail's own Map glyph
+      rather than its name, since the crumb's root is the map itself and
+      the rail already names it that way. The book that used to sit here
+      was `ActivityRail`'s Home glyph, which reads as Hosts in this
+      toolbar rather than as the map's own front door. */
   readonly segments: readonly string[];
   /** Present a level in: a layer entered, or a vision filling the screen
       (ADR-0067, ADR-0068). Does what Escape already does. */
   readonly onBack?: () => void;
 }
 
-/** The book `ActivityRail`'s own Home slot draws, at crumb size. */
-function HomeGlyph(): JSX.Element {
-  return <HomeIcon className="h-3.5 w-3.5" />;
+/** The glyph `ActivityRail`'s own Map slot draws, at crumb size. */
+function RootGlyph(): JSX.Element {
+  return <MapIcon className="h-3.5 w-3.5" />;
 }
 
 /**
@@ -34,7 +35,7 @@ export function MapCrumb({ segments, onBack }: MapCrumbProps): JSX.Element {
   return (
     <span className="flex shrink-0 items-center gap-1.5">
       <span title={root} aria-label={root} className={rest.length === 0 ? 'text-ink flex items-center' : 'text-ink-muted flex items-center'}>
-        <HomeGlyph />
+        <RootGlyph />
       </span>
       {rest.map((name, i) => (
         <span key={`${name}-${String(i)}`} className="flex items-center gap-1.5">
