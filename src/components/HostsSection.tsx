@@ -16,7 +16,7 @@ import type { CommandModifier } from '../ipc';
 
 import { EmptyPanel } from './EmptyPanel';
 import { HostKindIcon } from './HostKindIcon';
-import { PlusIcon, SearchIcon } from './ui/icons';
+import { ChevronRightIcon, PlusIcon, SearchIcon } from './ui/icons';
 
 interface HostsSectionProps {
   readonly sessions: readonly LiveSession[];
@@ -271,18 +271,7 @@ function HostRowItem({
           )}
           className="text-ink-faint hover:text-ink-muted flex h-4 w-4 shrink-0 items-center justify-center"
         >
-          <svg
-            viewBox="0 0 24 24"
-            className={`h-2.5 w-2.5 ${collapsed ? '' : 'rotate-90'}`}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M9 6l6 6-6 6" />
-          </svg>
+          <ChevronRightIcon className={`h-3 w-3 ${collapsed ? '' : 'rotate-90'}`} />
         </button>
       )}
 

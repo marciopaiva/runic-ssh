@@ -6,9 +6,10 @@ import { describeState, filterGroups, groupKey, groupSessions, soloGroup } from 
 import type { LiveSession } from '../features/sessions/state';
 import { useTranslator } from '../features/settings';
 
+import { BroadcastGlyph } from './BroadcastGlyph';
 import { HostKindIcon } from './HostKindIcon';
 import { SessionMarker } from './SessionMarker';
-import { FolderIcon, MoreVerticalIcon, SearchIcon, SyncIcon, XIcon } from './ui/icons';
+import { FolderIcon, MoreVerticalIcon, SearchIcon, XIcon } from './ui/icons';
 
 function FolderMark(): JSX.Element {
   return <FolderIcon className="text-accent h-3.5 w-3.5 shrink-0" />;
@@ -329,7 +330,7 @@ export function SessionsSidebar({
                               <span className="truncate text-[12.5px]">{session.name}</span>
 
                               {reached && (
-                                <SyncIcon
+                                <BroadcastGlyph
                                   className="text-warn ml-auto h-3.5 w-3.5 shrink-0"
                                   aria-hidden={false}
                                   role="img"
