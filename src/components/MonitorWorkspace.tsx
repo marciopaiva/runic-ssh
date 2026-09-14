@@ -23,6 +23,7 @@ import { useTranslator } from '../features/settings';
 import { formatUptime } from '../features/status';
 import type { GroupLabel } from '../features/terminal';
 import type { Filesystem, ListeningSocket, Process, SessionHandle, SystemdUnit, SystemStats } from '../ipc';
+import { XIcon } from './ui/icons';
 
 interface MonitorWorkspaceProps {
   readonly identity: GroupLabel;
@@ -276,9 +277,7 @@ function JournalPane({
           title={closeLabel}
           className="text-ink-faint hover:text-ink flex h-4 w-4 shrink-0 items-center justify-center rounded"
         >
-          <svg viewBox="0 0 10 10" className="h-2 w-2" fill="none" aria-hidden="true">
-            <path d="M0.5 0.5l9 9M9.5 0.5l-9 9" stroke="currentColor" strokeWidth="1.4" />
-          </svg>
+          <XIcon className="h-2 w-2" />
         </button>
       </div>
       <div className="flex-1 overflow-y-auto px-3 py-1.5">
@@ -376,9 +375,7 @@ function FileTailPane({
           title={closeLabel}
           className="text-ink-faint hover:text-ink flex h-4 w-4 shrink-0 items-center justify-center rounded"
         >
-          <svg viewBox="0 0 10 10" className="h-2 w-2" fill="none" aria-hidden="true">
-            <path d="M0.5 0.5l9 9M9.5 0.5l-9 9" stroke="currentColor" strokeWidth="1.4" />
-          </svg>
+          <XIcon className="h-2 w-2" />
         </button>
       </div>
       <div className="flex-1 overflow-y-auto px-3 py-1.5">

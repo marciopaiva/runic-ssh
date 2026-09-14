@@ -55,6 +55,7 @@ import type { Endpoint, PaneEntry } from '../../features/sftp/endpoint';
 import type { MapDestination, PaneReport } from '../../features/sftp/use-fanout';
 
 import { AlertDialog } from '../ui/Dialog';
+import { Kbd } from '../ui/Kbd';
 
 import { ComponentNode } from './ComponentNode';
 import { LineHandle, LineKnot } from './LineHandle';
@@ -1447,7 +1448,7 @@ export function MapStage({
               </svg>
             </span>
             {i18n.t(linkingFamily === 'files' ? 'map.linking.hint.files' : 'map.linking.hint')}
-            <kbd className="border-line-strong ml-auto rounded-[3px] border px-1 py-[1px] font-mono text-[10px]">Esc</kbd>
+            <Kbd className="ml-auto">Esc</Kbd>
             <span className="text-ink-faint text-[11px]">{i18n.t('map.linking.cancel')}</span>
           </div>
         )}

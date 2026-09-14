@@ -8,13 +8,10 @@ import { useTranslator } from '../features/settings';
 
 import { HostKindIcon } from './HostKindIcon';
 import { SessionMarker } from './SessionMarker';
+import { FolderIcon, MoreVerticalIcon, SearchIcon, SyncIcon, XIcon } from './ui/icons';
 
 function FolderMark(): JSX.Element {
-  return (
-    <svg viewBox="0 0 24 24" className="text-accent h-[13px] w-[13px] shrink-0" fill="none" aria-hidden="true">
-      <path d="M4 6.5h6l1.6 2H20v9.5H4z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-    </svg>
-  );
+  return <FolderIcon className="text-accent h-3.5 w-3.5 shrink-0" />;
 }
 
 interface SessionsSidebarProps {
@@ -121,9 +118,7 @@ export function SessionsSidebar({
             className="text-accent bg-accent/10 hover:bg-accent/20 flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[9.5px] font-bold tracking-[0.05em]"
           >
             <span className="max-w-[80px] truncate">{soloName}</span>
-            <svg viewBox="0 0 10 10" className="h-2 w-2 shrink-0" fill="none" aria-hidden="true">
-              <path d="M0.5 0.5l9 9M9.5 0.5l-9 9" stroke="currentColor" strokeWidth="1.4" />
-            </svg>
+            <XIcon className="h-2 w-2 shrink-0" />
           </button>
         )}
 
@@ -141,18 +136,7 @@ export function SessionsSidebar({
 
       {sessions.length > 0 && (
         <div className="relative px-3.5 pb-2">
-          <svg
-            viewBox="0 0 24 24"
-            className="text-ink-faint pointer-events-none absolute top-1/2 left-6 h-3.5 w-3.5 -translate-y-1/2"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            aria-hidden="true"
-          >
-            <circle cx="10.5" cy="10.5" r="6" />
-            <path d="M15 15l4.5 4.5" />
-          </svg>
+          <SearchIcon className="text-ink-faint pointer-events-none absolute top-1/2 left-6 h-3.5 w-3.5 -translate-y-1/2" />
           <input
             type="text"
             value={query}
@@ -345,17 +329,12 @@ export function SessionsSidebar({
                               <span className="truncate text-[12.5px]">{session.name}</span>
 
                               {reached && (
-                                <svg
-                                  viewBox="0 0 24 24"
+                                <SyncIcon
                                   className="text-warn ml-auto h-3.5 w-3.5 shrink-0"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2.4"
+                                  aria-hidden={false}
                                   role="img"
                                   aria-label={i18n.t('terminal.group.sync.on')}
-                                >
-                                  <path d="M20 6L9 17l-5-5" />
-                                </svg>
+                                />
                               )}
 
                               {/* A word rather than a crossed-out tick. This
@@ -423,11 +402,7 @@ export function SessionsSidebar({
                                hover-only affordance becomes unreachable. */
                             className="text-ink-faint hover:text-ink mr-1 flex h-5 w-5 shrink-0 items-center justify-center rounded opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
                           >
-                            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" aria-hidden="true">
-                              <circle cx="8" cy="3.5" r="1.2" fill="currentColor" />
-                              <circle cx="8" cy="8" r="1.2" fill="currentColor" />
-                              <circle cx="8" cy="12.5" r="1.2" fill="currentColor" />
-                            </svg>
+                            <MoreVerticalIcon className="h-3.5 w-3.5" />
                           </button>
                         )}
                       </li>

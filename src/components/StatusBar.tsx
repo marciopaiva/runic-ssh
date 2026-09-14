@@ -18,6 +18,7 @@ import type { CommandModifier, SessionStats } from '../ipc';
 
 import { SessionMarker } from './SessionMarker';
 import { Button } from './ui/Button';
+import { Kbd } from './ui/Kbd';
 import { WarningIcon } from './ui/icons';
 
 interface StatusBarProps {
@@ -215,7 +216,7 @@ export function StatusBar({
               <path
                 d="M3.5 2.5v7a2.5 2.5 0 0 0 2.5 2.5h6.5M10 9l3 3-3 3"
                 stroke="currentColor"
-                strokeWidth="1.6"
+                strokeWidth="1.3"
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
@@ -338,15 +339,7 @@ export function StatusBar({
           title={i18n.t('command.split.sync.detail', { count: String(syncing) })}
           className="bg-warn-soft text-warn border-warn/40 my-1 flex shrink-0 items-center gap-1.5 rounded border px-2 font-mono font-semibold"
         >
-          <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" aria-hidden="true">
-            <path
-              d="M8 1.8 1.5 13.2h13L8 1.8ZM8 6.2v3.4M8 11.4h.01"
-              stroke="currentColor"
-              strokeWidth="1.4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+          <WarningIcon className="h-3 w-3" />
           {i18n.t('status.sync.on', { count: String(syncing) })}
         </div>
       )}
@@ -380,12 +373,7 @@ export function StatusBar({
       <div className="text-ink-secondary flex shrink-0 items-center gap-1.5 pr-4 pl-3">
         <span className="flex items-center gap-1">
           {paletteKeys(modifier).map((key) => (
-            <kbd
-              key={key}
-              className="border-line-strong rounded-[3px] border px-1 py-[1px] font-mono text-[10px]"
-            >
-              {key}
-            </kbd>
+            <Kbd key={key}>{key}</Kbd>
           ))}
         </span>
         <span>{i18n.t('status.palette')}</span>

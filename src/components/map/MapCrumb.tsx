@@ -1,6 +1,8 @@
 import type { JSX } from 'react';
 
 import { useTranslator } from '../../features/settings';
+import { Kbd } from '../ui/Kbd';
+import { HomeIcon } from '../ui/icons';
 
 interface MapCrumbProps {
   /** `segments[0]` is always the root; drawn as the rail's own Home glyph
@@ -15,12 +17,7 @@ interface MapCrumbProps {
 
 /** The book `ActivityRail`'s own Home slot draws, at crumb size. */
 function HomeGlyph(): JSX.Element {
-  return (
-    <svg viewBox="0 0 24 24" className="h-[14px] w-[14px]" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-    </svg>
-  );
+  return <HomeIcon className="h-3.5 w-3.5" />;
 }
 
 /**
@@ -48,15 +45,14 @@ export function MapCrumb({ segments, onBack }: MapCrumbProps): JSX.Element {
         </span>
       ))}
       {onBack !== undefined && (
-        <button
-          type="button"
+        <Kbd
           onClick={onBack}
           title={i18n.t('map.crumb.back')}
           aria-label={i18n.t('map.crumb.back')}
-          className="border-line-strong text-ink-faint hover:text-ink ml-1 rounded-[3px] border px-1 py-[1px] font-mono text-[10px]"
+          className="text-ink-faint hover:text-ink ml-1"
         >
           Esc
-        </button>
+        </Kbd>
       )}
     </span>
   );

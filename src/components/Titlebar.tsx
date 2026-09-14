@@ -3,6 +3,7 @@ import type { JSX } from 'react';
 import type { WindowAction, WindowControl } from '../features/chrome';
 import { useTranslator } from '../features/settings';
 
+import { LogoMark } from './LogoMark';
 import { WindowControls } from './WindowControls';
 import { cn } from '../lib/classnames';
 
@@ -63,23 +64,13 @@ export function Titlebar({ controls, leadingInset, onAct }: TitlebarProps): JSX.
           leadingInset === 0 ? 'border-line-subtle border-r' : '',
         )}
       >
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
+        <LogoMark
+          className="h-[18px] w-[18px]"
+          strokeWidth={1.4}
+          aria-hidden={false}
           role="img"
           aria-label={i18n.t('app.name')}
-        >
-          <circle cx="9.5" cy="12" r="7" className="stroke-brand-start" strokeWidth="1.4" />
-          <circle cx="14.5" cy="12" r="7" className="stroke-brand-end" strokeWidth="1.4" />
-          <path
-            d="M12 6.5v11M12 10l3-2.5M12 14l3 2.5M12 12l-2.6-2.2"
-            className="stroke-brand-rune"
-            strokeWidth="1.4"
-            strokeLinecap="round"
-          />
-        </svg>
+        />
       </div>
 
       {/* The rest of the bar is drag surface, and the reason the controls sit

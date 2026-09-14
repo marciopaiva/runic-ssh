@@ -3,7 +3,7 @@ import type { JSX, ReactNode } from 'react';
 import { useTranslator } from '../features/settings';
 import { Button } from './ui/Button';
 import { cn } from '../lib/classnames';
-import { LockIcon } from './ui/icons';
+import { FolderIcon, HomeIcon, LockIcon, MonitorIcon, TerminalIcon } from './ui/icons';
 
 interface RailSlotProps {
   /** Whether the thing this slot leads to is what the sidebar is showing. */
@@ -163,19 +163,7 @@ export function ActivityRail({
       )}
       onClick={() => onChoose('home')}
     >
-      <svg
-        viewBox="0 0 24 24"
-        className="h-[21px] w-[21px]"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-      </svg>
+      <HomeIcon className="h-[21px] w-[21px]" />
     </RailSlot>
   );
 
@@ -234,18 +222,7 @@ export function ActivityRail({
         label={i18n.t(armed ? 'rail.monitor.locked' : 'rail.monitor')}
         onClick={() => onChoose('monitor')}
       >
-        <svg
-          viewBox="0 0 24 24"
-          className="h-[21px] w-[21px]"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M3 13h4l2 6 4-14 2 8h6" />
-        </svg>
+        <MonitorIcon className="h-[21px] w-[21px]" />
       </RailSlot>
 
       {/* Still live while armed. ADR-0020 is explicit that the sidebar may be
@@ -266,18 +243,7 @@ export function ActivityRail({
         badgeLabel={i18n.t('rail.sessions.open', { count: String(openCount) })}
         onClick={() => onChoose('sessions')}
       >
-        <svg
-          viewBox="0 0 24 24"
-          className="h-[21px] w-[21px]"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M4 17l5-5-5-5M12 19h8" />
-        </svg>
+        <TerminalIcon className="h-[21px] w-[21px]" />
       </RailSlot>
 
       {/* ADR-0044: SFTP's own workspace, held shut while armed for the same
@@ -301,17 +267,7 @@ export function ActivityRail({
         badgeLabel={i18n.t('rail.sftp.open', { count: String(sftpCount) })}
         onClick={() => onChoose('sftp')}
       >
-        <svg
-          viewBox="0 0 24 24"
-          className="h-[21px] w-[21px]"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M4 6.5h6l1.6 2H20v9.5H4z" />
-        </svg>
+        <FolderIcon className="h-[21px] w-[21px]" />
       </RailSlot>
 
       <div className="flex-1" />

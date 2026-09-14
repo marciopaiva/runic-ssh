@@ -5,7 +5,7 @@ import { useTranslator } from '../features/settings';
 import type { Macro, MacroDraft } from '../ipc';
 
 import { MacroEditorDialog } from './MacroEditorDialog';
-import { XIcon } from './ui/icons';
+import { SearchIcon, XIcon } from './ui/icons';
 
 interface MacrosSidebarProps {
   readonly macros: readonly Macro[];
@@ -140,18 +140,7 @@ export function MacrosSidebar({
 
       {macros.length > 0 && (
         <div className="relative px-3.5 pt-2.5 pb-1.5">
-          <svg
-            viewBox="0 0 24 24"
-            className="text-ink-faint pointer-events-none absolute top-1/2 left-6 h-3.5 w-3.5 -translate-y-1/2"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            aria-hidden="true"
-          >
-            <circle cx="10.5" cy="10.5" r="6" />
-            <path d="M15 15l4.5 4.5" />
-          </svg>
+          <SearchIcon className="text-ink-faint pointer-events-none absolute top-1/2 left-6 h-3.5 w-3.5 -translate-y-1/2" />
           <input
             type="text"
             value={query}
