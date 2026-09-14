@@ -5,7 +5,7 @@ import { useTranslator } from '../features/settings';
 import type { Macro, MacroDraft } from '../ipc';
 
 import { MacroEditorDialog } from './MacroEditorDialog';
-import { SearchIcon, XIcon } from './ui/icons';
+import { EditIcon, PlusIcon, SearchIcon, XIcon } from './ui/icons';
 
 interface MacrosSidebarProps {
   readonly macros: readonly Macro[];
@@ -15,25 +15,6 @@ interface MacrosSidebarProps {
   readonly onDelete: (id: string) => Promise<void>;
   readonly onClose: () => void;
 }
-
-const PLUS_ICON = (
-  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" aria-hidden="true">
-    <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-  </svg>
-);
-
-const PENCIL_ICON = (
-  <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" aria-hidden="true">
-    <path
-      d="M4 20l1-4.2L15.8 5l3.2 3.2L8.2 19H4z"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <path d="M13.8 6.7l3.2 3.2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-  </svg>
-);
 
 /** Nothing selected: the list. A macro's own id: editing it. `undefined`
  * (rather than absent) reads oddly, so a fresh draft is `null` explicitly. */
@@ -124,7 +105,7 @@ export function MacrosSidebar({
             title={i18n.t('macros.editor.new')}
             className="text-ink-faint hover:text-ink flex h-6 w-6 items-center justify-center rounded"
           >
-            {PLUS_ICON}
+            <PlusIcon className="h-3.5 w-3.5" />
           </button>
           <button
             type="button"
@@ -183,7 +164,7 @@ export function MacrosSidebar({
                 title={i18n.t('macros.sidebar.edit', { name: macro.name })}
                 className="text-ink-faint hover:text-ink shrink-0 rounded p-1.5"
               >
-                {PENCIL_ICON}
+                <EditIcon className="h-3 w-3" />
               </button>
               <button
                 type="button"
@@ -192,10 +173,14 @@ export function MacrosSidebar({
                 className={`shrink-0 rounded px-1.5 py-1 text-[10.5px] font-semibold ${
                   confirmingDeleteId === macro.id
                     ? 'text-danger'
-                    : 'text-ink-faint hover:text-danger'
+                    : 'text-ink-faint hover:text-danger flex items-center'
                 }`}
               >
-                {confirmingDeleteId === macro.id ? i18n.t('macros.editor.deleteConfirm') : '×'}
+                {confirmingDeleteId === macro.id ? (
+                  i18n.t('macros.editor.deleteConfirm')
+                ) : (
+                  <XIcon className="h-2.5 w-2.5" />
+                )}
               </button>
             </div>
           ))
