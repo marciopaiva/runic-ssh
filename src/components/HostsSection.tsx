@@ -16,6 +16,7 @@ import type { CommandModifier } from '../ipc';
 
 import { EmptyPanel } from './EmptyPanel';
 import { HostKindIcon } from './HostKindIcon';
+import { PlusIcon } from './ui/icons';
 
 interface HostsSectionProps {
   readonly sessions: readonly LiveSession[];
@@ -102,9 +103,7 @@ export function HostsSection({
             aria-pressed={creatingNew}
             className={creatingNew ? 'text-accent shrink-0' : 'text-ink-muted hover:text-ink shrink-0'}
           >
-            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" aria-hidden="true">
-              <path d="M8 3.5v9M3.5 8h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
+            <PlusIcon className="h-3.5 w-3.5" />
           </button>
         </header>
 

@@ -5,6 +5,7 @@ import { useTranslator } from '../features/settings';
 import type { Macro, MacroDraft } from '../ipc';
 
 import { MacroEditorDialog } from './MacroEditorDialog';
+import { XIcon } from './ui/icons';
 
 interface MacrosSidebarProps {
   readonly macros: readonly Macro[];
@@ -14,12 +15,6 @@ interface MacrosSidebarProps {
   readonly onDelete: (id: string) => Promise<void>;
   readonly onClose: () => void;
 }
-
-const CLOSE_ICON = (
-  <svg viewBox="0 0 10 10" className="h-2.5 w-2.5" fill="none" aria-hidden="true">
-    <path d="M0.5 0.5l9 9M9.5 0.5l-9 9" stroke="currentColor" strokeWidth="1.4" />
-  </svg>
-);
 
 const PLUS_ICON = (
   <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" aria-hidden="true">
@@ -138,7 +133,7 @@ export function MacrosSidebar({
             title={i18n.t('macros.editor.close')}
             className="text-ink-faint hover:text-ink flex h-6 w-6 items-center justify-center rounded"
           >
-            {CLOSE_ICON}
+            <XIcon className="h-2.5 w-2.5" />
           </button>
         </div>
       </div>
