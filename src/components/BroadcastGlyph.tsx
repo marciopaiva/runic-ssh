@@ -24,10 +24,13 @@ interface BroadcastGlyphProps extends SVGProps<SVGSVGElement> {
 export function BroadcastGlyph({ className, struck = false, ...rest }: BroadcastGlyphProps): JSX.Element {
   return (
     <svg viewBox="0 0 24 24" className={className} fill="none" aria-hidden="true" {...rest}>
-      <circle cx="12" cy="19" r="1.6" fill="currentColor" stroke="none" />
-      <path d="M8 15.5a5.5 5.5 0 0 1 8 0" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-      <path d="M4.5 12a10 10 0 0 1 15 0" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-      {struck && <path d="M5 5 L19 19" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />}
+      <circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none" />
+      <path d="M12 21v-6.3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M9 9a4 4 0 0 0 0 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M6 6a8 8 0 0 0 0 12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M15 9a4 4 0 0 1 0 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M18 6a8 8 0 0 1 0 12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      {struck && <path d="M5 5 L19 19" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />}
     </svg>
   );
 }
