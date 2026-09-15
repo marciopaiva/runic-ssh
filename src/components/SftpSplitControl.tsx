@@ -12,12 +12,12 @@ interface SftpSplitControlProps {
 /** A rectangle divided into as many horizontal bars as `rows` names. */
 function RowsGlyph({ rows, size }: { readonly rows: number; readonly size: string }): JSX.Element {
   return (
-    <svg viewBox="0 0 16 12" className={size} fill="none" aria-hidden="true">
-      <rect x="0.75" y="0.75" width="14.5" height="10.5" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+    <svg viewBox="0 0 16 16" className={size} fill="none" aria-hidden="true">
+      <rect x="0.75" y="2.75" width="14.5" height="10.5" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
       {Array.from({ length: rows - 1 }, (_, at) => (
         <path
           key={`h${String(at)}`}
-          d={`M0.75 ${String(0.75 + (10.5 * (at + 1)) / rows)}h14.5`}
+          d={`M0.75 ${String(2.75 + (10.5 * (at + 1)) / rows)}h14.5`}
           stroke="currentColor"
           strokeWidth="1.2"
         />
@@ -76,7 +76,7 @@ export function SftpSplitControl({ value, onChange }: SftpSplitControlProps): JS
           open ? 'bg-surface-raised text-ink' : 'text-ink-muted hover:bg-surface-raised/50 hover:text-ink'
         }`}
       >
-        <RowsGlyph rows={value} size="h-3 w-4" />
+        <RowsGlyph rows={value} size="h-3.5 w-3.5" />
       </button>
 
       {open && (
@@ -115,7 +115,7 @@ export function SftpSplitControl({ value, onChange }: SftpSplitControlProps): JS
                     : 'text-ink-faint hover:bg-surface-raised/60 hover:text-ink-muted'
                 }`}
               >
-                <RowsGlyph rows={rows} size="h-4 w-[21px]" />
+                <RowsGlyph rows={rows} size="h-4 w-4" />
               </button>
             );
           })}
