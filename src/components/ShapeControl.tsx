@@ -20,10 +20,10 @@ function Glyph({ kind, size }: { readonly kind: Grid; readonly size: string }): 
   const { columns, rows } = dimensions(kind);
 
   return (
-    <svg viewBox="0 0 16 12" className={size} fill="none" aria-hidden="true">
+    <svg viewBox="0 0 16 16" className={size} fill="none" aria-hidden="true">
       <rect
         x="0.75"
-        y="0.75"
+        y="2.75"
         width="14.5"
         height="10.5"
         rx="1.5"
@@ -33,7 +33,7 @@ function Glyph({ kind, size }: { readonly kind: Grid; readonly size: string }): 
       {Array.from({ length: columns - 1 }, (_, at) => (
         <path
           key={`v${String(at)}`}
-          d={`M${String(0.75 + (14.5 * (at + 1)) / columns)} 0.75v10.5`}
+          d={`M${String(0.75 + (14.5 * (at + 1)) / columns)} 2.75v10.5`}
           stroke="currentColor"
           strokeWidth="1.2"
         />
@@ -41,7 +41,7 @@ function Glyph({ kind, size }: { readonly kind: Grid; readonly size: string }): 
       {Array.from({ length: rows - 1 }, (_, at) => (
         <path
           key={`h${String(at)}`}
-          d={`M0.75 ${String(0.75 + (10.5 * (at + 1)) / rows)}h14.5`}
+          d={`M0.75 ${String(2.75 + (10.5 * (at + 1)) / rows)}h14.5`}
           stroke="currentColor"
           strokeWidth="1.2"
         />
@@ -103,7 +103,7 @@ export function ShapeControl({ layout, onChoose }: ShapeControlProps): JSX.Eleme
           open ? 'bg-surface-raised text-ink' : 'text-ink-muted hover:bg-surface-raised/50 hover:text-ink'
         }`}
       >
-        <Glyph kind={layout} size="h-3 w-4" />
+        <Glyph kind={layout} size="h-3.5 w-3.5" />
       </button>
 
       {open && (
@@ -143,7 +143,7 @@ export function ShapeControl({ layout, onChoose }: ShapeControlProps): JSX.Eleme
                     : 'text-ink-faint hover:bg-surface-raised/60 hover:text-ink-muted'
                 }`}
               >
-                <Glyph kind={kind} size="h-4 w-[21px]" />
+                <Glyph kind={kind} size="h-4 w-4" />
               </button>
             );
           })}
