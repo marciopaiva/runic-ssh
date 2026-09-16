@@ -55,7 +55,14 @@ export function BroadcastButton({
       onClick={onToggle}
       aria-label={label}
       title={label}
-      className={`relative flex h-6 w-7 shrink-0 items-center justify-center rounded ${
+      /* A visible caption beside the icon, not icon-only like `MacrosButton`
+       * and `ShapeControl` beside it: this is the one control in the row
+       * that changes where typing goes rather than how something is
+       * arranged (ADR-0020 rule 7, "safety outranks tidiness"), so it is
+       * the one worth reading without a hover. The real name and state are
+       * still `aria-label`/`title` (`toolbar.broadcast.off`/`.on`); the
+       * caption is the short, always-visible form. */
+      className={`relative flex h-6 shrink-0 items-center gap-1.5 rounded px-2 ${
         !available
           ? 'text-ink-disabled cursor-not-allowed'
           : armed
@@ -63,14 +70,15 @@ export function BroadcastButton({
             : 'text-ink-muted hover:bg-surface-raised/50 hover:text-ink'
       }`}
     >
-      <BroadcastGlyph className="h-3.5 w-3.5" />
+      <BroadcastGlyph className="h-3.5 w-3.5 shrink-0" />
+      <span className="text-[11px] font-semibold">{i18n.t('toolbar.broadcast.label')}</span>
 
       {armed && count > 0 && (
         <span
           aria-hidden="true"
           /* Solid warn, not a neutral pill: the same treatment
              `ActivityRail`'s own badge already gives an armed count. */
-          className="bg-warn text-surface-base absolute -right-1 -bottom-1 flex h-[13px] min-w-[13px] items-center justify-center rounded-full px-[3px] font-mono text-[8.5px] font-bold"
+          className="bg-warn text-surface-base flex h-[13px] min-w-[13px] items-center justify-center rounded-full px-[3px] font-mono text-[8.5px] font-bold"
         >
           {count}
         </span>

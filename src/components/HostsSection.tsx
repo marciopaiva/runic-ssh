@@ -15,6 +15,7 @@ import { useTranslator } from '../features/settings';
 import type { CommandModifier } from '../ipc';
 
 import { EmptyPanel } from './EmptyPanel';
+import { HomeSummaryPanel } from './HomeSummaryPanel';
 import { HostKindIcon } from './HostKindIcon';
 import { ChevronRightIcon, PlusIcon, SearchIcon } from './ui/icons';
 
@@ -202,11 +203,15 @@ export function HostsSection({
 
       <div className="min-w-0 flex-1 overflow-y-auto">
         {selectedId === null && !creatingNew ? (
-          <EmptyPanel
-            modifier={modifier}
-            title={i18n.t('home.hosts.empty.title')}
-            body={i18n.t('home.hosts.empty.body')}
-          />
+          sessions.length > 0 ? (
+            <HomeSummaryPanel sessions={sessions} />
+          ) : (
+            <EmptyPanel
+              modifier={modifier}
+              title={i18n.t('home.hosts.empty.title')}
+              body={i18n.t('home.hosts.empty.body')}
+            />
+          )
         ) : (
           detail
         )}
