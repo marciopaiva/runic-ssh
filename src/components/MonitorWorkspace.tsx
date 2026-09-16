@@ -171,9 +171,9 @@ function MetricCard({
   readonly formatValue: (value: number) => string;
   /** Colors the trend the same way `HeroMetricCard`'s already does, for a
    * reading that is a real percentage of a fixed capacity (`meterTone()`'s
-   * own 70/90 cutoffs). `undefined` for a reading with no such ceiling — a
-   * rate, or an average scaled to its own recent peak — where "how full" is
-   * not a question the number can answer, and the plain accent stays. */
+   * own 70/90 cutoffs). `undefined` for a reading with no such ceiling, a
+   * rate, or an average scaled to its own recent peak. "How full" is not a
+   * question that number can answer, so the plain accent stays instead. */
   readonly tone?: MeterTone;
 }): JSX.Element {
   return (
