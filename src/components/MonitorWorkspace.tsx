@@ -79,7 +79,7 @@ function AreaChart({
   readonly formatValue: (value: number) => string;
   /** Colors the line and fill the same way the reading's own ring gauge or
    * usage bar already reads; the default accent otherwise. */
-  readonly tone?: MeterTone;
+  readonly tone?: MeterTone | undefined;
   /** `hero` doubles the chart's own height, for the one or two readings a
    * tab wants to draw the eye to before the rest of it. */
   readonly size?: 'default' | 'hero';
@@ -162,12 +162,19 @@ function MetricCard({
   samples,
   max,
   formatValue,
+  tone,
 }: {
   readonly title: string;
   readonly value: string;
   readonly samples: readonly Sample[];
   readonly max: number;
   readonly formatValue: (value: number) => string;
+  /** Colors the trend the same way `HeroMetricCard`'s already does, for a
+   * reading that is a real percentage of a fixed capacity (`meterTone()`'s
+   * own 70/90 cutoffs). `undefined` for a reading with no such ceiling — a
+   * rate, or an average scaled to its own recent peak — where "how full" is
+   * not a question the number can answer, and the plain accent stays. */
+  readonly tone?: MeterTone;
 }): JSX.Element {
   return (
     <div className="border-line-subtle bg-surface-chrome flex flex-col gap-2 rounded border p-3">
@@ -175,7 +182,7 @@ function MetricCard({
         <span className="text-ink-secondary text-[12px] font-semibold">{title}</span>
         <span className="text-ink font-mono text-[15px] font-semibold">{value}</span>
       </div>
-      <AreaChart samples={samples} max={max} formatValue={formatValue} />
+      <AreaChart samples={samples} max={max} formatValue={formatValue} tone={tone} />
     </div>
   );
 }
@@ -809,6 +816,15 @@ function HomeTab({ handle, stats }: { readonly handle: SessionHandle; readonly s
   const memPercent = stats.memory === null ? null : (stats.memory.usedKb / stats.memory.totalKb) * 100;
   const cpuTone: MeterTone = stats.cpuPercent === null ? 'ok' : meterTone(stats.cpuPercent);
   const memTone: MeterTone = memPercent === null ? 'ok' : meterTone(memPercent);
+  /* Swap and disk usage are the two smaller cards that are also a real
+   * percentage of a fixed capacity, same as CPU and memory above; load
+   * average and the two rates below have no such ceiling, so they draw no
+   * tone at all rather than one computed against a number that does not
+   * mean "how full." */
+  const swapPercent = stats.swap === null || stats.swap.totalKb <= 0 ? null : (stats.swap.usedKb / stats.swap.totalKb) * 100;
+  const swapTone: MeterTone = swapPercent === null ? 'ok' : meterTone(swapPercent);
+  const diskPercent = stats.disk === null ? null : (stats.disk.usedKb / stats.disk.totalKb) * 100;
+  const diskTone: MeterTone = diskPercent === null ? 'ok' : meterTone(diskPercent);
 
   return (
     <div className="h-full overflow-y-auto p-4">
@@ -855,6 +871,7 @@ function HomeTab({ handle, stats }: { readonly handle: SessionHandle; readonly s
               samples={history.swapPercent}
               max={100}
               formatValue={formatPercentAxis}
+              tone={swapTone}
             />
           )}
 
@@ -890,6 +907,7 @@ function HomeTab({ handle, stats }: { readonly handle: SessionHandle; readonly s
               samples={history.diskPercent}
               max={100}
               formatValue={formatPercentAxis}
+              tone={diskTone}
             />
           )}
 
