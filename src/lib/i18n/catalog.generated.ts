@@ -585,6 +585,7 @@ export const SOURCE_CATALOG = {
   "terminal.paste.line": "Paste one line?",
   "terminal.paste.more": "and {count} more",
   "terminal.paste.title": "Paste {count} lines?",
+  "toolbar.broadcast.label": "Broadcast",
   "toolbar.broadcast.off": "Type into every group at once",
   "toolbar.broadcast.on": "Stop typing into every group at once",
   "toolbar.macros.hide": "Hide macros",
