@@ -1065,7 +1065,7 @@ def sync_icon(on):
     return (f'<span style="display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; color: {color};">'
             f'{ic("broadcast", 13)}</span>')
 
-def broadcast_button(armed, count=None):
+def broadcast_button(armed, count=None, labeled=False):
     """The toolbar's own arm/disarm-everyone shortcut, confirmed directly
     against this session's earlier read of ADR-0021's history: it sits in
     the toolbar, before the split/shape control, rather than repeating the
@@ -1076,13 +1076,29 @@ def broadcast_button(armed, count=None):
     palette, just made visible; pressing one group's own switch afterward
     still opts just that rectangle out. Two controls, two questions, the
     same distinction ADR-0021 already drew between the shape control and
-    the sync switch, not a return to conflating them."""
+    the sync switch, not a return to conflating them.
+
+    `labeled` (exploratory, `build_sessions_proposal_toolbar`): the real
+    `BroadcastButton.tsx` carries a `title`/`aria-label` already
+    (`toolbar.broadcast.off`/`.on`), so the action is named on hover, not
+    unnamed. But it sits unlabeled among `MacrosButton` and `ShapeControl`
+    at a glance, and it is the one of the three that changes what typing
+    *does* rather than how something is arranged, ADR-0020 rule 7, "safety
+    outranks tidiness," is the reason to spend width on this one and not
+    the other two. The caption reuses `map.menu.broadcast` ("Broadcast"),
+    the shortest string already in the catalogue for this action, rather
+    than inventing new copy; a toolbar-specific key is a real follow-up if
+    this is accepted, named rather than assumed here."""
     color = T['warn'] if armed else T['faint']
     bg = f'background: {T["warnsoft"]};' if armed else ''
     badge = ''
     if armed and count is not None:
         badge = (f'<span class="mono" style="position: absolute; right: -3px; bottom: -3px; min-width: 13px; height: 13px; border-radius: 7px;'
                  f' background: {T["warn"]}; color: {T["base"]}; font-size: 8.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; padding: 0 3px;">{count}</span>')
+    if labeled:
+        label = f'<span style="font-size: 11px; font-weight: 600; color: {color};">Broadcast</span>'
+        return (f'<div style="position: relative; height: 24px; padding: 0 8px 0 7px; border-radius: 4px; {bg}'
+                f' display: flex; align-items: center; gap: 6px; color: {color};">{ic("broadcast", 14)}{label}{badge}</div>')
     return (f'<div style="position: relative; width: 28px; height: 24px; border-radius: 4px; {bg}'
             f' display: flex; align-items: center; justify-content: center; color: {color};">{ic("broadcast", 15)}{badge}</div>')
 
@@ -1845,6 +1861,65 @@ def build_sessions_proposal():
 """
     write("SessionsProposal.dc.html", HEAD + page_html + FOOT)
 
+
+# ---------- exploratory: the toolbar's leading slot, and one labeled action (2026-09-15)
+#
+# `Toolbar.tsx` names its own leading slot as unused for Sessions today
+# ("Nothing currently occupies this... the slot exists so a workspace can
+# claim it"). Map already claims it (`MapCrumb`); this proposes Sessions
+# claim it too, with the one thing the sidebar cannot say once
+# `Collapsed.dc.html` closes it (ADR-0020 rule 4, "the sidebar closes, the
+# rail does not"): which session is active and how it is doing, so closing
+# the sidebar for room does not also give up the one line that named what
+# is on screen. Second, `BroadcastButton`'s own `labeled=True` (defined
+# above with `broadcast_button`): the real component already carries a
+# `title`/`aria-label`, so this is not fixing a missing name, it is making
+# the one action that changes where typing goes (ADR-0020 rule 7) readable
+# without a hover, the way `shell_selector()` already draws "Classic"/"Map"
+# as text rather than an unlabeled icon for the same reason. `MacrosButton`
+# and `ShapeControl` stay icon-only: both are arrangement, not a change in
+# what a keystroke does, so rule 7 does not ask the same of them. Nothing
+# here is accepted; `Main.dc.html`, `Groups.dc.html` and `SessionsProposal.dc.html`
+# are still the shipped and previously-proposed shapes.
+def build_sessions_proposal_toolbar():
+    occupied = group(
+        solo_tab_header("web-01", "deploy@10.4.1.20"),
+        term(prompt("deploy", "web-01", "systemctl status nginx") + "\n"
+             + f'<span style="color: {T["ok"]};">&#9679;</span> nginx.service - A high performance web server\n'
+             + f'     Active: <span style="color: {T["ok"]};">active (running)</span> since Mon 2026-08-24 09:12:04 UTC\n\n'
+             + prompt("deploy", "web-01") + CURSOR),
+        border=T['accent'],
+    )
+    grid = f"""      <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; padding: 12px;">
+        <div style="flex: 1; min-height: 0;">{occupied}</div>
+        <div style="flex: 1; min-height: 0;">{empty_group_slot()}</div>
+      </div>"""
+
+    sidebar = sessions_sidebar(active="web-01", states={"web-01": "ok"})
+    st = status(stat_session("deploy@10.4.1.20") + "\n" + sep() + "\n" + stat_text("198 x 42"),
+                stat_text("SYNC OFF", T['faint'], mono=False))
+    crumb = (f'<span style="display: flex; align-items: center; gap: 8px;">'
+             f'<span class="dot" style="background: {T["ok"]};"></span>'
+             f'<span style="font-size: 12px; font-weight: 600; color: {T["ink"]};">web-01</span>'
+             f'<span class="mono" style="font-size: 11px; color: {T["faint"]};">deploy@10.4.1.20</span>'
+             f'<span class="mono" style="font-size: 11px; color: {T["faint"]};">&middot; 14 ms</span></span>')
+
+    page_html = f"""
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{plain_titlebar()}
+{toolbar_row(left_html=crumb, right_html=broadcast_button(False, labeled=True) + toolbar_group_divider() + shapes('rows') + toolbar_group_divider() + theme_language_toolbar_controls())}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{home_rail(workspace="sessions", badge="1")}
+{sidebar}
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: {T['base']};">
+{grid}
+    </div>
+  </div>
+{st}
+</div>
+"""
+    write("SessionsProposalToolbar.dc.html", HEAD + page_html + FOOT)
+
 def warn_chip(count):
     """`StatusBar.tsx`'s own `syncing` chip, redrawn verbatim: the warning
     triangle, warn-soft background, the count of hosts actually receiving.
@@ -2507,6 +2582,114 @@ def build_home_hosts_proposal_context():
     write("HomeHostsProposalContext.dc.html", HEAD + page_html + FOOT)
 
 
+# ---------- exploratory: a book that says something before you pick a page (2026-09-15)
+#
+# From a direct run of the shipped app: `EmptyPanel.tsx`'s plain shape (mark,
+# wordmark, one line of hint), the same component `Empty.dc.html` uses for
+# Sessions with nothing open, reads right there, an activity with nothing
+# happening yet is honestly empty. Home is not that: eleven hosts already
+# exist the moment this screen opens, so "nothing selected" is not "nothing
+# to say," and the same big centred mark reads as a screen that has not
+# loaded rather than a book waiting to be opened. `Toolbar.tsx`'s own
+# `leading` slot is named, in the tree today, as empty for every workspace
+# but Map ("Nothing currently occupies this for Sessions or SFTP"); Home
+# inherits that same gap. Both fixed here together, since both are the same
+# complaint: this screen says less than it already knows.
+#
+# Nothing here touches ADR-0052's own reasoning, which this session agrees
+# with rather than works around: the fix is not a card grid, it is the
+# existing row language (`host_row`, its `tag` and state-dot already built
+# for `SessionsSidebar`) saying one more true thing, and the empty-of-
+# selection panel saying it too. Nothing here is accepted; `HomeHosts.dc.html`
+# and `HomeHostsEmpty.dc.html` are still the shipped screens.
+
+def recent_host_row(name, who, when, state="ok"):
+    """One line of `EmptyPanel`'s new summary: the same dot `host_row`
+    already draws (`SessionsSidebar.tsx`'s own state), a name and address,
+    and a relative time, since "which of my hosts have I actually used"
+    is the one question neither the list (alphabetical, or bastions
+    first) nor the old empty panel could answer."""
+    dots = {"ok": f'background: {T["ok"]};', "saved": f'border: 1.5px solid {T["off"]}; box-sizing: border-box;'}
+    return (f'<div style="display: flex; align-items: center; gap: 10px; padding: 7px 4px;">'
+            f'<span class="dot" style="{dots[state]} flex: none;"></span>'
+            f'<div style="display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1;">'
+            f'<span style="font-size: 12.5px; color: {T["ink2"]};">{name}</span>'
+            f'<span class="mono" style="font-size: 10.5px; color: {T["off"]};">{who}</span></div>'
+            f'<span style="font-size: 10.5px; color: {T["faint"]}; flex: none;">{when}</span></div>')
+
+def home_summary_panel(total, connected, recent_rows_html):
+    """Replaces `empty_host_panel()` for Home only: the mark shrinks and
+    moves to the top, matching where it already sits in Map's own crumb
+    (`map_toolbar`, the home icon leading the trail) rather than the
+    hero-centred treatment Sessions' true-empty state keeps, and the
+    freed centre holds the one list an unopened book can still show,
+    what was opened last, rather than nothing."""
+    mark_small = (f'<svg width="22" height="22" viewBox="0 0 24 24" fill="none">'
+                  f'<circle cx="9.5" cy="12" r="7" stroke="{T["bstart"]}" stroke-width="1.4"></circle>'
+                  f'<circle cx="14.5" cy="12" r="7" stroke="{T["bend"]}" stroke-width="1.4"></circle>'
+                  f'<path d="M12 6.5v11M12 10l3-2.5M12 14l3 2.5M12 12l-2.6-2.2" stroke="{T["brune"]}" stroke-width="1.4" stroke-linecap="round"></path></svg>')
+    return f"""      <div style="flex: 1; display: flex; flex-direction: column; padding: 40px 44px; max-width: 480px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          {mark_small}<span style="font-size: 15px; font-weight: 700; color: {T['ink']};">Runic SSH</span>
+        </div>
+        <div style="margin-top: 10px; font-size: 12.5px; color: {T['muted']};">Pick a host on the left to change it, or add one.</div>
+        <div style="margin-top: 30px; display: flex; align-items: baseline; gap: 14px;">
+          <span class="mono" style="font-size: 22px; font-weight: 700; color: {T['ink']};">{total}</span>
+          <span style="font-size: 11.5px; color: {T['faint']};">hosts saved</span>
+          <span style="width: 1px; height: 14px; background: {T['line']};"></span>
+          <span class="mono" style="font-size: 22px; font-weight: 700; color: {T['ok']};">{connected}</span>
+          <span style="font-size: 11.5px; color: {T['faint']};">connected now</span>
+        </div>
+        <div style="margin-top: 30px; padding-top: 18px; border-top: 1px solid {T['line']};">
+          {section_label("Recently used")}
+          <div style="margin-top: 8px; display: flex; flex-direction: column;">
+{recent_rows_html}
+          </div>
+        </div>
+      </div>"""
+
+def build_home_hosts_proposal_richness():
+    """Home with nothing picked, redrawn: `Toolbar.tsx`'s own leading slot
+    carries the same saved/connected count `home_summary_panel` repeats at
+    a glance so it is readable before scrolling to the panel at all, and
+    the panel itself shows what `HomeHostsEmpty.dc.html`'s hero mark could
+    not, which of the eleven hosts this book actually holds have been
+    opened recently, and whether each is live right now. The three rows
+    are the same fixture `home_hosts_rows()` draws on the left
+    (`runic-bastion`, `runic-target-a`, `dev-web`), told a second way
+    rather than inventing hosts a reviewer cannot find in the list beside
+    them.
+
+    The map path does not need this fix: a component on the floor already
+    carries its own name, address and a dot for saved-versus-connected
+    (`map_component`), so "what have I used and is it live" is answered by
+    looking at the floor itself rather than by a panel standing in for an
+    empty selection. This is Classic-only, the same way ADR-0066 already
+    keeps the two shells answering some questions in different shapes
+    rather than forcing one screen to serve both."""
+    rows = home_hosts_rows()
+    recent = "\n".join([
+        recent_host_row("runic-target-a", "via runic-bastion", "2 min ago", "ok"),
+        recent_host_row("dev-web", "10.0.1.5", "1 h ago", "saved"),
+        recent_host_row("runic-bastion", "127.0.0.1", "3 h ago", "ok"),
+    ])
+    summary = f'<span style="font-size: 12px; color: {T["muted"]};">11 hosts &middot; <span style="color: {T["ok"]};">2 connected</span></span>'
+    body = hosts_shell(rows, home_summary_panel(11, 2, recent), show_filter=True)
+    st = status(stat_text("No host selected", T['faint']), stat_text("11 hosts", T['faint']))
+    page_html = f"""
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{plain_titlebar()}
+{toolbar_row(left_html=summary, right_html=theme_language_toolbar_controls())}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{home_rail(workspace="home")}
+{body}
+  </div>
+{st}
+</div>
+"""
+    write("HomeHostsProposalRichness.dc.html", HEAD + page_html + FOOT)
+
+
 def sftp_empty_drop(title, body):
     """`EmptyPanel.tsx`'s own `variant='group'` shape: the same dimmed
     rune `empty_host_panel` draws at full size and beside the wordmark,
@@ -2842,12 +3025,27 @@ def system_glyph():
         <path d="M6.5 8h5M6.5 11h3"></path>
       </svg>"""
 
-def area_chart(values, max_label, mid_label, zero_label, start_time, end_time):
+def area_chart(values, max_label, mid_label, zero_label, start_time, end_time, tone="accent"):
     """The shape `AreaChart` in `MonitorWorkspace.tsx` draws for real: two
     gridlines, a filled area under one series, the line on top, axis labels
     beside it as ordinary text rather than inside the scaled SVG. Fake
     numbers, real shape: this is what a reading over a few minutes actually
-    looks like, not a flat line nobody would mistake for one."""
+    looks like, not a flat line nobody would mistake for one.
+
+    `tone` (exploratory, `build_monitor_proposal_tone`): `hero_chart`
+    already colors its line and fill by `MeterTone` when a reading is
+    outside the ok range; this card-sized chart never could, so a card in
+    trouble looked exactly like one that was fine, one accent blue for
+    everything regardless of severity. Default stays `"accent"`, the one
+    color every shipped `Monitor.dc.html` card already draws, so no
+    existing call site changes what it renders."""
+    tones = {
+        "accent": (T['accent'], T['accentsoft']),
+        "ok": (T['ok'], T['oksoft']),
+        "warn": (T['warn'], T['warnsoft']),
+        "danger": (T['danger'], T['dangersoft']),
+    }
+    line_color, fill_color = tones[tone]
     width, height = 220, 56
     n = len(values)
     step = width / (n - 1)
@@ -2855,10 +3053,10 @@ def area_chart(values, max_label, mid_label, zero_label, start_time, end_time):
         return height - max(0.0, min(1.0, v)) * height
     pts = " ".join(f"{i * step:.1f},{y(v):.1f}" for i, v in enumerate(values))
     area = f"0,{height} {pts} {width},{height}"
-    chart = f"""<svg viewBox="0 0 {width} {height}" style="width: 100%; height: {height}px; display: block; color: {T['accent']};">
+    chart = f"""<svg viewBox="0 0 {width} {height}" style="width: 100%; height: {height}px; display: block; color: {line_color};">
             <line x1="0" y1="0" x2="{width}" y2="0" stroke="{T['line']}" stroke-width="1"></line>
             <line x1="0" y1="{height / 2:.1f}" x2="{width}" y2="{height / 2:.1f}" stroke="{T['line']}" stroke-width="1"></line>
-            <polygon points="{area}" fill="{T['accentsoft']}"></polygon>
+            <polygon points="{area}" fill="{fill_color}"></polygon>
             <polyline points="{pts}" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></polyline>
           </svg>"""
     return f"""<div style="display: flex; flex-direction: column; gap: 4px;">
@@ -2873,13 +3071,13 @@ def area_chart(values, max_label, mid_label, zero_label, start_time, end_time):
           </div>
         </div>"""
 
-def metric_card(title, value, values, max_label, mid_label, zero_label="0%", start_time="4:02 PM", end_time="4:04 PM"):
+def metric_card(title, value, values, max_label, mid_label, zero_label="0%", start_time="4:02 PM", end_time="4:04 PM", tone="accent"):
     return f"""<div style="border: 1px solid {T['line']}; background: {T['chrome']}; border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
           <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px;">
             <span style="font-size: 12px; font-weight: 600; color: {T['ink2']};">{title}</span>
             <span class="mono" style="font-size: 15px; font-weight: 600; color: {T['ink']};">{value}</span>
           </div>
-          {area_chart(values, max_label, mid_label, zero_label, start_time, end_time)}
+          {area_chart(values, max_label, mid_label, zero_label, start_time, end_time, tone)}
         </div>"""
 
 def filesystem_row(mount, used_label, total_label, percent, tone="ok"):
@@ -2958,6 +3156,72 @@ def build_monitor():
       </div>"""
     st = status(stat_text("web-01", T['muted'], mono=False), stat_text("6 hosts saved", T['faint']))
     write("Monitor.dc.html", page(body, sidebar, home_rail(workspace="monitor"), st, show_shapes=False))
+
+# ---------- exploratory: tone on the metric cards, not only the two hero ones (2026-09-15)
+#
+# From a direct comparison against SSHDesk's own monitoring screen: its five
+# smaller cards each carry a color, and next to it this screen's own five
+# (Swap, Load, Network, Disk usage, Disk I/O) all draw the same accent blue
+# regardless of the number beside them, so a card in trouble reads exactly
+# like one that is fine. Copying SSHDesk's actual rule was rejected on
+# sight: it assigns one fixed hue per metric *type* (teal always means CPU,
+# amber always means disk) whether or not anything is wrong, which is
+# decoration, not signal, and reads against ADR-0020 rule 5 ("colour is the
+# second signal, never the only one") and rule 6 ("no interface that lies").
+# `hero_chart` already had the right rule, `MeterTone`'s own three colors,
+# tied to the number itself rather than to which card it sits in; this
+# extends that same rule, and `meterTone()`'s own real 70/90 cutoffs
+# (`meter.ts`), to the five smaller cards, and to the filesystem this host is
+# actually running out of. Nothing here is accepted; `Monitor.dc.html` is
+# still the shipped screen and its own numbers are untouched.
+def build_monitor_proposal_tone():
+    """A host having a worse afternoon than `Monitor.dc.html`'s own fixture:
+    swap and load have climbed with it, not just the one mount already
+    flagged. `meterTone()`'s cutoffs, applied by hand to fixture numbers
+    rather than computed, since this file draws mockups, not the meter:
+    74% and 81% both cross 70 (warn), 82% does too, 93% crosses 90
+    (danger). Network and Disk I/O stay the plain accent color on purpose:
+    a transfer rate has no fixed ceiling `meterTone()` could read as "too
+    full," so nothing here invents one for it. Disk usage and the
+    filesystem row for `/` agree with each other for the first time, since
+    they are the same reading told twice today (`stats.disk`, one root
+    mount) and had no reason to disagree."""
+    sidebar = monitor_sidebar(active="web-01")
+    fs_rows = "\n".join([
+        filesystem_row("/", "32.8 GB", "40 GB", 82, "warn"),
+        filesystem_row("/boot", "112 MB", "512 MB", 22, "ok"),
+        filesystem_row("/data", "890 GB", "953 GB", 93, "danger"),
+    ])
+    body = f"""{monitor_pane_header("web-01", "deploy@10.4.1.20")}
+{monitor_tabs("home")}
+      <div style="flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px;">
+        {identity_overview_card("Debian GNU/Linux 13 (trixie)", "web-01", "Linux 6.6.87.2 x86_64", "Intel(R) Xeon(R) CPU E5-2670 v3", "14d 6h", 71, "warn", 62, "warn")}
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          {section_label("CPU & memory")}
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            {hero_chart("CPU usage", "71%", [0.3, 0.4, 0.5, 0.55, 0.6, 0.68, 0.71], "100%", "50%", "0%", "4:02 PM", "4:04 PM", tone="warn")}
+            {hero_chart("Memory usage", "62%", [0.5, 0.55, 0.6, 0.58, 0.63, 0.6, 0.62], "100%", "50%", "0%", "4:02 PM", "4:04 PM", tone="warn")}
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          {section_label("Swap, load & network")}
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+            {metric_card("Swap usage", "74%", [0.2, 0.35, 0.45, 0.55, 0.6, 0.68, 0.74], "100%", "50%", tone="warn")}
+            {metric_card("Load average", "3.24", [0.3, 0.45, 0.55, 0.6, 0.7, 0.75, 0.81], "4.00", "2.00", zero_label="0.00", tone="warn")}
+            {metric_card("Network", "&#8595;12.4 KB/s &#8593;3.1 KB/s", [0.1, 0.4, 0.2, 0.6, 0.3, 0.5, 0.31], "40 KB/s", "20 KB/s", zero_label="0 KB/s")}
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          {section_label("Disk usage & I/O")}
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            {metric_card("Disk usage", "82%", [0.4, 0.5, 0.6, 0.68, 0.74, 0.78, 0.82], "100%", "50%", tone="warn")}
+            {metric_card("Disk I/O", "&#8595;4.2 MB/s &#8593;890 KB/s", [0.2, 0.5, 0.35, 0.8, 0.4, 0.6, 0.42], "10 MB/s", "5 MB/s", zero_label="0 MB/s")}
+          </div>
+        </div>
+        {filesystems_card(fs_rows)}
+      </div>"""
+    st = status(stat_text("web-01", T['muted'], mono=False), stat_text("6 hosts saved", T['faint']))
+    write("MonitorProposalTone.dc.html", page(body, sidebar, home_rail(workspace="monitor"), st, show_shapes=False))
 
 def ring_gauge(label, value_label, percent, tone="ok", size=72):
     """A Grafana-style dial: `MeterTone`'s own three colors (`meter.ts`)
@@ -3445,15 +3709,30 @@ def map_pin(x, y):
     return (f'<span title="Placed by hand; the others flow around it" style="position: absolute; left: {x}px; top: {y}px; width: 14px; height: 14px; border-radius: 50%; background: {T["base"]}; border: 1px solid {T["accent"]}; display: flex; align-items: center; justify-content: center;">'
             f'<svg viewBox="0 0 24 24" fill="none" stroke="{T["accent"]}" stroke-width="2.4" stroke-linecap="round" style="width: 9px; height: 9px;"><path d="M12 17v5M8 3h8l-1 6 3 3H6l3-3z"></path></svg></span>')
 
-def map_monitor_body(cpu, mem):
+def map_monitor_body(cpu, mem, cpu_tone=None, mem_tone=None):
     """A monitor's window body at map size: the two dials the Monitor
     workspace opens with, reduced to two bars, which is all the cell has room
-    for when a vision fills the screen."""
+    for when a vision fills the screen.
+
+    `cpu_tone`/`mem_tone` (exploratory, `build_map_proposal_tone`): the two
+    bars always drew `T['accent']` and `T['bend']`, one color pair
+    regardless of the number beside it, so a map window carried no more
+    warning than the fixed reading on `map_component`'s own closed glyph.
+    `metric_card`/`area_chart` gained the same kind of tone this session
+    (`build_monitor_proposal_tone`); this is that fix's map-side half, not
+    a second design, since the map draws its own compact chrome for every
+    surface (`map_window`, `map_terminal_body`) rather than reusing
+    Sessions' or Monitor's full-size one. Default `None` keeps both bars
+    exactly as `build_map`/`build_map_component`/`build_map_vision*`
+    already ship them."""
+    tones = {"ok": T['ok'], "warn": T['warn'], "danger": T['danger'], None: None}
+    cpu_color = tones[cpu_tone] or T['accent']
+    mem_color = tones[mem_tone] or T['bend']
     bar = lambda label, pct, color: (f'<div style="display: flex; align-items: center; gap: 10px;"><span style="width: 34px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; color: {T["faint"]};">{label}</span>'
                                      f'<span style="flex: 1; height: 6px; border-radius: 3px; background: {T["raised"]}; overflow: hidden;"><span style="display: block; width: {pct}%; height: 100%; background: {color};"></span></span>'
                                      f'<span class="mono" style="width: 36px; text-align: right; font-size: 11px; color: {T["ink2"]};">{pct}%</span></div>')
     return (f'<div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; background: {T["panel"]}; flex: 1;">'
-            + bar("CPU", cpu, T["accent"]) + bar("MEM", mem, T["bend"])
+            + bar("CPU", cpu, cpu_color) + bar("MEM", mem, mem_color)
             + f'<span class="mono" style="font-size: 10.5px; color: {T["faint"]};">up 41 days &middot; load 0.42 0.37 0.31</span></div>')
 
 def build_map_vision():
@@ -4313,6 +4592,31 @@ def build_map_component():
     st = status(stat_text("5 components", T['muted'], mono=False), stat_text("3 connected", T['faint']))
     write("MapComponent.dc.html", page(body, None, home_rail(workspace="map", shell="map"), st, show_shapes=False))
 
+
+# ---------- exploratory: the map's own half of the metric-tone fix (2026-09-15)
+#
+# `map_monitor_body`'s two bars always drew one fixed color each, `accent`
+# for CPU and `bend` for memory, the same "one color regardless of the
+# number" gap `build_monitor_proposal_tone` names for the full-size cards.
+# The map does not reuse those cards, every surface on the floor draws its
+# own compact chrome (`map_window`, `map_terminal_body`), so the fix has to
+# be redrawn here rather than inherited: this is the map's own path, not
+# the same artboard as the classic one. Two monitor windows open at once,
+# one host having the same bad afternoon `MonitorProposalTone.dc.html`
+# gave `web-01` (71/62, both warn under `meterTone()`'s cutoffs), one an
+# ordinary host beside it (12/34, both ok), so the difference reads without
+# opening either. Nothing here is accepted; `Map.dc.html` and
+# `MapComponent.dc.html` keep drawing the fixed accent/bend pair.
+def build_map_proposal_tone():
+    label = lambda x, y, text: f'<span style="position: absolute; left: {x}px; top: {y}px; transform: translateX(-50%); font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: {T["faint"]};">{text}</span>'
+    inner = (map_window("monitor", "web-01", "deploy@10.4.1.20", map_monitor_body(71, 62, cpu_tone="warn", mem_tone="warn"), 380, 260, 420, 220)
+             + label(380, 130, "STRAINED, BOTH BARS WARN")
+             + map_window("monitor", "db-prod", "postgres@10.4.1.31", map_monitor_body(12, 34, cpu_tone="ok", mem_tone="ok"), 950, 260, 420, 220, focused=False)
+             + label(950, 130, "ORDINARY, BOTH BARS OK"))
+    body = map_toolbar() + map_floor(inner)
+    st = status(stat_text("2 components", T['muted'], mono=False), stat_text("2 connected", T['faint']))
+    write("MapProposalTone.dc.html", page(body, None, home_rail(workspace="map", shell="map"), st, show_shapes=False))
+
 def build_map_host_popup():
     """The host popup over the map: the Home wizard's own General, Topology
     and Access sections in a dialog, reached from the picker, the window's
@@ -4355,13 +4659,13 @@ else:
                build_sftp_selection, build_sftp_delete_confirm,
                build_terminal_motd,
                build_sessions_proposal, build_sessions_proposal_broadcast,
-               build_sessions_proposal_broadcast_multi,
+               build_sessions_proposal_broadcast_multi, build_sessions_proposal_toolbar,
                build_home_hosts, build_home_hosts_common_case, build_home_hosts_empty, build_home_collapsed, build_home_delete_confirm,
-               build_home_hosts_proposal_context,
+               build_home_hosts_proposal_context, build_home_hosts_proposal_richness,
                build_home_hosts_credential, build_home_hosts_unknown_key, build_home_hosts_topology,
-               build_monitor, build_monitor_processes, build_monitor_ports,
+               build_monitor, build_monitor_proposal_tone, build_monitor_processes, build_monitor_ports,
                build_monitor_systemd, build_monitor_logs, build_monitor_hosts_empty,
-               build_map, build_map_component, build_map_host_popup, build_map_lines,
+               build_map, build_map_component, build_map_proposal_tone, build_map_host_popup, build_map_lines,
                build_map_vision, build_map_vision_full, build_map_layer, build_map_layer_inside,
                build_macro_editor,
                build_anatomy, build_tokens,
