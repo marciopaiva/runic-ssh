@@ -83,11 +83,11 @@ If the decision is architectural (new dependency, IPC contract change,
 credential handling, capability widening, anything expensive to reverse), write
 an ADR with the `/adr` skill before moving on, and **stop for approval**.
 
-If the decision changes what a screen looks like, a new surface or a visible
-adjustment to an existing one, draw or update it in `design/canvas/` first
-(`design/canvas/README.md`), and present that for review the same way an ADR
-gets presented, before Phase 4. This check is independent of the one above:
-a change too small for an ADR can still need the canvas.
+If the decision changes what a screen looks like, implement it directly and
+review it by running the app (`pnpm tauri dev`), not by drawing it first in a
+separate system; `design/canvas/` served that role and was retired (CLAUDE.md
+section 4). Write an ADR only if the visual decision is also architectural
+under the check above.
 
 Otherwise state which option you are taking and continue.
 

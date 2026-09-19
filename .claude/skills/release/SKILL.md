@@ -42,12 +42,11 @@ found already correct. "I updated the changelog" is not an answer to this list.
 | `docs/testing.md` | how a person drives whatever shipped. Anything a test cannot assert belongs here or it is untestable forever |
 | `docs/security-model.md` | only if the change moved data somewhere new, and then it is required |
 | `docs/adr/` | an ADR for anything architectural, via `/adr`, committed with the change and not after |
-| `design/canvas/` | **an artboard per session surface.** A new screen with no drawing is design debt, and nothing tests for it |
 | `src/locales/*.json` | all three catalogs, and `pnpm typecheck` regenerates the typed catalog |
 | GitHub milestones | close the one that shipped, open the next |
 
-Two of these have no guard at all. `docs/testing.md` and `design/canvas/` are
-the ones that go missing, every time, because nothing fails when they do.
+One of these has no guard at all. `docs/testing.md` is the one that goes
+missing, every time, because nothing fails when it does.
 
 Then run the five commands from section 8 of `CLAUDE.md` in their loud form and
 quote the real output. `pnpm gate` is for the edit loop and is not evidence.

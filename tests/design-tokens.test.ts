@@ -17,111 +17,7 @@ import { describe, expect, it } from 'vitest';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 const tokensFile = join(repoRoot, 'src/styles/tokens.css');
-const canvasFile = join(repoRoot, 'design/canvas/gen.py');
 const entryFile = join(repoRoot, 'src/main.tsx');
-
-/**
- * The short names the canvas generator uses, against the tokens they were
- * lifted from.
- *
- * `gen.py` says at the top that its palette comes from this file. Nothing made
- * that true, and for a while it was not: the canvas was rebuilt from the
- * refined values while the tree still carried the ones before them, so the
- * record and the application disagreed about what colour the interface is.
- *
- * Non-colour tokens (motion, shadows, radius, z-index, glass) are included
- * here for parity checking but are not validated by the hex regex below;
- * they are checked by the full token parity test instead.
- */
-const CANVAS_NAMES: Readonly<Record<string, string>> = {
-  base: 'surface-base',
-  panel: 'surface-panel',
-  chrome: 'surface-chrome',
-  raised: 'surface-raised',
-  overlay: 'surface-overlay',
-  terminal: 'surface-terminal',
-  input: 'surface-input',
-  line: 'border-subtle',
-  line2: 'border-strong',
-  ink: 'text-primary',
-  ink2: 'text-secondary',
-  muted: 'text-muted',
-  faint: 'text-faint',
-  off: 'text-disabled',
-  accent: 'accent',
-  accent2: 'accent-bright',
-  accentsoft: 'accent-soft',
-  bstart: 'brand-start',
-  bend: 'brand-end',
-  brune: 'brand-rune',
-  ok: 'state-ok',
-  oksoft: 'state-ok-soft',
-  warn: 'state-warn',
-  warnsoft: 'state-warn-soft',
-  danger: 'state-danger',
-  dangertext: 'state-danger-text',
-  dangersoft: 'state-danger-soft',
-  // Motion
-  duration_fast: 'duration-fast',
-  duration_normal: 'duration-normal',
-  duration_slow: 'duration-slow',
-  easing_standard: 'easing-standard',
-  easing_emphasized: 'easing-emphasized',
-  easing_decelerated: 'easing-decelerated',
-  // Shadow scale
-  shadow_1: 'shadow-1',
-  shadow_2: 'shadow-2',
-  shadow_3: 'shadow-3',
-  shadow_4: 'shadow-4',
-  shadow_5: 'shadow-5',
-  // Radius scale
-  radius_sm: 'radius-sm',
-  radius_md: 'radius-md',
-  radius_lg: 'radius-lg',
-  radius_xl: 'radius-xl',
-  radius_full: 'radius-full',
-  // Z-index scale
-  z_dropdown: 'z-dropdown',
-  z_tooltip: 'z-tooltip',
-  z_modal: 'z-modal',
-  z_toast: 'z-toast',
-  // Glass/blur
-  glass_blur: 'glass-blur',
-  glass_opacity: 'glass-opacity',
-};
-
-/** One of `gen.py`'s palette dictionaries, as token name to value. */
-function canvasPalette(name: 'T' | 'LIGHT'): Map<string, string> {
-  const source = readFileSync(canvasFile, 'utf8');
-  const start = source.indexOf(`${name} = dict(`);
-  expect(start, `gen.py has no ${name} palette`).toBeGreaterThan(-1);
-
-  // Find the matching closing paren (handles nested parens in shadow values)
-  let depth = 0;
-  let end = start;
-  for (let i = start; i < source.length; i++) {
-    if (source[i] === '(') depth++;
-    else if (source[i] === ')') {
-      depth--;
-      if (depth === 0) {
-        end = i;
-        break;
-      }
-    }
-  }
-  expect(depth, `gen.py ${name} palette has unmatched parens`).toBe(0);
-
-  const body = source.slice(start, end + 1);
-  const found = new Map<string, string>();
-
-  // Match both hex colours and other quoted values (durations, cubic-bezier, shadows, etc.)
-  for (const [, short, value] of body.matchAll(/(\w+)="([^"]+)"/g)) {
-    const token = short === undefined ? undefined : CANVAS_NAMES[short];
-    if (token !== undefined && value !== undefined) found.set(`--rs-${token}`, value);
-  }
-
-  return found;
-}
 
 /** Reads one `selector { … }` block. No block here nests, so this is enough. */
 function block(css: string, selector: string): Map<string, string> {
@@ -285,27 +181,7 @@ function withoutComments(source: string): string[] {
   return out;
 }
 
-describe('the canvas and the tree', () => {
-  /* The canvas is the record of what the interface looks like and this file is
-     what it actually looks like. When they disagree, whoever is implementing
-     decides and the decision is recorded nowhere, which is the failure ADR-0020
-     was written to end. These two are the only mechanical part of that. */
-  it.each([
-    ['dark', 'T', ':root {'],
-    ['light', 'LIGHT', ":root[data-theme='light']"],
-  ] as const)('paints %s in the colours the canvas draws it in', (_label, palette, selector) => {
-    const drawn = canvasPalette(palette);
-    const defined = block(readFileSync(tokensFile, 'utf8'), selector);
-
-    expect(drawn.size).toBe(Object.keys(CANVAS_NAMES).length);
-
-    const drifted = [...drawn.entries()]
-      .filter(([name, value]) => defined.get(name) !== value)
-      .map(([name, value]) => `${name}: canvas ${value}, tokens ${defined.get(name) ?? 'absent'}`);
-
-    expect(drifted, `the canvas and tokens.css disagree:\n  ${drifted.join('\n  ')}`).toEqual([]);
-  });
-
+describe('startup', () => {
   it('does not pin a theme at startup', () => {
     /* `feat/visual-improvements` set `data-theme` to dark in the entry point so
        that the composed palette was what ran. Every light token went on being

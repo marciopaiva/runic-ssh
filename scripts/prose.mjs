@@ -50,9 +50,12 @@ const EXCLUDED = [':(exclude)src/locales', ':(exclude)src/lib/i18n/catalog.gener
 
 /** Runs git and returns stdout, or exits saying which call failed. */
 function git(args) {
-  const result = spawnSync('git', args, { encoding: 'utf8' });
+  // A diff dominated by deletions (a whole directory removed) can clear
+  // Node's default 1 MB pipe buffer well before the process exits.
+  const result = spawnSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   if (result.status !== 0) {
-    console.error(`  git ${args.join(' ')} failed:\n${result.stderr}`);
+    const reason = result.error ? result.error.message : result.stderr;
+    console.error(`  git ${args.join(' ')} failed:\n${reason}`);
     process.exit(2);
   }
   return result.stdout;

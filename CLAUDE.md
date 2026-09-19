@@ -170,12 +170,14 @@ Architectural means: a new dependency, a change to the IPC contract, a change
 to how credentials are stored or transmitted, or a decision that would be
 expensive to reverse.
 
-Anything that changes what a screen looks like, a new surface or a visible
-adjustment to an existing one, gets drawn or updated in `design/canvas/`
-first, following `design/canvas/README.md`. Present it the way an ADR gets
-presented: for review before Phase 4, not after. A change too small to
-warrant an ADR can still be too visible to skip the canvas; the two checks
-are independent; do not treat "no ADR needed" as "no canvas needed."
+Anything that changes what a screen looks like is implemented directly and
+reviewed by running the app (`pnpm tauri dev`), not drawn first in a separate
+system. `design/canvas/` served that purpose from 2026-08-24 to 2026-09-19 and
+was retired: it meant maintaining a second, hand-authored copy of the UI in
+Python, kept in sync with the real one by hand on every change, and it cost
+more than it saved. An ADR is still required only when the visual decision is
+architectural under the definition above; a layout, icon or chrome tweak does
+not need one on its own.
 
 ### Phase 3: Resolve
 
