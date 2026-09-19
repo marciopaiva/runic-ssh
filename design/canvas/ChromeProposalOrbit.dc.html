@@ -1,0 +1,60 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Manrope", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #22b4ef; text-decoration: none; }
+    a:hover { color: #5ec8f5; }
+    .mono { font-family: "JetBrains Mono", "Cascadia Mono", "SF Mono", ui-monospace, monospace; }
+    .ic { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+    .rail-ic { width: 21px; height: 21px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+    .win { width: 42px; display: flex; align-items: center; justify-content: center; color: #8b9fb8; }
+    .grp { background: #060c14; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+    .strip { height: 28px; flex: none; display: flex; align-items: stretch; background: #0a121e; border-bottom: 1px solid #1a2a40; }
+    .tab { display: flex; align-items: center; gap: 7px; padding: 0 11px; border-right: 1px solid #1a2a40; min-width: 0; }
+    .term { flex: 1; padding: 10px 13px; font-size: 12px; line-height: 1.62; color: #c5d4e8; white-space: pre; overflow: hidden; }
+    .dot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+    .row { display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; }
+    .cap { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10.5px; color: #c5d4e8; background: #152536; border: 1px solid #2a4060; border-bottom-width: 2px; border-radius: 4px; padding: 2px 7px; }
+    .grpname { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; }
+    .cur { background: #c5d4e8; color: #060c14; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; position: relative; overflow: hidden; background: radial-gradient(ellipse 900px 500px at 50% -8%, #2bb0e814, transparent 60%), radial-gradient(ellipse 700px 420px at 82% 88%, #b961e612, transparent 55%), #070e18; color: #e8f0fa; font-size: 13px;">
+<div style="position: absolute; inset: 0; padding-top: 96px;"><div class="grp mono" style="height: 100%; background: transparent;"><div class="term mono"><span style="color: #2fc49e;">deploy@web-01</span>:<span style="color: #22b4ef;">~</span>$ docker compose ps
+NAME                 IMAGE                     STATUS         PORTS
+site-web-1           ghcr.io/acme/site:2.14    Up 4 hours     0.0.0.0:8080-&gt;80/tcp
+site-worker-1        ghcr.io/acme/worker:2.14  Up 4 hours
+site-cache-1         redis:7-alpine            Up 4 hours     6379/tcp
+
+<span style="color: #2fc49e;">deploy@web-01</span>:<span style="color: #22b4ef;">~</span>$ <span class="cur"> </span></div></div></div>
+<div style="position: absolute; top: 22px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 40px; padding: 14px 34px; border-radius: 9999px; background: rgba(12,21,34,.82); border: 1px solid #2a4060; box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1); backdrop-filter: blur(8px);">      <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+        <span class="mono" style="font-size: 9px; font-weight: 700; letter-spacing: 0.16em; color: #5a6f88;">PRODUCTION</span>
+        <div style="position: relative; display: flex; align-items: center; gap: 22px;">
+          <div style="position: absolute; left: 17px; right: 17px; top: 50%; height: 1px; background: #2a4060; z-index: 0;"></div>
+          <div style="position: relative; z-index: 1;"><div style="width: 30px; height: 30px; border-radius: 50%; background: #22b4ef; border: none; box-shadow: 0 0 0 5px #22b4ef2e;"></div></div><div style="position: relative; z-index: 1;"><div style="width: 30px; height: 30px; border-radius: 50%; background: transparent; border: 1.6px solid #3a4f6a;"></div></div><div style="position: relative; z-index: 1;"><div style="width: 30px; height: 30px; border-radius: 50%; background: transparent; border: 1.6px solid #e8b04a; box-shadow: 0 0 0 5px #e8b04a2e;"></div></div>
+        </div>
+      </div>      <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+        <span class="mono" style="font-size: 9px; font-weight: 700; letter-spacing: 0.16em; color: #5a6f88;">STAGING</span>
+        <div style="position: relative; display: flex; align-items: center; gap: 22px;">
+          <div style="position: absolute; left: 17px; right: 17px; top: 50%; height: 1px; background: #2a4060; z-index: 0;"></div>
+          <div style="position: relative; z-index: 1;"><div style="width: 30px; height: 30px; border-radius: 50%; background: transparent; border: 1.6px solid #3a4f6a;"></div></div><div style="position: relative; z-index: 1;"><div style="width: 30px; height: 30px; border-radius: 50%; background: transparent; border: 1.6px solid #3a4f6a;"></div></div>
+        </div>
+      </div></div>
+<div style="position: absolute; top: 92px; left: 50%; transform: translateX(-50%);"><span class="mono" style="font-size: 10.5px; color: #8b9fb8;">web-01</span><span class="mono" style="font-size: 10.5px; color: #5a6f88;"> &middot; deploy@10.4.1.20 &middot; connected 18m</span></div>
+<div style="position: absolute; top: 16px; right: 20px; display: flex; align-items: center; gap: 14px; color: #5a6f88;"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M1.5 5h7"></path></svg><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.1"><rect x="1.5" y="1.5" width="7" height="7"></rect></svg><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"></path></svg></div>
+<div style="position: absolute; bottom: 26px; left: 50%; transform: translateX(-50%); width: 460px; display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-radius: 9999px; background: rgba(12,21,34,.82); border: 1px solid #2a4060; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1); backdrop-filter: blur(8px);"><span style="color: #5a6f88;"><svg class="ic" viewBox="0 0 24 24" style="width: 13px; height: 13px;"><circle cx="10.5" cy="10.5" r="6"></circle><path d="M15 15l4.5 4.5"></path></svg></span><span class="mono" style="flex: 1; font-size: 11.5px; color: #5a6f88;">Jump to a host, or run a command&hellip;</span><span class="cap" style="font-size: 9.5px;">&#8984;K</span></div>
+<div style="position: absolute; bottom: 26px; right: 28px; display: flex; align-items: center; gap: 14px; padding: 8px 16px 8px 12px; border-radius: 9999px; background: rgba(12,21,34,.82); border: 1px solid #2a4060; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1); backdrop-filter: blur(8px);"><div style="position: relative; width: 36px; height: 36px;"><svg width="36" height="36" viewBox="0 0 36 36" style="transform: rotate(-90deg);"><circle cx="18" cy="18" r="15" fill="none" stroke="#2a4060" stroke-width="2.5"></circle><circle cx="18" cy="18" r="15" fill="none" stroke="#2fc49e" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="67.9 94.2"></circle></svg><span class="mono" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 8.5px; color: #c5d4e8;">14</span></div><div style="display: flex; flex-direction: column; gap: 2px;"><span class="mono" style="font-size: 9px; color: #5a6f88; letter-spacing: 0.08em;">SYNC OFF</span><span class="mono" style="font-size: 9px; color: #5a6f88; letter-spacing: 0.08em;">1 RECEIVING</span></div></div>
+</div>
+</x-dc>
+</body>
+</html>

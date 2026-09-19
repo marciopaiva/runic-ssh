@@ -1,6 +1,6 @@
 # ADR-0005: Draw our own window chrome, keeping native controls on macOS
 
-* **Status**: Accepted
+* **Status**: Accepted; the chrome's default density revised by ADR-0071
 * **Date**: 2026-08-22
 
 ## Context

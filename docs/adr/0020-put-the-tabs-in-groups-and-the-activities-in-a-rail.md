@@ -1,6 +1,6 @@
 # ADR-0020: Put the tabs in groups and the activities in a rail
 
-* **Status**: Accepted
+* **Status**: Accepted; the rail and tab strip's default visibility revised by ADR-0071
 * **Date**: 2026-08-24
 
 ## Context
