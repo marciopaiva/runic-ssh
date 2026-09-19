@@ -1,6 +1,8 @@
 # ADR-0046: Put workspace controls in a shared toolbar, and give SFTP the Sessions sidebar
 
-* **Status**: Accepted
+* **Status**: Accepted; its shared-toolbar decision stands, but ADR-0072
+  supersedes the specific choice to give SFTP `SessionsSidebar` as a
+  reveal-and-hide panel
 * **Date**: 2026-08-31
 
 ## Context
