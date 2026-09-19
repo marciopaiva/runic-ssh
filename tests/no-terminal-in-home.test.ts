@@ -9,6 +9,15 @@
  * conditional, so switching to Home unmounts every one of them rather than
  * hiding them the way switching tabs *within* Sessions does (ADR-0014).
  *
+ * `SessionBody` now sits between that gate and `TerminalView`: it wraps the
+ * terminal with the facet bar, but mounts unconditionally itself and mounts
+ * exactly one `TerminalView` unconditionally in turn, so the gate still
+ * reaches the terminal through it. The App.tsx checks below follow
+ * `SessionBody`'s own mount site, since that is now the thing the workspace
+ * gate directly controls; the second describe block checks the indirection
+ * itself, that `SessionBody` does not add a second `TerminalView` or hide it
+ * behind a condition of its own.
+ *
  * That is a runtime condition, not a structural one, nothing like the
  * separate bundle `tests/credential-window.test.ts` checks for the
  * credential window. This is the equivalent floor for the wizard's inline
@@ -23,15 +32,24 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-const source = readFileSync(fileURLToPath(new URL('../src/App.tsx', import.meta.url)), 'utf8');
+const here = fileURLToPath(new URL('.', import.meta.url));
+const srcDir = path.join(here, '..', 'src');
+const source = readFileSync(path.join(srcDir, 'App.tsx'), 'utf8');
+const sessionBodySource = readFileSync(path.join(srcDir, 'components', 'SessionBody.tsx'), 'utf8');
 
 describe('nothing renders remote output while Home is showing (ADR-0032)', () => {
-  it('mounts a terminal in exactly one place', () => {
-    const occurrences = [...source.matchAll(/<TerminalView\b/g)];
-    expect(occurrences).toHaveLength(1);
+  it('mounts a SessionBody in exactly one place, and SessionBody mounts exactly one terminal', () => {
+    const sessionBodyOccurrences = [...source.matchAll(/<SessionBody\b/g)];
+    expect(sessionBodyOccurrences).toHaveLength(1);
+
+    /* Unconditional: no `{... && <TerminalView` inside SessionBody, or the
+       gate this file checks around SessionBody's own mount site would stop
+       being the thing that decides whether a terminal renders. */
+    const terminalViewOccurrences = [...sessionBodySource.matchAll(/<TerminalView\b/g)];
+    expect(terminalViewOccurrences).toHaveLength(1);
   });
 
-  it('mounts it only inside the Sessions workspace branch, before Home\'s own', () => {
+  it('mounts SessionBody only inside the Sessions workspace branch, before Home\'s own', () => {
     const sessionsGate = source.indexOf("{workspace === 'sessions' && (\n");
     /* ADR-0052 gave Home a second `workspace === 'home'` gate, for its own
        toolbar row, ahead of the one around Home's `<main>` in the document.
@@ -40,17 +58,17 @@ describe('nothing renders remote output while Home is showing (ADR-0032)', () =>
        a future reindent is caught here rather than this test silently
        finding the wrong one. */
     const homeGate = source.indexOf("        {workspace === 'home' && (");
-    const terminalView = source.indexOf('<TerminalView');
+    const sessionBody = source.indexOf('<SessionBody');
 
     expect(sessionsGate, 'the Sessions workspace gate').toBeGreaterThan(-1);
     expect(homeGate, "the Home workspace gate").toBeGreaterThan(-1);
-    expect(terminalView, 'the TerminalView mount site').toBeGreaterThan(-1);
+    expect(sessionBody, 'the SessionBody mount site').toBeGreaterThan(-1);
 
     /* Between the two gates, not before either: inside the branch that
        unmounts when `workspace` stops being `'sessions'`, and never reached
        once Home's own branch has opened instead. */
-    expect(terminalView).toBeGreaterThan(sessionsGate);
-    expect(terminalView).toBeLessThan(homeGate);
+    expect(sessionBody).toBeGreaterThan(sessionsGate);
+    expect(sessionBody).toBeLessThan(homeGate);
   });
 
   it('gates the Sessions branch on workspace alone, not workspace plus something narrower', () => {
@@ -64,9 +82,6 @@ describe('nothing renders remote output while Home is showing (ADR-0032)', () =>
 });
 
 describe('the map is the one other place a terminal mounts (ADR-0064)', () => {
-  const here = fileURLToPath(new URL('.', import.meta.url));
-  const srcDir = path.join(here, '..', 'src');
-
   function walk(dir: string): string[] {
     return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
       const full = path.join(dir, entry.name);
@@ -74,7 +89,7 @@ describe('the map is the one other place a terminal mounts (ADR-0064)', () => {
     });
   }
 
-  it('mounts TerminalView in App.tsx and MapTerminals.tsx, nowhere else', () => {
+  it('mounts TerminalView in SessionBody.tsx and MapTerminals.tsx, nowhere else', () => {
     const sites = walk(srcDir)
       .filter((file) => /\.tsx?$/.test(file) && !file.endsWith('TerminalView.tsx'))
       .filter((file) => /<TerminalView\b/.test(readFileSync(file, 'utf8')))
@@ -82,7 +97,7 @@ describe('the map is the one other place a terminal mounts (ADR-0064)', () => {
          backslashes on Windows, and CI runs there too. */
       .map((file) => path.relative(srcDir, file).split(path.sep).join('/'))
       .sort();
-    expect(sites).toEqual(['App.tsx', 'components/map/MapTerminals.tsx']);
+    expect(sites).toEqual(['components/SessionBody.tsx', 'components/map/MapTerminals.tsx']);
   });
 
   it('renders the map, and so its stack, only inside the map workspace branch', () => {

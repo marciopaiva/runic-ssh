@@ -65,6 +65,63 @@ export function runningForwardHandles(statuses: readonly ForwardStatus[]): reado
     .map((runtime) => runtime.handle);
 }
 
+/** `map` with `sessionId`'s row appended a new forward, marked as just
+ * having been asked to start. Shared by the saved and the ad-hoc kind: an
+ * ad-hoc forward's own map is otherwise the same shape, keyed the same way,
+ * because nothing about starting one differs from starting a saved one
+ * (`startForward` does not know which kind it was asked to start). */
+export function withAppendedForward(
+  map: ReadonlyMap<string, readonly ForwardStatus[]>,
+  sessionId: string,
+  forward: Forward,
+): ReadonlyMap<string, readonly ForwardStatus[]> {
+  const existing = map.get(sessionId) ?? [];
+  return new Map(map).set(sessionId, [...existing, { forward, runtime: { kind: 'starting' } }]);
+}
+
+/** `map` with the row at `index` in `sessionId`'s own list resolved, or
+ * `map` unchanged when that session has no rows left to resolve: it
+ * disconnected, which clears its entry, before its own start settled. */
+export function resolveForwardIn(
+  map: ReadonlyMap<string, readonly ForwardStatus[]>,
+  sessionId: string,
+  index: number,
+  runtime: ForwardRuntime,
+): ReadonlyMap<string, readonly ForwardStatus[]> {
+  const statuses = map.get(sessionId);
+  if (statuses === undefined) return map;
+  return new Map(map).set(sessionId, resolveForward(statuses, index, runtime));
+}
+
+/** `map` with the row at `index` removed from `sessionId`'s own list,
+ * deleting that session's entry outright once its last row is gone rather
+ * than leaving an empty array behind for `.get` to keep returning. */
+export function withoutForwardAt(
+  map: ReadonlyMap<string, readonly ForwardStatus[]>,
+  sessionId: string,
+  index: number,
+): ReadonlyMap<string, readonly ForwardStatus[]> {
+  const existing = map.get(sessionId);
+  if (existing === undefined) return map;
+  const next = existing.filter((_, at) => at !== index);
+  const result = new Map(map);
+  if (next.length === 0) result.delete(sessionId);
+  else result.set(sessionId, next);
+  return result;
+}
+
+/** `map` with `sessionId`'s own entry removed outright, the cleanup a
+ * disconnect runs regardless of what state its rows were in. */
+export function withoutSession(
+  map: ReadonlyMap<string, readonly ForwardStatus[]>,
+  sessionId: string,
+): ReadonlyMap<string, readonly ForwardStatus[]> {
+  if (!map.has(sessionId)) return map;
+  const next = new Map(map);
+  next.delete(sessionId);
+  return next;
+}
+
 /**
  * Starts one saved forward, dispatched by its own kind.
  *
