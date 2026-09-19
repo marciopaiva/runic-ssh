@@ -27,7 +27,7 @@ T = dict(
     # Z-index scale
     z_dropdown="100", z_tooltip="200", z_modal="300", z_toast="400",
     # Glass/blur
-    glass_blur="8px", glass_opacity="0.08",
+    glass_blur="8px", glass_opacity="0.08", glass_panel="rgba(12, 21, 34, 0.9)",
 )
 
 # The same token names with the values swapped, straight from the light blocks
@@ -56,7 +56,7 @@ LIGHT = dict(
     # Z-index scale (same values)
     z_dropdown="100", z_tooltip="200", z_modal="300", z_toast="400",
     # Glass/blur (slightly lower opacity for light)
-    glass_blur="8px", glass_opacity="0.06",
+    glass_blur="8px", glass_opacity="0.06", glass_panel="rgba(255, 255, 255, 0.92)",
 )
 
 import sys
@@ -523,8 +523,18 @@ def rowkeys(label, keys):
             f'<span style="font-size: 13px; color: {T["muted"]};">{label}</span>'
             f'<span style="display: flex; align-items: center; gap: 4px;">{caps}</span></div>')
 
-# ---------- 2. one group
+# ---------- 2. one group, sidebar summoned over it
 def build_main():
+    """ADR-0071 Phase 4, shipped: the sidebar is a floating overlay over the
+    full-bleed terminal, not a reflowed column, so this is drawn the way
+    `ChromeProposalOverlay.dc.html` first proposed it rather than through
+    `page()`/`sidebar_shell()`, both of which still bake in the
+    always-reserved 280px column that no longer exists. Panel geometry
+    (280px, `line`, `glass_panel`, `radius_lg`, `shadow_5`, `glass_blur`,
+    `left: 48px` to clear the rail) matches `SidebarOverlay.tsx` exactly,
+    not the proposal artboard's placeholder values (300px, `line2`, a
+    hardcoded panel color) which were exploratory and never shipped as
+    drawn."""
     s = strip([tab("web-01", "deploy@10.4.1.20", "on"), tab("db-prod", dot="ok"), tab("cache-01", dot="warn")])
     body = term(
         prompt("deploy", "web-01", "systemctl status nginx") + "\n"
@@ -537,11 +547,47 @@ def build_main():
         + '10.4.1.7 - - [24/Aug/2026:09:41:12] "GET /health HTTP/1.1" 200 2\n'
         + '10.4.1.9 - - [24/Aug/2026:09:41:15] "POST /api/v2/jobs HTTP/1.1" 201 148\n\n'
         + prompt("deploy", "web-01") + CURSOR)
+    content = f'      <div style="flex: 1; min-height: 0; display: flex;">{group(s, body)}</div>'
+
+    rows = [group_row("PRODUCTION", 3)]
+    for n, w in PROD:
+        rows.append(host_row(n, w, {"web-01": "ok", "db-prod": "ok"}.get(n, "saved"), n == "web-01", kind=PROD_KIND.get(n)))
+    rows.append('<div style="height: 8px;"></div>')
+    rows.append(group_row("STAGING", 2))
+    rows.append(host_row("stg-app", "deploy@10.9.0.5"))
+    rows.append(host_row("stg-db", "postgres@10.9.0.6", kind="target"))
+
+    panel = f"""        <div style="position: absolute; top: 12px; bottom: 12px; left: 12px; width: 280px;
+             background: {T['glass_panel']}; border: 1px solid {T['line']}; border-radius: {T['radius_lg']};
+             box-shadow: {T['shadow_5']}; backdrop-filter: blur({T['glass_blur']});
+             display: flex; flex-direction: column; overflow: hidden;">
+{sessions_header()}
+          <div style="flex: 1; padding: 8px; display: flex; flex-direction: column; gap: 4px; overflow: hidden;">
+{chr(10).join(rows)}
+          </div>
+        </div>"""
+    veil = f'<div style="position: absolute; inset: 0; background: rgba(0,0,0,.35);"></div>'
+    overlay = f"""      <div style="position: absolute; left: 48px; right: 0; top: 36px; bottom: 32px; overflow: hidden;">
+{veil}
+{panel}
+      </div>"""
+
     st = status(stat_session("deploy@10.4.1.20") + "\n" + sep() + "\n" + stat_text("198 x 42") + "\n" + stat_text("14 ms") + "\n" + stat_text("2,4 MB"),
                 stat_text("SYNC OFF", T['faint'], mono=False) + "\n" + sep() + "\n" + stat_text("UTF-8", T['faint']))
-    write("Main.dc.html", page(f'      <div style="flex: 1; min-height: 0; display: flex;">{group(s, body)}</div>',
-                               sessions_sidebar(active="web-01", states={"web-01": "ok", "db-prod": "ok"}),
-                               home_rail(workspace="sessions", badge="3"), st))
+
+    write("Main.dc.html", HEAD + f"""
+<div style="width: 1440px; height: 900px; position: relative; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{top_strip("single", True)}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{home_rail(workspace="sessions", badge="3")}
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: {T['base']};">
+{content}
+    </div>
+  </div>
+{st}
+{overlay}
+</div>
+""" + FOOT)
 
 # ---------- 3. four groups, six sessions
 def build_groups():
@@ -575,6 +621,11 @@ def build_collapsed():
     # The Sessions icon stays lit here: closing the sidebar toggles
     # `sidebarOpen`, not `workspace` (ActivityRail.tsx), so it is wrong to
     # draw it dim the way the pre-#234 rail() call used to.
+    #
+    # ADR-0071 Phase 4, shipped: this is no longer a state a person toggles
+    # away from by choice, it is the app's default. `sidebarOpen` starts
+    # `false`; the sidebar only exists as the floating overlay `Main.dc.html`
+    # draws once summoned. Pixels unchanged, only what the state means.
     s = strip([tab("web-01", "deploy@10.4.1.20", "on"), tab("db-prod", "postgres@10.4.1.31")])
     body = term(
         prompt("deploy", "web-01", "docker compose ps") + "\n"
@@ -607,8 +658,12 @@ def build_chrome_proposal_overlay():
     tokens ADR-0063 added instead of pushing the layout the way
     `sidebar_shell()` still does. Built directly rather than through
     `page()`/`sidebar_shell()`, both of which bake in the always-reserved
-    280px column this proposal removes. Nothing accepted; `Main.dc.html` and
-    `Collapsed.dc.html` are still shipped."""
+    280px column this proposal removes. Accepted as the direction for the
+    ADR-0071 follow-up (README) and shipped as `SidebarOverlay.tsx`, which
+    `Main.dc.html` now draws for real. Kept here, panel geometry unchanged,
+    as the record of the proposal that was accepted: 300px and `line2` were
+    this sketch's own placeholders, not what shipped, and `Main.dc.html`
+    carries the values that did (280px, `line`, `glass_panel`)."""
     s = strip([tab("web-01", "deploy@10.4.1.20", "on"), tab("db-prod", "postgres@10.4.1.31")])
     body = term(
         prompt("deploy", "web-01", "docker compose ps") + "\n"
@@ -3846,7 +3901,13 @@ def build_home_collapsed():
     reported directly by the maintainer as missing here. Shows the form
     still open, not the empty state, the same choice `Collapsed.dc.html`
     already made for Sessions: a list hidden while something real is on
-    screen is the case worth drawing, not a list hidden over nothing."""
+    screen is the case worth drawing, not a list hidden over nothing.
+
+    ADR-0071 Phase 4, shipped: this is Home's default now too, the same
+    `sidebarOpen` state Sessions/SFTP/Monitor share, summoned as the same
+    floating overlay `SidebarOverlay.tsx` draws everywhere else. Pixels
+    unchanged, this artboard's premise (nav hidden, content full-bleed) was
+    already what shipped."""
     st = status(stat_text("runic-target-a", T['muted'], mono=False), stat_text("11 hosts", T['faint']))
     page_html = f"""
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">

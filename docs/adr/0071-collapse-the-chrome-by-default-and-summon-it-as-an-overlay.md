@@ -117,3 +117,16 @@ and `ChromeProposalOrbit.dc.html` (plus six Orbit sub-screens), neither of
 which draws Option B. The maintainer confirmed `ChromeProposalOverlay.dc.html`
 on 2026-09-19; Dock and Orbit are declined, recorded in
 `design/canvas/README.md`. Phase 4 proceeds from the Overlay artboard.
+
+Phase 4 is implemented. `SidebarOverlay.tsx` (a new component, built on
+`Transition`/`Transition.Child` rather than `Dialog.tsx`'s own
+`HeadlessDialog`, since `Dialog` always portals to `document.body` and this
+overlay has to stay anchored to its own content row) replaces the reflowed
+`SessionsSidebar` at all four call sites: Sessions, SFTP and Monitor in
+`App.tsx`, and Home's own `<nav>` in `HostsSection.tsx`. `sidebarOpen` starts
+`false`. Selecting a session or host from the overlay closes it, the
+confirmed UX decision from Phase 4 review. The three artboards this ADR
+named, `Main.dc.html`, `Collapsed.dc.html` and `HomeCollapsed.dc.html`, are
+redrawn to match; `ChromeProposalOverlay.dc.html` is kept as the record of
+the proposal that was accepted, its own panel geometry left as the
+placeholder it always was.

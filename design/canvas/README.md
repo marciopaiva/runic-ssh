@@ -50,9 +50,9 @@ ADR-0020 exists to stop.
 | `Anatomy.dc.html` | Window regions, a group in detail, the seven rules, what ADR-0020 amends |
 | `Tokens.dc.html` | Surfaces, accent and state, type, density, connection markers |
 | `Empty.dc.html` | Nothing open yet |
-| `Main.dc.html` | One group, three sessions |
-| `Collapsed.dc.html` | The sidebar closed |
-| `ChromeProposalOverlay.dc.html` | ADR-0071's Option B drawn out: the sidebar summoned as a floating card over the full-bleed terminal, on `shadow_5`/`radius_lg` instead of pushing the layout. Accepted as the direction for the ADR-0071 follow-up; `Main.dc.html` and `Collapsed.dc.html` stay shipped until the implementation lands |
+| `Main.dc.html` | One group, three sessions, sidebar summoned as a floating overlay (ADR-0071 Phase 4, shipped: `SidebarOverlay.tsx`) |
+| `Collapsed.dc.html` | The sidebar closed, which is the app's default state now (ADR-0071 Phase 4) rather than a toggle away from it |
+| `ChromeProposalOverlay.dc.html` | ADR-0071's Option B drawn out: the sidebar summoned as a floating card over the full-bleed terminal, on `shadow_5`/`radius_lg` instead of pushing the layout. Accepted as the direction for the ADR-0071 follow-up and shipped as `SidebarOverlay.tsx`, which `Main.dc.html` now draws for real, at the shipped values (280px, `line`, `glass_panel`) rather than this sketch's own placeholders (300px, `line2`, a hardcoded panel color) |
 | `ChromeProposalDock.dc.html` | Exploratory: no sidebar and no overlay at all. `rail()` and `sidebar_shell()` replaced by a single avatar dock, the terminal a rounded, shadowed card instead of an edge-to-edge panel, the status bar a floating chip. Declined: does not draw ADR-0071's Option B, and picking it would mean superseding that ADR rather than fulfilling its follow-up. `Main.dc.html` is still shipped |
 | `ChromeProposalOrbit.dc.html` | Exploratory, drawn free of ADR-0005/0020/0071's specific mechanisms: no rail, sidebar, dock or status bar at all. Hosts are dots in a floating cluster grouped by topology instead of rows in a list; a command pill at the bottom is the only other navigation surface; a radial gauge replaces the status bar's latency text. Declined for the same reason as `ChromeProposalDock.dc.html`: a genuinely different chrome, not this follow-up's answer. `Main.dc.html` is still shipped |
 | `ChromeProposalOrbitAddHost.dc.html` | Exploratory, the same idea's answer to adding a host: a summoned glass card over the dimmed orbit scene, reusing the shipped form's fields (`kind_picker()`, `wizard_field()`) but not its rail-and-list frame, plus one field the shipped editor never needed, which cluster pill the new host joins. Declined along with `ChromeProposalOrbit.dc.html`; `HomeHosts.dc.html` is still the shipped editor |
@@ -75,7 +75,7 @@ ADR-0020 exists to stop.
 | `HomeHosts.dc.html` | Home, the host book: General, Topology, Access and Forwarding on one screen (ADR-0052, ADR-0056, ADR-0054) |
 | `HomeHostsCommonCase.dc.html` | Home, a plain direct host with nothing to fold open: Topology and Forwarding both collapse to one bare line (ADR-0061) |
 | `HomeHostsEmpty.dc.html` | Home, nothing picked yet, with the same brand mark Sessions' own empty state carries |
-| `HomeCollapsed.dc.html` | Home, its own host list hidden, the rail's Home icon toggling it the same way Sessions' and SFTP's already do |
+| `HomeCollapsed.dc.html` | Home, its own host list hidden, the rail's Home icon toggling it the same way Sessions' and SFTP's already do. Now Home's default state too (ADR-0071 Phase 4), summoned as the same floating overlay as everywhere else |
 | `HomeDeleteConfirm.dc.html` | Home, the one question Delete now always asks first |
 | `HomeHostsCredential.dc.html` | Home, the credential field itself, in Access, before Save (ADR-0057) |
 | `HomeHostsUnknownKey.dc.html` | Home, an unknown host key inline in the editor's own banner slot, redrawn against General/Access's current borders (ADR-0058) |
