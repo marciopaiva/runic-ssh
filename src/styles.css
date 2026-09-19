@@ -67,11 +67,14 @@
   --radius-xl: var(--rs-radius-xl);
   --radius-full: var(--rs-radius-full);
 
-  /* Z-index scale */
-  --z-dropdown: var(--rs-z-dropdown);
-  --z-tooltip: var(--rs-z-tooltip);
-  --z-modal: var(--rs-z-modal);
-  --z-toast: var(--rs-z-toast);
+  /* Z-index scale. Tailwind's `z-<key>` utility only resolves theme keys
+     under `--z-index-*` (confirmed against tailwindcss's own source), not
+     `--z-*`, so the namespace here has to match that or the utility never
+     generates a rule at all. */
+  --z-index-dropdown: var(--rs-z-dropdown);
+  --z-index-tooltip: var(--rs-z-tooltip);
+  --z-index-modal: var(--rs-z-modal);
+  --z-index-toast: var(--rs-z-toast);
 
   /* Glass/blur */
   --glass-blur: var(--rs-glass-blur);

@@ -29,6 +29,7 @@ import { PasteConfirm } from './components/PasteConfirm';
 import { SessionMenu } from './components/SessionMenu';
 import { SessionWizard } from './components/SessionWizard';
 import { SessionsSidebar } from './components/SessionsSidebar';
+import { SidebarOverlay } from './components/SidebarOverlay';
 import { ShapeControl } from './components/ShapeControl';
 import { SftpPane } from './components/SftpPane';
 import { SftpSelectAllButton } from './components/SftpSelectAllButton';
@@ -311,10 +312,12 @@ export function App(): JSX.Element {
   useEffect(() => {
     void appVersion().then(setVersion);
   }, []);
-  /* Whether the session list is beside the rail. ADR-0020 rule 4: this closes
-     and the rail does not, so the icon that closed it is the way back and the
-     window has no state where the list is gone with nothing offering it. */
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  /* Whether the sidebar overlay is summoned over the rail. ADR-0020 rule 4:
+     this closes and the rail does not, so the icon that closed it is the way
+     back and the window has no state where the list is gone with nothing
+     offering it. ADR-0071: collapsed by default, since it now floats over
+     the workspace rather than sharing its width. */
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   /* What the Sessions groups are pointing at: a `session`, never anything
      else. SFTP left this ring for its own workspace in ADR-0044, the same
      way the editor and settings left it for Home's in ADR-0029. */
@@ -2537,22 +2540,34 @@ export function App(): JSX.Element {
           }}
         />
 
-        {workspace === 'sessions' && sidebarOpen && (
-          <SessionsSidebar
-            title={i18n.t('sessions.title')}
-            emptyTitle={i18n.t('sessions.empty.title')}
-            emptyBody={i18n.t('sessions.empty.body')}
-            sessions={shown}
-            selectedId={selected}
-            receiving={reaching}
-            spared={spared}
-            onDrag={(sessionId) => {
-              setDragging(sessionId === null ? null : { kind: 'host', sessionId });
-              if (sessionId === null) setDropOver(null);
-            }}
-            onSelect={activate}
-            onMenu={(sessionId, at) => setMenu({ sessionId, at })}
-          />
+        {/* `relative` and `min-w-0`: the overlay's `absolute inset-*` panels
+            (ADR-0071) need a positioned ancestor that starts after the rail,
+            not the row above that also holds the rail itself, or `left-3`
+            measures from x=0 and the panel floats out from under the rail
+            icons instead of beside them. */}
+        <div className="relative flex min-h-0 min-w-0 flex-1">
+
+        {workspace === 'sessions' && (
+          <SidebarOverlay open={sidebarOpen} onClose={() => setSidebarOpen(false)}>
+            <SessionsSidebar
+              title={i18n.t('sessions.title')}
+              emptyTitle={i18n.t('sessions.empty.title')}
+              emptyBody={i18n.t('sessions.empty.body')}
+              sessions={shown}
+              selectedId={selected}
+              receiving={reaching}
+              spared={spared}
+              onDrag={(sessionId) => {
+                setDragging(sessionId === null ? null : { kind: 'host', sessionId });
+                if (sessionId === null) setDropOver(null);
+              }}
+              onSelect={(sessionId) => {
+                activate(sessionId);
+                setSidebarOpen(false);
+              }}
+              onMenu={(sessionId, at) => setMenu({ sessionId, at })}
+            />
+          </SidebarOverlay>
         )}
 
         {/* ADR-0046: SFTP's own sidebar is now `SessionsSidebar` itself,
@@ -2561,38 +2576,46 @@ export function App(): JSX.Element {
             picker for a pane rather than a tab) and a `localhost` row
             pinned above the list, which needs no saved host and reaches
             neither `onDrag` nor `onSelect` below. */}
-        {workspace === 'sftp' && sidebarOpen && (
-          <SessionsSidebar
-            title={i18n.t('sftp.workspace.title')}
-            emptyTitle={i18n.t('sftp.workspace.empty.title')}
-            emptyBody={i18n.t('sftp.workspace.empty.body')}
-            sessions={sessions}
-            assigned={sftpAssigned}
-            leading={
-              <div className="px-2 pb-1.5">
-                <button
-                  type="button"
-                  draggable
-                  onDragStart={(event) => {
-                    event.dataTransfer.effectAllowed = 'copyMove';
-                    event.dataTransfer.setData('text/plain', i18n.t('sftp.localhost'));
-                    setSftpDragging({ kind: 'local' });
-                  }}
-                  onDragEnd={() => setSftpDragging(null)}
-                  onClick={() => assignSftpEndpoint({ kind: 'local' }, { kind: 'source' })}
-                  className="hover:bg-surface-raised/60 flex w-full items-center gap-2.5 rounded px-2 py-[7px] text-left"
-                >
-                  <span className="bg-ink-faint/70 h-[9px] w-[9px] shrink-0 rounded-full" />
-                  <span className="text-ink2 truncate text-[12.5px]">{i18n.t('sftp.localhost')}</span>
-                </button>
-              </div>
-            }
-            onDrag={(sessionId) => {
-              setSftpDragging(sessionId === null ? null : { kind: 'host', sessionId });
-              if (sessionId === null) setSftpDropOver(null);
-            }}
-            onSelect={(sessionId) => assignSftpEndpoint({ kind: 'host', sessionId }, { kind: 'source' })}
-          />
+        {workspace === 'sftp' && (
+          <SidebarOverlay open={sidebarOpen} onClose={() => setSidebarOpen(false)}>
+            <SessionsSidebar
+              title={i18n.t('sftp.workspace.title')}
+              emptyTitle={i18n.t('sftp.workspace.empty.title')}
+              emptyBody={i18n.t('sftp.workspace.empty.body')}
+              sessions={sessions}
+              assigned={sftpAssigned}
+              leading={
+                <div className="px-2 pb-1.5">
+                  <button
+                    type="button"
+                    draggable
+                    onDragStart={(event) => {
+                      event.dataTransfer.effectAllowed = 'copyMove';
+                      event.dataTransfer.setData('text/plain', i18n.t('sftp.localhost'));
+                      setSftpDragging({ kind: 'local' });
+                    }}
+                    onDragEnd={() => setSftpDragging(null)}
+                    onClick={() => {
+                      assignSftpEndpoint({ kind: 'local' }, { kind: 'source' });
+                      setSidebarOpen(false);
+                    }}
+                    className="hover:bg-surface-raised/60 flex w-full items-center gap-2.5 rounded px-2 py-[7px] text-left"
+                  >
+                    <span className="bg-ink-faint/70 h-[9px] w-[9px] shrink-0 rounded-full" />
+                    <span className="text-ink2 truncate text-[12.5px]">{i18n.t('sftp.localhost')}</span>
+                  </button>
+                </div>
+              }
+              onDrag={(sessionId) => {
+                setSftpDragging(sessionId === null ? null : { kind: 'host', sessionId });
+                if (sessionId === null) setSftpDropOver(null);
+              }}
+              onSelect={(sessionId) => {
+                assignSftpEndpoint({ kind: 'host', sessionId }, { kind: 'source' });
+                setSidebarOpen(false);
+              }}
+            />
+          </SidebarOverlay>
         )}
 
         {/* The same saved host book Sessions and SFTP already show, with
@@ -2600,16 +2623,21 @@ export function App(): JSX.Element {
             picking a host not yet open connects it, the same as either of
             those, rather than requiring a Sessions tab to exist first. No
             drag target of its own, so `onDrag` is a no-op. */}
-        {workspace === 'monitor' && sidebarOpen && (
-          <SessionsSidebar
-            title={i18n.t('rail.monitor')}
-            emptyTitle={i18n.t('sessions.empty.title')}
-            emptyBody={i18n.t('sessions.empty.body')}
-            sessions={sessions}
-            selectedId={selectedMonitorSessionId}
-            onDrag={() => {}}
-            onSelect={selectMonitorHost}
-          />
+        {workspace === 'monitor' && (
+          <SidebarOverlay open={sidebarOpen} onClose={() => setSidebarOpen(false)}>
+            <SessionsSidebar
+              title={i18n.t('rail.monitor')}
+              emptyTitle={i18n.t('sessions.empty.title')}
+              emptyBody={i18n.t('sessions.empty.body')}
+              sessions={sessions}
+              selectedId={selectedMonitorSessionId}
+              onDrag={() => {}}
+              onSelect={(sessionId) => {
+                selectMonitorHost(sessionId);
+                setSidebarOpen(false);
+              }}
+            />
+          </SidebarOverlay>
         )}
 
         {workspace === 'sessions' && (
@@ -3057,8 +3085,15 @@ export function App(): JSX.Element {
                   creatingNew={homeEditorTarget?.kind === 'new'}
                   sidebarOpen={sidebarOpen}
                   modifier={chrome?.commandModifier ?? 'control'}
-                  onSelect={(sessionId) => openEditor({ kind: 'existing', sessionId })}
-                  onNew={() => openEditor({ kind: 'new' })}
+                  onSelect={(sessionId) => {
+                    openEditor({ kind: 'existing', sessionId });
+                    setSidebarOpen(false);
+                  }}
+                  onNew={() => {
+                    openEditor({ kind: 'new' });
+                    setSidebarOpen(false);
+                  }}
+                  onCloseSidebar={() => setSidebarOpen(false)}
                   detail={homeEditorTarget === null ? null : wizardFor(homeEditorTarget, false)}
                 />
               );
@@ -3152,6 +3187,7 @@ export function App(): JSX.Element {
             onClose={() => setMacrosOpen(false)}
           />
         )}
+        </div>
       </div>
 
       {refused !== null && (
