@@ -34,7 +34,7 @@ import { SftpPane } from './components/SftpPane';
 import { SftpSelectAllButton } from './components/SftpSelectAllButton';
 import { SftpSplitControl } from './components/SftpSplitControl';
 import { StatusBar } from './components/StatusBar';
-import { TerminalView } from './components/TerminalView';
+import { SessionBody } from './components/SessionBody';
 import { ThemeLanguageControls } from './components/ThemeLanguageControls';
 import { Titlebar } from './components/Titlebar';
 import { Toolbar } from './components/Toolbar';
@@ -114,7 +114,7 @@ import {
   stopForward,
   submitCredential,
 } from './ipc';
-import type { Keep, Macro, Secret, Session, SessionDraft, SessionHandle, SuggestedMethod } from './ipc';
+import type { Forward, Keep, Macro, Secret, Session, SessionDraft, SessionHandle, SuggestedMethod } from './ipc';
 import type { Component as MapComponent, ComponentKind as MapComponentKind, Workspace as MapWorkspaceModel } from './ipc';
 import type { MapPaneWiring } from './components/map/MapStage';
 import { mapTerminals, mountedOnce, placeSavedHost } from './features/map';
@@ -126,12 +126,15 @@ import type { DraggedEndpoint, Endpoint, PaneEntry } from './features/sftp/endpo
 import { destinationPaneId, MAX_DESTINATIONS, SOURCE_PANE_ID, useFanout } from './features/sftp/use-fanout';
 import {
   announceBroadcast,
-  resolveForward,
+  resolveForwardIn,
   runningForwardHandles,
   startForward,
   startingForwards,
   useSessionStats,
   useSystemStats,
+  withAppendedForward,
+  withoutForwardAt,
+  withoutSession,
 } from './features/status';
 import type { Announcement, ForwardStatus } from './features/status';
 import {
@@ -501,6 +504,14 @@ export function App(): JSX.Element {
   const [forwardStatuses, setForwardStatuses] = useState<ReadonlyMap<string, readonly ForwardStatus[]>>(
     new Map(),
   );
+  /* A forward opened from the Tunnels facet itself rather than saved on the
+     host: ADR-0054 only covers the saved kind. Kept in its own map, not
+     folded into `forwardStatuses` above, because nothing here is ever
+     written to a `Session`; it exists only for as long as this connection
+     does, and `disconnect` clears it the same way it clears the saved one. */
+  const [adHocForwards, setAdHocForwards] = useState<ReadonlyMap<string, readonly ForwardStatus[]>>(
+    new Map(),
+  );
 
   const { attempt, connect, trust, abandon } = useConnect({
     onConnecting: (sessionId) => setState(sessionId, 'connecting'),
@@ -518,22 +529,13 @@ export function App(): JSX.Element {
         forwards.forEach((forward, index) => {
           void startForward(handle, forward).then(
             (forwardHandle) => {
-              setForwardStatuses((current) => {
-                const statuses = current.get(sessionId);
-                if (statuses === undefined) return current;
-                return new Map(current).set(
-                  sessionId,
-                  resolveForward(statuses, index, { kind: 'running', handle: forwardHandle }),
-                );
-              });
+              setForwardStatuses((current) =>
+                resolveForwardIn(current, sessionId, index, { kind: 'running', handle: forwardHandle }),
+              );
             },
             (rejection: unknown) => {
               const error = asIpcError(rejection) ?? { code: 'sshTransport' as const };
-              setForwardStatuses((current) => {
-                const statuses = current.get(sessionId);
-                if (statuses === undefined) return current;
-                return new Map(current).set(sessionId, resolveForward(statuses, index, { kind: 'failed', error }));
-              });
+              setForwardStatuses((current) => resolveForwardIn(current, sessionId, index, { kind: 'failed', error }));
             },
           );
         });
@@ -1001,19 +1003,59 @@ export function App(): JSX.Element {
       for (const handle of runningForwardHandles(forwardStatuses.get(sessionId) ?? [])) {
         void stopForward(handle);
       }
-      setForwardStatuses((current) => {
-        if (!current.has(sessionId)) return current;
-        const next = new Map(current);
-        next.delete(sessionId);
-        return next;
-      });
+      setForwardStatuses((current) => withoutSession(current, sessionId));
+
+      /* An ad-hoc forward gets the same teardown as a saved one: it was
+         opened on this connection and does not outlive it either. */
+      for (const handle of runningForwardHandles(adHocForwards.get(sessionId) ?? [])) {
+        void stopForward(handle);
+      }
+      setAdHocForwards((current) => withoutSession(current, sessionId));
 
       void disconnectSession(live.handle).finally(() => {
         attach(sessionId, null);
         setState(sessionId, 'saved');
       });
     },
-    [sessions, attach, setState, unwantTerminal, fanout, forwardStatuses],
+    [sessions, attach, setState, unwantTerminal, fanout, forwardStatuses, adHocForwards],
+  );
+
+  /* Opened from the Tunnels facet, on an already-connected session: no
+     "arm" gesture to reuse from ADR-0054, since that one governs a forward
+     the session itself starts, not one asked for after the fact. `index` is
+     read from state at the moment of the click rather than the update
+     inside `setAdHocForwards`, which React may run later than this line;
+     a second call before this one resolves would otherwise be free to
+     capture the same index twice. */
+  const addAdHocForward = useCallback(
+    (sessionId: string, handle: SessionHandle, forward: Forward): void => {
+      const index = (adHocForwards.get(sessionId) ?? []).length;
+      setAdHocForwards((current) => withAppendedForward(current, sessionId, forward));
+      void startForward(handle, forward).then(
+        (forwardHandle) => {
+          setAdHocForwards((current) =>
+            resolveForwardIn(current, sessionId, index, { kind: 'running', handle: forwardHandle }),
+          );
+        },
+        (rejection: unknown) => {
+          const error = asIpcError(rejection) ?? { code: 'sshTransport' as const };
+          setAdHocForwards((current) => resolveForwardIn(current, sessionId, index, { kind: 'failed', error }));
+        },
+      );
+    },
+    [adHocForwards],
+  );
+
+  /* The close button on an ad-hoc row in the Tunnels facet. Stopped the same
+     way `disconnect` stops one, imperatively and before the state update,
+     so a `stopForward` that never resolves does not leave the row behind. */
+  const removeAdHocForward = useCallback(
+    (sessionId: string, index: number): void => {
+      const row = (adHocForwards.get(sessionId) ?? [])[index];
+      if (row?.runtime.kind === 'running') void stopForward(row.runtime.handle);
+      setAdHocForwards((current) => withoutForwardAt(current, sessionId, index));
+    },
+    [adHocForwards],
   );
 
   /* Taking a tab off the strip also takes it out of the group that held it.
@@ -2706,7 +2748,7 @@ export function App(): JSX.Element {
             const isFocused = terminal.sessionId === activeId;
 
             return (
-              <TerminalView
+              <SessionBody
                 key={terminal.sessionId}
                 handle={terminal.handle}
                 session={saved.find((one) => one.id === terminal.sessionId) ?? null}
@@ -2727,6 +2769,11 @@ export function App(): JSX.Element {
                 }
                 onInput={(bytes) => broadcast(terminal.sessionId, bytes)}
                 broadcasting={armed && !muted.has(terminal.sessionId)}
+                forwards={forwardStatuses.get(terminal.sessionId) ?? []}
+                adHocForwards={adHocForwards.get(terminal.sessionId) ?? []}
+                onAddAdHocForward={(forward) => addAdHocForward(terminal.sessionId, terminal.handle, forward)}
+                onRemoveAdHocForward={(index) => removeAdHocForward(terminal.sessionId, index)}
+                onEditHost={() => openEditor({ kind: 'existing', sessionId: terminal.sessionId })}
               />
             );
           })}
@@ -3128,7 +3175,9 @@ export function App(): JSX.Element {
         via={activeCarrier}
         announcement={announcement}
         credentialUnsaved={activeId !== null ? (unsaved.get(activeId) ?? null) : null}
-        forwards={activeId !== null ? (forwardStatuses.get(activeId) ?? []) : []}
+        forwards={
+          activeId !== null ? [...(forwardStatuses.get(activeId) ?? []), ...(adHocForwards.get(activeId) ?? [])] : []
+        }
         buildVersion={workspace === 'home' ? version : null}
         onDismissUnsaved={() =>
           setUnsaved((current) => {

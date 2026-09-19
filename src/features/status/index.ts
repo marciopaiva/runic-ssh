@@ -4,9 +4,13 @@ export {
   FORWARD_STATE_LABEL,
   anyForwardFailed,
   resolveForward,
+  resolveForwardIn,
   runningForwardHandles,
   startForward,
   startingForwards,
+  withAppendedForward,
+  withoutForwardAt,
+  withoutSession,
 } from './forwards';
 export type { ForwardRuntime, ForwardStatus } from './forwards';
 export {

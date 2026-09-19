@@ -9,7 +9,7 @@ import { useTranslator } from '../features/settings';
 
 import { Card } from './ui/Card';
 
-interface TerminalViewProps {
+export interface TerminalViewProps {
   readonly handle: SessionHandle | null;
   /** For the ADR-0051 MOTD banner: the session this terminal belongs to
       (`null` if it no longer exists in the saved list), and the full saved
