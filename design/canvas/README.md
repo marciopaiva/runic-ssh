@@ -52,6 +52,7 @@ ADR-0020 exists to stop.
 | `Empty.dc.html` | Nothing open yet |
 | `Main.dc.html` | One group, three sessions |
 | `Collapsed.dc.html` | The sidebar closed |
+| `SessionsProposalRowActions.dc.html` | Exploratory, the MobaRust comparison's per-row half, scoped to `SessionsSidebar.tsx` rather than adopted whole: `host_row()`'s own `controls` pencil-and-trash pair, drawn inline in place of the single hover-revealed menu button. Declined, not just unstarted: `src/features/sessions/menu.ts` only ever offers connect/disconnect, by ADR-0029's own split between a list that drives a connection and one that edits the record behind it. Inline edit/delete here would reopen that split, not restyle a button. `SessionsSidebar.tsx`'s `MoreVerticalIcon` is still shipped |
 | `Groups.dc.html` | Four groups, six sessions |
 | `Broadcast.dc.html` | Typing into two of three groups |
 | `HostKey.dc.html` | Unknown host key, inside the group that asked |
@@ -69,6 +70,7 @@ ADR-0020 exists to stop.
 | `HomeHostsUnknownKey.dc.html` | Home, an unknown host key inline in the editor's own banner slot, redrawn against General/Access's current borders (ADR-0058) |
 | `HomeHostsTopology.dc.html` | Home, the host book organized by topology: bastions expandable and collapsible, a `group` tag riding on its own row (ADR-0060) |
 | `HomeHostsProposalContext.dc.html` | Home, exploratory: a third column beside the host editor showing which of a bastion's own riders are connected right now and what its last test found. Nothing accepted; `HomeHosts.dc.html` is still shipped |
+| `HomeHostsProposalPinnedNewHost.dc.html` | Home: the MobaRust comparison's other half, `hosts_header()`'s small plus icon replaced by a full-width "New host" button pinned above the filter box. Accepted and shipped in `HostsSection.tsx` |
 | `Monitor.dc.html` | Monitor, one host's own vital signs, no agent installed: system info, uptime and CPU/memory dials in one card, CPU and memory as a side-by-side pair of hero area charts, swap/load/network as a row of three, disk usage/disk I/O as a pair, filesystems below (v0.5.0) |
 | `MonitorProcesses.dc.html` | Monitor, the host's own busiest processes: pid, user, CPU, memory and command, sortable by either reading client-side |
 | `MonitorPorts.dc.html` | Monitor, every listening TCP/UDP socket: protocol, address, port and the owning process where the session has privilege to see it |

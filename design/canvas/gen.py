@@ -338,7 +338,7 @@ def group_row(label, count):
             f' background: {T["raised"]}; border-radius: 4px; padding: 1px 6px;">{count}</span></div>')
 
 def host_row(name, who, state="saved", active=False, mark=None, edge=None, kind=None, via=None, depth=0,
-             chevron=None, tag=None):
+             chevron=None, tag=None, controls=False):
     """Two lines: dot, kind icon (rare, 'other' draws none) and name on the
     first, with room left for the reached tick or SPARED; the address, or
     the bastion a rider rides, on its own line below, always drawn now
@@ -385,6 +385,10 @@ def host_row(name, who, state="saved", active=False, mark=None, edge=None, kind=
     if tag is not None:
         pill = (f'<span style="font-size: 9px; color: {T["muted"]}; background: {T["raised"]}; border-radius: 4px;'
                 f' padding: 1px 6px; flex: none; margin-left: auto;">{tag}</span>')
+    row_controls = ''
+    if controls:
+        row_controls = (f'<span style="display: flex; gap: 5px; flex: none; margin-left: auto; color: {T["faint"]};">'
+                         f'{ic("pencil", 12)}{ic("trash", 12)}</span>')
     return (f'<div class="row" style="{bg} height: auto; align-items: center; padding: 6px 8px;">'
             f'{indent}{disclosure}'
             f'<span class="dot" style="{dots[state]} align-self: center; flex: none;"></span>'
@@ -393,7 +397,7 @@ def host_row(name, who, state="saved", active=False, mark=None, edge=None, kind=
             f'{kind_ic(kind, T["faint"])}'
             f'<span style="font-size: 12.5px; color: {name_color}; {weight} min-width: 0; overflow: hidden;'
             f' text-overflow: ellipsis; white-space: nowrap;">{name}</span>'
-            f'{tail}{pill}</div>'
+            f'{tail}{pill}{row_controls}</div>'
             f'<span class="mono" style="font-size: 10.5px; color: {T["off"]}; overflow: hidden;'
             f' text-overflow: ellipsis; white-space: nowrap;">{subtitle}</span>'
             f'</div></div>')
@@ -451,18 +455,27 @@ PROD = [("web-01", "deploy@10.4.1.20"), ("web-02", "deploy@10.4.1.21"), ("db-pro
 
 PROD_KIND = {"db-prod": "target"}
 
-def sessions_sidebar(active=None, states=None, marks=None, edges=None, header=None, staging=True):
+def sessions_sidebar(active=None, states=None, marks=None, edges=None, header=None, staging=True, controls=False):
+    """`controls` (exploratory, `SessionsProposalRowActions.dc.html`,
+    MobaRust option B): threads `host_row()`'s own `controls` flag, unused
+    everywhere else this function is called from, onto every row at once.
+    `SessionsSidebar.tsx` draws one hover-revealed `MoreVerticalIcon` per
+    row today, opening a menu; this is that button replaced by the pencil
+    and trash pair inline, not a menu with the same two items inside it."""
     states = states or {}
     marks = marks or {}
     edges = edges or {}
     rows = [group_row("PRODUCTION", 3)]
     for n, w in PROD:
-        rows.append(host_row(n, w, states.get(n, "saved"), active == n, marks.get(n), edges.get(n), kind=PROD_KIND.get(n)))
+        rows.append(host_row(n, w, states.get(n, "saved"), active == n, marks.get(n), edges.get(n),
+                              kind=PROD_KIND.get(n), controls=controls))
     if staging:
         rows.append('<div style="height: 8px;"></div>')
         rows.append(group_row("STAGING", 2))
-        rows.append(host_row("stg-app", "deploy@10.9.0.5", states.get("stg-app", "saved"), active == "stg-app"))
-        rows.append(host_row("stg-db", "postgres@10.9.0.6", states.get("stg-db", "saved"), active == "stg-db", kind="target"))
+        rows.append(host_row("stg-app", "deploy@10.9.0.5", states.get("stg-app", "saved"), active == "stg-app",
+                              controls=controls))
+        rows.append(host_row("stg-db", "postgres@10.9.0.6", states.get("stg-db", "saved"), active == "stg-db",
+                              kind="target", controls=controls))
     return sidebar_shell(header or sessions_header(), "\n".join(rows))
 
 # ---------- 1. nothing open
@@ -1920,6 +1933,55 @@ def build_sessions_proposal_toolbar():
 """
     write("SessionsProposalToolbar.dc.html", HEAD + page_html + FOOT)
 
+# ---------- exploratory: inline row actions, MobaRust option B (2026-09-19)
+#
+# The other half of the MobaRust comparison this session drew for Home
+# (`HomeHostsProposalPinnedNewHost.dc.html`'s own header comment has the
+# full context): `SessionsSidebar.tsx` draws one hover-revealed
+# `MoreVerticalIcon` per row today, opening a menu built from
+# `sessionMenu()` (`src/features/sessions/menu.ts`). That menu only ever
+# offers connect/disconnect, by ADR-0029's own split between a list that
+# drives a connection and one that edits the record behind it, so the
+# pencil-and-trash pair drawn here reads as edit/delete but has no real
+# action behind it. Declined on exactly that gap, not left merely
+# unstarted: `host_row()`'s own `controls` parameter still draws the pair
+# (unused by every other call site) as the record of what was compared,
+# and `SessionsSidebar.tsx`'s single button is still shipped.
+def build_sessions_proposal_row_actions():
+    occupied = group(
+        solo_tab_header("web-01", "deploy@10.4.1.20"),
+        term(prompt("deploy", "web-01", "systemctl status nginx") + "\n"
+             + f'<span style="color: {T["ok"]};">&#9679;</span> nginx.service - A high performance web server\n'
+             + f'     Active: <span style="color: {T["ok"]};">active (running)</span> since Mon 2026-08-24 09:12:04 UTC\n\n'
+             + prompt("deploy", "web-01") + CURSOR),
+        border=T['accent'],
+    )
+    grid = f"""      <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; padding: 12px;">
+        <div style="flex: 1; min-height: 0;">{occupied}</div>
+        <div style="flex: 1; min-height: 0;">{empty_group_slot()}</div>
+      </div>"""
+
+    sidebar = sessions_sidebar(active="web-01", states={"web-01": "ok"}, controls=True)
+    st = status(stat_session("deploy@10.4.1.20") + "\n" + sep() + "\n" + stat_text("198 x 42"),
+                stat_text("SYNC OFF", T['faint'], mono=False))
+
+    page_html = f"""
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{plain_titlebar()}
+{toolbar_row(right_html=broadcast_button(False) + shapes('rows') + toolbar_group_divider() + theme_language_toolbar_controls())}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{home_rail(workspace="sessions", badge="1")}
+{sidebar}
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: {T['base']};">
+{grid}
+    </div>
+  </div>
+{st}
+</div>
+"""
+    write("SessionsProposalRowActions.dc.html", HEAD + page_html + FOOT)
+
+
 def warn_chip(count):
     """`StatusBar.tsx`'s own `syncing` chip, redrawn verbatim: the warning
     triangle, warn-soft background, the count of hosts actually receiving.
@@ -2125,15 +2187,31 @@ def kind_picker(active="direct"):
                     f' {bg} border-radius: 5px; padding: 5px 9px; font-size: 11.5px; color: {color};">{icon}{label}</span>')
     return f'<div style="display: flex; flex-wrap: wrap; gap: 6px;">{"".join(out)}</div>'
 
-def hosts_header(creating_new=False, show_filter=False):
+def hosts_header(creating_new=False, show_filter=False, pinned_new_host=False):
     """`show_filter` (ADR-0056): the same filter box `sessions_header()`
     already draws, added here rather than invented a second way, once a
     list with no way to narrow it stopped being fine at book scale.
     `creating_new` highlights the plus icon while a fresh, unsaved draft is
-    the row showing in the panel beside it."""
+    the row showing in the panel beside it.
+
+    `pinned_new_host` (exploratory, `HomeHostsProposalPinnedNewHost.dc.html`,
+    MobaRust option B): the title row's own small plus icon replaced by a
+    full-width button below it, the same weight the MobaRust mockup gives
+    the action a book with nothing in it yet cannot reach any other way.
+    Mutually exclusive with the plus icon, not with `creating_new`: a
+    pinned button still highlights while a fresh draft is on screen, the
+    same case the icon used to mark."""
     plus = (f'<span style="width: 20px; height: 20px; border-radius: 4px; background: {T["raised"]};'
             f' display: flex; align-items: center; justify-content: center; color: {T["accent"]};">{ic("plus")}</span>'
             ) if creating_new else ic('plus', 14, T['muted'])
+    button_html = ''
+    if pinned_new_host:
+        bg = T['raised'] if creating_new else T['accent']
+        fg = T['accent'] if creating_new else T['base']
+        button_html = f"""
+        <div style="height: 30px; margin-top: 10px; border-radius: 6px; background: {bg};
+          display: flex; align-items: center; justify-content: center; gap: 7px; color: {fg};
+          font-size: 12px; font-weight: 700;">{ic('plus', 13, fg)}New host</div>"""
     filter_html = ''
     if show_filter:
         filter_html = f"""
@@ -2144,15 +2222,15 @@ def hosts_header(creating_new=False, show_filter=False):
         <div style="display: flex; align-items: center; gap: 8px;">
           <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; color: {T['faint']};">HOSTS</span>
           <div style="flex: 1;"></div>
-          {plus}
-        </div>{filter_html}
+          {'' if pinned_new_host else plus}
+        </div>{button_html}{filter_html}
       </div>"""
 
-def hosts_shell(rows_html, panel_html, creating_new=False, show_filter=False):
+def hosts_shell(rows_html, panel_html, creating_new=False, show_filter=False, pinned_new_host=False):
     """`HostsSection.tsx`: a 280px list beside one form, not a tab per open
     host, because a CRUD screen is exactly that shape."""
     left = f"""    <div style="width: 280px; flex: none; background: {T['panel']}; border-right: 1px solid {T['line']}; display: flex; flex-direction: column;">
-{hosts_header(creating_new, show_filter)}
+{hosts_header(creating_new, show_filter, pinned_new_host)}
       <div style="flex: 1; padding: 0 8px 8px; display: flex; flex-direction: column; gap: 2px; overflow: hidden;">
 {rows_html}
       </div>
@@ -2372,6 +2450,38 @@ def build_home_hosts_common_case():
 </div>
 """
     write("HomeHostsCommonCase.dc.html", HEAD + page_html + FOOT)
+
+
+# ---------- exploratory: a pinned New host button, MobaRust option B (2026-09-19)
+#
+# The MobaRust comparison (`ChromeProposalMobaRust.dc.html`) drew one unified
+# sidebar with a full-width "New host" button pinned above its search box.
+# Runic's own sidebar is not unified (ADR-0029 split Home from Sessions), and
+# MobaRust's Favorites/Recent toggle has no state behind it here to draw
+# honestly (nothing in `src/features/sessions` tracks either), so this is not
+# that mockup adopted whole. It is the one piece of it that is a pure layout
+# reform of a screen Runic already has and already creates hosts from: the
+# small plus icon `hosts_header()` draws today, replaced by the same weight
+# of button MobaRust gives the action. `SessionsProposalRowActions.dc.html`
+# is this same MobaRust comparison's other half, the per-row menu button
+# replaced by inline actions, on `SessionsSidebar.tsx` rather than here,
+# since that is the sidebar the menu button actually belongs to.
+def build_home_hosts_proposal_pinned_new_host():
+    rows = home_hosts_rows(active="runic-target-a")
+    body = hosts_shell(rows, host_detail_panel(), show_filter=True, pinned_new_host=True)
+    st = status(stat_text("runic-target-a", T['muted'], mono=False), stat_text("11 hosts", T['faint']))
+    page_html = f"""
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{plain_titlebar()}
+{toolbar_row(right_html=theme_language_toolbar_controls())}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{home_rail(workspace="home")}
+{body}
+  </div>
+{st}
+</div>
+"""
+    write("HomeHostsProposalPinnedNewHost.dc.html", HEAD + page_html + FOOT)
 
 
 def topology_folded_row(kind="direct", via=None):
@@ -4660,8 +4770,10 @@ else:
                build_terminal_motd,
                build_sessions_proposal, build_sessions_proposal_broadcast,
                build_sessions_proposal_broadcast_multi, build_sessions_proposal_toolbar,
+               build_sessions_proposal_row_actions,
                build_home_hosts, build_home_hosts_common_case, build_home_hosts_empty, build_home_collapsed, build_home_delete_confirm,
                build_home_hosts_proposal_context, build_home_hosts_proposal_richness,
+               build_home_hosts_proposal_pinned_new_host,
                build_home_hosts_credential, build_home_hosts_unknown_key, build_home_hosts_topology,
                build_monitor, build_monitor_proposal_tone, build_monitor_processes, build_monitor_ports,
                build_monitor_systemd, build_monitor_logs, build_monitor_hosts_empty,
