@@ -155,6 +155,16 @@ ICON = dict(
     pencil='<path d="M4 20l1-4.2L15.8 5l3.2 3.2L8.2 19H4z"></path><path d="M13.8 6.7l3.2 3.2"></path>',
     trash='<path d="M5 7h14"></path><path d="M9.5 7V5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v2"></path>'
           '<path d="M7 7l1 12.5a1.5 1.5 0 0 0 1.5 1.4h5a1.5 1.5 0 0 0 1.5-1.4L17 7"></path><path d="M10 11v6M14 11v6"></path>',
+    # Exploratory (#412, redrawn 2026-09-19): the MobaRust/SSHDesk
+    # comparison fixture's own glyphs. star is the sidebar's stateless
+    # Favorites toggle; termwin stands in for both a local shell and a
+    # saved host row, MobaRust draws no distinction; tunnels and info are
+    # two of the facet bar's four tabs (Terminal reuses `ssh`, Diagnostics
+    # reuses `monitor` below, byte-identical to the fixture's own path).
+    star='<path d="M12 3.5l2.6 5.6 6.1.6-4.6 4.1 1.3 6-5.4-3.2-5.4 3.2 1.3-6-4.6-4.1 6.1-.6z"></path>',
+    termwin='<rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M7 9l3 3-3 3M12 15h5"></path>',
+    tunnels='<rect x="3" y="9" width="18" height="6" rx="3"></rect><path d="M7 9V6M7 15v3M17 9V6M17 15v3"></path>',
+    info='<circle cx="12" cy="12" r="8.5"></circle><path d="M12 11v5"></path><circle cx="12" cy="8" r="0.9" fill="currentColor" stroke="none"></circle>',
 )
 
 def ic(name, size=14, color=None, cls="ic", extra=""):
@@ -1387,6 +1397,274 @@ def build_chrome_proposal_orbit_broadcast():
 {winctl}
 {console}
 {hud}
+</div>
+""" + FOOT)
+
+
+# ---------- exploratory: MobaRust/SSHDesk comparison, unified sidebar and
+# facet bar (#412, redrawn 2026-09-19)
+#
+# The generator functions below were never committed and were lost to a
+# `git reset --hard` run during unrelated branch surgery. This is a redraw
+# from the three `.dc.html` files that survived on disk, faithful to what
+# they rendered but not a byte-for-byte recovery of the original source.
+#
+# Nothing in this section is a proposal on its own; it is the comparison
+# fixture the maintainer viewed live before either of two things it
+# prompted were decided for real. `HomeHostsProposalPinnedNewHost.dc.html`
+# adopted the pinned "+ New host" button as real layout.
+# `SessionsProposalRowActions.dc.html` looked at the always-visible
+# pencil/trash pair `_mobarust_host_row()` still draws below and declined
+# it: `SessionsSidebar.tsx`'s menu offers connect/disconnect only, per
+# ADR-0029's list-vs-record split, and a pencil with no editor behind it is
+# worse than no pencil. The facet bar itself shipped for real in #414 as
+# `SessionFacets`/`TunnelsPanel`, Terminal and Tunnels only; Diagnostics and
+# Info stayed here, never scoped as features of their own.
+
+def _mobarust_sidebar_header():
+    """MobaRust's own header, not `sessions_header()`: a pinned accent
+    button instead of the palette, a search box captioned differently, and
+    a stateless Favorites/Recent toggle neither tab actually filters."""
+    return f"""      <div style="padding: 12px; display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid {T['line']};">
+        <div style="height: 32px; border-radius: 6px; background: {T['accent']}; display: flex; align-items: center; justify-content: center; gap: 7px; color: {T['base']}; font-size: 12px; font-weight: 700;">
+          {ic('plus', 13, T['base'])}New host
+        </div>
+        <div style="height: 30px; background: {T['input']}; border: 1px solid {T['line']}; border-radius: 6px; display: flex; align-items: center; gap: 8px; padding: 0 9px;">
+          {ic('search', 13, T['faint'])}<span style="font-size: 11.5px; color: {T['faint']};">Search sessions</span>
+        </div>
+        <div style="display: flex; gap: 6px;">
+          <div style="flex: 1; height: 26px; border-radius: 5px; background: {T['raised']}; display: flex; align-items: center; justify-content: center; gap: 5px; color: {T['ink2']};">{ic('star', 12)}<span style="font-size: 10.5px;">Favorites</span></div>
+          <div style="flex: 1; height: 26px; border-radius: 5px; display: flex; align-items: center; justify-content: center; gap: 5px; color: {T['muted']};">{ic('search', 12)}<span style="font-size: 10.5px;">Recent</span></div>
+        </div>
+      </div>"""
+
+def _mobarust_shell_row(name, cmd):
+    return (f'<div class="row" style="height: auto; align-items: center; padding: 6px 8px;">'
+            f'{ic("termwin", 14, T["faint"])}'
+            f'<div style="display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; margin-left: 8px;">'
+            f'<span style="font-size: 12.5px; color: {T["ink2"]};">{name}</span>'
+            f'<span class="mono" style="font-size: 10.5px; color: {T["off"]};">{cmd}</span>'
+            f'</div></div>')
+
+def _mobarust_host_row(name, who, active=False, connected=False):
+    color = T['ok'] if connected else T['ink2']
+    icon_color = T['ok'] if connected else T['faint']
+    weight = 'font-weight: 600;' if active else ''
+    bg = f'background: {T["raised"]}; border-radius: 6px;' if active else ''
+    controls = (f'<span style="display: flex; gap: 5px; flex: none; margin-left: auto; color: {T["faint"]};">'
+                f'{ic("pencil", 12)}{ic("trash", 12)}</span>')
+    return (f'<div class="row" style="{bg} height: auto; align-items: center; padding: 6px 8px;">'
+            f'{ic("termwin", 14, icon_color)}'
+            f'<div style="display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; margin-left: 8px;">'
+            f'<span style="font-size: 12.5px; color: {color}; {weight}">{name}</span>'
+            f'<span class="mono" style="font-size: 10.5px; color: {T["off"]};">{who}</span>'
+            f'</div>{controls}</div>')
+
+def _mobarust_sidebar():
+    rows = [group_row("LOCAL", 3),
+            _mobarust_shell_row("PowerShell", "pwsh.exe"),
+            _mobarust_shell_row("Command Prompt", "cmd.exe"),
+            _mobarust_shell_row("WSL: Ubuntu-22.04", "wsl.exe -d Ubuntu-22.04"),
+            group_row("PRODUCTION", 3),
+            _mobarust_host_row("web-01", "deploy@10.4.1.20", active=True, connected=True),
+            _mobarust_host_row("web-02", "deploy@10.4.1.21", connected=True),
+            _mobarust_host_row("db-prod", "postgres@10.4.1.31")]
+    return sidebar_shell(_mobarust_sidebar_header(), "\n".join(rows))
+
+def _mobarust_facet_bar(active="Terminal"):
+    facets = [("Terminal", "ssh"), ("Tunnels", "tunnels"), ("Diagnostics", "monitor"), ("Info", "info")]
+    out = []
+    for label, icon in facets:
+        on = label == active
+        color = T['ink'] if on else T['muted']
+        weight = 'font-weight: 600;' if on else 'font-weight: 500;'
+        border = T['accent'] if on else 'transparent'
+        out.append(f'<div style="display: flex; align-items: center; gap: 6px; padding: 0 12px; height: 30px;'
+                   f' border-bottom: 2px solid {border}; color: {color}; font-size: 11.5px; {weight}">'
+                   f'{ic(icon, 13, color)}{label}</div>')
+    return (f'<div style="height: 30px; flex: none; display: flex; align-items: stretch; background: {T["panel"]};'
+            f' border-bottom: 1px solid {T["line"]};">' + "".join(out) + '</div>')
+
+def _mode_pills(active):
+    out = []
+    for m in ("Local", "Remote", "Dynamic"):
+        on = m == active
+        style = (f'padding: 4px 9px; border: 1px solid {T["accent"]}; background: {T["accentsoft"]}; border-radius: 5px; font-size: 11px; color: {T["ink"]};'
+                 if on else
+                 f'padding: 4px 9px; border: 1px solid {T["line"]}; border-radius: 5px; font-size: 11px; color: {T["ink2"]};')
+        out.append(f'<span style="{style}">{m}</span>')
+    return f'<div style="display: flex; gap: 4px; flex: none;">{"".join(out)}</div>'
+
+def _mobarust_forward_row(mode, port, detail_html, tag, state=None, dashed=False):
+    border = f' border: 1px dashed {T["line2"]};' if dashed else ''
+    if state:
+        label, color = state
+        status_html = (f'<span style="display: flex; align-items: center; gap: 5px; margin-left: auto; flex: none;">'
+                       f'<span style="width: 6px; height: 6px; border-radius: 50%; background: {color}; flex: none;"></span>'
+                       f'<span style="font-size: 10.5px; color: {color};">{label}</span></span>')
+    else:
+        status_html = f'<span style="color: {T["faint"]}; margin-left: auto;">{ic("close", 11)}</span>'
+    return (f'<div style="display: flex; flex-direction: column; gap: 5px; padding: 9px 10px; background: {T["raised"]}; border-radius: 6px;{border}">'
+            f'<div style="display: flex; align-items: center; gap: 8px;">'
+            f'{_mode_pills(mode)}'
+            f'<span class="mono" style="font-size: 12px; color: {T["ink"]};">{port}</span>'
+            f'{status_html}</div>'
+            f'<div style="display: flex; align-items: center; gap: 8px; font-size: 11px; padding-left: 2px;">'
+            f'{detail_html}<span style="color: {T["faint"]}; margin-left: auto;">{tag}</span></div></div>')
+
+def _mobarust_tunnels_panel(saved_html, session_html):
+    return f"""      <div style="flex: 1; min-height: 0; padding: 20px 24px; overflow-y: auto;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+          <span style="font-size: 11px; font-weight: 600; color: {T['muted']}; letter-spacing: .04em;">SAVED WITH THIS HOST</span>
+          <span style="font-size: 11.5px; color: {T['accent']};">Edit host</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+{saved_html}
+        </div>
+        <div style="margin: 22px 0 10px;">
+          <span style="font-size: 11px; font-weight: 600; color: {T['muted']}; letter-spacing: .04em;">THIS SESSION ONLY</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+{session_html}
+        </div>
+        <div style="margin-top: 10px;"><span style="font-size: 12px; color: {T['accent']};">+ Add forward</span></div>
+      </div>"""
+
+def build_chrome_proposal_mobarust():
+    """The comparison fixture itself: MobaRust's unified sidebar (local
+    shells and saved hosts in one list, pinned "+ New host", Favorites/
+    Recent toggle) and a facet bar under the group strip
+    (Terminal/Tunnels/Diagnostics/Info) in place of the tooltip
+    `StatusBar.tsx` uses for forward state today. See this section's own
+    header comment for what this prompted and what it did not."""
+    tabs = strip([tab("web-01", "deploy@10.4.1.20", "on", dot="ok"), tab("db-prod", dot="ok")], actions=False)
+    body = term(prompt("deploy", "web-01", "systemctl status nginx") + "\n"
+                + f'<span style="color: {T["ok"]};">&#9679;</span> nginx.service - A high performance web server\n'
+                + f'     Active: <span style="color: {T["ok"]};">active (running)</span> since Mon 2026-08-24 09:12:04 UTC\n\n'
+                + prompt("deploy", "web-01") + CURSOR)
+    main = f'<div class="grp" style="">{tabs}{_mobarust_facet_bar("Terminal")}{body}</div>'
+    write("ChromeProposalMobaRust.dc.html", HEAD + f"""
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{top_strip()}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{rail(active="ssh", badge="2")}
+{_mobarust_sidebar()}
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: {T['base']};">
+      <div style="flex: 1; min-height: 0; display: flex;">{main}</div>
+    </div>
+  </div>
+{status(stat_session("deploy@10.4.1.20") + sep() + stat_text("14 ms"), stat_text("UTF-8", T['faint']))}
+</div>
+""" + FOOT)
+
+def build_chrome_proposal_mobarust_tunnels():
+    """Same fixture, Tunnels facet active: what shipped for real in #414 as
+    `TunnelsPanel`, split into forwards saved with the host (persisted,
+    editable via "Edit host") and forwards started for this session only
+    (ad-hoc, dashed border, never persisted). See
+    `build_chrome_proposal_mobarust()`'s own comment for what was
+    reconstructed and why."""
+    tabs = strip([tab("web-01", "deploy@10.4.1.20", "on", dot="ok"), tab("db-prod", dot="ok")], actions=False)
+    saved = (_mobarust_forward_row("Local", "8080",
+                                    f'<span class="mono" style="color: {T["ink2"]};">&#8594; target.internal:80</span>',
+                                    "web", state=("Running", T['ok']))
+             + _mobarust_forward_row("Dynamic", "1080",
+                                      f'<span style="color: {T["faint"]};">a local SOCKS proxy</span>',
+                                      "SOCKS", state=("Starting…", T['muted'])))
+    session = _mobarust_forward_row("Local", "5432",
+                                     f'<span class="mono" style="color: {T["ink2"]};">&#8594; localhost:5432</span>',
+                                     "temp db access", dashed=True)
+    panel = _mobarust_tunnels_panel(saved, session)
+    main = f'<div class="grp" style="">{tabs}{_mobarust_facet_bar("Tunnels")}{panel}</div>'
+    write("ChromeProposalMobaRustTunnels.dc.html", HEAD + f"""
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{top_strip()}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{rail(active="ssh", badge="2")}
+{_mobarust_sidebar()}
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: {T['base']};">
+      <div style="flex: 1; min-height: 0; display: flex;">{main}</div>
+    </div>
+  </div>
+{status(stat_session("deploy@10.4.1.20") + sep() + stat_text("2 saved, 1 this session", T['faint']), stat_text("UTF-8", T['faint']))}
+</div>
+""" + FOOT)
+
+def build_chrome_proposal_mobarust_new_host():
+    """Same fixture, main area swapped for the new-session form.
+    `HostsSection.tsx`'s own inline form (`SessionWizard`, shared by create
+    and edit) already reads this way; nothing here is a proposal, it is
+    that form redrawn inside MobaRust's chrome so the comparison covers a
+    second screen and not only the terminal. See
+    `build_chrome_proposal_mobarust()`'s own comment for what was
+    reconstructed and why."""
+    def field(label, value, mono=True, extra_style="", trailing_chev=False):
+        val = (f'<span class="mono" style="font-size: 12px; color: {T["faint"]};">{value}</span>' if mono
+               else f'<span style="font-size: 12px; color: {T["faint"]};">{value}</span>')
+        justify = ' justify-content: space-between;' if trailing_chev else ''
+        chev = ic('chev', 14, T['faint']) if trailing_chev else ''
+        return (f'<div style="{extra_style}"><span style="font-size: 11px; font-weight: 600; color: {T["ink2"]}; display: block; margin-bottom: 5px;">{label}</span>'
+                f'<div style="height: 32px; background: {T["input"]}; border: 1px solid {T["line"]}; border-radius: 6px; display: flex; align-items: center;{justify} padding: 0 10px;">{val}{chev}</div></div>')
+
+    general = f"""    <div style="display: flex; flex-direction: column; gap: 12px; border: 1px solid {T['line']}; border-radius: 6px; padding: 14px 16px;">
+      <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.09em; color: {T['faint']};">GENERAL</span>
+      {field("Host", "target.internal")}
+      <div style="display: flex; gap: 12px; margin-top: 14px;">
+        {field("User", "deploy", extra_style="flex: 1;")}
+        {field("Port", "22", extra_style="width: 90px;")}
+      </div>
+      <div style="margin-top: 14px;">{field("Name", "Leave empty to use the host", mono=False)}</div>
+      <div style="margin-top: 14px;">{field("Group", "", mono=False, trailing_chev=True)}</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px; padding: 2px 2px;">
+      {kind_ic('direct', T['faint'])}
+      <span style="font-size: 12.5px; color: {T['ink2']};">Direct connection</span>
+      <span style="margin-left: auto; font-size: 12px; color: {T['accent']};">Change</span>
+    </div>"""
+
+    access = f"""    <div style="display: flex; flex-direction: column; gap: 12px; border: 1px solid {T['line']}; border-radius: 6px; padding: 14px 16px;">
+      <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.09em; color: {T['faint']};">ACCESS</span>
+      <div role="radiogroup" style="display: flex; gap: 3px; background: {T['input']}; border: 1px solid {T['line']}; border-radius: 8px; padding: 3px;">
+        <span style="flex: 1; text-align: center; font-size: 11.5px; font-weight: 600; color: {T['ink']}; background: {T['raised']}; border-radius: 6px; padding: 6px 0;">Password</span>
+        <span style="flex: 1; text-align: center; font-size: 11.5px; color: {T['muted']}; padding: 6px 0;">Private key</span>
+      </div>
+      <div style="margin-top: 14px;">
+        <span style="font-size: 11px; font-weight: 600; color: {T['ink2']}; display: block; margin-bottom: 5px;">Password</span>
+        <div style="height: 32px; background: {T['input']}; border: 1px solid {T['line']}; border-radius: 6px;"></div>
+      </div>
+    </div>
+    <div style="padding: 2px 2px;"><span style="font-size: 12px; color: {T['accent']};">+ Add forward</span></div>"""
+
+    form = f"""      <div style="height: 100%; padding: 24px 28px; overflow-y: auto;">
+        <span style="font-size: 15px; font-weight: 600;">New session</span>
+        <div style="display: flex; gap: 40px; margin-top: 22px;">
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 22px;">
+{general}
+          </div>
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 22px;">
+{access}
+          </div>
+        </div>
+        <div style="margin-top: 26px; padding-top: 16px; border-top: 1px solid {T['line']};">
+          <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+            <span style="font-size: 12px; color: {T['muted']};">Cancel</span>
+            <div style="flex: 1;"></div>
+            <span style="font-size: 12px; font-weight: 600; color: {T['base']}; background: {T['accent']}; border-radius: 6px; padding: 7px 16px;">Save</span>
+          </div>
+        </div>
+      </div>"""
+
+    write("ChromeProposalMobaRustNewHost.dc.html", HEAD + f"""
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{top_strip()}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{rail(active="ssh", badge="2")}
+{_mobarust_sidebar()}
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: {T['base']};">
+      <div style="flex: 1; min-height: 0; display: flex;">{form}</div>
+    </div>
+  </div>
+{status(stat_text("New session", T['muted'], mono=False), stat_text("3 saved", T['faint']))}
 </div>
 """ + FOOT)
 
@@ -5461,7 +5739,9 @@ else:
                build_chrome_proposal_dock, build_chrome_proposal_orbit, build_chrome_proposal_orbit_add_host,
                build_chrome_proposal_orbit_hostkey, build_chrome_proposal_orbit_workspaces,
                build_chrome_proposal_orbit_sftp, build_chrome_proposal_orbit_split,
-               build_chrome_proposal_orbit_broadcast, build_broadcast,
+               build_chrome_proposal_orbit_broadcast,
+               build_chrome_proposal_mobarust, build_chrome_proposal_mobarust_tunnels,
+               build_chrome_proposal_mobarust_new_host, build_broadcast,
                build_hostkey, build_sftp, build_sftp_workspace, build_sftp_fanout, build_sftp_proposal,
                build_sftp_proposal_broadcast, build_sftp_file_ops, build_sftp_folder_copy,
                build_sftp_selection, build_sftp_delete_confirm,
