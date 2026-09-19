@@ -27,7 +27,7 @@ T = dict(
     # Z-index scale
     z_dropdown="100", z_tooltip="200", z_modal="300", z_toast="400",
     # Glass/blur
-    glass_blur="8px", glass_opacity="0.08",
+    glass_blur="8px", glass_opacity="0.08", glass_panel="rgba(12, 21, 34, 0.9)",
 )
 
 # The same token names with the values swapped, straight from the light blocks
@@ -56,7 +56,7 @@ LIGHT = dict(
     # Z-index scale (same values)
     z_dropdown="100", z_tooltip="200", z_modal="300", z_toast="400",
     # Glass/blur (slightly lower opacity for light)
-    glass_blur="8px", glass_opacity="0.06",
+    glass_blur="8px", glass_opacity="0.06", glass_panel="rgba(255, 255, 255, 0.92)",
 )
 
 import sys
@@ -155,6 +155,16 @@ ICON = dict(
     pencil='<path d="M4 20l1-4.2L15.8 5l3.2 3.2L8.2 19H4z"></path><path d="M13.8 6.7l3.2 3.2"></path>',
     trash='<path d="M5 7h14"></path><path d="M9.5 7V5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v2"></path>'
           '<path d="M7 7l1 12.5a1.5 1.5 0 0 0 1.5 1.4h5a1.5 1.5 0 0 0 1.5-1.4L17 7"></path><path d="M10 11v6M14 11v6"></path>',
+    # Exploratory (#412, redrawn 2026-09-19): the MobaRust/SSHDesk
+    # comparison fixture's own glyphs. star is the sidebar's stateless
+    # Favorites toggle; termwin stands in for both a local shell and a
+    # saved host row, MobaRust draws no distinction; tunnels and info are
+    # two of the facet bar's four tabs (Terminal reuses `ssh`, Diagnostics
+    # reuses `monitor` below, byte-identical to the fixture's own path).
+    star='<path d="M12 3.5l2.6 5.6 6.1.6-4.6 4.1 1.3 6-5.4-3.2-5.4 3.2 1.3-6-4.6-4.1 6.1-.6z"></path>',
+    termwin='<rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M7 9l3 3-3 3M12 15h5"></path>',
+    tunnels='<rect x="3" y="9" width="18" height="6" rx="3"></rect><path d="M7 9V6M7 15v3M17 9V6M17 15v3"></path>',
+    info='<circle cx="12" cy="12" r="8.5"></circle><path d="M12 11v5"></path><circle cx="12" cy="8" r="0.9" fill="currentColor" stroke="none"></circle>',
 )
 
 def ic(name, size=14, color=None, cls="ic", extra=""):
@@ -513,8 +523,18 @@ def rowkeys(label, keys):
             f'<span style="font-size: 13px; color: {T["muted"]};">{label}</span>'
             f'<span style="display: flex; align-items: center; gap: 4px;">{caps}</span></div>')
 
-# ---------- 2. one group
+# ---------- 2. one group, sidebar summoned over it
 def build_main():
+    """ADR-0071 Phase 4, shipped: the sidebar is a floating overlay over the
+    full-bleed terminal, not a reflowed column, so this is drawn the way
+    `ChromeProposalOverlay.dc.html` first proposed it rather than through
+    `page()`/`sidebar_shell()`, both of which still bake in the
+    always-reserved 280px column that no longer exists. Panel geometry
+    (280px, `line`, `glass_panel`, `radius_lg`, `shadow_5`, `glass_blur`,
+    `left: 48px` to clear the rail) matches `SidebarOverlay.tsx` exactly,
+    not the proposal artboard's placeholder values (300px, `line2`, a
+    hardcoded panel color) which were exploratory and never shipped as
+    drawn."""
     s = strip([tab("web-01", "deploy@10.4.1.20", "on"), tab("db-prod", dot="ok"), tab("cache-01", dot="warn")])
     body = term(
         prompt("deploy", "web-01", "systemctl status nginx") + "\n"
@@ -527,11 +547,47 @@ def build_main():
         + '10.4.1.7 - - [24/Aug/2026:09:41:12] "GET /health HTTP/1.1" 200 2\n'
         + '10.4.1.9 - - [24/Aug/2026:09:41:15] "POST /api/v2/jobs HTTP/1.1" 201 148\n\n'
         + prompt("deploy", "web-01") + CURSOR)
+    content = f'      <div style="flex: 1; min-height: 0; display: flex;">{group(s, body)}</div>'
+
+    rows = [group_row("PRODUCTION", 3)]
+    for n, w in PROD:
+        rows.append(host_row(n, w, {"web-01": "ok", "db-prod": "ok"}.get(n, "saved"), n == "web-01", kind=PROD_KIND.get(n)))
+    rows.append('<div style="height: 8px;"></div>')
+    rows.append(group_row("STAGING", 2))
+    rows.append(host_row("stg-app", "deploy@10.9.0.5"))
+    rows.append(host_row("stg-db", "postgres@10.9.0.6", kind="target"))
+
+    panel = f"""        <div style="position: absolute; top: 12px; bottom: 12px; left: 12px; width: 280px;
+             background: {T['glass_panel']}; border: 1px solid {T['line']}; border-radius: {T['radius_lg']};
+             box-shadow: {T['shadow_5']}; backdrop-filter: blur({T['glass_blur']});
+             display: flex; flex-direction: column; overflow: hidden;">
+{sessions_header()}
+          <div style="flex: 1; padding: 8px; display: flex; flex-direction: column; gap: 4px; overflow: hidden;">
+{chr(10).join(rows)}
+          </div>
+        </div>"""
+    veil = f'<div style="position: absolute; inset: 0; background: rgba(0,0,0,.35);"></div>'
+    overlay = f"""      <div style="position: absolute; left: 48px; right: 0; top: 36px; bottom: 32px; overflow: hidden;">
+{veil}
+{panel}
+      </div>"""
+
     st = status(stat_session("deploy@10.4.1.20") + "\n" + sep() + "\n" + stat_text("198 x 42") + "\n" + stat_text("14 ms") + "\n" + stat_text("2,4 MB"),
                 stat_text("SYNC OFF", T['faint'], mono=False) + "\n" + sep() + "\n" + stat_text("UTF-8", T['faint']))
-    write("Main.dc.html", page(f'      <div style="flex: 1; min-height: 0; display: flex;">{group(s, body)}</div>',
-                               sessions_sidebar(active="web-01", states={"web-01": "ok", "db-prod": "ok"}),
-                               home_rail(workspace="sessions", badge="3"), st))
+
+    write("Main.dc.html", HEAD + f"""
+<div style="width: 1440px; height: 900px; position: relative; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{top_strip("single", True)}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{home_rail(workspace="sessions", badge="3")}
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: {T['base']};">
+{content}
+    </div>
+  </div>
+{st}
+{overlay}
+</div>
+""" + FOOT)
 
 # ---------- 3. four groups, six sessions
 def build_groups():
@@ -565,6 +621,11 @@ def build_collapsed():
     # The Sessions icon stays lit here: closing the sidebar toggles
     # `sidebarOpen`, not `workspace` (ActivityRail.tsx), so it is wrong to
     # draw it dim the way the pre-#234 rail() call used to.
+    #
+    # ADR-0071 Phase 4, shipped: this is no longer a state a person toggles
+    # away from by choice, it is the app's default. `sidebarOpen` starts
+    # `false`; the sidebar only exists as the floating overlay `Main.dc.html`
+    # draws once summoned. Pixels unchanged, only what the state means.
     s = strip([tab("web-01", "deploy@10.4.1.20", "on"), tab("db-prod", "postgres@10.4.1.31")])
     body = term(
         prompt("deploy", "web-01", "docker compose ps") + "\n"
@@ -586,6 +647,1082 @@ def build_collapsed():
                 stat_text("SYNC OFF", T['faint'], mono=False) + "\n" + sep() + "\n" + stat_text("UTF-8", T['faint']))
     write("Collapsed.dc.html", page(f'      <div style="flex: 1; min-height: 0; display: flex;">{group(s, body)}</div>',
                                     None, home_rail(workspace="sessions", badge="2"), st))
+
+# ---------- ADR-0071: sidebar summoned as a floating overlay
+def build_chrome_proposal_overlay():
+    """ADR-0071: the sidebar collapses by default, which is what
+    `Collapsed.dc.html` already draws (that becomes the default state
+    rather than a toggle a person reaches for, a code change with nothing
+    new to draw). What has no artboard yet is the other half: summoned, the
+    sidebar floats over the full-bleed terminal on the shadow_5/radius_lg
+    tokens ADR-0063 added instead of pushing the layout the way
+    `sidebar_shell()` still does. Built directly rather than through
+    `page()`/`sidebar_shell()`, both of which bake in the always-reserved
+    280px column this proposal removes. Accepted as the direction for the
+    ADR-0071 follow-up (README) and shipped as `SidebarOverlay.tsx`, which
+    `Main.dc.html` now draws for real. Kept here, panel geometry unchanged,
+    as the record of the proposal that was accepted: 300px and `line2` were
+    this sketch's own placeholders, not what shipped, and `Main.dc.html`
+    carries the values that did (280px, `line`, `glass_panel`)."""
+    s = strip([tab("web-01", "deploy@10.4.1.20", "on"), tab("db-prod", "postgres@10.4.1.31")])
+    body = term(
+        prompt("deploy", "web-01", "docker compose ps") + "\n"
+        "NAME                 IMAGE                     STATUS         PORTS\n"
+        "site-web-1           ghcr.io/acme/site:2.14    Up 4 hours     0.0.0.0:8080-&gt;80/tcp\n"
+        "site-worker-1        ghcr.io/acme/worker:2.14  Up 4 hours\n"
+        "site-cache-1         redis:7-alpine            Up 4 hours     6379/tcp\n\n"
+        + prompt("deploy", "web-01") + CURSOR)
+    content = f'      <div style="flex: 1; min-height: 0; display: flex;">{group(s, body)}</div>'
+
+    rows = [group_row("PRODUCTION", 3)]
+    for n, w in PROD:
+        rows.append(host_row(n, w, "saved", n == "web-01", kind=PROD_KIND.get(n)))
+    rows.append('<div style="height: 8px;"></div>')
+    rows.append(group_row("STAGING", 2))
+    rows.append(host_row("stg-app", "deploy@10.9.0.5"))
+    rows.append(host_row("stg-db", "postgres@10.9.0.6", kind="target"))
+
+    panel = f"""        <div style="position: absolute; top: 12px; bottom: 12px; left: 12px; width: 300px;
+             background: rgba(12,21,34,.9); border: 1px solid {T['line2']}; border-radius: {T['radius_lg']};
+             box-shadow: {T['shadow_5']}; backdrop-filter: blur({T['glass_blur']});
+             display: flex; flex-direction: column; overflow: hidden;">
+{sessions_header()}
+          <div style="flex: 1; padding: 8px; display: flex; flex-direction: column; gap: 4px; overflow: hidden;">
+{chr(10).join(rows)}
+          </div>
+        </div>"""
+    veil = f'<div style="position: absolute; inset: 0; background: rgba(7,14,24,.35);"></div>'
+    overlay = f"""      <div style="position: absolute; left: 48px; right: 0; top: 36px; bottom: 32px; overflow: hidden;">
+{veil}
+{panel}
+      </div>"""
+
+    st = status(stat_session("deploy@10.4.1.20") + "\n" + sep() + "\n" + stat_text("232 x 42") + "\n" + stat_text("14 ms"),
+                stat_text("SYNC OFF", T['faint'], mono=False))
+
+    write("ChromeProposalOverlay.dc.html", HEAD + f"""
+<div style="width: 1440px; height: 900px; position: relative; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{top_strip("single", True)}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{home_rail(workspace="sessions", badge="2")}
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: {T['base']};">
+{content}
+    </div>
+  </div>
+{st}
+{overlay}
+</div>
+""" + FOOT)
+
+# ---------- ADR-0071 revisited: no sidebar, no overlay, a dock instead
+def build_chrome_proposal_dock():
+    """Maintainer feedback on `ChromeProposalOverlay.dc.html`: it read as
+    the same chrome with a floating sidebar, not a renewed one. This drops
+    the sidebar mechanism entirely, overlay included, rather than changing
+    how it is summoned. `rail()` and `sidebar_shell()` are both gone from
+    this shape, replaced by one host dock: an avatar per connected host,
+    initials and a state dot rather than the name-and-address two-line
+    `host_row()` draws. The terminal stops being an edge-to-edge panel and
+    becomes a card, on the radius/shadow tokens ADR-0063 added. The full
+    status bar is gone too, replaced by a single floating chip, the same
+    information `status()` drew, none of the width it used to claim.
+
+    What this costs, named rather than hidden: a host not pinned to the
+    dock has no list to be found in here, so it is a palette search away
+    instead of a scroll away, and the dock's own labels are two letters,
+    not a name. Nothing accepted; `Main.dc.html` is still shipped."""
+    def avatar(label, state="saved", active=False):
+        ring = {"ok": T['ok'], "saved": T['off'], "warn": T['warn']}[state]
+        border = f'2px solid {ring}' if state != 'saved' else f'1.5px solid {ring}'
+        bg = T['raised'] if active else 'transparent'
+        glow = f' box-shadow: 0 0 0 3px {ring}33;' if active else ''
+        return (f'<div style="width: 40px; height: 40px; border-radius: {T["radius_md"]}; background: {bg};'
+                f' border: {border};{glow} display: flex; align-items: center; justify-content: center; flex: none;">'
+                f'<span class="mono" style="font-size: 11.5px; font-weight: 700; color: {T["ink2"] if active else T["muted"]};">{label}</span></div>')
+
+    sep_line = f'<div style="width: 28px; height: 1px; background: {T["line"]}; margin: 2px 0;"></div>'
+    dock = f"""    <div style="width: 76px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 18px 0;">
+      {avatar("W1", "ok", True)}
+      {avatar("W2", "saved")}
+      {avatar("DP", "warn")}
+      {sep_line}
+      {avatar("SA", "saved")}
+      {avatar("SD", "saved")}
+      <div style="flex: 1;"></div>
+      <div style="width: 40px; height: 40px; border-radius: {T['radius_md']}; display: flex; align-items: center;
+           justify-content: center; color: {T['faint']};">{ic('plus', 18)}</div>
+      <div style="width: 40px; height: 40px; border-radius: {T['radius_md']}; display: flex; align-items: center;
+           justify-content: center; color: {T['faint']};">{ic('gear', 18)}</div>
+    </div>"""
+
+    s = strip([tab("web-01", "deploy@10.4.1.20", "on"), tab("db-prod", "postgres@10.4.1.31")])
+    body = term(
+        prompt("deploy", "web-01", "docker compose ps") + "\n"
+        "NAME                 IMAGE                     STATUS         PORTS\n"
+        "site-web-1           ghcr.io/acme/site:2.14    Up 4 hours     0.0.0.0:8080-&gt;80/tcp\n"
+        "site-worker-1        ghcr.io/acme/worker:2.14  Up 4 hours\n"
+        "site-cache-1         redis:7-alpine            Up 4 hours     6379/tcp\n\n"
+        + prompt("deploy", "web-01") + CURSOR)
+    card = (f'<div style="flex: 1; min-width: 0; border-radius: {T["radius_lg"]}; overflow: hidden;'
+            f' border: 1px solid {T["line2"]}; box-shadow: {T["shadow_3"]};">{group(s, body)}</div>')
+
+    chip = (f'<div style="position: absolute; right: 28px; bottom: 28px; display: flex; align-items: center; gap: 10px;'
+            f' padding: 7px 12px; background: {T["overlay"]}; border: 1px solid {T["line2"]}; border-radius: {T["radius_full"]};'
+            f' box-shadow: {T["shadow_3"]};">'
+            f'{stat_session("deploy@10.4.1.20")}'
+            f'<span style="width: 1px; height: 12px; background: {T["line"]};"></span>'
+            f'<span class="mono" style="font-size: 10.5px; color: {T["muted"]};">14 ms</span>'
+            f'<span class="mono" style="font-size: 10.5px; color: {T["faint"]};">SYNC OFF</span>'
+            f'</div>')
+
+    top = f"""  <div style="height: 36px; flex: none; display: flex; align-items: stretch; background: {T['chrome']}; border-bottom: 1px solid {T['line']};">
+    <div style="width: 48px; flex: none; display: flex; align-items: center; justify-content: center;">{MARK}</div>
+    <div style="flex: 1;"></div>
+    {shapes("single")}
+    <div style="flex: none; display: flex; align-items: stretch; border-left: 1px solid {T['line']};">
+      <div class="win"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M1.5 5h7"></path></svg></div>
+      <div class="win"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.1"><rect x="1.5" y="1.5" width="7" height="7"></rect></svg></div>
+      <div class="win"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"></path></svg></div>
+    </div>
+  </div>"""
+
+    write("ChromeProposalDock.dc.html", HEAD + f"""
+<div style="width: 1440px; height: 900px; position: relative; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{top}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch; padding: 16px 16px 16px 4px; gap: 4px;">
+{dock}
+{card}
+  </div>
+{chip}
+</div>
+""" + FOOT)
+
+def _orbit_stage(console_locked=False):
+    """The scene `ChromeProposalOrbit.dc.html` draws: no rail, sidebar,
+    dock, overlay or status bar, `top_strip()`/`rail()`/`sidebar_shell()`/
+    `status()`/`strip()` all unused on purpose. A session is a node, not a
+    row: each host is a dot in a cluster grouped by topology instead of a
+    line in a scrollable list, and the dot's fill state carries connected,
+    saved and broadcast-receiving. Factored out here so the add-host and
+    host-key proposals can put this same scene out of focus behind a veil
+    instead of redrawing it.
+
+    `console_locked` swaps the bottom pill for a dimmed, unclickable one
+    reading "Locked until this is resolved": the answer to "does everything
+    go through the pill", drawn rather than only said. A blocking security
+    decision (CLAUDE.md section 7 rule 3) is not a pill entry among others
+    while it is pending. Returns `(nebula_background, stage_html)`."""
+
+    def node(label, state="saved", active=False, size=15):
+        ring = {"on": T['accent'], "saved": T['off'], "warn": T['warn']}[state]
+        fill = T['accent'] if state == "on" else 'transparent'
+        glow = f' box-shadow: 0 0 0 5px {ring}2e;' if active or state == 'warn' else ''
+        d = size * 2
+        return (f'<div style="width: {d}px; height: {d}px; border-radius: 50%; background: {fill};'
+                f' border: {"none" if state == "on" else f"1.6px solid " + ring};{glow}"></div>')
+
+    def cluster(caption, nodes, line_inset=17):
+        n = "".join(f'<div style="position: relative; z-index: 1;">{html}</div>' for html in nodes)
+        return f"""      <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+        <span class="mono" style="font-size: 9px; font-weight: 700; letter-spacing: 0.16em; color: {T['faint']};">{caption}</span>
+        <div style="position: relative; display: flex; align-items: center; gap: 22px;">
+          <div style="position: absolute; left: {line_inset}px; right: {line_inset}px; top: 50%; height: 1px; background: {T['line2']}; z-index: 0;"></div>
+          {n}
+        </div>
+      </div>"""
+
+    prod = cluster("PRODUCTION", [
+        node("", "on", active=True),
+        node("", "saved"),
+        node("", "warn"),
+    ])
+    staging = cluster("STAGING", [
+        node("", "saved"),
+        node("", "saved"),
+    ])
+
+    pill = (f'<div style="position: absolute; top: 22px; left: 50%; transform: translateX(-50%); display: flex;'
+            f' align-items: center; gap: 40px; padding: 14px 34px; border-radius: {T["radius_full"]};'
+            f' background: rgba(12,21,34,.82); border: 1px solid {T["line2"]}; box-shadow: {T["shadow_4"]};'
+            f' backdrop-filter: blur({T["glass_blur"]});">{prod}{staging}</div>')
+
+    caption = (f'<div style="position: absolute; top: 92px; left: 50%; transform: translateX(-50%);">'
+               f'<span class="mono" style="font-size: 10.5px; color: {T["muted"]};">web-01</span>'
+               f'<span class="mono" style="font-size: 10.5px; color: {T["faint"]};"> &middot; deploy@10.4.1.20 &middot; connected 18m</span></div>')
+
+    winctl = (f'<div style="position: absolute; top: 16px; right: 20px; display: flex; align-items: center; gap: 14px; color: {T["faint"]};">'
+              f'<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M1.5 5h7"></path></svg>'
+              f'<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.1"><rect x="1.5" y="1.5" width="7" height="7"></rect></svg>'
+              f'<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"></path></svg>'
+              f'</div>')
+
+    term_body = term(
+        prompt("deploy", "web-01", "docker compose ps") + "\n"
+        "NAME                 IMAGE                     STATUS         PORTS\n"
+        "site-web-1           ghcr.io/acme/site:2.14    Up 4 hours     0.0.0.0:8080-&gt;80/tcp\n"
+        "site-worker-1        ghcr.io/acme/worker:2.14  Up 4 hours\n"
+        "site-cache-1         redis:7-alpine            Up 4 hours     6379/tcp\n\n"
+        + prompt("deploy", "web-01") + CURSOR)
+    terminal = (f'<div style="position: absolute; inset: 0; padding-top: 96px;">'
+                f'<div class="grp mono" style="height: 100%; background: transparent;">{term_body}</div></div>')
+
+    if console_locked:
+        console = (f'<div style="position: absolute; bottom: 26px; left: 50%; transform: translateX(-50%); width: 460px;'
+                   f' display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-radius: {T["radius_full"]};'
+                   f' background: rgba(12,21,34,.5); border: 1px solid {T["line"]}; opacity: 0.55;">'
+                   f'<span style="color: {T["faint"]};">{ic("lock", 13)}</span>'
+                   f'<span class="mono" style="flex: 1; font-size: 11.5px; color: {T["faint"]};">Locked until this is resolved</span>'
+                   f'</div>')
+    else:
+        console = (f'<div style="position: absolute; bottom: 26px; left: 50%; transform: translateX(-50%); width: 460px;'
+                   f' display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-radius: {T["radius_full"]};'
+                   f' background: rgba(12,21,34,.82); border: 1px solid {T["line2"]}; box-shadow: {T["shadow_3"]};'
+                   f' backdrop-filter: blur({T["glass_blur"]});">'
+                   f'<span style="color: {T["faint"]};">{ic("search", 13)}</span>'
+                   f'<span class="mono" style="flex: 1; font-size: 11.5px; color: {T["faint"]};">Jump to a host, or run a command&hellip;</span>'
+                   f'<span class="cap" style="font-size: 9.5px;">&#8984;K</span>'
+                   f'</div>')
+
+    def gauge(value_text, frac, color):
+        r = 15
+        circ = 2 * 3.14159 * r
+        dash = circ * frac
+        return (f'<svg width="36" height="36" viewBox="0 0 36 36" style="transform: rotate(-90deg);">'
+                f'<circle cx="18" cy="18" r="{r}" fill="none" stroke="{T["line2"]}" stroke-width="2.5"></circle>'
+                f'<circle cx="18" cy="18" r="{r}" fill="none" stroke="{color}" stroke-width="2.5" stroke-linecap="round"'
+                f' stroke-dasharray="{dash:.1f} {circ:.1f}"></circle>'
+                f'</svg>'
+                f'<span class="mono" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;'
+                f' font-size: 8.5px; color: {T["ink2"]};">{value_text}</span>')
+
+    hud = (f'<div style="position: absolute; bottom: 26px; right: 28px; display: flex; align-items: center; gap: 14px;'
+           f' padding: 8px 16px 8px 12px; border-radius: {T["radius_full"]}; background: rgba(12,21,34,.82);'
+           f' border: 1px solid {T["line2"]}; box-shadow: {T["shadow_3"]}; backdrop-filter: blur({T["glass_blur"]});">'
+           f'<div style="position: relative; width: 36px; height: 36px;">{gauge("14", 0.72, T["ok"])}</div>'
+           f'<div style="display: flex; flex-direction: column; gap: 2px;">'
+           f'<span class="mono" style="font-size: 9px; color: {T["faint"]}; letter-spacing: 0.08em;">SYNC OFF</span>'
+           f'<span class="mono" style="font-size: 9px; color: {T["faint"]}; letter-spacing: 0.08em;">1 RECEIVING</span>'
+           f'</div></div>')
+
+    nebula = (f'radial-gradient(ellipse 900px 500px at 50% -8%, {T["bstart"]}14, transparent 60%),'
+              f' radial-gradient(ellipse 700px 420px at 82% 88%, {T["bend"]}12, transparent 55%)')
+
+    stage = f"{terminal}\n{pill}\n{caption}\n{winctl}\n{console}\n{hud}"
+    return nebula, stage
+
+
+def build_chrome_proposal_orbit():
+    """The maintainer's note asked for something unconstrained by
+    ADR-0005, ADR-0020 and ADR-0071 rather than another arrangement of the
+    same three regions. `_orbit_stage()` carries the reasoning for the
+    scene itself; this function is just the plain page it draws on.
+
+    That cluster floats over the terminal instead of pushing it, and it is
+    the only navigation surface on the frame. Everything a rail, a sidebar
+    or a status bar used to name, which host, which group, latency, sync
+    state, is read off it or off the two small pills at the corners, and
+    nothing else is drawn full-time. Opening a host not already in the
+    cluster, or anything a gear icon used to reach, goes through the
+    command pill at the bottom, which is drawn here already open with a
+    hint rather than as a keystroke away.
+
+    What this costs, named rather than hidden: a name is two letters and a
+    position, not a label, so recognizing a host means remembering which
+    dot it is, the thing `host_row()` printing a name was specifically for.
+    A pool of hosts larger than a small cluster has nowhere left to grow
+    (the sidebar's own scroll is gone with it), and broadcast's `SPARED`
+    labelling from ADR-0020 has no surface to print on here at all, only a
+    ring color. This is a sketch of a different idea, not an engineered
+    replacement for what armed broadcast has to show. Nothing accepted;
+    `Main.dc.html` is still shipped."""
+    nebula, stage = _orbit_stage()
+    write("ChromeProposalOrbit.dc.html", HEAD + f"""
+<div style="width: 1440px; height: 900px; position: relative; overflow: hidden; background: {nebula}, {T['base']}; color: {T['ink']}; font-size: 13px;">
+{stage}
+</div>
+""" + FOOT)
+
+
+def build_chrome_proposal_orbit_add_host():
+    """"me mostre como eu cadastro um host, seguindo essa ideia": the same
+    chromeless idea has to answer this or it is only a viewer, not an
+    editor. There is still no rail with a gear on it and no Home workspace
+    to switch the rail to, so this does not reuse `hosts_shell()` or
+    `host_detail_panel()`'s two-column book layout, which assumes both.
+    What it keeps from the shipped form is the field vocabulary itself,
+    `kind_picker()`, `wizard_field()`, `wizard_label()`, `bordered_section()`,
+    `wizard_actions()`, since a text field does not need reinventing just
+    because the frame around it did.
+
+    The card is summoned, not docked: the command pill at the bottom is
+    what "new host" or a bare `+` gets typed into, and this is what it
+    opens, centered over the scene from `_orbit_stage()` behind a veil,
+    the same relationship a command palette already has with what it sits
+    on top of. The one field neither `HomeHosts.dc.html` nor the wizard
+    ever had to ask is here because the constellation needs an answer to
+    it up front rather than inferred from a `group` string typed into a
+    text box: which cluster the new dot joins, asked with the same pill
+    shapes the orbit itself draws, PRODUCTION or STAGING selected the way
+    an active node is, ringed and filled, or a third pill to start a new
+    one.
+
+    What this costs, named rather than hidden: there is no host list
+    behind this card to page through while filling it in, so correcting a
+    near-duplicate name means remembering the constellation by eye first.
+    Nothing accepted; `HomeHosts.dc.html` is still the shipped editor."""
+    nebula, stage = _orbit_stage()
+    veil = f'<div style="position: absolute; inset: 0; background: rgba(7,14,24,.6); backdrop-filter: blur(1.5px);"></div>'
+
+    def cluster_pill(label, on):
+        border = T['accent'] if on else T['line2']
+        bg = f'background: {T["accentsoft"]};' if on else ''
+        color = T['ink'] if on else T['ink2']
+        return (f'<span style="display: inline-flex; align-items: center; gap: 6px; border: 1px solid {border};'
+                f' {bg} border-radius: {T["radius_full"]}; padding: 6px 14px; font-size: 11.5px; color: {color};">'
+                f'<span style="width: 7px; height: 7px; border-radius: 50%; {"background:" + T["accent"] if on else "border: 1.5px solid " + T["off"] + "; box-sizing: border-box;"}"></span>'
+                f'{label}</span>')
+
+    general = f"""
+      <div style="display: flex; gap: 12px;">
+        <div style="flex: 1;">{wizard_label('Host')}{wizard_field('', mono=True, placeholder=True)}</div>
+        <div style="width: 84px;">{wizard_label('Port')}{wizard_field('22')}</div>
+      </div>
+      <div style="display: flex; gap: 12px; margin-top: 14px;">
+        <div style="flex: 1;">{wizard_label('User')}{wizard_field('', mono=True, placeholder=True)}</div>
+        <div style="flex: 1;">{wizard_label('Name')}{wizard_field('web-04', mono=False)}</div>
+      </div>
+      <div style="margin-top: 14px;">{wizard_label('Kind')}{kind_picker('direct')}</div>"""
+
+    joins = f"""
+      <div style="margin-top: 14px;">
+        {wizard_label('Joins')}
+        <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+          {cluster_pill('PRODUCTION', True)}{cluster_pill('STAGING', False)}{cluster_pill('&plus; New cluster', False)}
+        </div>
+      </div>"""
+
+    access = f"""
+      <div role="radiogroup" style="display: flex; gap: 3px; background: {T['input']}; border: 1px solid {T['line']}; border-radius: 8px; padding: 3px;">
+        <span style="flex: 1; text-align: center; font-size: 11.5px; font-weight: 600; color: {T['ink']}; background: {T['raised']}; border-radius: 6px; padding: 6px 0;">Password</span>
+        <span style="flex: 1; text-align: center; font-size: 11.5px; color: {T['muted']}; padding: 6px 0;">Private key</span>
+      </div>
+      <div style="margin-top: 10px;">{wizard_field('', mono=True, placeholder=True)}</div>
+      <div style="margin-top: 6px;">{wizard_hint('Stored in the system keychain once saved. Never shown here again.')}</div>"""
+
+    card = f"""    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 540px;
+         background: rgba(12,21,34,.94); border: 1px solid {T['line2']}; border-radius: {T['radius_xl']};
+         box-shadow: {T['shadow_5']}; backdrop-filter: blur({T['glass_blur']}); padding: 26px 28px;">
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <span style="font-size: 15px; font-weight: 600;">New host</span>
+        {ic('close', 14, T['faint'])}
+      </div>
+      <div style="margin-top: 20px;">{bordered_section('General', general + joins)}</div>
+      <div style="margin-top: 18px;">{bordered_section('Access', access)}</div>
+      <div style="margin-top: 22px; padding-top: 14px; border-top: 1px solid {T['line']};">{wizard_actions(('Cancel', False), ('Save', True))}</div>
+    </div>"""
+
+    write("ChromeProposalOrbitAddHost.dc.html", HEAD + f"""
+<div style="width: 1440px; height: 900px; position: relative; overflow: hidden; background: {nebula}, {T['base']}; color: {T['ink']}; font-size: 13px;">
+{stage}
+{veil}
+{card}
+</div>
+""" + FOOT)
+
+
+def build_chrome_proposal_orbit_hostkey():
+    """"tudo sera feito pela pilula de comando?": no. `build_hostkey()`'s own
+    copy and fields are reused here verbatim (RANDOMART, fingerprint, the
+    out-of-band verification line, the "I verified this" check), because a
+    security-critical prompt is exactly the case CLAUDE.md section 7 rule 3
+    already settled and this exploration does not get to relitigate: unknown
+    host keys prompt the user, changed host keys block the connection, never
+    verify-none, never silent trust-on-first-use. What changes here is only
+    the frame around that copy, a summoned card over the veiled orbit scene
+    instead of a group filling half a sidebar layout.
+
+    The one thing this artboard adds that `HostKey.dc.html` had no need to
+    show: `_orbit_stage(console_locked=True)` swaps the bottom command pill
+    for a dimmed, inert one reading "Locked until this is resolved". That is
+    the actual answer to the question, drawn rather than only argued: a
+    decision this consequential is not a searchable pill entry among others,
+    it is the only thing the frame will let you do until you do it. ADR-0020
+    rule 7 called this "safety outranks tidiness" for the shipped chrome;
+    the same reasoning holds even with every other rule in that ADR ignored.
+
+    Nothing accepted; `HostKey.dc.html` is still the shipped prompt."""
+    nebula, stage = _orbit_stage(console_locked=True)
+    veil = f'<div style="position: absolute; inset: 0; background: rgba(7,14,24,.68); backdrop-filter: blur(2px);"></div>'
+    art = "\n".join(RANDOMART)
+
+    card = f"""    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 600px;
+         background: rgba(12,21,34,.96); border: 1px solid {T['warn']}; border-radius: {T['radius_xl']};
+         box-shadow: {T['shadow_5']}; backdrop-filter: blur({T['glass_blur']}); overflow: hidden;">
+      <div style="display: flex; align-items: center; gap: 11px; padding: 18px 24px; background: {T['warnsoft']}; border-bottom: 1px solid {T['warn']};">
+        <svg class="ic" viewBox="0 0 24 24" style="width: 17px; height: 17px; color: {T['warn']};">{ICON['shield']}</svg>
+        <span style="font-size: 15px; font-weight: 700;">Unknown host key</span>
+      </div>
+      <div style="padding: 22px 24px;">
+        <div style="font-size: 12.5px; color: {T['ink2']}; line-height: 1.6;">Runic SSH has never connected to log-01 before. Confirm the fingerprint through a channel you already trust, not through this connection.</div>
+        <div style="display: flex; gap: 22px; margin-top: 20px;">
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 14px;">
+            <div><div style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.11em; color: {T['faint']};">HOST</div>
+            <div class="mono" style="font-size: 12.5px; color: {T['ink']}; margin-top: 5px;">log-01 &#183; 10.4.1.60:22</div></div>
+            <div><div style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.11em; color: {T['faint']};">KEY TYPE</div>
+            <div class="mono" style="font-size: 12.5px; color: {T['ink']}; margin-top: 5px;">ssh-ed25519</div></div>
+            <div><div style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.11em; color: {T['faint']};">SHA256 FINGERPRINT</div>
+            <div class="mono" style="font-size: 12.5px; color: {T['accent2']}; margin-top: 5px; word-break: break-all;">SHA256:9pJk2vQr7Xf1mNbT4wLd8sYcE0hGuA3iZoRxV6nKqMs</div></div>
+          </div>
+          <div>
+            <div style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.11em; color: {T['faint']};">RANDOMART</div>
+            <pre class="mono" style="margin: 5px 0 0; font-size: 10px; line-height: 1.25; color: {T['muted']}; background: {T['terminal']}; border: 1px solid {T['line']}; border-radius: 6px; padding: 8px 10px;">{art}</pre>
+          </div>
+        </div>
+        <div style="display: flex; align-items: flex-start; gap: 11px; margin-top: 20px; padding: 13px 15px; background: rgba(0,0,0,.18); border: 1px solid {T['line']}; border-radius: 8px;">
+          <span style="width: 15px; height: 15px; border: 1.5px solid {T['line2']}; border-radius: 4px; flex: none; margin-top: 1px;"></span>
+          <div><div style="font-size: 12.5px; color: {T['ink2']}; font-weight: 600;">I verified this fingerprint out of band</div>
+          <div style="font-size: 11.5px; color: {T['faint']}; margin-top: 4px;">From the provider console, a configuration repository, or someone who runs the host.</div></div>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 10px; padding: 15px 24px; border-top: 1px solid {T['line']};">
+        <span style="font-size: 11.5px; color: {T['faint']};">Saved to known_hosts</span>
+        <div style="flex: 1;"></div>
+        <span style="font-size: 12.5px; color: {T['muted']}; border: 1px solid {T['line']}; border-radius: 6px; padding: 8px 20px;">Cancel</span>
+        <span style="font-size: 12.5px; font-weight: 600; color: {T['off']}; background: {T['raised']}; border-radius: 6px; padding: 8px 20px;">Trust and connect</span>
+      </div>
+    </div>"""
+
+    write("ChromeProposalOrbitHostKey.dc.html", HEAD + f"""
+<div style="width: 1440px; height: 900px; position: relative; overflow: hidden; background: {nebula}, {T['base']}; color: {T['ink']}; font-size: 13px;">
+{stage}
+{veil}
+{card}
+</div>
+""" + FOOT)
+
+
+def build_chrome_proposal_orbit_workspaces():
+    """"tudo sera feito pela pilula de comando?": the other half of the
+    answer, for the surfaces someone dwells in rather than passes through.
+    Home, Monitor, Sessions, SFTP and Map (`home_rail()`'s own five, same
+    order) get a small icon cluster instead of `home_rail()`'s 48px column,
+    since the orbit scene has no rail-width strip to spend and does not want
+    one back: it costs a corner, not a wall. Docked at the frame's own
+    top-left, opposite the window controls, present the same way those are,
+    not summoned and not typed into a pill first.
+
+    Unlike `home_rail()` there is no lock icon drawn here for the armed
+    state: that composition (broadcast + this cluster) is not one this sketch
+    has worked through, named rather than silently dropped. Nothing
+    accepted; `Main.dc.html`'s rail is still shipped."""
+    nebula, stage = _orbit_stage()
+
+    def slot(icon, on):
+        color = T['ink'] if on else T['faint']
+        bg = f'background: {T["accentsoft"]}; border-radius: 7px;' if on else ''
+        return f'<span style="width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; {bg} color: {color};">{ic(icon, 16)}</span>'
+
+    cluster = (f'<div style="position: absolute; top: 16px; left: 20px; display: flex; align-items: center; gap: 2px;'
+               f' padding: 4px; border-radius: {T["radius_full"]}; background: rgba(12,21,34,.82); border: 1px solid {T["line2"]};'
+               f' box-shadow: {T["shadow_4"]}; backdrop-filter: blur({T["glass_blur"]});">'
+               f'{slot("home", False)}{slot("monitor", False)}{slot("ssh", True)}{slot("sftp", False)}{slot("map", False)}'
+               f'</div>')
+
+    write("ChromeProposalOrbitWorkspaces.dc.html", HEAD + f"""
+<div style="width: 1440px; height: 900px; position: relative; overflow: hidden; background: {nebula}, {T['base']}; color: {T['ink']}; font-size: 13px;">
+{stage}
+{cluster}
+</div>
+""" + FOOT)
+
+
+def _orbit_winctl():
+    """The window-control glyphs `_orbit_stage()` draws, pulled out a
+    second time rather than exported from there: `_orbit_stage()` returns
+    a finished scene, and the SFTP and split proposals below replace that
+    scene's terminal and constellation but still need this corner."""
+    return (f'<div style="position: absolute; top: 16px; right: 20px; display: flex; align-items: center; gap: 14px; color: {T["faint"]};">'
+            f'<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M1.5 5h7"></path></svg>'
+            f'<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.1"><rect x="1.5" y="1.5" width="7" height="7"></rect></svg>'
+            f'<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"></path></svg>'
+            f'</div>')
+
+
+def _orbit_nebula():
+    return (f'radial-gradient(ellipse 900px 500px at 50% -8%, {T["bstart"]}14, transparent 60%),'
+            f' radial-gradient(ellipse 700px 420px at 82% 88%, {T["bend"]}12, transparent 55%)')
+
+
+def build_chrome_proposal_orbit_sftp():
+    """"me monte uma proposta completa... ssh e sftp": SFTP is the one
+    basic operation that is not a variation on the terminal scene, it is a
+    different screen entirely, so it is the strongest test of whether the
+    orbit idea survives a dense, data-heavy surface rather than a floating
+    terminal and a ring of dots.
+
+    Picking the SFTP slot in `build_chrome_proposal_orbit_workspaces()`'s
+    cluster swaps the whole stage: the constellation pill's slot is now a
+    breadcrumb pill (`LOCAL ~/projects/site/dist` / `REMOTE /var/www`,
+    `build_sftp()`'s own header copy) since there is nothing to pick between
+    once you are already inside one host's filesystem, and the terminal is
+    replaced by two floating panes, `radius_lg`/`shadow_2` cards over the
+    nebula rather than `build_sftp()`'s edge-to-edge grid. The bottom
+    command pill keeps its shape and changes its hint to filtering files.
+    The HUD slot that carried latency and sync state keeps its radial gauge
+    but reads transfer progress instead, since the two are never both true
+    at once.
+
+    What this does not answer: drag-to-transfer between the two panes and
+    upload/download progress mid-flight are implied by the transfer pill
+    but not drawn moving; rename, new folder and delete are left for a
+    follow-up sketch rather than invented here without a place to put them
+    (a row's own context menu, most likely, not the command pill). Nothing
+    accepted; `Sftp.dc.html` and `SftpWorkspace.dc.html` are still shipped."""
+    nebula = _orbit_nebula()
+    winctl = _orbit_winctl()
+
+    def slot(icon, on):
+        color = T['ink'] if on else T['faint']
+        bg = f'background: {T["accentsoft"]}; border-radius: 7px;' if on else ''
+        return f'<span style="width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; {bg} color: {color};">{ic(icon, 16)}</span>'
+
+    workspaces = (f'<div style="position: absolute; top: 16px; left: 20px; display: flex; align-items: center; gap: 2px;'
+                  f' padding: 4px; border-radius: {T["radius_full"]}; background: rgba(12,21,34,.82); border: 1px solid {T["line2"]};'
+                  f' box-shadow: {T["shadow_4"]}; backdrop-filter: blur({T["glass_blur"]});">'
+                  f'{slot("home", False)}{slot("monitor", False)}{slot("ssh", False)}{slot("sftp", True)}{slot("map", False)}'
+                  f'</div>')
+
+    path_pill = (f'<div style="position: absolute; top: 22px; left: 50%; transform: translateX(-50%); display: flex;'
+                 f' align-items: center; gap: 22px; padding: 10px 22px; border-radius: {T["radius_full"]};'
+                 f' background: rgba(12,21,34,.82); border: 1px solid {T["line2"]}; box-shadow: {T["shadow_4"]};'
+                 f' backdrop-filter: blur({T["glass_blur"]});">'
+                 f'<span class="mono" style="font-size: 10.5px; color: {T["faint"]};">LOCAL <span style="color: {T["muted"]};">~/projects/site/dist</span></span>'
+                 f'<div style="width: 1px; height: 16px; background: {T["line2"]};"></div>'
+                 f'<span class="mono" style="font-size: 10.5px; color: {T["faint"]};">REMOTE <span style="color: {T["muted"]};">/var/www &middot; web-01</span></span>'
+                 f'</div>')
+
+    def frow(name, size, sel=False, dim=False, dirflag=False):
+        i = ic("sftp", 12, T['faint']) if dirflag else (
+            f'<svg class="ic" viewBox="0 0 24 24" style="width: 12px; height: 12px; color: {T["accent"] if sel else T["faint"]};">'
+            f'<path d="M6 3h8l4 4v14H6z"></path><path d="M14 3v4h4"></path></svg>')
+        bg = f'background: {T["accentsoft"]}; border-radius: 5px;' if sel else ''
+        return (f'<div style="display: flex; align-items: center; gap: 9px; padding: 6px 9px; {bg}">{i}'
+                f'<span class="mono" style="flex: 1; font-size: 11.5px; color: {T["ink"] if sel else T["ink2"]};">{name}</span>'
+                f'<span class="mono" style="font-size: 10.5px; color: {T["off"] if dim else T["faint"]};">{size}</span></div>')
+
+    local_rows = (frow("index.html", "4,2 kB", sel=True) + frow("assets", "&#8212;", dim=True, dirflag=True)
+                  + frow("app.2f9c.js", "318 kB") + frow("app.8b1e.css", "41 kB"))
+    remote_rows = (frow("index.html", "4,0 kB") + frow("releases", "&#8212;", dim=True, dirflag=True)
+                   + frow("shared", "&#8212;", dim=True, dirflag=True))
+
+    def pane(rows):
+        return (f'<div style="flex: 1; background: rgba(12,21,34,.55); border: 1px solid {T["line2"]}; border-radius: {T["radius_lg"]};'
+                f' box-shadow: {T["shadow_2"]}; backdrop-filter: blur(6px); padding: 8px; overflow: hidden;">{rows}</div>')
+
+    panes = f'<div style="position: absolute; inset: 0; padding: 120px 60px 100px; display: flex; gap: 16px;">{pane(local_rows)}{pane(remote_rows)}</div>'
+
+    def gauge(value_text, frac, color):
+        r = 15
+        circ = 2 * 3.14159 * r
+        dash = circ * frac
+        return (f'<svg width="36" height="36" viewBox="0 0 36 36" style="transform: rotate(-90deg);">'
+                f'<circle cx="18" cy="18" r="{r}" fill="none" stroke="{T["line2"]}" stroke-width="2.5"></circle>'
+                f'<circle cx="18" cy="18" r="{r}" fill="none" stroke="{color}" stroke-width="2.5" stroke-linecap="round"'
+                f' stroke-dasharray="{dash:.1f} {circ:.1f}"></circle></svg>'
+                f'<span class="mono" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;'
+                f' font-size: 8.5px; color: {T["ink2"]};">{value_text}</span>')
+
+    transfer = (f'<div style="position: absolute; bottom: 26px; right: 28px; display: flex; align-items: center; gap: 14px;'
+                f' padding: 8px 16px 8px 12px; border-radius: {T["radius_full"]}; background: rgba(12,21,34,.82);'
+                f' border: 1px solid {T["line2"]}; box-shadow: {T["shadow_3"]}; backdrop-filter: blur({T["glass_blur"]});">'
+                f'<div style="position: relative; width: 36px; height: 36px;">{gauge("62%", 0.62, T["accent"])}</div>'
+                f'<div style="display: flex; flex-direction: column; gap: 2px;">'
+                f'<span class="mono" style="font-size: 10px; color: {T["ink2"]};">app.2f9c.js</span>'
+                f'<span class="mono" style="font-size: 9px; color: {T["faint"]};">197&nbsp;/&nbsp;318&nbsp;kB &middot; 1,4&nbsp;MB/s</span>'
+                f'</div></div>')
+
+    console = (f'<div style="position: absolute; bottom: 26px; left: 50%; transform: translateX(-50%); width: 460px;'
+               f' display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-radius: {T["radius_full"]};'
+               f' background: rgba(12,21,34,.82); border: 1px solid {T["line2"]}; box-shadow: {T["shadow_3"]};'
+               f' backdrop-filter: blur({T["glass_blur"]});">'
+               f'<span style="color: {T["faint"]};">{ic("search", 13)}</span>'
+               f'<span class="mono" style="flex: 1; font-size: 11.5px; color: {T["faint"]};">Filter files, or run a command&hellip;</span>'
+               f'<span class="cap" style="font-size: 9.5px;">&#8984;K</span>'
+               f'</div>')
+
+    write("ChromeProposalOrbitSftp.dc.html", HEAD + f"""
+<div style="width: 1440px; height: 900px; position: relative; overflow: hidden; background: {nebula}, {T['base']}; color: {T['ink']}; font-size: 13px;">
+{panes}
+{workspaces}
+{path_pill}
+{winctl}
+{console}
+{transfer}
+</div>
+""" + FOOT)
+
+
+def build_chrome_proposal_orbit_split():
+    """"tudo sera feito pela pilula de comando?" also asked where split
+    lives, since one full-bleed terminal has no group tab strip left to
+    hang a split icon on. The answer given in conversation was a gesture,
+    not a button: drag a node out of the cluster onto the terminal and it
+    opens alongside the one already there. This is the settled state after
+    that drop, not the drag itself, two floating terminal cards
+    (`radius_lg`/`shadow_3`, matching ADR-0071's card language) instead of
+    `group()`'s edge-to-edge strip.
+
+    Both source nodes in the cluster render `state="on"` here, filled
+    rather than ringed: a dropped node is a second connected session and
+    the constellation is still the only surface naming that, the same rule
+    `ChromeProposalOrbit.dc.html`'s docstring already named as a cost, now
+    shown carrying two at once instead of one. Nothing accepted;
+    `Groups.dc.html` is still the shipped split."""
+    def node(state="saved", active=False, size=15):
+        ring = {"on": T['accent'], "saved": T['off'], "warn": T['warn']}[state]
+        fill = T['accent'] if state == "on" else 'transparent'
+        glow = f' box-shadow: 0 0 0 5px {ring}2e;' if active or state == 'warn' else ''
+        d = size * 2
+        return (f'<div style="width: {d}px; height: {d}px; border-radius: 50%; background: {fill};'
+                f' border: {"none" if state == "on" else f"1.6px solid " + ring};{glow}"></div>')
+
+    def cluster(caption, nodes, line_inset=17):
+        n = "".join(f'<div style="position: relative; z-index: 1;">{html}</div>' for html in nodes)
+        return f"""      <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+        <span class="mono" style="font-size: 9px; font-weight: 700; letter-spacing: 0.16em; color: {T['faint']};">{caption}</span>
+        <div style="position: relative; display: flex; align-items: center; gap: 22px;">
+          <div style="position: absolute; left: {line_inset}px; right: {line_inset}px; top: 50%; height: 1px; background: {T['line2']}; z-index: 0;"></div>
+          {n}
+        </div>
+      </div>"""
+
+    prod = cluster("PRODUCTION", [node("on", active=True), node("on"), node("warn")])
+    staging = cluster("STAGING", [node("saved"), node("saved")])
+    pill = (f'<div style="position: absolute; top: 22px; left: 50%; transform: translateX(-50%); display: flex;'
+            f' align-items: center; gap: 40px; padding: 14px 34px; border-radius: {T["radius_full"]};'
+            f' background: rgba(12,21,34,.82); border: 1px solid {T["line2"]}; box-shadow: {T["shadow_4"]};'
+            f' backdrop-filter: blur({T["glass_blur"]});">{prod}{staging}</div>')
+
+    def term_card(caption, body):
+        return (f'<div style="flex: 1; display: flex; flex-direction: column; background: rgba(12,21,34,.55);'
+                f' border: 1px solid {T["line2"]}; border-radius: {T["radius_lg"]}; box-shadow: {T["shadow_3"]};'
+                f' backdrop-filter: blur(6px); overflow: hidden;">'
+                f'<div style="padding: 8px 14px; border-bottom: 1px solid {T["line"]};">'
+                f'<span class="mono" style="font-size: 10.5px; color: {T["muted"]};">{caption}</span></div>'
+                f'<div class="mono" style="flex: 1; padding: 12px 14px; overflow: hidden; white-space: pre; font-size: 12px; line-height: 1.62; color: {T["ink2"]};">{body}</div></div>')
+
+    left = term_card("web-01 &middot; deploy@10.4.1.20",
+                      prompt("deploy", "web-01", "docker compose ps") + "\n"
+                      "NAME                 STATUS\n"
+                      "site-web-1           Up 4 hours\n\n" + prompt("deploy", "web-01") + CURSOR)
+    right = term_card("web-02 &middot; deploy@10.4.1.21",
+                       prompt("deploy", "web-02", "systemctl status nginx") + "\n"
+                       "&#9679; nginx.service - active (running)\n\n" + prompt("deploy", "web-02") + CURSOR)
+
+    panels = f'<div style="position: absolute; inset: 0; padding: 118px 40px 96px; display: flex; gap: 14px;">{left}{right}</div>'
+
+    console = (f'<div style="position: absolute; bottom: 26px; left: 50%; transform: translateX(-50%); width: 460px;'
+               f' display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-radius: {T["radius_full"]};'
+               f' background: rgba(12,21,34,.82); border: 1px solid {T["line2"]}; box-shadow: {T["shadow_3"]};'
+               f' backdrop-filter: blur({T["glass_blur"]});">'
+               f'<span style="color: {T["faint"]};">{ic("search", 13)}</span>'
+               f'<span class="mono" style="flex: 1; font-size: 11.5px; color: {T["faint"]};">Jump to a host, or run a command&hellip;</span>'
+               f'<span class="cap" style="font-size: 9.5px;">&#8984;K</span>'
+               f'</div>')
+
+    nebula = _orbit_nebula()
+    winctl = _orbit_winctl()
+    write("ChromeProposalOrbitSplit.dc.html", HEAD + f"""
+<div style="width: 1440px; height: 900px; position: relative; overflow: hidden; background: {nebula}, {T['base']}; color: {T['ink']}; font-size: 13px;">
+{panels}
+{pill}
+{winctl}
+{console}
+</div>
+""" + FOOT)
+
+def build_chrome_proposal_orbit_broadcast():
+    """Closes the open question both `build_chrome_proposal_orbit_workspaces()`
+    and `build_chrome_proposal_orbit_sftp()` flagged and left unanswered: how
+    armed broadcast composes with the workspace cluster. It composes the way
+    ADR-0020 already decided it should, re-said in this vocabulary rather than
+    invented fresh, because the reasoning in that decision (typing into
+    several hosts at once is not a state any screen gets to hide) does not
+    change just because the chrome does.
+
+    Copy is `build_broadcast()`'s own, not new invention: `2 RECEIVING`,
+    `SPARED`, `Turn off`. What moves is where each lives. The rail pinned to
+    Sessions with the other activities locked becomes the workspace cluster
+    with everything but the SSH slot dimmed to a lock glyph. The warn border
+    per receiving group becomes a warn ring per receiving node, pulsing in
+    the same cluster pill that names topology elsewhere in this idea. The
+    status bar's top edge and its `Turn off` become the console pill itself:
+    turning warn, naming the count, carrying the way off at its trailing
+    edge, because there is no status bar left to carry it instead.
+
+    What this does not solve, and states rather than hides: `web-03` is
+    receiving and has no visible terminal, only a warn ring in the cluster.
+    ADR-0020 called this exact composition "the rule most likely to be got
+    wrong" when a group strip could still hint a hidden tab existed. Orbit
+    has no group strip. The ring is the only signal left, which is a real
+    cost of the idea and not a gap this sketch happens to have missed.
+    Nothing accepted; `Broadcast.dc.html` is still shipped."""
+    a = T['warn']
+    nebula = _orbit_nebula()
+    winctl = _orbit_winctl()
+
+    def node(state="saved", size=15, pulse=False):
+        ring = {"on": T['accent'], "saved": T['off'], "warn": a}[state]
+        bg = a if state == "warn" else (T['accent'] if state == "on" else 'transparent')
+        border = "none" if state in ("on", "warn") else f"1.6px solid {ring}"
+        glow = f' box-shadow: 0 0 0 5px {a}30;' if pulse else ''
+        d = size * 2
+        return f'<div style="width: {d}px; height: {d}px; border-radius: 50%; background: {bg}; border: {border};{glow}"></div>'
+
+    def labeled(html, label=None):
+        cap = (f'<span class="mono" style="font-size: 7.5px; font-weight: 700; letter-spacing: 0.08em; color: {T["faint"]};">{label}</span>'
+               if label else '')
+        return f'<div style="display: flex; flex-direction: column; align-items: center; gap: 5px;"><div style="position: relative; z-index: 1;">{html}</div>{cap}</div>'
+
+    def cluster(caption, items, line_inset=17):
+        n = "".join(items)
+        return f"""      <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+        <span class="mono" style="font-size: 9px; font-weight: 700; letter-spacing: 0.16em; color: {T['faint']};">{caption}</span>
+        <div style="position: relative; display: flex; align-items: flex-start; gap: 22px;">
+          <div style="position: absolute; left: {line_inset}px; right: {line_inset}px; top: 15px; height: 1px; background: {T['line2']}; z-index: 0;"></div>
+          {n}
+        </div>
+      </div>"""
+
+    prod = cluster("PRODUCTION", [labeled(node("warn", pulse=True)), labeled(node("warn", pulse=True)), labeled(node("on"), "SPARED")])
+    staging = cluster("STAGING", [labeled(node("saved")), labeled(node("saved"))])
+    pill = (f'<div style="position: absolute; top: 22px; left: 50%; transform: translateX(-50%); display: flex;'
+            f' align-items: flex-start; gap: 40px; padding: 14px 34px 12px; border-radius: {T["radius_xl"]};'
+            f' background: rgba(12,21,34,.85); border: 1px solid {a}; box-shadow: {T["shadow_4"]};'
+            f' backdrop-filter: blur({T["glass_blur"]});">{prod}{staging}</div>')
+
+    def slot(icon, on, locked=False):
+        color = T['ink'] if on else (T['off'] if locked else T['faint'])
+        content = ic('lock', 11) if locked else ic(icon, 16)
+        bg = f'background: {T["accentsoft"]}; border-radius: 7px;' if on else ''
+        return f'<span style="width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; {bg} color: {color}; opacity: {"0.5" if locked else "1"};">{content}</span>'
+
+    workspaces = (f'<div style="position: absolute; top: 16px; left: 20px; display: flex; align-items: center; gap: 2px;'
+                  f' padding: 4px; border-radius: {T["radius_full"]}; background: rgba(12,21,34,.82); border: 1px solid {a}88;'
+                  f' box-shadow: {T["shadow_4"]}; backdrop-filter: blur({T["glass_blur"]});">'
+                  f'{slot("home", False, locked=True)}{slot("monitor", False, locked=True)}{slot("ssh", True)}{slot("sftp", False, locked=True)}{slot("map", False, locked=True)}'
+                  f'</div>')
+
+    def term_card(caption, body):
+        return (f'<div style="width: 720px; display: flex; flex-direction: column; background: rgba(12,21,34,.55);'
+                f' border: 1px solid {a}; border-radius: {T["radius_lg"]}; box-shadow: {T["shadow_3"]}, 0 0 0 1px {a}33;'
+                f' backdrop-filter: blur(6px); overflow: hidden;">'
+                f'<div style="padding: 8px 14px; border-bottom: 1px solid {T["line"]}; display: flex; align-items: center; justify-content: space-between;">'
+                f'<span class="mono" style="font-size: 10.5px; color: {T["muted"]};">{caption}</span>'
+                f'<span style="display: flex; align-items: center; color: {a};">{ic("broadcast", 12)}</span></div>'
+                f'<div class="mono" style="flex: 1; padding: 12px 14px; overflow: hidden; white-space: pre; font-size: 12px; line-height: 1.62; color: {T["ink2"]};">{body}</div></div>')
+
+    term = term_card("web-01 &middot; deploy@10.4.1.20",
+                      prompt("deploy", "web-01", "systemctl restart nginx") + "\n"
+                      + prompt("deploy", "web-01", "systemctl is-active nginx") + "\nactive\n\n"
+                      + prompt("deploy", "web-01") + CURSOR)
+    panel = f'<div style="position: absolute; inset: 0; padding: 160px 0 100px; display: flex; align-items: center; justify-content: center;">{term}</div>'
+
+    console = (f'<div style="position: absolute; bottom: 26px; left: 50%; transform: translateX(-50%); width: 460px;'
+               f' display: flex; align-items: center; gap: 10px; padding: 10px 8px 10px 16px; border-radius: {T["radius_full"]};'
+               f' background: rgba(12,21,34,.85); border: 1px solid {a}; box-shadow: {T["shadow_3"]}, 0 0 0 1px {a}22;'
+               f' backdrop-filter: blur({T["glass_blur"]});">'
+               f'<span style="color: {a};">{ic("broadcast", 13)}</span>'
+               f'<span class="mono" style="flex: 1; font-size: 11.5px; color: {T["ink2"]};">Typing reaches 2 hosts</span>'
+               f'<span class="mono" style="font-size: 10px; color: {a}; border: 1px solid {a}; border-radius: {T["radius_sm"]}; padding: 4px 9px;">Turn off</span>'
+               f'</div>')
+
+    hud = (f'<div style="position: absolute; bottom: 26px; right: 28px; display: flex; align-items: center; gap: 8px;'
+           f' padding: 9px 15px; border-radius: {T["radius_full"]}; background: {T["warnsoft"]};'
+           f' border: 1px solid {a}; box-shadow: {T["shadow_3"]};">'
+           f'<span style="width: 6px; height: 6px; border-radius: 50%; background: {a};"></span>'
+           f'<span class="mono" style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; color: {a};">2 RECEIVING</span>'
+           f'</div>')
+
+    write("ChromeProposalOrbitBroadcast.dc.html", HEAD + f"""
+<div style="width: 1440px; height: 900px; position: relative; overflow: hidden; background: {nebula}, {T['base']}; color: {T['ink']}; font-size: 13px;">
+{panel}
+{pill}
+{workspaces}
+{winctl}
+{console}
+{hud}
+</div>
+""" + FOOT)
+
+
+# ---------- exploratory: MobaRust/SSHDesk comparison, unified sidebar and
+# facet bar (#412, redrawn 2026-09-19)
+#
+# The generator functions below were never committed and were lost to a
+# `git reset --hard` run during unrelated branch surgery. This is a redraw
+# from the three `.dc.html` files that survived on disk, faithful to what
+# they rendered but not a byte-for-byte recovery of the original source.
+#
+# Nothing in this section is a proposal on its own; it is the comparison
+# fixture the maintainer viewed live before either of two things it
+# prompted were decided for real. `HomeHostsProposalPinnedNewHost.dc.html`
+# adopted the pinned "+ New host" button as real layout.
+# `SessionsProposalRowActions.dc.html` looked at the always-visible
+# pencil/trash pair `_mobarust_host_row()` still draws below and declined
+# it: `SessionsSidebar.tsx`'s menu offers connect/disconnect only, per
+# ADR-0029's list-vs-record split, and a pencil with no editor behind it is
+# worse than no pencil. The facet bar itself shipped for real in #414 as
+# `SessionFacets`/`TunnelsPanel`, Terminal and Tunnels only; Diagnostics and
+# Info stayed here, never scoped as features of their own.
+
+def _mobarust_sidebar_header():
+    """MobaRust's own header, not `sessions_header()`: a pinned accent
+    button instead of the palette, a search box captioned differently, and
+    a stateless Favorites/Recent toggle neither tab actually filters."""
+    return f"""      <div style="padding: 12px; display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid {T['line']};">
+        <div style="height: 32px; border-radius: 6px; background: {T['accent']}; display: flex; align-items: center; justify-content: center; gap: 7px; color: {T['base']}; font-size: 12px; font-weight: 700;">
+          {ic('plus', 13, T['base'])}New host
+        </div>
+        <div style="height: 30px; background: {T['input']}; border: 1px solid {T['line']}; border-radius: 6px; display: flex; align-items: center; gap: 8px; padding: 0 9px;">
+          {ic('search', 13, T['faint'])}<span style="font-size: 11.5px; color: {T['faint']};">Search sessions</span>
+        </div>
+        <div style="display: flex; gap: 6px;">
+          <div style="flex: 1; height: 26px; border-radius: 5px; background: {T['raised']}; display: flex; align-items: center; justify-content: center; gap: 5px; color: {T['ink2']};">{ic('star', 12)}<span style="font-size: 10.5px;">Favorites</span></div>
+          <div style="flex: 1; height: 26px; border-radius: 5px; display: flex; align-items: center; justify-content: center; gap: 5px; color: {T['muted']};">{ic('search', 12)}<span style="font-size: 10.5px;">Recent</span></div>
+        </div>
+      </div>"""
+
+def _mobarust_shell_row(name, cmd):
+    return (f'<div class="row" style="height: auto; align-items: center; padding: 6px 8px;">'
+            f'{ic("termwin", 14, T["faint"])}'
+            f'<div style="display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; margin-left: 8px;">'
+            f'<span style="font-size: 12.5px; color: {T["ink2"]};">{name}</span>'
+            f'<span class="mono" style="font-size: 10.5px; color: {T["off"]};">{cmd}</span>'
+            f'</div></div>')
+
+def _mobarust_host_row(name, who, active=False, connected=False):
+    color = T['ok'] if connected else T['ink2']
+    icon_color = T['ok'] if connected else T['faint']
+    weight = 'font-weight: 600;' if active else ''
+    bg = f'background: {T["raised"]}; border-radius: 6px;' if active else ''
+    controls = (f'<span style="display: flex; gap: 5px; flex: none; margin-left: auto; color: {T["faint"]};">'
+                f'{ic("pencil", 12)}{ic("trash", 12)}</span>')
+    return (f'<div class="row" style="{bg} height: auto; align-items: center; padding: 6px 8px;">'
+            f'{ic("termwin", 14, icon_color)}'
+            f'<div style="display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; margin-left: 8px;">'
+            f'<span style="font-size: 12.5px; color: {color}; {weight}">{name}</span>'
+            f'<span class="mono" style="font-size: 10.5px; color: {T["off"]};">{who}</span>'
+            f'</div>{controls}</div>')
+
+def _mobarust_sidebar():
+    rows = [group_row("LOCAL", 3),
+            _mobarust_shell_row("PowerShell", "pwsh.exe"),
+            _mobarust_shell_row("Command Prompt", "cmd.exe"),
+            _mobarust_shell_row("WSL: Ubuntu-22.04", "wsl.exe -d Ubuntu-22.04"),
+            group_row("PRODUCTION", 3),
+            _mobarust_host_row("web-01", "deploy@10.4.1.20", active=True, connected=True),
+            _mobarust_host_row("web-02", "deploy@10.4.1.21", connected=True),
+            _mobarust_host_row("db-prod", "postgres@10.4.1.31")]
+    return sidebar_shell(_mobarust_sidebar_header(), "\n".join(rows))
+
+def _mobarust_facet_bar(active="Terminal"):
+    facets = [("Terminal", "ssh"), ("Tunnels", "tunnels"), ("Diagnostics", "monitor"), ("Info", "info")]
+    out = []
+    for label, icon in facets:
+        on = label == active
+        color = T['ink'] if on else T['muted']
+        weight = 'font-weight: 600;' if on else 'font-weight: 500;'
+        border = T['accent'] if on else 'transparent'
+        out.append(f'<div style="display: flex; align-items: center; gap: 6px; padding: 0 12px; height: 30px;'
+                   f' border-bottom: 2px solid {border}; color: {color}; font-size: 11.5px; {weight}">'
+                   f'{ic(icon, 13, color)}{label}</div>')
+    return (f'<div style="height: 30px; flex: none; display: flex; align-items: stretch; background: {T["panel"]};'
+            f' border-bottom: 1px solid {T["line"]};">' + "".join(out) + '</div>')
+
+def _mode_pills(active):
+    out = []
+    for m in ("Local", "Remote", "Dynamic"):
+        on = m == active
+        style = (f'padding: 4px 9px; border: 1px solid {T["accent"]}; background: {T["accentsoft"]}; border-radius: 5px; font-size: 11px; color: {T["ink"]};'
+                 if on else
+                 f'padding: 4px 9px; border: 1px solid {T["line"]}; border-radius: 5px; font-size: 11px; color: {T["ink2"]};')
+        out.append(f'<span style="{style}">{m}</span>')
+    return f'<div style="display: flex; gap: 4px; flex: none;">{"".join(out)}</div>'
+
+def _mobarust_forward_row(mode, port, detail_html, tag, state=None, dashed=False):
+    border = f' border: 1px dashed {T["line2"]};' if dashed else ''
+    if state:
+        label, color = state
+        status_html = (f'<span style="display: flex; align-items: center; gap: 5px; margin-left: auto; flex: none;">'
+                       f'<span style="width: 6px; height: 6px; border-radius: 50%; background: {color}; flex: none;"></span>'
+                       f'<span style="font-size: 10.5px; color: {color};">{label}</span></span>')
+    else:
+        status_html = f'<span style="color: {T["faint"]}; margin-left: auto;">{ic("close", 11)}</span>'
+    return (f'<div style="display: flex; flex-direction: column; gap: 5px; padding: 9px 10px; background: {T["raised"]}; border-radius: 6px;{border}">'
+            f'<div style="display: flex; align-items: center; gap: 8px;">'
+            f'{_mode_pills(mode)}'
+            f'<span class="mono" style="font-size: 12px; color: {T["ink"]};">{port}</span>'
+            f'{status_html}</div>'
+            f'<div style="display: flex; align-items: center; gap: 8px; font-size: 11px; padding-left: 2px;">'
+            f'{detail_html}<span style="color: {T["faint"]}; margin-left: auto;">{tag}</span></div></div>')
+
+def _mobarust_tunnels_panel(saved_html, session_html):
+    return f"""      <div style="flex: 1; min-height: 0; padding: 20px 24px; overflow-y: auto;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+          <span style="font-size: 11px; font-weight: 600; color: {T['muted']}; letter-spacing: .04em;">SAVED WITH THIS HOST</span>
+          <span style="font-size: 11.5px; color: {T['accent']};">Edit host</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+{saved_html}
+        </div>
+        <div style="margin: 22px 0 10px;">
+          <span style="font-size: 11px; font-weight: 600; color: {T['muted']}; letter-spacing: .04em;">THIS SESSION ONLY</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+{session_html}
+        </div>
+        <div style="margin-top: 10px;"><span style="font-size: 12px; color: {T['accent']};">+ Add forward</span></div>
+      </div>"""
+
+def build_chrome_proposal_mobarust():
+    """The comparison fixture itself: MobaRust's unified sidebar (local
+    shells and saved hosts in one list, pinned "+ New host", Favorites/
+    Recent toggle) and a facet bar under the group strip
+    (Terminal/Tunnels/Diagnostics/Info) in place of the tooltip
+    `StatusBar.tsx` uses for forward state today. See this section's own
+    header comment for what this prompted and what it did not."""
+    tabs = strip([tab("web-01", "deploy@10.4.1.20", "on", dot="ok"), tab("db-prod", dot="ok")], actions=False)
+    body = term(prompt("deploy", "web-01", "systemctl status nginx") + "\n"
+                + f'<span style="color: {T["ok"]};">&#9679;</span> nginx.service - A high performance web server\n'
+                + f'     Active: <span style="color: {T["ok"]};">active (running)</span> since Mon 2026-08-24 09:12:04 UTC\n\n'
+                + prompt("deploy", "web-01") + CURSOR)
+    main = f'<div class="grp" style="">{tabs}{_mobarust_facet_bar("Terminal")}{body}</div>'
+    write("ChromeProposalMobaRust.dc.html", HEAD + f"""
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{top_strip()}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{rail(active="ssh", badge="2")}
+{_mobarust_sidebar()}
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: {T['base']};">
+      <div style="flex: 1; min-height: 0; display: flex;">{main}</div>
+    </div>
+  </div>
+{status(stat_session("deploy@10.4.1.20") + sep() + stat_text("14 ms"), stat_text("UTF-8", T['faint']))}
+</div>
+""" + FOOT)
+
+def build_chrome_proposal_mobarust_tunnels():
+    """Same fixture, Tunnels facet active: what shipped for real in #414 as
+    `TunnelsPanel`, split into forwards saved with the host (persisted,
+    editable via "Edit host") and forwards started for this session only
+    (ad-hoc, dashed border, never persisted). See
+    `build_chrome_proposal_mobarust()`'s own comment for what was
+    reconstructed and why."""
+    tabs = strip([tab("web-01", "deploy@10.4.1.20", "on", dot="ok"), tab("db-prod", dot="ok")], actions=False)
+    saved = (_mobarust_forward_row("Local", "8080",
+                                    f'<span class="mono" style="color: {T["ink2"]};">&#8594; target.internal:80</span>',
+                                    "web", state=("Running", T['ok']))
+             + _mobarust_forward_row("Dynamic", "1080",
+                                      f'<span style="color: {T["faint"]};">a local SOCKS proxy</span>',
+                                      "SOCKS", state=("Starting…", T['muted'])))
+    session = _mobarust_forward_row("Local", "5432",
+                                     f'<span class="mono" style="color: {T["ink2"]};">&#8594; localhost:5432</span>',
+                                     "temp db access", dashed=True)
+    panel = _mobarust_tunnels_panel(saved, session)
+    main = f'<div class="grp" style="">{tabs}{_mobarust_facet_bar("Tunnels")}{panel}</div>'
+    write("ChromeProposalMobaRustTunnels.dc.html", HEAD + f"""
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{top_strip()}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{rail(active="ssh", badge="2")}
+{_mobarust_sidebar()}
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: {T['base']};">
+      <div style="flex: 1; min-height: 0; display: flex;">{main}</div>
+    </div>
+  </div>
+{status(stat_session("deploy@10.4.1.20") + sep() + stat_text("2 saved, 1 this session", T['faint']), stat_text("UTF-8", T['faint']))}
+</div>
+""" + FOOT)
+
+def build_chrome_proposal_mobarust_new_host():
+    """Same fixture, main area swapped for the new-session form.
+    `HostsSection.tsx`'s own inline form (`SessionWizard`, shared by create
+    and edit) already reads this way; nothing here is a proposal, it is
+    that form redrawn inside MobaRust's chrome so the comparison covers a
+    second screen and not only the terminal. See
+    `build_chrome_proposal_mobarust()`'s own comment for what was
+    reconstructed and why."""
+    def field(label, value, mono=True, extra_style="", trailing_chev=False):
+        val = (f'<span class="mono" style="font-size: 12px; color: {T["faint"]};">{value}</span>' if mono
+               else f'<span style="font-size: 12px; color: {T["faint"]};">{value}</span>')
+        justify = ' justify-content: space-between;' if trailing_chev else ''
+        chev = ic('chev', 14, T['faint']) if trailing_chev else ''
+        return (f'<div style="{extra_style}"><span style="font-size: 11px; font-weight: 600; color: {T["ink2"]}; display: block; margin-bottom: 5px;">{label}</span>'
+                f'<div style="height: 32px; background: {T["input"]}; border: 1px solid {T["line"]}; border-radius: 6px; display: flex; align-items: center;{justify} padding: 0 10px;">{val}{chev}</div></div>')
+
+    general = f"""    <div style="display: flex; flex-direction: column; gap: 12px; border: 1px solid {T['line']}; border-radius: 6px; padding: 14px 16px;">
+      <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.09em; color: {T['faint']};">GENERAL</span>
+      {field("Host", "target.internal")}
+      <div style="display: flex; gap: 12px; margin-top: 14px;">
+        {field("User", "deploy", extra_style="flex: 1;")}
+        {field("Port", "22", extra_style="width: 90px;")}
+      </div>
+      <div style="margin-top: 14px;">{field("Name", "Leave empty to use the host", mono=False)}</div>
+      <div style="margin-top: 14px;">{field("Group", "", mono=False, trailing_chev=True)}</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px; padding: 2px 2px;">
+      {kind_ic('direct', T['faint'])}
+      <span style="font-size: 12.5px; color: {T['ink2']};">Direct connection</span>
+      <span style="margin-left: auto; font-size: 12px; color: {T['accent']};">Change</span>
+    </div>"""
+
+    access = f"""    <div style="display: flex; flex-direction: column; gap: 12px; border: 1px solid {T['line']}; border-radius: 6px; padding: 14px 16px;">
+      <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.09em; color: {T['faint']};">ACCESS</span>
+      <div role="radiogroup" style="display: flex; gap: 3px; background: {T['input']}; border: 1px solid {T['line']}; border-radius: 8px; padding: 3px;">
+        <span style="flex: 1; text-align: center; font-size: 11.5px; font-weight: 600; color: {T['ink']}; background: {T['raised']}; border-radius: 6px; padding: 6px 0;">Password</span>
+        <span style="flex: 1; text-align: center; font-size: 11.5px; color: {T['muted']}; padding: 6px 0;">Private key</span>
+      </div>
+      <div style="margin-top: 14px;">
+        <span style="font-size: 11px; font-weight: 600; color: {T['ink2']}; display: block; margin-bottom: 5px;">Password</span>
+        <div style="height: 32px; background: {T['input']}; border: 1px solid {T['line']}; border-radius: 6px;"></div>
+      </div>
+    </div>
+    <div style="padding: 2px 2px;"><span style="font-size: 12px; color: {T['accent']};">+ Add forward</span></div>"""
+
+    form = f"""      <div style="height: 100%; padding: 24px 28px; overflow-y: auto;">
+        <span style="font-size: 15px; font-weight: 600;">New session</span>
+        <div style="display: flex; gap: 40px; margin-top: 22px;">
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 22px;">
+{general}
+          </div>
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 22px;">
+{access}
+          </div>
+        </div>
+        <div style="margin-top: 26px; padding-top: 16px; border-top: 1px solid {T['line']};">
+          <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+            <span style="font-size: 12px; color: {T['muted']};">Cancel</span>
+            <div style="flex: 1;"></div>
+            <span style="font-size: 12px; font-weight: 600; color: {T['base']}; background: {T['accent']}; border-radius: 6px; padding: 7px 16px;">Save</span>
+          </div>
+        </div>
+      </div>"""
+
+    write("ChromeProposalMobaRustNewHost.dc.html", HEAD + f"""
+<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
+{top_strip()}
+  <div style="flex: 1; min-height: 0; display: flex; align-items: stretch;">
+{rail(active="ssh", badge="2")}
+{_mobarust_sidebar()}
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: {T['base']};">
+      <div style="flex: 1; min-height: 0; display: flex;">{form}</div>
+    </div>
+  </div>
+{status(stat_text("New session", T['muted'], mono=False), stat_text("3 saved", T['faint']))}
+</div>
+""" + FOOT)
+
 
 # ---------- 5. broadcast armed
 def build_broadcast():
@@ -2764,7 +3901,13 @@ def build_home_collapsed():
     reported directly by the maintainer as missing here. Shows the form
     still open, not the empty state, the same choice `Collapsed.dc.html`
     already made for Sessions: a list hidden while something real is on
-    screen is the case worth drawing, not a list hidden over nothing."""
+    screen is the case worth drawing, not a list hidden over nothing.
+
+    ADR-0071 Phase 4, shipped: this is Home's default now too, the same
+    `sidebarOpen` state Sessions/SFTP/Monitor share, summoned as the same
+    floating overlay `SidebarOverlay.tsx` draws everywhere else. Pixels
+    unchanged, this artboard's premise (nav hidden, content full-bleed) was
+    already what shipped."""
     st = status(stat_text("runic-target-a", T['muted'], mono=False), stat_text("11 hosts", T['faint']))
     page_html = f"""
 <div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: {T['base']}; color: {T['ink']}; overflow: hidden; font-size: 13px;">
@@ -4653,7 +5796,13 @@ if LIGHT_MODE:
     write = lambda name, content: _w("MainLight.dc.html", content)
     build_main()
 else:
-    for fn in (build_empty, build_main, build_groups, build_collapsed, build_broadcast,
+    for fn in (build_empty, build_main, build_groups, build_collapsed, build_chrome_proposal_overlay,
+               build_chrome_proposal_dock, build_chrome_proposal_orbit, build_chrome_proposal_orbit_add_host,
+               build_chrome_proposal_orbit_hostkey, build_chrome_proposal_orbit_workspaces,
+               build_chrome_proposal_orbit_sftp, build_chrome_proposal_orbit_split,
+               build_chrome_proposal_orbit_broadcast,
+               build_chrome_proposal_mobarust, build_chrome_proposal_mobarust_tunnels,
+               build_chrome_proposal_mobarust_new_host, build_broadcast,
                build_hostkey, build_sftp, build_sftp_workspace, build_sftp_fanout, build_sftp_proposal,
                build_sftp_proposal_broadcast, build_sftp_file_ops, build_sftp_folder_copy,
                build_sftp_selection, build_sftp_delete_confirm,

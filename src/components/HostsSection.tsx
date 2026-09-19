@@ -17,6 +17,7 @@ import type { CommandModifier } from '../ipc';
 import { EmptyPanel } from './EmptyPanel';
 import { HomeSummaryPanel } from './HomeSummaryPanel';
 import { HostKindIcon } from './HostKindIcon';
+import { SidebarOverlay } from './SidebarOverlay';
 import { ChevronRightIcon, PlusIcon, SearchIcon } from './ui/icons';
 
 interface HostsSectionProps {
@@ -25,16 +26,20 @@ interface HostsSectionProps {
   readonly selectedId: string | null;
   /** Whether the open form is the unsaved "new host" draft. */
   readonly creatingNew: boolean;
-  /** Whether the host list is beside the form. The rail's own Home icon
-      toggles this, the same as it already does for Sessions and SFTP
+  /** Whether the host list is summoned over the form. The rail's own Home
+      icon toggles this, the same as it already does for Sessions and SFTP
       (`ActivityRail.tsx`); Home had no way to hide its own list at all
-      until now. */
+      until now. ADR-0071: an overlay now, not a reflowing sidebar, so
+      closing it is this component's own job, not just the rail's. */
   readonly sidebarOpen: boolean;
   /** For `EmptyPanel`'s own command-palette hint, unused while `title`/
       `body` are overridden below but part of its uniform signature. */
   readonly modifier: CommandModifier;
   readonly onSelect: (sessionId: string) => void;
   readonly onNew: () => void;
+  /** Called after the overlay closes on its own (Escape, backdrop click) so
+      the caller's `sidebarOpen` state stays in sync with what is on screen. */
+  readonly onCloseSidebar: () => void;
   /** The form itself, assembled by the caller: its wiring is `App.tsx`'s, not
    * this component's, the way `SessionsSidebar` never assembled a terminal. */
   readonly detail: ReactNode;
@@ -72,6 +77,7 @@ export function HostsSection({
   modifier,
   onSelect,
   onNew,
+  onCloseSidebar,
   detail,
 }: HostsSectionProps): JSX.Element {
   const i18n = useTranslator();
@@ -83,123 +89,120 @@ export function HostsSection({
   const subtreeCounts = hostSubtreeCounts(bastions);
 
   return (
-    <div className="flex h-full min-h-0">
-      {sidebarOpen && (
-      <nav
-        aria-label={i18n.t('home.hosts')}
-        className="bg-surface-panel border-line-subtle flex h-full w-[280px] shrink-0 flex-col border-r"
-      >
-        <header className="flex items-center gap-2 px-3.5 pt-3.5 pb-2.5">
-          <span className="text-ink-faint shrink-0 text-[10.5px] font-bold tracking-[0.1em]">
-            {i18n.t('home.hosts')}
-          </span>
+    <div className="relative flex h-full min-h-0">
+      <SidebarOverlay open={sidebarOpen} onClose={onCloseSidebar}>
+        <nav aria-label={i18n.t('home.hosts')} className="flex h-full w-full flex-col">
+          <header className="flex items-center gap-2 px-3.5 pt-3.5 pb-2.5">
+            <span className="text-ink-faint shrink-0 text-[10.5px] font-bold tracking-[0.1em]">
+              {i18n.t('home.hosts')}
+            </span>
 
-          <span className="min-w-0 flex-1" />
+            <span className="min-w-0 flex-1" />
 
-          <button
-            type="button"
-            onClick={onNew}
-            aria-label={i18n.t('sessions.add')}
-            title={i18n.t('sessions.add')}
-            aria-pressed={creatingNew}
-            className={creatingNew ? 'text-accent shrink-0' : 'text-ink-muted hover:text-ink shrink-0'}
-          >
-            <PlusIcon className="h-3.5 w-3.5" />
-          </button>
-        </header>
+            <button
+              type="button"
+              onClick={onNew}
+              aria-label={i18n.t('sessions.add')}
+              title={i18n.t('sessions.add')}
+              aria-pressed={creatingNew}
+              className={creatingNew ? 'text-accent shrink-0' : 'text-ink-muted hover:text-ink shrink-0'}
+            >
+              <PlusIcon className="h-3.5 w-3.5" />
+            </button>
+          </header>
 
-        {sessions.length > 0 && (
-          <div className="relative px-3.5 pb-2">
-            <SearchIcon className="text-ink-faint pointer-events-none absolute top-1/2 left-6 h-3.5 w-3.5 -translate-y-1/2" />
-            <input
-              type="text"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={i18n.t('home.hosts.filter')}
-              aria-label={i18n.t('home.hosts.filter')}
-              autoComplete="off"
-              spellCheck={false}
-              className="bg-surface-input border-line-subtle text-ink placeholder:text-ink-faint focus:border-line-strong w-full rounded border py-1 pr-2 pl-7 text-[12px] outline-none"
-            />
-          </div>
-        )}
+          {sessions.length > 0 && (
+            <div className="relative px-3.5 pb-2">
+              <SearchIcon className="text-ink-faint pointer-events-none absolute top-1/2 left-6 h-3.5 w-3.5 -translate-y-1/2" />
+              <input
+                type="text"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={i18n.t('home.hosts.filter')}
+                aria-label={i18n.t('home.hosts.filter')}
+                autoComplete="off"
+                spellCheck={false}
+                className="bg-surface-input border-line-subtle text-ink placeholder:text-ink-faint focus:border-line-strong w-full rounded border py-1 pr-2 pl-7 text-[12px] outline-none"
+              />
+            </div>
+          )}
 
-        {sessions.length === 0 ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-1.5 px-6 text-center">
-            <p className="text-ink-secondary text-[12.5px] font-semibold">
-              {i18n.t('sessions.empty.title')}
-            </p>
-            <p className="text-ink-faint text-[11.5px] leading-snug text-pretty">
-              {i18n.t('sessions.empty.body')}
-            </p>
-          </div>
-        ) : survivors.length === 0 ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-1.5 px-6 text-center">
-            <p className="text-ink-secondary text-[12.5px] font-semibold">
-              {i18n.t('sessions.filter.empty.title')}
-            </p>
-            <p className="text-ink-faint text-[11.5px] leading-snug text-pretty">
-              {i18n.t('sessions.filter.empty.body')}
-            </p>
-          </div>
-        ) : (
-          <div className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-2">
-            {/* Bastions before Direct, and hidden entirely rather than drawn
-                empty (ADR-0060): the same rule `groupSessions`/`filterGroups`
-                already followed for a group with nothing under it. */}
-            {visibleBastions.length > 0 && (
-              <section className="flex flex-col gap-0.5">
-                <h2 className="text-ink-muted flex items-center gap-1.5 px-1.5 pt-2 pb-1 text-[10.5px] font-bold tracking-[0.08em]">
-                  <span className="truncate">{i18n.t('home.hosts.bastions')}</span>
-                  <span className="text-ink-disabled ml-auto font-mono text-[10px]">{bastions.length}</span>
-                </h2>
+          {sessions.length === 0 ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-1.5 px-6 text-center">
+              <p className="text-ink-secondary text-[12.5px] font-semibold">
+                {i18n.t('sessions.empty.title')}
+              </p>
+              <p className="text-ink-faint text-[11.5px] leading-snug text-pretty">
+                {i18n.t('sessions.empty.body')}
+              </p>
+            </div>
+          ) : survivors.length === 0 ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-1.5 px-6 text-center">
+              <p className="text-ink-secondary text-[12.5px] font-semibold">
+                {i18n.t('sessions.filter.empty.title')}
+              </p>
+              <p className="text-ink-faint text-[11.5px] leading-snug text-pretty">
+                {i18n.t('sessions.filter.empty.body')}
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-2">
+              {/* Bastions before Direct, and hidden entirely rather than drawn
+                  empty (ADR-0060): the same rule `groupSessions`/`filterGroups`
+                  already followed for a group with nothing under it. */}
+              {visibleBastions.length > 0 && (
+                <section className="flex flex-col gap-0.5">
+                  <h2 className="text-ink-muted flex items-center gap-1.5 px-1.5 pt-2 pb-1 text-[10.5px] font-bold tracking-[0.08em]">
+                    <span className="truncate">{i18n.t('home.hosts.bastions')}</span>
+                    <span className="text-ink-disabled ml-auto font-mono text-[10px]">{bastions.length}</span>
+                  </h2>
 
-                <ul className="flex flex-col gap-0.5">
-                  {visibleBastions.map((row) => (
-                    <HostRowItem
-                      key={row.live.session.id}
-                      row={row}
-                      selected={!creatingNew && row.live.session.id === selectedId}
-                      collapsed={
-                        row.depth === 0 && row.childrenShown
-                          ? collapsed.has(row.live.session.id) && !forceExpanded.has(row.live.session.id)
-                          : null
-                      }
-                      hiddenCount={subtreeCounts.get(row.live.session.id) ?? 0}
-                      onToggleCollapse={() => toggle(row.live.session.id)}
-                      onSelect={() => onSelect(row.live.session.id)}
-                    />
-                  ))}
-                </ul>
-              </section>
-            )}
+                  <ul className="flex flex-col gap-0.5">
+                    {visibleBastions.map((row) => (
+                      <HostRowItem
+                        key={row.live.session.id}
+                        row={row}
+                        selected={!creatingNew && row.live.session.id === selectedId}
+                        collapsed={
+                          row.depth === 0 && row.childrenShown
+                            ? collapsed.has(row.live.session.id) && !forceExpanded.has(row.live.session.id)
+                            : null
+                        }
+                        hiddenCount={subtreeCounts.get(row.live.session.id) ?? 0}
+                        onToggleCollapse={() => toggle(row.live.session.id)}
+                        onSelect={() => onSelect(row.live.session.id)}
+                      />
+                    ))}
+                  </ul>
+                </section>
+              )}
 
-            {direct.length > 0 && (
-              <section className="flex flex-col gap-0.5">
-                <h2 className="text-ink-muted flex items-center gap-1.5 px-1.5 pt-2 pb-1 text-[10.5px] font-bold tracking-[0.08em]">
-                  <span className="truncate">{i18n.t('home.hosts.direct')}</span>
-                  <span className="text-ink-disabled ml-auto font-mono text-[10px]">{direct.length}</span>
-                </h2>
+              {direct.length > 0 && (
+                <section className="flex flex-col gap-0.5">
+                  <h2 className="text-ink-muted flex items-center gap-1.5 px-1.5 pt-2 pb-1 text-[10.5px] font-bold tracking-[0.08em]">
+                    <span className="truncate">{i18n.t('home.hosts.direct')}</span>
+                    <span className="text-ink-disabled ml-auto font-mono text-[10px]">{direct.length}</span>
+                  </h2>
 
-                <ul className="flex flex-col gap-0.5">
-                  {direct.map((row) => (
-                    <HostRowItem
-                      key={row.live.session.id}
-                      row={row}
-                      selected={!creatingNew && row.live.session.id === selectedId}
-                      collapsed={null}
-                      hiddenCount={0}
-                      onToggleCollapse={() => undefined}
-                      onSelect={() => onSelect(row.live.session.id)}
-                    />
-                  ))}
-                </ul>
-              </section>
-            )}
-          </div>
-        )}
-      </nav>
-      )}
+                  <ul className="flex flex-col gap-0.5">
+                    {direct.map((row) => (
+                      <HostRowItem
+                        key={row.live.session.id}
+                        row={row}
+                        selected={!creatingNew && row.live.session.id === selectedId}
+                        collapsed={null}
+                        hiddenCount={0}
+                        onToggleCollapse={() => undefined}
+                        onSelect={() => onSelect(row.live.session.id)}
+                      />
+                    ))}
+                  </ul>
+                </section>
+              )}
+            </div>
+          )}
+        </nav>
+      </SidebarOverlay>
 
       <div className="min-w-0 flex-1 overflow-y-auto">
         {selectedId === null && !creatingNew ? (

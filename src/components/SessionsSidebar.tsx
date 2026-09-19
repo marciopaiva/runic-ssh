@@ -94,10 +94,7 @@ export function SessionsSidebar({
       : (allGroups.find((group) => groupKey(group) === solo)?.name ?? i18n.t('sessions.ungrouped'));
 
   return (
-    <nav
-      aria-label={title}
-      className="bg-surface-panel border-line-subtle flex h-full w-[280px] shrink-0 flex-col border-r"
-    >
+    <nav aria-label={title} className="flex h-full w-full flex-col">
       <header className="flex items-center gap-2 px-3.5 pt-3.5 pb-2.5">
         <span className="text-ink-faint shrink-0 text-[10.5px] font-bold tracking-[0.1em]">
           {title}

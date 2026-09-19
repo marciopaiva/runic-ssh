@@ -50,8 +50,20 @@ ADR-0020 exists to stop.
 | `Anatomy.dc.html` | Window regions, a group in detail, the seven rules, what ADR-0020 amends |
 | `Tokens.dc.html` | Surfaces, accent and state, type, density, connection markers |
 | `Empty.dc.html` | Nothing open yet |
-| `Main.dc.html` | One group, three sessions |
-| `Collapsed.dc.html` | The sidebar closed |
+| `Main.dc.html` | One group, three sessions, sidebar summoned as a floating overlay (ADR-0071 Phase 4, shipped: `SidebarOverlay.tsx`) |
+| `Collapsed.dc.html` | The sidebar closed, which is the app's default state now (ADR-0071 Phase 4) rather than a toggle away from it |
+| `ChromeProposalOverlay.dc.html` | ADR-0071's Option B drawn out: the sidebar summoned as a floating card over the full-bleed terminal, on `shadow_5`/`radius_lg` instead of pushing the layout. Accepted as the direction for the ADR-0071 follow-up and shipped as `SidebarOverlay.tsx`, which `Main.dc.html` now draws for real, at the shipped values (280px, `line`, `glass_panel`) rather than this sketch's own placeholders (300px, `line2`, a hardcoded panel color) |
+| `ChromeProposalDock.dc.html` | Exploratory: no sidebar and no overlay at all. `rail()` and `sidebar_shell()` replaced by a single avatar dock, the terminal a rounded, shadowed card instead of an edge-to-edge panel, the status bar a floating chip. Declined: does not draw ADR-0071's Option B, and picking it would mean superseding that ADR rather than fulfilling its follow-up. `Main.dc.html` is still shipped |
+| `ChromeProposalOrbit.dc.html` | Exploratory, drawn free of ADR-0005/0020/0071's specific mechanisms: no rail, sidebar, dock or status bar at all. Hosts are dots in a floating cluster grouped by topology instead of rows in a list; a command pill at the bottom is the only other navigation surface; a radial gauge replaces the status bar's latency text. Declined for the same reason as `ChromeProposalDock.dc.html`: a genuinely different chrome, not this follow-up's answer. `Main.dc.html` is still shipped |
+| `ChromeProposalOrbitAddHost.dc.html` | Exploratory, the same idea's answer to adding a host: a summoned glass card over the dimmed orbit scene, reusing the shipped form's fields (`kind_picker()`, `wizard_field()`) but not its rail-and-list frame, plus one field the shipped editor never needed, which cluster pill the new host joins. Declined along with `ChromeProposalOrbit.dc.html`; `HomeHosts.dc.html` is still the shipped editor |
+| `ChromeProposalOrbitHostKey.dc.html` | Exploratory, the same idea's answer to "does everything go through the pill": no. `build_hostkey()`'s copy and fields reused verbatim in a summoned card over the veiled scene, and the bottom pill itself swaps to a dimmed, inert "Locked until this is resolved" rather than staying open, per CLAUDE.md section 7 rule 3. Declined along with `ChromeProposalOrbit.dc.html`; `HostKey.dc.html` is still the shipped prompt |
+| `ChromeProposalOrbitWorkspaces.dc.html` | Exploratory, the other half of that same answer: `home_rail()`'s five slots (Home/Monitor/Sessions/SFTP/Map) as a small icon cluster docked at the frame's top-left corner instead of a 48px rail column, present the same way the window controls are rather than summoned. Declined along with `ChromeProposalOrbit.dc.html`; `Main.dc.html`'s rail is still shipped |
+| `ChromeProposalOrbitSftp.dc.html` | Exploratory, the orbit idea's answer for SFTP: picking the SFTP slot swaps the constellation pill for a breadcrumb (`LOCAL`/`REMOTE`) and the terminal for two floating panes, `radius_lg`/`shadow_2` cards over the nebula rather than `build_sftp()`'s edge-to-edge grid; the HUD gauge slot reads transfer progress instead of latency. Drag-to-transfer and file operations (rename, new folder, delete) are named as open follow-ups, not drawn. Declined along with `ChromeProposalOrbit.dc.html`; `Sftp.dc.html`/`SftpWorkspace.dc.html` are still shipped |
+| `ChromeProposalOrbitSplit.dc.html` | Exploratory, the orbit idea's answer to where split lives without a group tab strip: drag a node from the cluster onto the terminal, and this is the settled state after that drop, two floating terminal cards instead of `group()`'s edge-to-edge strip. Both source nodes render `state="on"` in the cluster, since the constellation is still the only surface naming which sessions are live. Declined along with `ChromeProposalOrbit.dc.html`; `Groups.dc.html` is still the shipped split |
+| `ChromeProposalOrbitBroadcast.dc.html` | Exploratory, closes the open question the workspace and SFTP proposals both flagged: armed broadcast composes the way ADR-0020 already decided (rail locked to Sessions, warn border on receiving, the way off at a trailing edge, `SPARED` named), re-said in orbit vocabulary rather than reinvented. States rather than hides the cost: a receiving host with no open terminal, `web-03` here, has only a pulsing ring in the cluster and nothing else, which is the same danger ADR-0020 named as easiest to miss, now with no group strip left to hint it either. Declined along with `ChromeProposalOrbit.dc.html`; `Broadcast.dc.html` is still shipped |
+| `ChromeProposalMobaRust.dc.html` | Exploratory, the MobaRust/SSHDesk comparison's own chrome read as a literal reference (#412): one sidebar list for local shells and saved hosts together instead of Home and Sessions' own split, and a facet bar under the group strip (Terminal/Tunnels/Diagnostics/Info) in place of `StatusBar.tsx`'s tooltip. Terminal facet shown. The sidebar's two habits were weighed on their own rather than adopted whole: the pinned "New host" button shipped in `HostsSection.tsx`, inline pencil-and-trash row actions declined against `sessionMenu()`'s connect-or-disconnect-only shape (ADR-0029). The facet bar's Tunnels tab shipped for real in #414 as `SessionFacets`/`TunnelsPanel`; Diagnostics and Info stayed here, never scoped as features of their own |
+| `ChromeProposalMobaRustTunnels.dc.html` | Same fixture, Tunnels facet active: forwards saved with the host, editable through it, above forwards started for this session only, dashed and never persisted. What `TunnelsPanel` shipped as for real in #414, drawn here first |
+| `ChromeProposalMobaRustNewHost.dc.html` | Same fixture, the main area swapped for the new-session form: `HostsSection.tsx`'s own inline `SessionWizard`, General and Access side by side, redrawn inside MobaRust's chrome so the comparison covered a second screen and not only the terminal. Nothing proposed here; the form is the one already shipped |
 | `Groups.dc.html` | Four groups, six sessions |
 | `Broadcast.dc.html` | Typing into two of three groups |
 | `HostKey.dc.html` | Unknown host key, inside the group that asked |
@@ -63,7 +75,7 @@ ADR-0020 exists to stop.
 | `HomeHosts.dc.html` | Home, the host book: General, Topology, Access and Forwarding on one screen (ADR-0052, ADR-0056, ADR-0054) |
 | `HomeHostsCommonCase.dc.html` | Home, a plain direct host with nothing to fold open: Topology and Forwarding both collapse to one bare line (ADR-0061) |
 | `HomeHostsEmpty.dc.html` | Home, nothing picked yet, with the same brand mark Sessions' own empty state carries |
-| `HomeCollapsed.dc.html` | Home, its own host list hidden, the rail's Home icon toggling it the same way Sessions' and SFTP's already do |
+| `HomeCollapsed.dc.html` | Home, its own host list hidden, the rail's Home icon toggling it the same way Sessions' and SFTP's already do. Now Home's default state too (ADR-0071 Phase 4), summoned as the same floating overlay as everywhere else |
 | `HomeDeleteConfirm.dc.html` | Home, the one question Delete now always asks first |
 | `HomeHostsCredential.dc.html` | Home, the credential field itself, in Access, before Save (ADR-0057) |
 | `HomeHostsUnknownKey.dc.html` | Home, an unknown host key inline in the editor's own banner slot, redrawn against General/Access's current borders (ADR-0058) |
@@ -136,6 +148,14 @@ remaining two joined the set above, closing #233 along with
 existed to draw, went with it: `wizard_breadcrumb` is gone from `gen.py`
 along with `wizard_panel`, and `HomeHosts.dc.html` draws General, Topology
 and Access as one screen instead.
+
+`ChromeProposalMobaRust.dc.html` and its two siblings were drawn once
+already, in the session that first read the #412 comparison, and the
+`gen.py` functions behind them were lost before being committed, wiped by
+an unrelated `git reset --hard` run during branch surgery in a later
+session. Only the rendered `.dc.html` output survived on disk. What is
+here now is a redraw from that surviving output: faithful to what the
+three screens showed, not a recovery of the lost source byte for byte.
 
 ## What is drawn here and not built
 

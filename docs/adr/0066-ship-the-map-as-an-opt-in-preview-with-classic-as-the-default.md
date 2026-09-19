@@ -1,6 +1,7 @@
 # ADR-0066: Ship the map as an opt-in preview and keep classic navigation the default
 
-* **Status**: Accepted
+* **Status**: Accepted, amended by ADR-0073 (the entry point becomes a
+  fixed pill; the setting and its opt-in meaning stay)
 * **Date**: 2026-09-10
 
 ## Context
