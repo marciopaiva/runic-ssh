@@ -89,24 +89,27 @@ export function HostsSection({
         aria-label={i18n.t('home.hosts')}
         className="bg-surface-panel border-line-subtle flex h-full w-[280px] shrink-0 flex-col border-r"
       >
-        <header className="flex items-center gap-2 px-3.5 pt-3.5 pb-2.5">
+        <header className="flex items-center px-3.5 pt-3.5 pb-2.5">
           <span className="text-ink-faint shrink-0 text-[10.5px] font-bold tracking-[0.1em]">
             {i18n.t('home.hosts')}
           </span>
+        </header>
 
-          <span className="min-w-0 flex-1" />
-
+        <div className="px-3.5 pb-2.5">
           <button
             type="button"
             onClick={onNew}
-            aria-label={i18n.t('sessions.add')}
-            title={i18n.t('sessions.add')}
             aria-pressed={creatingNew}
-            className={creatingNew ? 'text-accent shrink-0' : 'text-ink-muted hover:text-ink shrink-0'}
+            className={
+              creatingNew
+                ? 'bg-surface-raised text-accent flex w-full items-center justify-center gap-1.5 rounded py-1.5 text-[12px] font-semibold'
+                : 'bg-accent text-surface-base flex w-full items-center justify-center gap-1.5 rounded py-1.5 text-[12px] font-semibold'
+            }
           >
             <PlusIcon className="h-3.5 w-3.5" />
+            {i18n.t('home.hosts.new')}
           </button>
-        </header>
+        </div>
 
         {sessions.length > 0 && (
           <div className="relative px-3.5 pb-2">
