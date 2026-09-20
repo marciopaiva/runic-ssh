@@ -1,6 +1,7 @@
 # ADR-0069: Choose the shell from the toolbar
 
-* **Status**: Accepted
+* **Status**: Superseded by ADR-0075 (the map becomes a workspace, not a
+  second shell)
 * **Date**: 2026-09-11
 
 ## Context
