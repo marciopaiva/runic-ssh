@@ -16,6 +16,7 @@ import { HostTopologyFields } from './HostTopologyFields';
 import { InlineCredentialForm } from './InlineCredentialForm';
 import { InlineHostKeyChallenge } from './InlineHostKeyChallenge';
 import { MethodPicker } from './MethodPicker';
+import { Button } from './ui/Button';
 
 interface SessionWizardProps {
   readonly title: string;
@@ -554,13 +555,14 @@ export function SessionWizard({
             <div className="flex items-center gap-2 px-0.5 py-1">
               <HostKindIcon kind={values.kind} className="text-ink-faint h-3 w-3 shrink-0" />
               <span className="text-ink-secondary text-[12.5px]">{i18n.t(HOST_KIND_LABEL[values.kind])}</span>
-              <button
-                type="button"
+              <Button
+                variant="link"
+                size="icon"
                 onClick={() => setTopologyOpened(true)}
-                className="text-accent ml-auto text-[12px] hover:underline"
+                className="ml-auto text-[12px] font-normal"
               >
                 {i18n.t('session.editor.topology.change')}
-              </button>
+              </Button>
             </div>
           )}
         </div>

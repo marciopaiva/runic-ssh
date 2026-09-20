@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { cn } from '../../lib/classnames';
 
 export interface ButtonProps {
-  readonly variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'outline';
+  readonly variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'outline' | 'link';
   readonly size?: 'sm' | 'md' | 'lg' | 'icon';
   readonly loading?: boolean;
   readonly leftIcon?: ReactNode;
@@ -25,6 +25,7 @@ const VARIANTS: Record<NonNullable<ButtonProps['variant']>, string> = {
   ghost: 'bg-transparent text-ink-secondary hover:bg-surface-raised active:bg-surface-overlay focus:ring-line-strong',
   danger: 'bg-danger text-surface-base hover:bg-danger-text active:bg-danger/80 focus:ring-danger',
   outline: 'bg-transparent border border-line-strong text-ink-secondary hover:bg-surface-raised active:bg-surface-overlay focus:ring-line-strong',
+  link: 'bg-transparent text-accent hover:underline focus:ring-accent',
 };
 
 const SIZES: Record<NonNullable<ButtonProps['size']>, string> = {
@@ -33,16 +34,19 @@ const SIZES: Record<NonNullable<ButtonProps['size']>, string> = {
   lg: 'px-5 py-2 text-[13.5px] gap-2.5',
   /* No padding: a caller pins the box to an exact `h-* w-*` for a bare icon,
      and `sm`'s padding alone (20px) exceeded that box, shrinking the icon's
-     overflow-hidden span to zero width and rendering it as fully invisible. */
+     overflow-hidden span to zero width and rendering it as fully invisible.
+     Also the right base for a `variant="link"` text button, which wants its
+     own inline spacing rather than a button's padding. */
   icon: 'p-0',
 };
 
-const HOVER_VARIANTS: Record<'primary' | 'secondary' | 'ghost' | 'danger' | 'outline', { scale: number }> = {
+const HOVER_VARIANTS: Record<'primary' | 'secondary' | 'ghost' | 'danger' | 'outline' | 'link', { scale: number }> = {
   primary: { scale: 1.01 },
   secondary: { scale: 1.01 },
   ghost: { scale: 1.0 },
   danger: { scale: 1.01 },
   outline: { scale: 1.01 },
+  link: { scale: 1.0 },
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
