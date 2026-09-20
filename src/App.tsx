@@ -23,6 +23,7 @@ import { HostKeyPrompt } from './components/HostKeyPrompt';
 import { HostKeyRefused } from './components/HostKeyRefused';
 import { MacrosButton } from './components/MacrosButton';
 import { MacrosSidebar } from './components/MacrosSidebar';
+import { MapPreviewPrompt } from './components/MapPreviewPrompt';
 import { MapStage } from './components/map/MapStage';
 import type { HostPopupState } from './components/map/MapStage';
 import { MonitorBody } from './components/map/MonitorBody';
@@ -295,6 +296,24 @@ export function App(): JSX.Element {
        switch away from the map shell lands on Sessions rather than there. */
     if (workspace === 'map' || workspace === 'home') setWorkspace('sessions');
   }, [shell, workspace]);
+  /* ADR-0073: the map pill is always visible in `WorkspacePills`, but
+     reaching the map for real is a `chooseShell` call, not a `workspace`
+     one (the effect above reverts a bare `setWorkspace('map')` the instant
+     `shell` is not already `'map'`). Neither `workspace` nor `shell` can
+     represent "about to show the map, but not yet": this is its own flag
+     for that. */
+  const [mapPreviewPromptOpen, setMapPreviewPromptOpen] = useState(false);
+  const openWorkspace = (next: Workspace): void => {
+    if (next === 'map') {
+      if (previewFeatures) {
+        void chooseShell('map');
+      } else {
+        setMapPreviewPromptOpen(true);
+      }
+      return;
+    }
+    setWorkspace(next);
+  };
   /* Fetched once: what is running cannot change under a live process, so there
      is nothing to react to and nothing worth re-asking. `null` until the
      first paint after mount, which `StatusBar` already treats as "say
@@ -2342,12 +2361,14 @@ export function App(): JSX.Element {
   /* The toolbar's trailing group of shell-level choices (ADR-0062,
      ADR-0069): the switch between classic and the map, then theme and
      language, in every workspace's own row so reaching any of the three
-     never means switching away from whichever workspace is in use. The
-     switch itself only renders behind the preview, the same gate that
-     used to draw the map's own rail slot (ADR-0066). */
+     never means switching away from whichever workspace is in use. ADR-0073
+     moved the way in from here to the map pill in `WorkspacePills`; this
+     switch now renders only once already on the map, where it is the sole
+     way back to classic (the map shell's own toolbar has no SSH/SFTP pill of
+     its own to click back with). */
   const shellAndTheme = (
     <>
-      {previewFeatures && (
+      {shell === 'map' && (
         <>
           <ShellSelector shell={shell} onChoose={(next) => void chooseShell(next)} />
           <span className="bg-line-subtle h-4 w-px shrink-0" aria-hidden="true" />
@@ -2381,7 +2402,7 @@ export function App(): JSX.Element {
         <Toolbar
           leading={
             <>
-              <WorkspacePills workspace="sessions" onChoose={setWorkspace} />
+              <WorkspacePills workspace="sessions" onChoose={openWorkspace} />
               <OpenHostButton onClick={hostPalette.show} />
             </>
           }
@@ -2408,7 +2429,7 @@ export function App(): JSX.Element {
         <Toolbar
           leading={
             <>
-              <WorkspacePills workspace="sftp" onChoose={setWorkspace} />
+              <WorkspacePills workspace="sftp" onChoose={openWorkspace} />
               <OpenHostButton onClick={hostPalette.show} />
             </>
           }
@@ -2482,7 +2503,19 @@ export function App(): JSX.Element {
             "+" palette (ADR-0072). */}
         <div className="relative flex min-h-0 min-w-0 flex-1">
 
-        {workspace === 'sessions' && (
+        {mapPreviewPromptOpen && (
+          <main className="bg-surface-base relative flex min-w-0 flex-1 flex-col overflow-hidden">
+            <MapPreviewPrompt
+              onAccept={() => {
+                setMapPreviewPromptOpen(false);
+                void choosePreviewFeatures(true).then(() => chooseShell('map'));
+              }}
+              onCancel={() => setMapPreviewPromptOpen(false)}
+            />
+          </main>
+        )}
+
+        {workspace === 'sessions' && !mapPreviewPromptOpen && (
         /* `relative` is what every group and every surface is positioned
             against. Surfaces are stacked rather than swapped, one per
             session, only the ones a group is showing visible, so switching
@@ -2761,7 +2794,7 @@ export function App(): JSX.Element {
             visible at once, unlike ADR-0044's one tab at a time: fanning a
             file out needs every destination's own listing live
             simultaneously, not shown in turn. */}
-        {workspace === 'sftp' && (() => {
+        {workspace === 'sftp' && !mapPreviewPromptOpen && (() => {
           const occupied = fanout.destinations
             .map((endpoint, slot) => (endpoint === null ? null : { endpoint, slot }))
             .filter((entry): entry is { endpoint: Endpoint; slot: number } => entry !== null);

@@ -3,7 +3,7 @@ import type { JSX } from 'react';
 import { useTranslator } from '../features/settings';
 
 import type { Workspace } from './ActivityRail';
-import { FolderIcon, TerminalIcon } from './ui/icons';
+import { FolderIcon, MapIcon, TerminalIcon } from './ui/icons';
 
 interface WorkspacePillsProps {
   readonly workspace: 'sessions' | 'sftp';
@@ -11,12 +11,15 @@ interface WorkspacePillsProps {
 }
 
 /**
- * The toolbar's own switch between the two workspaces ADR-0072 folded out of
- * the rail: SSH (the `sessions` workspace's new name on screen; the value
- * `Workspace` carries is unchanged) and SFTP. Both are always visible, the
- * segmented-control shape rather than `ShapeControl`'s fold-to-popover one:
- * that pattern answers "pick 1 of a set too large to show," and this is a
- * fixed set of two the ADR asks to read directly.
+ * The toolbar's own switch between the workspaces ADR-0072 folded out of the
+ * rail: SSH (the `sessions` workspace's new name on screen; the value
+ * `Workspace` carries is unchanged), SFTP, and the map (ADR-0073). All three
+ * are always visible, the segmented-control shape rather than
+ * `ShapeControl`'s fold-to-popover one: that pattern answers "pick 1 of a set
+ * too large to show," and this is a fixed set the ADRs ask to read directly.
+ * The map pill never reflects as selected here: choosing it either leaves
+ * this workspace (the map has no toolbar of its own with this control in it)
+ * or opens the preview prompt, neither of which this component tracks.
  */
 export function WorkspacePills({ workspace, onChoose }: WorkspacePillsProps): JSX.Element {
   const i18n = useTranslator();
@@ -46,6 +49,16 @@ export function WorkspacePills({ workspace, onChoose }: WorkspacePillsProps): JS
       >
         <FolderIcon className="h-3.5 w-3.5" />
         {i18n.t('toolbar.pills.sftp')}
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={false}
+        onClick={() => onChoose('map')}
+        className="text-ink-muted hover:text-ink flex h-6 items-center gap-1.5 rounded px-2 text-[11.5px] font-medium"
+      >
+        <MapIcon className="h-3.5 w-3.5" />
+        {i18n.t('toolbar.pills.map')}
       </button>
     </div>
   );
