@@ -1,5 +1,6 @@
 {
   "app.name": "Runic SSH",
+  "command.hostbook.new": "Novo host",
   "command.language.system": "Idioma: seguir o sistema",
   "command.language.use": "Idioma: {name}",
   "command.macros.manage": "Gerenciar macros...",

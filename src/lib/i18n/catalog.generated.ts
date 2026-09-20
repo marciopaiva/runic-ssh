@@ -6,6 +6,7 @@
 
 export const SOURCE_CATALOG = {
   "app.name": "Runic SSH",
+  "command.hostbook.new": "New host",
   "command.language.system": "Language: follow the system",
   "command.language.use": "Language: {name}",
   "command.macros.manage": "Manage macros...",

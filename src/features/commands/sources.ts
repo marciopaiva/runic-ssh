@@ -172,6 +172,11 @@ export function sessionCommands(context: CommandContext): readonly Command[] {
  * deciding what that means for the workspace showing; the "+" is how the
  * fan-out gets an occupant now that the SFTP sidebar's own pinned "this
  * machine" row is gone with it.
+ *
+ * Before this, the "+" could only place an already-saved host: Sessions and
+ * SFTP had no way to create one at all, unlike Home's own row and the
+ * keyboard palette's `session:new`. "New host" fixes that the same way this
+ * list already fixes everything else, as a row rather than a second button.
  */
 export function hostBookCommands(context: CommandContext): readonly Command[] {
   const { i18n, sessions, workspace, actions } = context;
@@ -200,6 +205,16 @@ export function hostBookCommands(context: CommandContext): readonly Command[] {
       run: actions.openLocalInto,
     });
   }
+
+  /* First, and present even with nothing saved, the same reasoning
+     `sessionCommands`'s own `session:new` already rests on. */
+  commands.unshift({
+    id: 'hostbook:new',
+    section: 'sessions',
+    title: i18n.t('command.hostbook.new'),
+    keywords: ['new', 'add', 'novo', 'adicionar', 'nuevo', 'host'],
+    run: actions.newSession,
+  });
 
   return commands;
 }
