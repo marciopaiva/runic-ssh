@@ -4,7 +4,7 @@ import { cn } from '../../lib/classnames';
 
 export interface ButtonProps {
   readonly variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'outline';
-  readonly size?: 'sm' | 'md' | 'lg';
+  readonly size?: 'sm' | 'md' | 'lg' | 'icon';
   readonly loading?: boolean;
   readonly leftIcon?: ReactNode;
   readonly rightIcon?: ReactNode;
@@ -29,6 +29,10 @@ const SIZES: Record<NonNullable<ButtonProps['size']>, string> = {
   sm: 'px-2.5 py-1 text-[11px] gap-1.5',
   md: 'px-3.5 py-1.5 text-[12.5px] gap-2',
   lg: 'px-5 py-2 text-[13.5px] gap-2.5',
+  /* No padding: a caller pins the box to an exact `h-* w-*` for a bare icon,
+     and `sm`'s padding alone (20px) exceeded that box, shrinking the icon's
+     overflow-hidden span to zero width and rendering it as fully invisible. */
+  icon: 'p-0',
 };
 
 const HOVER_VARIANTS: Record<'primary' | 'secondary' | 'ghost' | 'danger' | 'outline', { scale: number }> = {

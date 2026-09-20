@@ -202,7 +202,7 @@ export function GroupStrip({
 
         <Button
           variant="ghost"
-          size="sm"
+          size="icon"
           onClick={() => onClose(solo)}
           aria-label={closeLabel}
           title={closeLabel}
@@ -327,7 +327,7 @@ export function GroupStrip({
 
             <Button
               variant="ghost"
-              size="sm"
+              size="icon"
               onClick={() => onClose(entry)}
               aria-label={closeLabel}
               title={closeLabel}
