@@ -50,13 +50,11 @@ describe('nothing renders remote output while Home is showing (ADR-0032)', () =>
   });
 
   it('mounts SessionBody only inside the Sessions workspace branch, before Home\'s own', () => {
-    const sessionsGate = source.indexOf("{workspace === 'sessions' && (\n");
-    /* ADR-0052 gave Home a second `workspace === 'home'` gate, for its own
-       toolbar row, ahead of the one around Home's `<main>` in the document.
-       The 8-space indent is what picks out the `<main>` gate specifically:
-       the toolbar's own gate sits one level shallower, matched literally so
-       a future reindent is caught here rather than this test silently
-       finding the wrong one. */
+    /* ADR-0075 folded the toolbar into one unconditional `<Toolbar>`, so the
+       only `workspace === 'sessions'` gate left is the one around the
+       `<main>` itself, which also waits out the map preview prompt
+       (ADR-0075's `mapPreviewPromptOpen`) so the two never draw at once. */
+    const sessionsGate = source.indexOf("{workspace === 'sessions' && !mapPreviewPromptOpen && (\n");
     const homeGate = source.indexOf("        {workspace === 'home' && (");
     const sessionBody = source.indexOf('<SessionBody');
 
@@ -71,12 +69,13 @@ describe('nothing renders remote output while Home is showing (ADR-0032)', () =>
     expect(sessionBody).toBeLessThan(homeGate);
   });
 
-  it('gates the Sessions branch on workspace alone, not workspace plus something narrower', () => {
-    /* `sidebarOpen` also gates a `workspace === 'sessions'` block, for the
-       sidebar and not the terminal, and must not be mistaken for the one this
-       file is about. Matched literally so a rename of either constant is
-       caught here rather than by this test quietly checking nothing. */
-    const gate = "{workspace === 'sessions' && (\n";
+  it('gates the Sessions branch on workspace and the preview prompt alone, not something narrower', () => {
+    /* `macrosOpen` also gates a `workspace === 'sessions'` block, for the
+       macros sidebar and not the terminal, and must not be mistaken for the
+       one this file is about. Matched literally so a rename of either
+       constant is caught here rather than by this test quietly checking
+       nothing. */
+    const gate = "{workspace === 'sessions' && !mapPreviewPromptOpen && (\n";
     expect(source).toContain(gate);
   });
 });

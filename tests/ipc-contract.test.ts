@@ -192,7 +192,7 @@ describe('the settings view', () => {
     );
 
     expect(rust).toContain(
-      String.raw`{"locale":null,"nativeDecorations":false,"theme":"system","previewFeatures":false,"shell":"classic"}`,
+      String.raw`{"locale":null,"nativeDecorations":false,"theme":"system","previewFeatures":false}`,
     );
 
     const wrapper = readFileSync(
@@ -201,7 +201,6 @@ describe('the settings view', () => {
     );
 
     expect(wrapper).toContain("export type Theme = 'system' | 'light' | 'dark';");
-    expect(wrapper).toContain("export type Shell = 'classic' | 'map';");
   });
 
   it('has a command for every setting the view carries', () => {
@@ -213,7 +212,7 @@ describe('the settings view', () => {
       'utf8',
     );
 
-    for (const command of ['get_settings', 'set_locale', 'set_theme', 'set_preview_features', 'set_shell']) {
+    for (const command of ['get_settings', 'set_locale', 'set_theme', 'set_preview_features']) {
       expect(rust, `${command} is not a command`).toContain(`pub async fn ${command}`);
     }
 

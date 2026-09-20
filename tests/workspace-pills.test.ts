@@ -4,9 +4,9 @@
 // `shape-control-teardown.test.ts` for why jsdom is opted in per file.
 
 /**
- * The map pill ADR-0073 added: always present next to SSH and SFTP, never
- * reflecting as the active tab (choosing it either leaves this workspace or
- * opens the preview prompt, neither of which `WorkspacePills` itself tracks).
+ * The map pill ADR-0073 added, always present next to SSH and SFTP, and
+ * ADR-0075 made it reflect selection like its siblings once the map became
+ * an ordinary workspace value.
  */
 
 import { act, createElement } from 'react';
@@ -25,7 +25,7 @@ vi.mock('../src/features/settings', () => ({ useTranslator: () => translator }))
 
 const { WorkspacePills } = await import('../src/components/WorkspacePills');
 
-async function mount(workspace: 'sessions' | 'sftp', onChoose: (workspace: string) => void = () => {}) {
+async function mount(workspace: 'sessions' | 'sftp' | 'map', onChoose: (workspace: string) => void = () => {}) {
   const rootEl = document.createElement('div');
   document.body.appendChild(rootEl);
   const root = createRoot(rootEl);
@@ -59,14 +59,18 @@ describe('the map pill', () => {
     await probe.unmount();
   });
 
-  it('is never the selected tab', async () => {
-    for (const workspace of ['sessions', 'sftp'] as const) {
+  it('reflects selection like SSH and SFTP', async () => {
+    for (const [workspace, selected] of [
+      ['sessions', 'false'],
+      ['sftp', 'false'],
+      ['map', 'true'],
+    ] as const) {
       const probe = await mount(workspace);
 
       const tabs = Array.from(probe.rootEl.querySelectorAll('button[role="tab"]'));
       const mapTab = tabs[tabs.length - 1];
       if (mapTab === undefined) throw new Error('expected a third tab');
-      expect(mapTab.getAttribute('aria-selected')).toBe('false');
+      expect(mapTab.getAttribute('aria-selected')).toBe(selected);
 
       await probe.unmount();
     }
