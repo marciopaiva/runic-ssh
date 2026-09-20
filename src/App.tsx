@@ -2360,7 +2360,17 @@ export function App(): JSX.Element {
         <OpenHostButton onClick={hostPalette.show} />
       </>
     ) : workspace === 'map' ? (
-      mapToolbar === null ? undefined : <MapCrumb segments={mapToolbar.crumb} {...(mapToolbar.onBack === undefined ? {} : { onBack: mapToolbar.onBack })} />
+      <>
+        {/* The map's toolbar had no pills before ADR-0075, since it was its
+            own shell reached only through `ShellSelector`. Now that leaving
+            is as ordinary as arriving, it needs the same switch Sessions and
+            SFTP already carry, or there is no way back to either in one
+            click. */}
+        <WorkspacePills workspace="map" onChoose={openWorkspace} />
+        {mapToolbar !== null && (
+          <MapCrumb segments={mapToolbar.crumb} {...(mapToolbar.onBack === undefined ? {} : { onBack: mapToolbar.onBack })} />
+        )}
+      </>
     ) : undefined;
 
   const toolbarTrailing =

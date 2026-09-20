@@ -9,6 +9,9 @@
  * an ordinary workspace value.
  */
 
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -91,5 +94,26 @@ describe('the map pill', () => {
     expect(onChoose).toHaveBeenCalledWith('map');
 
     await probe.unmount();
+  });
+});
+
+describe("the map's own toolbar carries the same pills (ADR-0075)", () => {
+  /* Caught in manual verification, not by any automated test: folding the
+     map into `workspace` made it reachable from SSH and SFTP, but its own
+     `<Toolbar>` branch kept the pre-fold leading content (just `MapCrumb`),
+     which left no way back to either in one click. `WorkspacePills` renders
+     in every other workspace's own row; this pins that the map's does too,
+     so a later edit that drops it again fails here instead of only in a
+     screenshot. */
+  const source = readFileSync(path.join(process.cwd(), 'src', 'App.tsx'), 'utf8');
+
+  it("mounts WorkspacePills in the map's own toolbarLeading branch", () => {
+    const mapBranch = source.indexOf("workspace === 'map' ? (", source.indexOf('const toolbarLeading ='));
+    const nextBranch = source.indexOf(') : undefined;', mapBranch);
+    expect(mapBranch, 'the map branch of toolbarLeading').toBeGreaterThan(-1);
+    expect(nextBranch, 'the end of toolbarLeading').toBeGreaterThan(mapBranch);
+
+    const branchSource = source.slice(mapBranch, nextBranch);
+    expect(branchSource).toContain('<WorkspacePills workspace="map"');
   });
 });
