@@ -4,6 +4,7 @@ import type { CSSProperties, JSX } from 'react';
 import type { ForwardStatus } from '../features/status';
 import type { Forward } from '../ipc';
 
+import { MonitorBody } from './map/MonitorBody';
 import { SessionFacets } from './SessionFacets';
 import type { SessionFacet } from './SessionFacets';
 import { TerminalView } from './TerminalView';
@@ -70,6 +71,16 @@ export function SessionBody({
             onRemoveForward={onRemoveAdHocForward}
             onEditHost={onEditHost}
           />
+        )}
+        {/* Mounted only while this facet is the one showing, so the polling
+            `MonitorBody` starts (ADR-0072) stops the moment the tab flips
+            away or the pane itself goes invisible, same teardown the
+            standalone Monitor workspace already relied on `useSystemStats`
+            for (CLAUDE.md section 6). */}
+        {visible && facet === 'monitor' && terminal.handle !== null && terminal.session !== null && (
+          <div className="absolute inset-0">
+            <MonitorBody session={terminal.session} handle={terminal.handle} />
+          </div>
         )}
       </div>
     </div>

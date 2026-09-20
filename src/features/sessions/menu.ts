@@ -1,56 +1,13 @@
 /**
- * What can be done to a session from the list.
- *
- * The row only ever connects or disconnects now. Changing the port,
- * renaming, deleting: all of it moved to Home's Hosts section with the rest
- * of the record-keeping ADR-0029 pulled out of this workspace, on the
- * argument that a list for driving a connection and a list for editing the
- * record behind it are two different tasks wearing one row.
- *
- * The actions are data so that what a row offers, and when, can be asserted
- * without a menu to open.
- */
-
-import type { LiveSession } from './state';
-
-export type SessionAction = 'connect' | 'disconnect';
-
-export interface MenuItem {
-  readonly action: SessionAction;
-  /** Read aloud and shown. */
-  readonly label: 'session.menu.connect' | 'session.menu.disconnect';
-  /** Whether losing something is the outcome. Carried, not inferred. */
-  readonly destructive: boolean;
-}
-
-const CONNECT: MenuItem = { action: 'connect', label: 'session.menu.connect', destructive: false };
-const DISCONNECT: MenuItem = {
-  action: 'disconnect',
-  label: 'session.menu.disconnect',
-  destructive: false,
-};
-
-/**
- * The menu for one row.
- *
- * A connected session offers to disconnect rather than to connect: offering
- * both is offering one that does nothing, and a menu item that does nothing is
- * how a menu stops being read.
- *
- * SFTP (#127) used to be a third item here, offered once a handle existed.
- * ADR-0044 gave it its own workspace with its own host picker instead, so
- * this row goes back to being about the connection alone.
- */
-export function sessionMenu(live: LiveSession): readonly MenuItem[] {
-  const open = live.handle !== null || live.kind === 'connecting';
-  return [open ? DISCONNECT : CONNECT];
-}
-
-/**
  * Keeps a menu on screen.
  *
  * A row near the bottom of a tall sidebar opens a menu that would run past the
  * window, and a menu whose last item is off screen hides the one that deletes.
+ *
+ * The row menu this once placed (connect/disconnect) retired with the row it
+ * belonged to (ADR-0072). `GroupMenu` still opens on a click inside the
+ * terminal grid and still needs to stay on screen, which is what keeps this
+ * function itself alive.
  */
 export function menuPosition(
   at: { readonly x: number; readonly y: number },

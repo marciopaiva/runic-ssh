@@ -11,7 +11,9 @@ import { BroadcastButton } from './components/BroadcastButton';
 import { CommandPalette } from './components/CommandPalette';
 import { ConnectingSurface } from './components/ConnectingSurface';
 import { EmptyPanel } from './components/EmptyPanel';
+import { HostEditorDialog } from './components/HostEditorDialog';
 import { HostsSection } from './components/HostsSection';
+import { OpenHostButton } from './components/OpenHostButton';
 import { GroupMenu } from './components/GroupMenu';
 import { GroupStrip, entryTitle } from './components/GroupStrip';
 import type { GroupMenuItem } from './components/GroupMenu';
@@ -21,15 +23,11 @@ import { HostKeyPrompt } from './components/HostKeyPrompt';
 import { HostKeyRefused } from './components/HostKeyRefused';
 import { MacrosButton } from './components/MacrosButton';
 import { MacrosSidebar } from './components/MacrosSidebar';
-import { MonitorWorkspace } from './components/MonitorWorkspace';
 import { MapStage } from './components/map/MapStage';
 import type { HostPopupState } from './components/map/MapStage';
 import { MonitorBody } from './components/map/MonitorBody';
 import { PasteConfirm } from './components/PasteConfirm';
-import { SessionMenu } from './components/SessionMenu';
 import { SessionWizard } from './components/SessionWizard';
-import { SessionsSidebar } from './components/SessionsSidebar';
-import { SidebarOverlay } from './components/SidebarOverlay';
 import { ShapeControl } from './components/ShapeControl';
 import { SftpPane } from './components/SftpPane';
 import { SftpSelectAllButton } from './components/SftpSelectAllButton';
@@ -40,7 +38,14 @@ import { ThemeLanguageControls } from './components/ThemeLanguageControls';
 import { Titlebar } from './components/Titlebar';
 import { Toolbar } from './components/Toolbar';
 import { TransfersBar } from './components/TransfersBar';
-import { actionCommands, macroCommands, sessionCommands, usePalette } from './features/commands';
+import { WorkspacePills } from './components/WorkspacePills';
+import {
+  actionCommands,
+  hostBookCommands,
+  macroCommands,
+  sessionCommands,
+  usePalette,
+} from './features/commands';
 import type { CommandContext } from './features/commands';
 import { applyVariables, ensureTrailingNewline, useMacros, wrapScript } from './features/macros';
 import {
@@ -69,7 +74,6 @@ import {
   groupNames,
   isInProgress,
   isOverridable,
-  markCarried,
   needsConfirmation,
   hasStoredCredential,
   jumpHostChoice,
@@ -96,7 +100,6 @@ import type {
   EditorTarget,
   ForwardDraft,
   OpenEditor,
-  SessionAction,
 } from './features/sessions';
 import { isCursorPositionReport, preparePaste } from './features/terminal/clipboard';
 import {
@@ -132,7 +135,6 @@ import {
   startForward,
   startingForwards,
   useSessionStats,
-  useSystemStats,
   withAppendedForward,
   withoutForwardAt,
   withoutSession,
@@ -152,7 +154,6 @@ import {
   receivingSessions,
   removeEntry,
   resolveGroups,
-  sparedSessions,
 } from './features/terminal';
 import type { Box, Grid, Group, HeldGroup } from './features/terminal';
 import type { TerminalSize } from './features/terminal/use-terminal';
@@ -278,14 +279,15 @@ export function App(): JSX.Element {
   const { theme, chooseTheme } = useTheme();
   const { previewFeatures, choosePreviewFeatures } = usePreview();
   const { shell, chooseShell } = useShell();
-  const [selected, setSelected] = useState<string | null>(null);
   /* Which main area is showing. ADR-0029: Sessions keeps groups, splitting and
-     the sync switch; Home holds the dashboard, the host editor and settings,
-     none of which are terminal-shaped, in a strip of their own with neither.
-     Home first: it is where a count of what is here and the way to add to it
-     both live, and a window that opens straight into a pool of hosts has
-     nowhere to point a user who has none yet. */
-  const [workspace, setWorkspace] = useState<Workspace>('home');
+     the sync switch; Home holds the dashboard and the host editor, neither of
+     which is terminal-shaped, in a strip of its own with neither. Home is no
+     longer the classic shell's landing screen (ADR-0072): its own rail is
+     gone, so a window that opened straight there would have nowhere left to
+     point a user with nothing open yet. Sessions' own toolbar carries that job
+     now, via `OpenHostButton`, so a fresh window lands there instead. Home
+     stays reachable from the map shell's rail, unchanged. */
+  const [workspace, setWorkspace] = useState<Workspace>('sessions');
   /* Turning the preview off while the map shell is in front leaves nowhere
      to stand, since the switch that reached it is gone too; fall back to
      classic (ADR-0066, ADR-0069). */
@@ -302,7 +304,9 @@ export function App(): JSX.Element {
       if (workspace !== 'home' && workspace !== 'map') setWorkspace('map');
       return;
     }
-    if (workspace === 'map') setWorkspace('home');
+    /* `home` has no route left in the classic shell either (ADR-0072), so a
+       switch away from the map shell lands on Sessions rather than there. */
+    if (workspace === 'map' || workspace === 'home') setWorkspace('sessions');
   }, [shell, workspace]);
   /* Fetched once: what is running cannot change under a live process, so there
      is nothing to react to and nothing worth re-asking. `null` until the
@@ -332,16 +336,8 @@ export function App(): JSX.Element {
      renders from this, `onOpened` only needs whatever it was most recently
      told. */
   const sftpConnectTargets = useRef<Map<string, SftpTarget>>(new Map());
-  /* Which saved host the monitor workspace asked `connect` for, the same
-     idea `sftpConnectTargets` carries for a pane: `onOpened` checks this to
-     decide a freshly connected session is Monitor's pick rather than a
-     focused shell in Sessions. A single id rather than a map: Monitor shows
-     one host at a time, so a second pick before the first resolves simply
-     replaces which one `onOpened` is waiting for. */
-  const monitorConnectTarget = useRef<string | null>(null);
-  /* ADR-0064: sessions the map asked for. Checked first in `onOpened`, the
-     same way the monitor's own target is: a map component wants its window
-     filled, not a tab in Sessions. */
+  /* ADR-0064: sessions the map asked for. Checked first in `onOpened`: a
+     map component wants its window filled, not a tab in Sessions. */
   const mapConnectTargets = useRef<Set<string>>(new Set());
   /* Which sessions Sessions itself has actually asked a shell for, ADR-0053.
      A connection opened for SFTP shares its handle with Sessions (one SSH
@@ -389,11 +385,6 @@ export function App(): JSX.Element {
      to pretend to be a session. */
   const [editors, setEditors] = useState<readonly OpenEditor[]>([]);
   const [size, setSize] = useState<TerminalSize | null>(null);
-  /* Which row's menu is open, and where it was opened from. */
-  const [menu, setMenu] = useState<{
-    readonly sessionId: string;
-    readonly at: { readonly x: number; readonly y: number };
-  } | null>(null);
   /* A group's menu: which group it belongs to, which of its tabs it is about,
      and where it was opened from. The tab is carried rather than looked up,
      because right-clicking a background tab opens this about that tab and not
@@ -416,6 +407,17 @@ export function App(): JSX.Element {
      rather than reusing the Sessions grid's index. */
   const [sftpDragging, setSftpDragging] = useState<DraggedEndpoint | null>(null);
   const [sftpDropOver, setSftpDropOver] = useState<SftpTarget | null>(null);
+  /* Which fan-out pane a host from the palette lands in (ADR-0072): the
+     source pane, or whichever destination slot was clicked last. Defaults to
+     the source, the first pane a fresh SFTP workspace shows. */
+  const [lastFocusedFanoutSlot, setLastFocusedFanoutSlot] = useState<SftpTarget>({
+    kind: 'source',
+  });
+  /* Which rectangle the "+" targets next (ADR-0072), the Sessions mirror of
+     `lastFocusedFanoutSlot` above. `focusedGroup` below only resolves while a
+     rectangle holds a session, editor or settings; an empty one has no
+     `Focus` to be the target of, so clicking it records here instead. */
+  const [lastFocusedGroup, setLastFocusedGroup] = useState(0);
   /* One or more files, picked up from the source pane's own listing rather
      than the sidebar: the same `dropOver` target as a host drag, but a drop
      sends the entries to that one destination (`sendEntriesToDestination`)
@@ -546,17 +548,13 @@ export function App(): JSX.Element {
       /* ADR-0045: a connection `assignSftpEndpoint` started lands in the
          pane it was asked for instead of a focused shell, the one place
          this shared success handler has to ask who wanted this connection
-         rather than assuming it was Sessions. The monitor workspace's own
-         pick is checked the same way, first: a session id is only ever the
-         current target of one of the two at a time, but checking in a fixed
-         order reads as the deliberate order it is rather than one that
-         happens to work. Neither wants `wantTerminal`/`setFocus` below,
-         since neither is asking for a tab in Sessions. */
+         rather than assuming it was Sessions. Checking in a fixed order
+         reads as the deliberate order it is rather than one that happens to
+         work. Neither wants `wantTerminal`/`setFocus` below, since neither
+         is asking for a tab in Sessions. */
       const sftpTarget = sftpConnectTargets.current.get(sessionId);
       if (mapConnectTargets.current.has(sessionId)) {
         mapConnectTargets.current.delete(sessionId);
-      } else if (monitorConnectTarget.current === sessionId) {
-        monitorConnectTarget.current = null;
       } else if (sftpTarget !== undefined) {
         sftpConnectTargets.current.delete(sessionId);
         const endpoint: Endpoint = { kind: 'remote', sessionId, handle };
@@ -588,7 +586,6 @@ export function App(): JSX.Element {
     onFailed: (sessionId, code) => {
       sftpConnectTargets.current.delete(sessionId);
       mapConnectTargets.current.delete(sessionId);
-      if (monitorConnectTarget.current === sessionId) monitorConnectTarget.current = null;
       setState(sessionId, stateAfterFailure(code));
       setTestOutcome((current) => new Map(current).set(sessionId, 'failed'));
     },
@@ -600,7 +597,6 @@ export function App(): JSX.Element {
     onAbandoned: (sessionId, settled) => {
       sftpConnectTargets.current.delete(sessionId);
       mapConnectTargets.current.delete(sessionId);
-      if (monitorConnectTarget.current === sessionId) monitorConnectTarget.current = null;
       /* Nothing is left to show a tab for once an attempt is walked away
          from, ADR-0053: no handle, no attempt, and (for one Sessions itself
          started) no failure surface left to keep a panel open for either. */
@@ -747,31 +743,21 @@ export function App(): JSX.Element {
     };
   }, [homeEditingId]);
   const focusedGroup = groupOf(groups, resolvedFocus);
+  useEffect(() => {
+    if (focusedGroup >= 0) setLastFocusedGroup(focusedGroup);
+  }, [focusedGroup]);
+  /* The one `focusedGroup` can't cover: a rectangle with nothing open in it
+     still needs to be "the" target for the next host the "+" opens, and
+     `focusedGroup` never falls back to it because a session elsewhere in the
+     layout keeps `Focus` pointed there regardless of what was clicked. The
+     clamp guards a `lastFocusedGroup` left pointing past the end after the
+     layout shrinks to fewer rectangles than it had when it was set. */
+  const activeGroup = Math.min(lastFocusedGroup, groups.length - 1);
   const filled = groups.filter((group) => group.entries.length > 0).length;
   const receiving = useMemo(() => receivingSessions(groups, muted), [groups, muted]);
   /* One pane left receiving is not a broadcast: it sends exactly where an
      unarmed keystroke goes, and the screen must not claim otherwise. */
   const armed = sync && receiving.length > 1;
-  /* What the sidebar draws. Two sets rather than one, because "not receiving"
-     and "not connected" are different answers and a host list that gave them
-     the same marker would be answering neither. */
-  const reaching = useMemo(
-    () => (armed ? new Set(receiving) : null),
-    [armed, receiving],
-  );
-  const spared = useMemo(
-    () =>
-      armed
-        ? new Set(
-            sparedSessions(
-              sessions.filter((live) => live.handle !== null).map((live) => live.session.id),
-              receiving,
-            ),
-          )
-        : new Set<string>(),
-    [armed, receiving, sessions],
-  );
-
   /* The only thing in the window that says a broadcast was armed or disarmed
      without being looked at. Held here rather than derived in the bar because
      an announcement is about the change, and the bar only ever sees the state
@@ -831,13 +817,6 @@ export function App(): JSX.Element {
 
       const sessionId = focusedSession(next);
       if (sessionId !== null) {
-        /* The sidebar highlight follows too. It only ever moved on connecting,
-           so looking at one session while the sidebar pointed at another was
-           always possible and was hard to notice with one panel on screen. It
-           is not hard to notice with four. Nothing reads it but the highlight
-           itself, so one place saying "this is the one you are looking at"
-           costs nothing and stops the two disagreeing. */
-        setSelected(sessionId);
         /* Focusing a session is always about Sessions, wherever it was asked
            from. The palette can activate a tab while Home is showing, and the
            window would otherwise say a session has the keyboard while
@@ -1183,9 +1162,6 @@ export function App(): JSX.Element {
   const moveTo = useCallback((entry: Focus, group: number): void => {
     setHeld((current) => moveEntry(current, entry, group));
     setFocus(entry);
-
-    const sessionId = focusedSession(entry);
-    if (sessionId !== null) setSelected(sessionId);
   }, []);
 
   /* Closing every tab in one group. Sessions only, since ADR-0029: a group
@@ -1232,7 +1208,6 @@ export function App(): JSX.Element {
 
       const mine: Focus = { kind: 'session', sessionId };
       setHeld((current) => moveEntry(current, mine, group));
-      setSelected(sessionId);
       setFocus(mine);
       /* This rectangle is asking for a tab now, ADR-0053, whether or not a
          handle already exists for it (SFTP may hold one already). */
@@ -1250,14 +1225,37 @@ export function App(): JSX.Element {
     [sessions, attempt, connect, wantTerminal],
   );
 
-  /* The palette's "open settings" lands here. Theme and language sit in
-     Home's own toolbar now (ADR-0052), visible the moment Home is showing
-     rather than behind a section to switch to, so this only has to change
-     the workspace, the same place the gear used to point at before
-     ADR-0029 and the maintainer's own follow-up to it. */
+  /* The "+" beside the ADR-0072 pills. Routes to whichever of the two
+     existing placement mechanisms the showing workspace already has: a
+     rectangle in Sessions, or the fan-out slot last clicked in SFTP. Neither
+     mechanism changes here, only which one gets called. */
+  const openHostInto = useCallback(
+    (sessionId: string): void => {
+      if (workspace === 'sftp') {
+        assignSftpEndpoint({ kind: 'host', sessionId }, lastFocusedFanoutSlot);
+        return;
+      }
+      openHere(sessionId, activeGroup);
+    },
+    [workspace, assignSftpEndpoint, lastFocusedFanoutSlot, openHere, activeGroup],
+  );
+
+  /* The palette's synthetic "localhost" row, SFTP only: the same slot
+     `openHostInto` would use, given the one endpoint that is never a saved
+     host. */
+  const openLocalInto = useCallback((): void => {
+    assignSftpEndpoint({ kind: 'local' }, lastFocusedFanoutSlot);
+  }, [assignSftpEndpoint, lastFocusedFanoutSlot]);
+
+  /* The palette's "open settings" lands here. ADR-0062 moved theme and
+     language into every workspace's own toolbar row, not Home's alone, so
+     reaching either no longer means switching away from whichever workspace
+     is actually in use: there is nothing left for this to do in the classic
+     shell. The map shell still has a Home slot on its own rail, separate
+     from the toolbar row, so there it is still worth landing on. */
   const openSettings = useCallback((): void => {
-    setWorkspace('home');
-  }, []);
+    if (shell === 'map') setWorkspace('home');
+  }, [shell]);
 
   /* Shown in the main area rather than as a toast: the user just clicked the
      session and is looking at exactly this space, and a message that
@@ -1272,11 +1270,10 @@ export function App(): JSX.Element {
       : { session: failedSession, code: attempt.stage.code, hop: attempt.stage.hop };
 
   /* Activating a saved host is what starts a connection. An open one only
-     switches, which is why the sidebar and the palette both route through
-     here rather than each deciding for themselves. */
+     switches, which is why the palette and the retry button both route
+     through here rather than each deciding for themselves. */
   const activate = useCallback(
     (sessionId: string): void => {
-      setSelected(sessionId);
       /* Connecting or switching to a session is always about Sessions, even
          when it was asked for from the palette while Home was showing. */
       setWorkspace('sessions');
@@ -1486,10 +1483,6 @@ export function App(): JSX.Element {
   );
 
   const saved = useMemo(() => sessions.map((live) => live.session), [sessions]);
-  /* What the sidebar draws, which is not quite what is open. A bastion with no
-     tab of its own still has a live authenticated connection to it while a
-     session behind it is running, and the row has to say so. #168. */
-  const shown = useMemo(() => markCarried(sessions, carriedOn), [sessions, carriedOn]);
   /* The host the focused session travels through, or `null`. Read only while
      it is actually open: the entry outlives the connection by design, and a
      bar still naming a hop after the session closed would be the same lie in
@@ -1769,14 +1762,15 @@ export function App(): JSX.Element {
     [homeEntries],
   );
 
-  /* Opening the form switches to Home and puts its tab on that workspace's
-     strip: the sidebar's `+` and the row menu's Edit both land here rather
-     than each knowing about tabs. A host form has lived in Home rather than a
-     Sessions group since ADR-0029. */
+  /* The form opens over whatever workspace asked for it (ADR-0072): Home's own
+     row click and its `+`, the general command palette's `session:edit:*`
+     command (`sources.ts`'s `sessionCommands`), and `SessionBody.onEditHost`
+     from inside a session all land here, and none of them has to leave first
+     any more. The "+" host book palette (`hostBookCommands`) opens a saved
+     host; it has no edit command of its own. */
   const openEditor = useCallback((target: EditorTarget): void => {
     setEditors((current) => withEditor(current, target, savedRef.current));
     setHomeFocus({ kind: 'editor', target });
-    setWorkspace('home');
   }, []);
 
   /* #357: the same editor, opened over the map instead of in Home. The
@@ -1793,24 +1787,6 @@ export function App(): JSX.Element {
     );
     setMapEditor({ formId: opened.formId, ask });
   }, []);
-
-  const chooseFromMenu = useCallback(
-    (action: SessionAction): void => {
-      const open = menu;
-      setMenu(null);
-      if (open === null) return;
-
-      switch (action) {
-        case 'connect':
-          activate(open.sessionId);
-          return;
-        case 'disconnect':
-          disconnect(open.sessionId);
-          return;
-      }
-    },
-    [menu, activate, disconnect],
-  );
 
   const context = useMemo<CommandContext>(
     () => ({
@@ -1831,6 +1807,11 @@ export function App(): JSX.Element {
       focusedTitle:
         resolvedFocus === null ? null : entryTitle(resolvedFocus, tabs, editorTabs, i18n),
       macros,
+      /* Narrowed from the wider `Workspace` union: only `hostBookCommands`
+         reads this, and only to decide whether "this machine" belongs in the
+         list, which is a question that only makes sense once it is one of
+         these two. */
+      workspace: workspace === 'sftp' ? 'sftp' : 'sessions',
       actions: {
         newSession: () => openEditor({ kind: 'new' }),
         editSession: (sessionId: string) => openEditor({ kind: 'existing', sessionId }),
@@ -1843,6 +1824,8 @@ export function App(): JSX.Element {
           if (resolvedFocus !== null) moveTo(resolvedFocus, at);
         },
         closeGroup: () => closeGroup(focusedGroup),
+        openHostInto,
+        openLocalInto,
         /* Arming always starts with every pane checked. Inheriting a set
            somebody narrowed for a different pair of hosts is the kind of thing
            this switch must never do. */
@@ -1859,13 +1842,21 @@ export function App(): JSX.Element {
         openMacros: () => setMacrosOpen(true),
       },
     }),
-    [i18n, sessions, tabs, activeId, macroTargetId, chosen, maximized, nativeDecorations, previewFeatures, act, choose, closeFocus, activate, useNativeDecorations, choosePreviewFeatures, openSettings, resolvedFocus, focusOn, entries, chooseLayout, layout, sync, filled, muted, armed, receiving, groups, focusedGroup, editorTabs, moveTo, closeGroup, macros, runMacro],
+    [i18n, sessions, tabs, activeId, macroTargetId, chosen, maximized, nativeDecorations, previewFeatures, act, choose, closeFocus, activate, useNativeDecorations, choosePreviewFeatures, openSettings, resolvedFocus, focusOn, entries, chooseLayout, layout, sync, filled, muted, armed, receiving, groups, focusedGroup, editorTabs, moveTo, closeGroup, macros, runMacro, workspace, openHostInto, openLocalInto],
   );
 
   const sources = useMemo(
     () => [() => sessionCommands(context), () => actionCommands(context), () => macroCommands(context)],
     [context],
   );
+
+  /* The "+" beside the ADR-0072 pills opens this instead of the shortcut
+     palette above: a second, independently driven `usePalette`, suspended so
+     its own keyboard shortcut never fires, shown only from `OpenHostButton`'s
+     click. Same presentational `CommandPalette`, same ranking and keyboard
+     navigation, a different source. */
+  const hostSources = useMemo(() => [() => hostBookCommands(context)], [context]);
+  const hostPalette = usePalette(hostSources, chrome?.commandModifier ?? 'control', true);
 
   const palette = usePalette(sources, chrome?.commandModifier ?? 'control', macrosOpen);
 
@@ -1875,44 +1866,6 @@ export function App(): JSX.Element {
   const paneLabels = useMemo(
     () => new Map(sessions.map((live) => [live.session.id, groupLabel(live.session)])),
     [sessions],
-  );
-
-  /* The monitor workspace's own pick, by session id rather than handle: a
-     saved host not yet open has no handle to hold, and the sidebar row it
-     picked is still worth remembering while `connect` runs. Resolved against
-     `sessions` below rather than duplicated, the same reason `selected`
-     (Sessions' own equivalent) is not copied into a second piece of state. */
-  const [selectedMonitorSessionId, setSelectedMonitorSessionId] = useState<string | null>(null);
-  const selectedMonitorSession =
-    selectedMonitorSessionId === null
-      ? null
-      : (sessions.find((live) => live.session.id === selectedMonitorSessionId) ?? null);
-  /* `null` whenever this is not the workspace on screen, or nothing picked
-     yet has a connection: polling because a host merely happens to be
-     selected, on a workspace nobody is looking at, would defeat the whole
-     reason this reads one host at a time rather than every open one. */
-  const monitorHandle =
-    workspace === 'monitor' && selectedMonitorSession !== null ? selectedMonitorSession.handle : null;
-  const monitorStats = useSystemStats(monitorHandle);
-
-  /* Picks a saved host for the monitor workspace, connecting first if it is
-     not already open: the same shape `assignSftpEndpoint` gives SFTP, minus
-     the pane/slot concept, since Monitor shows one host rather than fanning
-     out to several. Selecting is immediate either way, so the sidebar and
-     the detail panel agree on which row is current from the first render,
-     before `connect` (when it runs at all) has anywhere near resolved. */
-  const selectMonitorHost = useCallback(
-    (sessionId: string): void => {
-      setSelectedMonitorSessionId(sessionId);
-
-      const live = sessions.find((entry) => entry.session.id === sessionId);
-      if (live === undefined || live.handle !== null) return;
-
-      monitorConnectTarget.current = sessionId;
-      if (attempt !== null && attempt.sessionId === sessionId && isInProgress(attempt.stage)) return;
-      void connect(sessionId);
-    },
-    [connect, sessions, attempt],
   );
 
   /* What a group's menu offers, built where the state is rather than inside
@@ -1977,18 +1930,6 @@ export function App(): JSX.Element {
   /* What the status bar says it is describing. Same source as the tabs, so
      the bar and a strip cannot disagree about a session's name. */
   const activeIdentity = activeId === null ? null : (paneLabels.get(activeId) ?? null);
-
-  /* Every session currently sitting in the SFTP workspace's source pane or a
-     destination slot, for the sidebar's own folder mark (ADR-0045 dropped
-     the one-tab-at-a-time model that used to make this a single id). */
-  const sftpAssigned = useMemo(() => {
-    const ids = new Set<string>();
-    if (fanout.source?.kind === 'remote') ids.add(fanout.source.sessionId);
-    for (const destination of fanout.destinations) {
-      if (destination?.kind === 'remote') ids.add(destination.sessionId);
-    }
-    return ids;
-  }, [fanout.source, fanout.destinations]);
 
   /* `user@host` for a pane's header, or `localhost`. The session may have
      closed since the endpoint was assigned; the id is shown rather than
@@ -2453,6 +2394,12 @@ export function App(): JSX.Element {
           whichever workspace is actually in use. */}
       {workspace === 'sessions' && (
         <Toolbar
+          leading={
+            <>
+              <WorkspacePills workspace="sessions" onChoose={setWorkspace} />
+              <OpenHostButton onClick={hostPalette.show} />
+            </>
+          }
           trailing={
             <>
               <BroadcastButton
@@ -2474,6 +2421,12 @@ export function App(): JSX.Element {
       )}
       {workspace === 'sftp' && (
         <Toolbar
+          leading={
+            <>
+              <WorkspacePills workspace="sftp" onChoose={setWorkspace} />
+              <OpenHostButton onClick={hostPalette.show} />
+            </>
+          }
           trailing={
             <>
               <SftpSelectAllButton
@@ -2488,11 +2441,6 @@ export function App(): JSX.Element {
         />
       )}
       {workspace === 'home' && (
-        <Toolbar
-          trailing={shellAndTheme}
-        />
-      )}
-      {workspace === 'monitor' && (
         <Toolbar
           trailing={shellAndTheme}
         />
@@ -2524,121 +2472,30 @@ export function App(): JSX.Element {
       )}
 
       <div className="flex min-h-0 flex-1">
-        <ActivityRail
-          workspace={workspace}
-          sidebarOpen={sidebarOpen}
-          armed={armed}
-          shell={shell}
-          openCount={tabs.length}
-          sftpCount={(fanout.source === null ? 0 : 1) + fanout.destinations.filter((d) => d !== null).length}
-          onChoose={(next) => {
-            if (next === workspace) {
-              setSidebarOpen((open) => !open);
-              return;
-            }
-            setWorkspace(next);
-          }}
-        />
+        {shell === 'map' && (
+          <ActivityRail
+            workspace={workspace}
+            sidebarOpen={sidebarOpen}
+            armed={armed}
+            onChoose={(next) => {
+              if (next === workspace) {
+                setSidebarOpen((open) => !open);
+                return;
+              }
+              setWorkspace(next);
+            }}
+          />
+        )}
 
         {/* `relative` and `min-w-0`: the overlay's `absolute inset-*` panels
             (ADR-0071) need a positioned ancestor that starts after the rail,
             not the row above that also holds the rail itself, or `left-3`
             measures from x=0 and the panel floats out from under the rail
-            icons instead of beside them. */}
+            icons instead of beside them. That overlay has one call site left
+            (Home's own `<nav>`, still reachable from the map shell's rail);
+            Sessions and SFTP retired theirs to the toolbar's pill switch and
+            "+" palette (ADR-0072). */}
         <div className="relative flex min-h-0 min-w-0 flex-1">
-
-        {workspace === 'sessions' && (
-          <SidebarOverlay open={sidebarOpen} onClose={() => setSidebarOpen(false)}>
-            <SessionsSidebar
-              title={i18n.t('sessions.title')}
-              emptyTitle={i18n.t('sessions.empty.title')}
-              emptyBody={i18n.t('sessions.empty.body')}
-              sessions={shown}
-              selectedId={selected}
-              receiving={reaching}
-              spared={spared}
-              onDrag={(sessionId) => {
-                setDragging(sessionId === null ? null : { kind: 'host', sessionId });
-                if (sessionId === null) setDropOver(null);
-              }}
-              onSelect={(sessionId) => {
-                activate(sessionId);
-                setSidebarOpen(false);
-              }}
-              onMenu={(sessionId, at) => setMenu({ sessionId, at })}
-            />
-          </SidebarOverlay>
-        )}
-
-        {/* ADR-0046: SFTP's own sidebar is now `SessionsSidebar` itself,
-            same kind icon, jump mark, chain indent, filter and groups, with
-            `assigned` in place of `selectedId`/`receiving`/`spared` (a
-            picker for a pane rather than a tab) and a `localhost` row
-            pinned above the list, which needs no saved host and reaches
-            neither `onDrag` nor `onSelect` below. */}
-        {workspace === 'sftp' && (
-          <SidebarOverlay open={sidebarOpen} onClose={() => setSidebarOpen(false)}>
-            <SessionsSidebar
-              title={i18n.t('sftp.workspace.title')}
-              emptyTitle={i18n.t('sftp.workspace.empty.title')}
-              emptyBody={i18n.t('sftp.workspace.empty.body')}
-              sessions={sessions}
-              assigned={sftpAssigned}
-              leading={
-                <div className="px-2 pb-1.5">
-                  <button
-                    type="button"
-                    draggable
-                    onDragStart={(event) => {
-                      event.dataTransfer.effectAllowed = 'copyMove';
-                      event.dataTransfer.setData('text/plain', i18n.t('sftp.localhost'));
-                      setSftpDragging({ kind: 'local' });
-                    }}
-                    onDragEnd={() => setSftpDragging(null)}
-                    onClick={() => {
-                      assignSftpEndpoint({ kind: 'local' }, { kind: 'source' });
-                      setSidebarOpen(false);
-                    }}
-                    className="hover:bg-surface-raised/60 flex w-full items-center gap-2.5 rounded px-2 py-[7px] text-left"
-                  >
-                    <span className="bg-ink-faint/70 h-[9px] w-[9px] shrink-0 rounded-full" />
-                    <span className="text-ink2 truncate text-[12.5px]">{i18n.t('sftp.localhost')}</span>
-                  </button>
-                </div>
-              }
-              onDrag={(sessionId) => {
-                setSftpDragging(sessionId === null ? null : { kind: 'host', sessionId });
-                if (sessionId === null) setSftpDropOver(null);
-              }}
-              onSelect={(sessionId) => {
-                assignSftpEndpoint({ kind: 'host', sessionId }, { kind: 'source' });
-                setSidebarOpen(false);
-              }}
-            />
-          </SidebarOverlay>
-        )}
-
-        {/* The same saved host book Sessions and SFTP already show, with
-            `selectMonitorHost` in place of `activate`/`assignSftpEndpoint`:
-            picking a host not yet open connects it, the same as either of
-            those, rather than requiring a Sessions tab to exist first. No
-            drag target of its own, so `onDrag` is a no-op. */}
-        {workspace === 'monitor' && (
-          <SidebarOverlay open={sidebarOpen} onClose={() => setSidebarOpen(false)}>
-            <SessionsSidebar
-              title={i18n.t('rail.monitor')}
-              emptyTitle={i18n.t('sessions.empty.title')}
-              emptyBody={i18n.t('sessions.empty.body')}
-              sessions={sessions}
-              selectedId={selectedMonitorSessionId}
-              onDrag={() => {}}
-              onSelect={(sessionId) => {
-                selectMonitorHost(sessionId);
-                setSidebarOpen(false);
-              }}
-            />
-          </SidebarOverlay>
-        )}
 
         {workspace === 'sessions' && (
         /* `relative` is what every group and every surface is positioned
@@ -2657,9 +2514,10 @@ export function App(): JSX.Element {
         >
           {/* A strip names the tabs a rectangle holds, so one holding none
               draws none. It carried a `+` for a while, which was the only
-              thing an empty group could offer; a host is dragged straight into
-              it now, and a bar with nothing in it is 28px of chrome saying
-              nothing. */}
+              thing an empty group could offer; a bar with nothing in it is
+              28px of chrome saying nothing, so the toolbar's own "+"
+              (ADR-0072) is what fills one now, and a click here is only
+              about choosing which one, among several empty rectangles. */}
           {groups.map((group, at) => {
             const shown = shownSession(group);
             const syncing = armed && shown !== null && !muted.has(shown);
@@ -2680,10 +2538,17 @@ export function App(): JSX.Element {
                       : /* One rectangle of a split. Dashed rather than solid
                            so it reads as somewhere to put a session and not as
                            a terminal that failed to paint, which is the worry
-                           the empty panel was written for. */
-                        'border-line-subtle border-2 border-dashed'
+                           the empty panel was written for; the accent color
+                           marks the one `activeGroup` points at, since that is
+                           where the toolbar's "+" opens the next host. */
+                        at === activeGroup
+                          ? 'border-accent border-2 border-dashed'
+                          : 'border-line-subtle border-2 border-dashed'
                 }`}
                 style={frameStyle(group.box)}
+                onClick={
+                  empty && layout !== '1x1' ? () => setLastFocusedGroup(at) : undefined
+                }
                 onDragOver={dragging === null ? undefined : (event) => {
                   event.preventDefault();
                   event.dataTransfer.dropEffect = 'move';
@@ -2961,7 +2826,11 @@ export function App(): JSX.Element {
                     destination each `width: 50%` there, and against the
                     maintainer's own instruction during that review that the
                     two must match. */}
-                <div className="relative w-1/2 min-w-[260px] shrink-0" {...dragOverHandlers({ kind: 'source' })}>
+                <div
+                  className="relative w-1/2 min-w-[260px] shrink-0"
+                  onClick={() => setLastFocusedFanoutSlot({ kind: 'source' })}
+                  {...dragOverHandlers({ kind: 'source' })}
+                >
                   {fanout.source === null ? (
                     /* Reuses the same brand mark every other empty
                        rectangle in the app shows (Sessions' own empty
@@ -3010,7 +2879,12 @@ export function App(): JSX.Element {
                       const endpoint = fanout.destinations[slot] ?? null;
 
                       return (
-                        <div key={`destination-${String(slot)}`} className="relative" {...dragOverHandlers({ kind: 'destination', slot })}>
+                        <div
+                          key={`destination-${String(slot)}`}
+                          className="relative"
+                          onClick={() => setLastFocusedFanoutSlot({ kind: 'destination', slot })}
+                          {...dragOverHandlers({ kind: 'destination', slot })}
+                        >
                           {endpoint === null ? (
                             <div
                               className={`h-full rounded border-2 border-dashed transition-colors ${dropTone({ kind: 'destination', slot })}`}
@@ -3094,47 +2968,15 @@ export function App(): JSX.Element {
                     setSidebarOpen(false);
                   }}
                   onCloseSidebar={() => setSidebarOpen(false)}
-                  detail={homeEditorTarget === null ? null : wizardFor(homeEditorTarget, false)}
+                  /* The editor lives in `HostEditorDialog` now (ADR-0072):
+                     drawing it here too, whenever this screen also happens
+                     to be showing, mounted the same form twice. */
+                  detail={null}
                 />
               );
             })()}
           </div>
         </main>
-        )}
-
-        {workspace === 'monitor' && (
-          <main className="bg-surface-base relative flex min-w-0 flex-1 flex-col overflow-hidden">
-            {selectedMonitorSession === null ? (
-              <EmptyPanel
-                modifier={chrome?.commandModifier ?? 'control'}
-                variant="panel"
-                title={i18n.t('monitor.pick.title')}
-                body={i18n.t('monitor.pick.body')}
-              />
-            ) : selectedMonitorSession.handle !== null ? (
-              <MonitorWorkspace
-                identity={
-                  paneLabels.get(selectedMonitorSession.session.id) ?? {
-                    name: selectedMonitorSession.session.name,
-                    where: '',
-                  }
-                }
-                handle={selectedMonitorSession.handle}
-                stats={monitorStats}
-              />
-            ) : (
-              /* Picked but not yet open: `selectMonitorHost` already called
-                 `connect`, and `attempt`/`attemptSurface` carry the host key,
-                 credential or failure surface for it, the same "Reaching
-                 <host>…" through a failed attempt sequence Sessions and SFTP
-                 both show for their own picks. Full-area, the same reason
-                 SFTP's own version of this is: a narrower column clips a host
-                 key prompt's Trust button below the fold. */
-              attempt !== null &&
-              attempt.sessionId === selectedMonitorSession.session.id &&
-              attemptSurface !== null && <div className="absolute inset-0">{attemptSurface}</div>
-            )}
-          </main>
         )}
 
         {workspace === 'map' && (
@@ -3238,21 +3080,6 @@ export function App(): JSX.Element {
         />
       )}
 
-      {menu !== null &&
-        (() => {
-          const live = sessions.find((entry) => entry.session.id === menu.sessionId);
-          if (live === undefined) return null;
-
-          return (
-            <SessionMenu
-              live={live}
-              at={menu.at}
-              onChoose={chooseFromMenu}
-              onDismiss={() => setMenu(null)}
-            />
-          );
-        })()}
-
       <CommandPalette
         open={palette.open}
         query={palette.query}
@@ -3264,6 +3091,29 @@ export function App(): JSX.Element {
         onRun={palette.run}
         onDismiss={palette.dismiss}
       />
+
+      {/* The "+" beside the ADR-0072 pills, ADR-0072: same component, a
+          second and independently driven `usePalette` behind it. */}
+      <CommandPalette
+        open={hostPalette.open}
+        query={hostPalette.query}
+        matches={hostPalette.matches}
+        selected={hostPalette.selected}
+        onQuery={hostPalette.setQuery}
+        onMove={hostPalette.move}
+        onSelect={hostPalette.select}
+        onRun={hostPalette.run}
+        onDismiss={hostPalette.dismiss}
+      />
+
+      <HostEditorDialog
+        open={homeEditorTarget !== null}
+        onClose={() => {
+          if (homeEditorTarget !== null) cancelEditing(homeEditorTarget);
+        }}
+      >
+        {homeEditorTarget === null ? null : wizardFor(homeEditorTarget, false)}
+      </HostEditorDialog>
     </div>
   );
 }

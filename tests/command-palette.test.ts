@@ -13,7 +13,12 @@ import { bySection, collect } from '../src/features/commands/registry';
 import type { Command } from '../src/features/commands/registry';
 import { fold, rank } from '../src/features/commands/match';
 import { isPaletteShortcut, moveBy } from '../src/features/commands/navigation';
-import { actionCommands, macroCommands, sessionCommands } from '../src/features/commands/sources';
+import {
+  actionCommands,
+  hostBookCommands,
+  macroCommands,
+  sessionCommands,
+} from '../src/features/commands/sources';
 import type { CommandActions, CommandContext } from '../src/features/commands/sources';
 import type { Tab } from '../src/features/chrome';
 import type { LiveSession } from '../src/features/sessions';
@@ -72,6 +77,8 @@ function actions(): CommandActions & { readonly calls: string[] } {
     toggleSync: () => calls.push('sync'),
     runMacro: (macro) => calls.push(`macro:${macro.id}`),
     openMacros: () => calls.push('macros:manage'),
+    openHostInto: (id) => calls.push(`hostbook:${id}`),
+    openLocalInto: () => calls.push('hostbook:local'),
   };
 }
 
@@ -93,6 +100,7 @@ function context(overrides: Partial<CommandContext> = {}): CommandContext {
     focusedGroup: -1,
     focusedTitle: null,
     macros: [],
+    workspace: 'sessions',
     actions: actions(),
     ...overrides,
   };
@@ -636,5 +644,60 @@ describe('macros', () => {
        sibling gap), and the two are never the same field. */
     const commands = macroCommands(context({ activeId: 'a', macros: [macro('m1', 'nginx')] }));
     expect(commands.map((entry) => entry.id)).not.toContain('macro:m1');
+  });
+});
+
+describe('the host book palette (ADR-0072)', () => {
+  it('orders a bastion before whatever rides it, not the file’s raw order', () => {
+    /* Same guarantee `hostRows` already gives Home's own list: the file
+       lists the rider first here, and the palette must not repeat that
+       order verbatim. */
+    const rider: Session = { ...session('b', 'db-01', 'h2'), proxyJump: 'a' };
+    const commands = hostBookCommands(
+      context({ sessions: [live(rider), live(session('a', 'bastion', 'h1'))] }),
+    );
+
+    expect(commands.map((entry) => entry.id)).toEqual(['hostbook:a', 'hostbook:b']);
+  });
+
+  it('reaches a saved host by its address', () => {
+    const commands = hostBookCommands(
+      context({ sessions: [live(session('a', 'web-01', '10.0.4.31'))] }),
+    );
+
+    expect(commands.find((entry) => entry.id === 'hostbook:a')?.keywords).toContain('10.0.4.31');
+  });
+
+  it('puts a chosen host wherever the workspace beside the button stands for', () => {
+    const act = actions();
+    hostBookCommands(context({ sessions: [live(session('a', 'web-01', 'h1'))], actions: act }))
+      .find((entry) => entry.id === 'hostbook:a')
+      ?.run();
+
+    expect(act.calls).toEqual(['hostbook:a']);
+  });
+
+  it('leaves "this machine" out of the Sessions workspace', () => {
+    /* Sessions has no local endpoint to fill; that row belongs to SFTP's
+       fan-out alone. */
+    const commands = hostBookCommands(context({ workspace: 'sessions' }));
+    expect(commands.map((entry) => entry.id)).not.toContain('hostbook:local');
+  });
+
+  it('offers "this machine" first in the SFTP workspace', () => {
+    const commands = hostBookCommands(
+      context({ workspace: 'sftp', sessions: [live(session('a', 'web-01', 'h1'))] }),
+    );
+
+    expect(commands.map((entry) => entry.id)).toEqual(['hostbook:local', 'hostbook:a']);
+  });
+
+  it('runs the local endpoint into the same slot a host would land in', () => {
+    const act = actions();
+    hostBookCommands(context({ workspace: 'sftp', actions: act }))
+      .find((entry) => entry.id === 'hostbook:local')
+      ?.run();
+
+    expect(act.calls).toEqual(['hostbook:local']);
   });
 });
