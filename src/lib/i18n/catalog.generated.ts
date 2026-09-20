@@ -59,7 +59,7 @@ export const SOURCE_CATALOG = {
   "editor.failed.dismiss": "Dismiss",
   "editor.failed.forget": "The password was not removed",
   "editor.failed.save": "This host was not saved",
-  "empty.group.action": "Open host",
+  "empty.action": "Open host",
   "empty.group.title": "No session in this group",
   "empty.hint": "Press {keys} for commands, or the + beside the pills to open a host.",
   "empty.title": "No session open",

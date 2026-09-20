@@ -2608,7 +2608,14 @@ export function App(): JSX.Element {
                 <div className="min-h-0 flex-1">
                   {empty &&
                     (layout === '1x1' && entries.length === 0 ? (
-                      <EmptyPanel modifier={chrome?.commandModifier ?? 'control'} variant="panel" />
+                      <EmptyPanel
+                        modifier={chrome?.commandModifier ?? 'control'}
+                        variant="panel"
+                        onOpenHost={() => {
+                          setLastFocusedGroup(at);
+                          hostPalette.show();
+                        }}
+                      />
                     ) : (
                       <EmptyPanel
                         modifier={chrome?.commandModifier ?? 'control'}

@@ -18,6 +18,12 @@ interface EmptyPanelPanelProps {
    */
   readonly title?: string;
   readonly body?: string;
+  /**
+   * Opens the host palette targeting this panel, same as the group variant's
+   * button. Optional because Home's empty host list has its own "pick a host
+   * on the left" hint and no rectangle of its own to target.
+   */
+  readonly onOpenHost?: () => void;
 }
 
 interface EmptyPanelGroupProps {
@@ -40,12 +46,13 @@ type EmptyPanelProps = EmptyPanelPanelProps | EmptyPanelGroupProps;
  *
  * A blank panel and a blank status bar is indistinguishable from a window that
  * failed to paint, which is the first thing a new user meets. This says which
- * of the two it is. `panel` is a window with no session at all, and names the
- * two ways forward: the palette shortcut, or the "+" beside the pills. `group`
- * is one rectangle of a division with sessions running in the others, where
- * saying "no session open" would be plainly false and the way forward is a
- * button doing the one thing there is to do here, opening a host straight
- * into this rectangle or slot, rather than a hint pointing elsewhere at it.
+ * of the two it is. `panel` is a window with no session at all; `group` is one
+ * rectangle of a division with sessions running in the others, where saying
+ * "no session open" would be plainly false. Both get the same "Open host"
+ * button when the caller gives one a rectangle or slot to target, rather than
+ * a hint pointing elsewhere at it; `panel`'s `onOpenHost` is optional only for
+ * a caller like Home's empty host list, which has its own hint and no
+ * rectangle of its own to open a host into.
  */
 export function EmptyPanel(props: EmptyPanelProps): JSX.Element {
   const i18n = useTranslator();
@@ -53,6 +60,11 @@ export function EmptyPanel(props: EmptyPanelProps): JSX.Element {
   /* The same helper the status bar uses, so the shortcut is never spelled two
      ways in one window and so a Mac reads ⌘ in both places. */
   const keys = paletteKeys(modifier).join(' ');
+  /* `body` doesn't exist on the group variant at all, and `onOpenHost` is
+     required there instead of optional; narrowing through `props.variant`
+     here, once, keeps that out of the render below. */
+  const onOpenHost = props.variant === 'group' ? props.onOpenHost : props.onOpenHost;
+  const body = props.variant === 'group' ? undefined : props.body;
 
   return (
     <div className="flex h-full flex-col items-center justify-center gap-10 p-8">
@@ -69,12 +81,12 @@ export function EmptyPanel(props: EmptyPanelProps): JSX.Element {
         <span className="text-ink-secondary text-[14px] font-semibold">
           {props.title ?? i18n.t(props.variant === 'group' ? 'empty.group.title' : 'empty.title')}
         </span>
-        {props.variant === 'group' ? (
-          <Button variant="primary" size="sm" leftIcon={<PlusIcon className="h-3 w-3" />} onClick={props.onOpenHost}>
-            {i18n.t('empty.group.action')}
+        {onOpenHost ? (
+          <Button variant="primary" size="sm" leftIcon={<PlusIcon className="h-3 w-3" />} onClick={onOpenHost}>
+            {i18n.t('empty.action')}
           </Button>
         ) : (
-          <span className="text-ink-faint text-[12.5px]">{props.body ?? i18n.t('empty.hint', { keys })}</span>
+          <span className="text-ink-faint text-[12.5px]">{body ?? i18n.t('empty.hint', { keys })}</span>
         )}
       </div>
     </div>

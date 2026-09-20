@@ -53,7 +53,7 @@
   "editor.failed.dismiss": "Descartar",
   "editor.failed.forget": "La contraseña no se quitó",
   "editor.failed.save": "Este host no se guardó",
-  "empty.group.action": "Abrir host",
+  "empty.action": "Abrir host",
   "empty.group.title": "Ninguna sesión en este grupo",
   "empty.hint": "Pulse {keys} para los comandos, o el + junto a los botones para abrir un host.",
   "empty.title": "Ninguna sesión abierta",
