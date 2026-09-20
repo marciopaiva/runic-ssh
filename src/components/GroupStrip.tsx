@@ -208,7 +208,7 @@ export function GroupStrip({
           title={closeLabel}
           className="h-4 w-4"
         >
-          <XIcon className="h-2 w-2" />
+          <XIcon className="h-3.5 w-3.5" />
         </Button>
       </div>
     );
@@ -333,7 +333,7 @@ export function GroupStrip({
               title={closeLabel}
               className="h-4 w-4"
             >
-              <XIcon className="h-2 w-2" />
+              <XIcon className="h-3.5 w-3.5" />
             </Button>
 
             {hasKeyboard && sync === 'on' && (

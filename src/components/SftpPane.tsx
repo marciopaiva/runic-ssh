@@ -567,7 +567,7 @@ export function SftpPane({
           )}
           <Tooltip content={i18n.t('sftp.clearSlot')} side="bottom">
             <Button variant="ghost" size="icon" onClick={onClear} aria-label={i18n.t('sftp.clearSlot')} className="h-4 w-4">
-              <XIcon className="h-2 w-2" />
+              <XIcon className="h-3.5 w-3.5" />
             </Button>
           </Tooltip>
         </div>
