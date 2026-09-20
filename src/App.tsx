@@ -224,22 +224,9 @@ function bodyStyle(box: Box): CSSProperties {
 }
 
 /**
- * What is being dragged towards a rectangle.
- *
- * Two things can be, and they are different: a tab is already open somewhere
- * and moves, a host from the list may not be open at all and is connected. The
- * drop is one gesture and the answer to it is not, so the difference is
- * carried here rather than worked out at the moment of landing.
- */
-type Dragged =
-  | { readonly kind: 'tab'; readonly entry: Focus }
-  | { readonly kind: 'host'; readonly sessionId: string };
-
-/**
  * Which pane of the SFTP workspace a connection being started is for
- * (ADR-0045). Named the same way `Dragged`'s own drop target is: the source
- * is always the one pane, a destination is one of up to
- * {@link MAX_DESTINATIONS} slots.
+ * (ADR-0045). The source is always the one pane, a destination is one of up
+ * to {@link MAX_DESTINATIONS} slots.
  */
 type SftpTarget = { readonly kind: 'source' } | { readonly kind: 'destination'; readonly slot: number };
 
@@ -398,7 +385,7 @@ export function App(): JSX.Element {
      rather than in `dataTransfer`, which is readable by anything the window is
      dropped on and writable by anything dropped into it: a file dragged in
      from a file manager must never be able to look like a tab. */
-  const [dragging, setDragging] = useState<Dragged | null>(null);
+  const [dragging, setDragging] = useState<Focus | null>(null);
   const [dropOver, setDropOver] = useState<number | null>(null);
   /* The SFTP workspace's own drag, the mirror of `dragging`/`dropOver` above:
      what is being dragged (a saved host or localhost, ADR-0045), and which
@@ -2090,18 +2077,16 @@ export function App(): JSX.Element {
     [],
   );
 
-  /* Where a drag lands. A tab moves, a host from the list opens: `openHere`
-     already knows that one of those is a connection it has to make and the
-     other is one it must not make twice. */
+  /* Where a dragged tab lands: it moves to the group it was dropped on.
+     Opening a saved host into a group goes through `openHostInto` instead,
+     since ADR-0072 retired the sidebar a host used to be dragged from. */
   const dropInto = useCallback(
-    (dragged: Dragged, group: number): void => {
-      if (dragged.kind === 'tab') moveTo(dragged.entry, group);
-      else openHere(dragged.sessionId, group);
-
+    (entry: Focus, group: number): void => {
+      moveTo(entry, group);
       setDragging(null);
       setDropOver(null);
     },
-    [moveTo, openHere],
+    [moveTo],
   );
 
   const pasteBox =
@@ -2608,7 +2593,7 @@ export function App(): JSX.Element {
                     setGroupMenu({ group: at, entry, at: point })
                   }
                   onDrag={(entry) => {
-                    setDragging(entry === null ? null : { kind: 'tab', entry });
+                    setDragging(entry);
                     if (entry === null) setDropOver(null);
                   }}
                 />
