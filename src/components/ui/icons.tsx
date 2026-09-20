@@ -233,7 +233,7 @@ export function MinusIcon(props: SVGProps<SVGSVGElement>) {
 export function TrashIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" {...props}>
-      <path d="M3.5 4h9M6 4v10a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1V4M9 4V2.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M2 4h12M12.67 4v9.33a1.33 1.33 0 0 1-1.33 1.33H4.67a1.33 1.33 0 0 1-1.33-1.33V4M5.33 4V2.67a1.33 1.33 0 0 1 1.33-1.33h2.67a1.33 1.33 0 0 1 1.33 1.33V4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
