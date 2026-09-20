@@ -251,7 +251,7 @@ function NavBar({
       <Tooltip content={i18n.t('sftp.nav.back')} side="bottom">
         <Button
           variant="ghost"
-          size="sm"
+          size="icon"
           disabled={!canGoBack}
           onClick={onBack}
           aria-label={i18n.t('sftp.nav.back')}
@@ -263,7 +263,7 @@ function NavBar({
       <Tooltip content={i18n.t('sftp.nav.up')} side="bottom">
         <Button
           variant="ghost"
-          size="sm"
+          size="icon"
           disabled={!canGoUp}
           onClick={onUp}
           aria-label={i18n.t('sftp.nav.up')}
@@ -297,19 +297,19 @@ function NavBar({
       </div>
 
       <Tooltip content={i18n.t('sftp.nav.newFolder')} side="bottom">
-        <Button variant="ghost" size="sm" onClick={onNewFolder} aria-label={i18n.t('sftp.nav.newFolder')} className="h-5 w-5">
+        <Button variant="ghost" size="icon" onClick={onNewFolder} aria-label={i18n.t('sftp.nav.newFolder')} className="h-5 w-5">
           <PlusIcon className="h-3.5 w-3.5" />
         </Button>
       </Tooltip>
       <Tooltip content={i18n.t('sftp.nav.refresh')} side="bottom">
-        <Button variant="ghost" size="sm" onClick={onRefresh} aria-label={i18n.t('sftp.nav.refresh')} className="h-5 w-5">
+        <Button variant="ghost" size="icon" onClick={onRefresh} aria-label={i18n.t('sftp.nav.refresh')} className="h-5 w-5">
           <RefreshCwIcon className="h-3.5 w-3.5" />
         </Button>
       </Tooltip>
       <Tooltip content={i18n.t('sftp.menu.rename')} side="bottom">
         <Button
           variant="ghost"
-          size="sm"
+          size="icon"
           disabled={selectedCount !== 1}
           onClick={onRename}
           aria-label={i18n.t('sftp.menu.rename')}
@@ -321,7 +321,7 @@ function NavBar({
       <Tooltip content={i18n.t('sftp.menu.delete')} side="bottom">
         <Button
           variant="ghost"
-          size="sm"
+          size="icon"
           disabled={selectedCount < 1}
           onClick={onDelete}
           aria-label={i18n.t('sftp.menu.delete')}
@@ -553,7 +553,7 @@ export function SftpPane({
             <Tooltip content={i18n.t(receiving ? 'sftp.receiving.on' : 'sftp.receiving.off')} side="bottom">
               <Button
                 variant="ghost"
-                size="sm"
+                size="icon"
                 onClick={onToggleReceiving}
                 aria-label={i18n.t(receiving ? 'sftp.receiving.on' : 'sftp.receiving.off')}
                 className={cn(
@@ -566,7 +566,7 @@ export function SftpPane({
             </Tooltip>
           )}
           <Tooltip content={i18n.t('sftp.clearSlot')} side="bottom">
-            <Button variant="ghost" size="sm" onClick={onClear} aria-label={i18n.t('sftp.clearSlot')} className="h-4 w-4">
+            <Button variant="ghost" size="icon" onClick={onClear} aria-label={i18n.t('sftp.clearSlot')} className="h-4 w-4">
               <XIcon className="h-2 w-2" />
             </Button>
           </Tooltip>
