@@ -17,6 +17,7 @@ import type { Translator } from '../../lib/i18n';
 import type { Macro } from '../../ipc';
 import type { WindowAction } from '../chrome';
 import type { Tab } from '../chrome';
+import { hostRows } from '../sessions';
 import type { LiveSession } from '../sessions';
 import { GRIDS, SHAPE_LABEL } from '../terminal';
 import type { Grid } from '../terminal';
@@ -56,6 +57,14 @@ export interface CommandActions {
   readonly runMacro: (macro: Macro) => void;
   /** Opens the macro editor. */
   readonly openMacros: () => void;
+  /**
+   * Puts a saved host where the workspace beside the button that opened this
+   * palette is standing: the focused rectangle in Sessions, or the fan-out
+   * slot last clicked in SFTP (ADR-0072).
+   */
+  readonly openHostInto: (sessionId: string) => void;
+  /** SFTP's own endpoint with no host behind it, into that same slot. */
+  readonly openLocalInto: () => void;
 }
 
 export interface CommandContext {
@@ -88,6 +97,11 @@ export interface CommandContext {
   readonly focusedTitle: string | null;
   readonly macros: readonly Macro[];
   readonly actions: CommandActions;
+  /**
+   * Which of the two ADR-0072 pills is showing, for `hostBookCommands`: it
+   * decides whether "this machine" belongs in the list at all.
+   */
+  readonly workspace: 'sessions' | 'sftp';
 }
 
 /**
@@ -147,6 +161,47 @@ export function sessionCommands(context: CommandContext): readonly Command[] {
   }));
 
   return [...commands, ...rest, ...editing];
+}
+
+/**
+ * The saved host book, for the "+" beside the ADR-0072 pills.
+ *
+ * Ordered the way Home's own list is (ADR-0060, `hostRows`): a bastion
+ * before whatever rides it, rather than the file's raw order. Every row
+ * opens into whichever slot the button beside it stands for, `openHostInto`
+ * deciding what that means for the workspace showing; the "+" is how the
+ * fan-out gets an occupant now that the SFTP sidebar's own pinned "this
+ * machine" row is gone with it.
+ */
+export function hostBookCommands(context: CommandContext): readonly Command[] {
+  const { i18n, sessions, workspace, actions } = context;
+
+  const commands: Command[] = hostRows(sessions).map(({ live }) => {
+    const { session } = live;
+    return {
+      id: `hostbook:${session.id}`,
+      section: 'sessions',
+      title: session.name,
+      detail: `${session.user}@${session.host}`,
+      keywords: [session.host, session.user, session.group ?? ''].filter((word) => word !== ''),
+      run: () => actions.openHostInto(session.id),
+    };
+  });
+
+  if (workspace === 'sftp') {
+    /* The same label the pinned sidebar row used to carry (`sftp.localhost`),
+       and the one a pane already shows once this is dropped into it: this
+       row replaces that one rather than naming the same endpoint twice. */
+    commands.unshift({
+      id: 'hostbook:local',
+      section: 'sessions',
+      title: i18n.t('sftp.localhost'),
+      keywords: ['local', 'localhost'],
+      run: actions.openLocalInto,
+    });
+  }
+
+  return commands;
 }
 
 /** Everything that is not a place to go. */

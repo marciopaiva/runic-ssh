@@ -67,6 +67,19 @@ sessions already open, for jumping to one of them. `nav-proposal-v7.html`'s
 shell launchers. Building that view is new surface, not a relabelling of
 what already ships.
 
+A second claim in the passage above was also wrong, found only once
+implementation started and left here rather than silently rewritten: the
+per-panel Terminal/Monitor subswitch did not already exist. `SessionFacets.tsx`
+stopped deliberately at two facets (`'terminal' | 'tunnels'`), with its own
+comment citing ADR-0020 rule 6 for why a third was not added, and
+`MonitorWorkspace.tsx` was a 995-line, full-screen workspace never embedded in
+a panel. `nav-proposal-v4.html` drew the subswitch; nothing had built it. Asked
+directly, the maintainer chose to build it now rather than defer it, and it
+shipped in the same change as the rest of this ADR: `SessionFacet` gained
+`'monitor'`, and `SessionBody` embeds `MonitorWorkspace` with its own
+`useSystemStats(handle)` call per panel, torn down when the facet changes away
+or the panel unmounts.
+
 A consequence worth naming plainly, not folding quietly into "Bad": this
 branch's own last two commits (`7fcb082`, `58d599f`) just implemented
 ADR-0071, wrapping `SessionsSidebar` and `HostsSection`'s `<nav>` in
@@ -187,3 +200,23 @@ turns out to change the IPC contract. Whether the SSH/SFTP pill switch also
 gains MAPA as a third pill is ADR-0073's question. Remote diagnostics
 (services, `firewalld`, journal) need their own Phase 1 pass before they get
 an ADR number; this document deliberately leaves that pass undone.
+
+**Implemented**: the active rectangle receives the pick. A rectangle with a
+session, an editor or settings open sets `focusedGroup` on its own; an empty
+one has nothing for `Focus` to point at, so clicking it sets a second piece of
+state, `lastFocusedGroup`, kept in sync with `focusedGroup` whenever the
+latter changes and free to be overridden by that click in between. The "+"
+always opens into `lastFocusedGroup`, clamped to the layout's current group
+count so a rectangle clicked before a later split shrinks the layout cannot
+send it past the end. The SFTP fan-out mirrors this with its own
+`lastFocusedFanoutSlot`. The host editor (`wizardFor`) became
+`HostEditorDialog.tsx`, a modal opened from anywhere (the palette, a session's
+own "edit host," the map shell's editor) rather than a screen `openEditor`
+had to switch the workspace to reach. `HostsSection.tsx`, `SessionsSidebar.tsx`
+and `SessionMenu.tsx` had no remaining callers once the classic shell's Home
+workspace and the always-present session list both retired, and were deleted
+outright rather than kept for a caller that no longer exists; the map shell's
+own `home`/`map` rail slots do not depend on any of the three and were
+confirmed unaffected by running the app. `empty.group.hint`, the copy an empty
+rectangle shows, no longer tells the reader to drag a host in; it names the
+click-then-"+" path this ADR replaced dragging with.

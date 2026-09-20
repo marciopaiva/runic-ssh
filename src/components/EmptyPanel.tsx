@@ -55,7 +55,7 @@ export function EmptyPanel({ modifier, variant = 'panel', title, body }: EmptyPa
           {title ?? i18n.t(variant === 'group' ? 'empty.group.title' : 'empty.title')}
         </span>
         <span className="text-ink-faint text-[12.5px]">
-          {body ?? (variant === 'group' ? i18n.t('empty.group.hint') : i18n.t('empty.hint', { keys }))}
+          {body ?? i18n.t(variant === 'group' ? 'empty.group.hint' : 'empty.hint', { keys })}
         </span>
       </div>
     </div>

@@ -2,11 +2,13 @@ import type { JSX } from 'react';
 
 import { useTranslator } from '../features/settings';
 
-import { LinkIcon, TerminalIcon } from './ui/icons';
+import { LinkIcon, MonitorIcon, TerminalIcon } from './ui/icons';
 
-/** Which of a session's own facets is showing. Stops at two: a third tab
-    over nothing the backend has would break ADR-0020's rule 6. */
-export type SessionFacet = 'terminal' | 'tunnels';
+/** Which of a session's own facets is showing. ADR-0072 adds `monitor`: the
+    backend stats IPC already exists (`useSystemStats`), so a third tab here
+    names something the backend has, which is what ADR-0020's rule 6 asks
+    for rather than what it used to rule out. */
+export type SessionFacet = 'terminal' | 'tunnels' | 'monitor';
 
 interface SessionFacetsProps {
   readonly active: SessionFacet;
@@ -16,7 +18,7 @@ interface SessionFacetsProps {
   readonly onChange: (facet: SessionFacet) => void;
 }
 
-const FACETS: readonly SessionFacet[] = ['terminal', 'tunnels'];
+const FACETS: readonly SessionFacet[] = ['terminal', 'tunnels', 'monitor'];
 
 /**
  * The tab strip inside a session's own body, switching it between its
@@ -37,7 +39,8 @@ export function SessionFacets({ active, tunnelCount, onChange }: SessionFacetsPr
     >
       {FACETS.map((facet) => {
         const selected = facet === active;
-        const label = facet === 'terminal' ? 'facet.terminal' : 'facet.tunnels';
+        const label =
+          facet === 'terminal' ? 'facet.terminal' : facet === 'tunnels' ? 'facet.tunnels' : 'facet.monitor';
 
         return (
           <button
@@ -54,8 +57,10 @@ export function SessionFacets({ active, tunnelCount, onChange }: SessionFacetsPr
           >
             {facet === 'terminal' ? (
               <TerminalIcon className="h-[13px] w-[13px]" />
-            ) : (
+            ) : facet === 'tunnels' ? (
               <LinkIcon className="h-[13px] w-[13px]" />
+            ) : (
+              <MonitorIcon className="h-[13px] w-[13px]" />
             )}
             {i18n.t(label)}
             {facet === 'tunnels' && tunnelCount > 0 && (

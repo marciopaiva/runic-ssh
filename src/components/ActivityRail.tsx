@@ -3,14 +3,12 @@ import type { JSX, ReactNode } from 'react';
 import { useTranslator } from '../features/settings';
 import { Button } from './ui/Button';
 import { cn } from '../lib/classnames';
-import { FolderIcon, HomeIcon, LockIcon, MapIcon, MonitorIcon, TerminalIcon } from './ui/icons';
+import { HomeIcon, LockIcon, MapIcon } from './ui/icons';
 
 interface RailSlotProps {
   /** Whether the thing this slot leads to is what the sidebar is showing. */
   readonly on: boolean;
   readonly label: string;
-  readonly badge?: number;
-  readonly badgeLabel?: string;
   /** Held shut while typing reaches several hosts, with the reason on it. */
   readonly locked?: boolean;
   /** The lit colour. Warn while a broadcast is armed, so the rail says so too. */
@@ -26,16 +24,7 @@ interface RailSlotProps {
  * because rule 5 of ADR-0020 asks for a shape before a colour and "slightly
  * lighter grey" is not a shape.
  */
-function RailSlot({
-  on,
-  label,
-  badge,
-  badgeLabel,
-  locked = false,
-  tone = 'accent',
-  onClick,
-  children,
-}: RailSlotProps): JSX.Element {
+function RailSlot({ on, label, locked = false, tone = 'accent', onClick, children }: RailSlotProps): JSX.Element {
   return (
     <Button
       variant="ghost"
@@ -67,18 +56,6 @@ function RailSlot({
 
       {children}
 
-      {badge !== undefined && badge > 0 && (
-        <span
-          aria-label={badgeLabel}
-          className={cn(
-            'text-surface-base absolute right-1.5 bottom-1.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-lg px-1 font-mono text-[9.5px] font-bold',
-            tone === 'warn' ? 'bg-warn' : 'bg-accent',
-          )}
-        >
-          {badge}
-        </span>
-      )}
-
       {locked && (
         /* A padlock rather than a dimmer icon. Disabled and dim is what a
            control looks like when the application forgot to wire it; a lock
@@ -90,25 +67,16 @@ function RailSlot({
 }
 
 /** Which main area the window is showing. */
-export type Workspace = 'home' | 'sessions' | 'sftp' | 'monitor' | 'map';
-
-/** Which navigation is in front (ADR-0069): the four workspaces this
-    project has always had, or the two-slot rail ADR-0064 planned for
-    after the cut, reached from the shell switch in the shared toolbar
-    instead of a fifth slot here. */
-export type Shell = 'classic' | 'map';
+export type Workspace = 'home' | 'sessions' | 'sftp' | 'map';
 
 interface ActivityRailProps {
-  /** Which workspace is showing right now. */
+  /** Which workspace is showing right now: `home` or `map`, the only two
+      slots this rail still draws (ADR-0072). */
   readonly workspace: Workspace;
-  /** Whether the sessions sidebar is beside the rail, while Sessions is active. */
+  /** Whether the sessions sidebar is beside the rail, while Home is active. */
   readonly sidebarOpen: boolean;
   /** Whether what is typed reaches more than the host being looked at. */
   readonly armed: boolean;
-  /** How many sessions are open, drawn on the Sessions icon. */
-  readonly openCount: number;
-  /** How many sessions have an SFTP tab open, drawn on the SFTP icon. */
-  readonly sftpCount: number;
   /**
    * Switches to a workspace, or toggles the sessions sidebar when that
    * workspace is already showing. One click target for both: a rail icon
@@ -117,34 +85,23 @@ interface ActivityRailProps {
    * the list" becomes the useful question.
    */
   readonly onChoose: (workspace: Workspace) => void;
-  /** Which navigation this rail is drawing (ADR-0069): the classic four
-      slots, or Home and Map alone. The map is never a fifth slot beside
-      the others; the shell switch in the toolbar is what reaches it. */
-  readonly shell: Shell;
 }
 
 /**
- * The column of activities down the leading edge.
+ * The column of activities down the leading edge of the map shell.
+ *
+ * ADR-0072 retired this rail from the classic shell: Sessions and SFTP moved
+ * into the toolbar's own pill switch, and Home folded into the "+" palette
+ * beside it. The map shell keeps its own two slots, Home and Map, exactly as
+ * ADR-0069 drew them; the classic shell no longer mounts this component at
+ * all.
  *
  * ADR-0020 rule 4: the sidebar closes and this does not. That is the whole
  * reason it costs 48px on every screen forever. The icon that closed the
  * sidebar is the way back to it, so there is no state the window can get into
  * where the session list is gone and nothing on screen offers it.
- *
- * Three views now (ADR-0044): Home, Sessions and SFTP, each a real
- * destination rather than one view and an action wedged into its rail slot.
- * SFTP held out until #127 shipped, per rule 6: an icon that switches to
- * nothing is exactly what that rule refuses.
  */
-export function ActivityRail({
-  workspace,
-  sidebarOpen,
-  armed,
-  openCount,
-  sftpCount,
-  onChoose,
-  shell,
-}: ActivityRailProps): JSX.Element {
+export function ActivityRail({ workspace, sidebarOpen, armed, onChoose }: ActivityRailProps): JSX.Element {
   const i18n = useTranslator();
 
   const home = (
@@ -173,89 +130,16 @@ export function ActivityRail({
     </RailSlot>
   );
 
-  if (shell === 'map') {
-    /* ADR-0069: the rail ADR-0064 always planned for after the cut,
-       reached without one. Home stays the host book in both shells. */
-    return (
-      <nav
-        aria-label={i18n.t('rail.label')}
-        className="bg-surface-chrome border-line-subtle flex w-12 shrink-0 flex-col items-center border-r py-1.5"
-      >
-        {home}
-        {map}
-        <div className="flex-1" />
-      </nav>
-    );
-  }
-
+  /* ADR-0069: the rail ADR-0064 always planned for after the cut, reached
+     without one. Home stays the host book here, unchanged by ADR-0072,
+     which only touched the classic shell. */
   return (
     <nav
       aria-label={i18n.t('rail.label')}
       className="bg-surface-chrome border-line-subtle flex w-12 shrink-0 flex-col items-center border-r py-1.5"
     >
-      {/* Held shut while armed, the way the gear used to be: switching away is
-          not what somebody reaching for it mid-broadcast meant to do. */}
       {home}
-
-      {/* One host's own vital signs, drilled into. Held shut while armed for
-          the same reason Home and SFTP are: there is nothing here to
-          receive a keystroke either, and browsing away from a broadcast in
-          progress is not what someone reaching for the rail meant to do. */}
-      <RailSlot
-        on={workspace === 'monitor'}
-        tone={armed ? 'warn' : 'accent'}
-        locked={armed}
-        label={i18n.t(armed ? 'rail.monitor.locked' : 'rail.monitor')}
-        onClick={() => onChoose('monitor')}
-      >
-        <MonitorIcon className="h-[21px] w-[21px]" />
-      </RailSlot>
-
-      {/* Still live while armed. ADR-0020 is explicit that the sidebar may be
-          closed with a broadcast on: every receiving host has a tab naming it,
-          so the markers survive, and the list answers a second question rather
-          than being required. */}
-      <RailSlot
-        on={workspace === 'sessions'}
-        tone={armed ? 'warn' : 'accent'}
-        label={i18n.t(
-          workspace === 'sessions'
-            ? sidebarOpen
-              ? 'rail.sessions.hide'
-              : 'rail.sessions.show'
-            : 'rail.sessions',
-        )}
-        badge={openCount}
-        badgeLabel={i18n.t('rail.sessions.open', { count: String(openCount) })}
-        onClick={() => onChoose('sessions')}
-      >
-        <TerminalIcon className="h-[21px] w-[21px]" />
-      </RailSlot>
-
-      {/* ADR-0044: SFTP's own workspace, held shut while armed for the same
-          reason Home is: browsing away is not what someone reaching for the
-          rail mid-broadcast meant to do, and nothing here has a keystroke to
-          receive regardless. */}
-      <RailSlot
-        on={workspace === 'sftp'}
-        tone={armed ? 'warn' : 'accent'}
-        locked={armed}
-        label={i18n.t(
-          armed
-            ? 'rail.sftp.locked'
-            : workspace === 'sftp'
-              ? sidebarOpen
-                ? 'rail.sftp.hide'
-                : 'rail.sftp.show'
-              : 'rail.sftp',
-        )}
-        badge={sftpCount}
-        badgeLabel={i18n.t('rail.sftp.open', { count: String(sftpCount) })}
-        onClick={() => onChoose('sftp')}
-      >
-        <FolderIcon className="h-[21px] w-[21px]" />
-      </RailSlot>
-
+      {map}
       <div className="flex-1" />
     </nav>
   );
