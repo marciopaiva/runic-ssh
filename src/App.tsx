@@ -2606,12 +2606,26 @@ export function App(): JSX.Element {
                     exception is a rectangle with nothing in it, which has no
                     surface to draw and says so here. */}
                 <div className="min-h-0 flex-1">
-                  {empty && (
-                    <EmptyPanel
-                      modifier={chrome?.commandModifier ?? 'control'}
-                      variant={layout === '1x1' && entries.length === 0 ? 'panel' : 'group'}
-                    />
-                  )}
+                  {empty &&
+                    (layout === '1x1' && entries.length === 0 ? (
+                      <EmptyPanel
+                        modifier={chrome?.commandModifier ?? 'control'}
+                        variant="panel"
+                        onOpenHost={() => {
+                          setLastFocusedGroup(at);
+                          hostPalette.show();
+                        }}
+                      />
+                    ) : (
+                      <EmptyPanel
+                        modifier={chrome?.commandModifier ?? 'control'}
+                        variant="group"
+                        onOpenHost={() => {
+                          setLastFocusedGroup(at);
+                          hostPalette.show();
+                        }}
+                      />
+                    ))}
                 </div>
               </div>
             );
@@ -2829,7 +2843,10 @@ export function App(): JSX.Element {
                         modifier={chrome?.commandModifier ?? 'control'}
                         variant="group"
                         title={i18n.t('sftp.source.empty.title')}
-                        body={i18n.t('sftp.source.empty')}
+                        onOpenHost={() => {
+                          setLastFocusedFanoutSlot({ kind: 'source' });
+                          hostPalette.show();
+                        }}
                       />
                     </div>
                   ) : (
@@ -2878,7 +2895,10 @@ export function App(): JSX.Element {
                                 modifier={chrome?.commandModifier ?? 'control'}
                                 variant="group"
                                 title={i18n.t('sftp.destination.empty.title')}
-                                body={i18n.t('sftp.destination.empty')}
+                                onOpenHost={() => {
+                                  setLastFocusedFanoutSlot({ kind: 'destination', slot });
+                                  hostPalette.show();
+                                }}
                               />
                             </div>
                           ) : (
