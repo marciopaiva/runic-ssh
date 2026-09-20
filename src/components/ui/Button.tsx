@@ -15,6 +15,8 @@ export interface ButtonProps {
   readonly onClick?: () => void;
   readonly type?: 'button' | 'submit' | 'reset';
   readonly title?: string;
+  readonly 'aria-label'?: string;
+  readonly 'aria-pressed'?: boolean;
 }
 
 const VARIANTS: Record<NonNullable<ButtonProps['variant']>, string> = {
@@ -58,6 +60,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       onClick,
       type = 'button',
       title,
+      'aria-label': ariaLabel,
+      'aria-pressed': ariaPressed,
     },
     ref,
   ) => {
@@ -70,6 +74,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={isDisabled}
         aria-busy={loading}
         aria-disabled={isDisabled}
+        aria-label={ariaLabel}
+        aria-pressed={ariaPressed}
         className={cn(
           'inline-flex items-center justify-center font-semibold rounded-md',
           'transition-colors duration-fast easing-standard',
