@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, DragEvent, JSX, ReactNode } from 'react';
 
-import { ActivityRail } from './components/ActivityRail';
-import type { Workspace } from './components/ActivityRail';
-import { ShellSelector } from './components/ShellSelector';
 import { MapCrumb } from './components/map/MapCrumb';
 import { MapToolbarControls } from './components/map/MapToolbarControls';
 import type { MapToolbarContent } from './components/map/MapStage';
@@ -40,6 +37,7 @@ import { Titlebar } from './components/Titlebar';
 import { Toolbar } from './components/Toolbar';
 import { TransfersBar } from './components/TransfersBar';
 import { WorkspacePills } from './components/WorkspacePills';
+import type { Workspace } from './components/WorkspacePills';
 import {
   actionCommands,
   hostBookCommands,
@@ -124,7 +122,7 @@ import type { Component as MapComponent, ComponentKind as MapComponentKind, Work
 import type { MapPaneWiring } from './components/map/MapStage';
 import { mapTerminals, mountedOnce, placeSavedHost } from './features/map';
 import type { HostAsk } from './features/map';
-import { useLocale, usePreview, useShell, useTheme } from './features/settings';
+import { useLocale, usePreview, useTheme } from './features/settings';
 import { visibleDestinationRows } from './features/sftp/browser';
 import { endpointKey } from './features/sftp/endpoint';
 import type { DraggedEndpoint, Endpoint, PaneEntry } from './features/sftp/endpoint';
@@ -266,50 +264,30 @@ export function App(): JSX.Element {
   const { i18n, chosen, choose } = useLocale();
   const { theme, chooseTheme } = useTheme();
   const { previewFeatures, choosePreviewFeatures } = usePreview();
-  const { shell, chooseShell } = useShell();
   /* Which main area is showing. ADR-0029: Sessions keeps groups, splitting and
      the sync switch; Home holds the dashboard and the host editor, neither of
      which is terminal-shaped, in a strip of its own with neither. Home is no
      longer the classic shell's landing screen (ADR-0072): its own rail is
      gone, so a window that opened straight there would have nowhere left to
      point a user with nothing open yet. Sessions' own toolbar carries that job
-     now, via `OpenHostButton`, so a fresh window lands there instead. Home
-     stays reachable from the map shell's rail, unchanged. */
+     now, via `OpenHostButton`, so a fresh window lands there instead. The map
+     is a fourth peer value here (ADR-0075), reached through its own pill like
+     Sessions and SFTP are. */
   const [workspace, setWorkspace] = useState<Workspace>('sessions');
-  /* Turning the preview off while the map shell is in front leaves nowhere
-     to stand, since the switch that reached it is gone too; fall back to
-     classic (ADR-0066, ADR-0069). */
+  /* Turning the preview off while the map is in front leaves nowhere to
+     stand, since the pill that reached it stays visible but the workspace it
+     names is gated again; fall back to Sessions (ADR-0066, ADR-0075). */
   useEffect(() => {
-    if (!previewFeatures && shell === 'map') void chooseShell('classic');
-  }, [previewFeatures, shell, chooseShell]);
-  /* Every workspace the classic shell shows is gone from the map shell's
-     own rail, and the reverse: the map is gone from classic's. Whatever
-     put `workspace` where it is, a saved session activated from the
-     palette while the shell was mid-switch, say, this keeps the window
-     from settling on a screen its own rail cannot get back to. */
-  useEffect(() => {
-    if (shell === 'map') {
-      if (workspace !== 'home' && workspace !== 'map') setWorkspace('map');
-      return;
-    }
-    /* `home` has no route left in the classic shell either (ADR-0072), so a
-       switch away from the map shell lands on Sessions rather than there. */
-    if (workspace === 'map' || workspace === 'home') setWorkspace('sessions');
-  }, [shell, workspace]);
-  /* ADR-0073: the map pill is always visible in `WorkspacePills`, but
-     reaching the map for real is a `chooseShell` call, not a `workspace`
-     one (the effect above reverts a bare `setWorkspace('map')` the instant
-     `shell` is not already `'map'`). Neither `workspace` nor `shell` can
-     represent "about to show the map, but not yet": this is its own flag
-     for that. */
+    if (!previewFeatures && workspace === 'map') setWorkspace('sessions');
+  }, [previewFeatures, workspace]);
+  /* ADR-0073's pill is always visible; ADR-0075 made choosing it either land
+     on the map workspace directly or, while `previewFeatures` is off, open
+     this prompt instead. Neither `workspace` alone can represent "about to
+     show the map, but not yet": this is its own flag for that. */
   const [mapPreviewPromptOpen, setMapPreviewPromptOpen] = useState(false);
   const openWorkspace = (next: Workspace): void => {
-    if (next === 'map') {
-      if (previewFeatures) {
-        void chooseShell('map');
-      } else {
-        setMapPreviewPromptOpen(true);
-      }
+    if (next === 'map' && !previewFeatures) {
+      setMapPreviewPromptOpen(true);
       return;
     }
     setWorkspace(next);
@@ -1253,15 +1231,13 @@ export function App(): JSX.Element {
     assignSftpEndpoint({ kind: 'local' }, lastFocusedFanoutSlot);
   }, [assignSftpEndpoint, lastFocusedFanoutSlot]);
 
-  /* The palette's "open settings" lands here. ADR-0062 moved theme and
-     language into every workspace's own toolbar row, not Home's alone, so
-     reaching either no longer means switching away from whichever workspace
-     is actually in use: there is nothing left for this to do in the classic
-     shell. The map shell still has a Home slot on its own rail, separate
-     from the toolbar row, so there it is still worth landing on. */
+  /* The palette's "open settings" lands here: Home, from any workspace
+     (ADR-0075). ADR-0062 already moved theme and language into every
+     workspace's own toolbar row, so this is only ever about the host book
+     Home itself holds. */
   const openSettings = useCallback((): void => {
-    if (shell === 'map') setWorkspace('home');
-  }, [shell]);
+    setWorkspace('home');
+  }, []);
 
   /* Shown in the main area rather than as a toast: the user just clicked the
      session and is looking at exactly this space, and a message that
@@ -1813,11 +1789,12 @@ export function App(): JSX.Element {
       focusedTitle:
         resolvedFocus === null ? null : entryTitle(resolvedFocus, tabs, editorTabs, i18n),
       macros,
-      /* Narrowed from the wider `Workspace` union: only `hostBookCommands`
-         reads this, and only to decide whether "this machine" belongs in the
-         list, which is a question that only makes sense once it is one of
-         these two. */
-      workspace: workspace === 'sftp' ? 'sftp' : 'sessions',
+      /* Narrowed from the wider `Workspace` union: `home` has no host book of
+         its own to speak of, so it narrows to `sessions` like a fresh
+         window does. `hostBookCommands` reads this only to decide whether
+         "this machine" belongs in the list, which needs `sftp` told apart
+         from everything else. */
+      workspace: workspace === 'sftp' ? 'sftp' : workspace === 'map' ? 'map' : 'sessions',
       actions: {
         newSession: () => openEditor({ kind: 'new' }),
         editSession: (sessionId: string) => openEditor({ kind: 'existing', sessionId }),
@@ -2358,30 +2335,92 @@ export function App(): JSX.Element {
     };
   })();
 
-  /* The toolbar's trailing group of shell-level choices (ADR-0062,
-     ADR-0069): the switch between classic and the map, then theme and
-     language, in every workspace's own row so reaching any of the three
-     never means switching away from whichever workspace is in use. ADR-0073
-     moved the way in from here to the map pill in `WorkspacePills`; this
-     switch now renders only once already on the map, where it is the sole
-     way back to classic (the map shell's own toolbar has no SSH/SFTP pill of
-     its own to click back with). */
-  const shellAndTheme = (
-    <>
-      {shell === 'map' && (
-        <>
-          <ShellSelector shell={shell} onChoose={(next) => void chooseShell(next)} />
-          <span className="bg-line-subtle h-4 w-px shrink-0" aria-hidden="true" />
-        </>
-      )}
-      <ThemeLanguageControls
-        theme={theme}
-        onChooseTheme={(next) => void chooseTheme(next)}
-        chosenLocale={chosen}
-        onChooseLocale={(locale) => void choose(locale)}
-      />
-    </>
+  /* ADR-0075: one Toolbar shared by every workspace, `leading`/`trailing`
+     built per workspace below. Theme and language (ADR-0062) render in
+     every workspace's own row unconditionally, so reaching either never
+     means switching away from whichever workspace is actually in use. */
+  const themeAndLocale = (
+    <ThemeLanguageControls
+      theme={theme}
+      onChooseTheme={(next) => void chooseTheme(next)}
+      chosenLocale={chosen}
+      onChooseLocale={(locale) => void choose(locale)}
+    />
   );
+
+  const toolbarLeading =
+    workspace === 'sessions' ? (
+      <>
+        <WorkspacePills workspace="sessions" onChoose={openWorkspace} />
+        <OpenHostButton onClick={hostPalette.show} />
+      </>
+    ) : workspace === 'sftp' ? (
+      <>
+        <WorkspacePills workspace="sftp" onChoose={openWorkspace} />
+        <OpenHostButton onClick={hostPalette.show} />
+      </>
+    ) : workspace === 'map' ? (
+      <>
+        {/* The map's toolbar had no pills before ADR-0075, since it was its
+            own shell reached only through `ShellSelector`. Now that leaving
+            is as ordinary as arriving, it needs the same switch Sessions and
+            SFTP already carry, or there is no way back to either in one
+            click. */}
+        <WorkspacePills workspace="map" onChoose={openWorkspace} />
+        {mapToolbar !== null && (
+          <MapCrumb segments={mapToolbar.crumb} {...(mapToolbar.onBack === undefined ? {} : { onBack: mapToolbar.onBack })} />
+        )}
+      </>
+    ) : undefined;
+
+  const toolbarTrailing =
+    workspace === 'sessions' ? (
+      <>
+        <BroadcastButton
+          armed={armed}
+          available={broadcastAvailable}
+          count={receiving.length}
+          onToggle={() => {
+            setMuted(new Set());
+            setSync((on) => !on);
+          }}
+        />
+        <MacrosButton open={macrosOpen} onToggle={() => setMacrosOpen((open) => !open)} />
+        <ShapeControl layout={layout} onChoose={chooseLayout} />
+        <span className="bg-line-subtle h-4 w-px shrink-0" aria-hidden="true" />
+        {themeAndLocale}
+      </>
+    ) : workspace === 'sftp' ? (
+      <>
+        <SftpSelectAllButton
+          sparedCount={fanout.mutedDestinations.size}
+          onSelectAll={fanout.includeEveryDestination}
+        />
+        <SftpSplitControl value={destinationSplit} onChange={setDestinationSplit} />
+        <span className="bg-line-subtle h-4 w-px shrink-0" aria-hidden="true" />
+        {themeAndLocale}
+      </>
+    ) : workspace === 'map' ? (
+      <>
+        {mapToolbar !== null && (
+          <>
+            <MapToolbarControls
+              query={mapToolbar.query}
+              onQueryChange={mapToolbar.onQueryChange}
+              onQuerySubmit={mapToolbar.onQuerySubmit}
+              zoomPercent={mapToolbar.zoomPercent}
+              onRecenter={mapToolbar.onRecenter}
+            />
+            <span className="bg-line-subtle h-4 w-px shrink-0" aria-hidden="true" />
+          </>
+        )}
+        <MacrosButton open={macrosOpen} onToggle={() => setMacrosOpen((open) => !open)} />
+        <span className="bg-line-subtle h-4 w-px shrink-0" aria-hidden="true" />
+        {themeAndLocale}
+      </>
+    ) : (
+      themeAndLocale
+    );
 
   return (
     <div className="flex h-full flex-col">
@@ -2394,113 +2433,18 @@ export function App(): JSX.Element {
       />
 
       {/* ADR-0046: a shared row for a workspace's own controls, between the
-          Titlebar and the rail/sidebar/body below. ADR-0062: theme and
-          language render in every workspace's own row now, not Home's
-          alone, so reaching either never means switching away from
-          whichever workspace is actually in use. */}
-      {workspace === 'sessions' && (
-        <Toolbar
-          leading={
-            <>
-              <WorkspacePills workspace="sessions" onChoose={openWorkspace} />
-              <OpenHostButton onClick={hostPalette.show} />
-            </>
-          }
-          trailing={
-            <>
-              <BroadcastButton
-                armed={armed}
-                available={broadcastAvailable}
-                count={receiving.length}
-                onToggle={() => {
-                  setMuted(new Set());
-                  setSync((on) => !on);
-                }}
-              />
-              <MacrosButton open={macrosOpen} onToggle={() => setMacrosOpen((open) => !open)} />
-              <ShapeControl layout={layout} onChoose={chooseLayout} />
-              <span className="bg-line-subtle h-4 w-px shrink-0" aria-hidden="true" />
-              {shellAndTheme}
-            </>
-          }
-        />
-      )}
-      {workspace === 'sftp' && (
-        <Toolbar
-          leading={
-            <>
-              <WorkspacePills workspace="sftp" onChoose={openWorkspace} />
-              <OpenHostButton onClick={hostPalette.show} />
-            </>
-          }
-          trailing={
-            <>
-              <SftpSelectAllButton
-                sparedCount={fanout.mutedDestinations.size}
-                onSelectAll={fanout.includeEveryDestination}
-              />
-              <SftpSplitControl value={destinationSplit} onChange={setDestinationSplit} />
-              <span className="bg-line-subtle h-4 w-px shrink-0" aria-hidden="true" />
-              {shellAndTheme}
-            </>
-          }
-        />
-      )}
-      {workspace === 'home' && (
-        <Toolbar
-          trailing={shellAndTheme}
-        />
-      )}
-
-      {workspace === 'map' && (
-        <Toolbar
-          leading={mapToolbar === null ? undefined : <MapCrumb segments={mapToolbar.crumb} {...(mapToolbar.onBack === undefined ? {} : { onBack: mapToolbar.onBack })} />}
-          trailing={
-            <>
-              {mapToolbar !== null && (
-                <>
-                  <MapToolbarControls
-                    query={mapToolbar.query}
-                    onQueryChange={mapToolbar.onQueryChange}
-                    onQuerySubmit={mapToolbar.onQuerySubmit}
-                    zoomPercent={mapToolbar.zoomPercent}
-                    onRecenter={mapToolbar.onRecenter}
-                  />
-                  <span className="bg-line-subtle h-4 w-px shrink-0" aria-hidden="true" />
-                </>
-              )}
-              <MacrosButton open={macrosOpen} onToggle={() => setMacrosOpen((open) => !open)} />
-              <span className="bg-line-subtle h-4 w-px shrink-0" aria-hidden="true" />
-              {shellAndTheme}
-            </>
-          }
-        />
-      )}
+          Titlebar and the sidebar/body below. ADR-0075: one `<Toolbar>` for
+          every workspace, its content chosen above rather than one JSX block
+          per workspace. */}
+      <Toolbar leading={toolbarLeading} trailing={toolbarTrailing} />
 
       <div className="flex min-h-0 flex-1">
-        {shell === 'map' && (
-          <ActivityRail
-            workspace={workspace}
-            sidebarOpen={sidebarOpen}
-            armed={armed}
-            onChoose={(next) => {
-              if (next === workspace) {
-                setSidebarOpen((open) => !open);
-                return;
-              }
-              setWorkspace(next);
-            }}
-          />
-        )}
-
         {/* `relative` and `min-w-0`: the overlay's `absolute inset-*` panels
-            (ADR-0071) need a positioned ancestor that starts after the rail,
-            not the row above that also holds the rail itself, or `left-3`
-            measures from x=0 and the panel floats out from under the rail
-            icons instead of beside them. That overlay has one call site left
-            (Home's own `<nav>`, still reachable from the map shell's rail);
-            Sessions and SFTP retired theirs to the toolbar's pill switch and
-            "+" palette (ADR-0072). */}
+            (ADR-0071) need a positioned ancestor that starts at this row, so
+            `left-3` measures from its own edge rather than the window's.
+            That overlay has one call site left (Home's own `<nav>`); Sessions
+            and SFTP retired theirs to the toolbar's pill switch and "+"
+            palette (ADR-0072). */}
         <div className="relative flex min-h-0 min-w-0 flex-1">
 
         {mapPreviewPromptOpen && (
@@ -2508,7 +2452,7 @@ export function App(): JSX.Element {
             <MapPreviewPrompt
               onAccept={() => {
                 setMapPreviewPromptOpen(false);
-                void choosePreviewFeatures(true).then(() => chooseShell('map'));
+                void choosePreviewFeatures(true).then(() => setWorkspace('map'));
               }}
               onCancel={() => setMapPreviewPromptOpen(false)}
             />

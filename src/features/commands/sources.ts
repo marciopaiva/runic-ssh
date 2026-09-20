@@ -98,10 +98,10 @@ export interface CommandContext {
   readonly macros: readonly Macro[];
   readonly actions: CommandActions;
   /**
-   * Which of the two ADR-0072 pills is showing, for `hostBookCommands`: it
-   * decides whether "this machine" belongs in the list at all.
+   * Which workspace pill is showing, for `hostBookCommands`: it decides
+   * whether "this machine" belongs in the list at all.
    */
-  readonly workspace: 'sessions' | 'sftp';
+  readonly workspace: 'sessions' | 'sftp' | 'map';
 }
 
 /**

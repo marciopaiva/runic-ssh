@@ -19,10 +19,9 @@ import {
   getSettings,
   setLocale as persistLocale,
   setPreviewFeatures as persistPreview,
-  setShell as persistShell,
   setTheme as persistTheme,
 } from '../../ipc/settings';
-import type { Shell, Theme } from '../../ipc/settings';
+import type { Theme } from '../../ipc/settings';
 
 import { applyTheme } from './apply-theme';
 import { detectLocale, systemPreferences } from './detect-locale';
@@ -41,10 +40,6 @@ interface SettingsValue {
   readonly previewFeatures: boolean;
   /** Reveals or hides the preview features. */
   readonly choosePreviewFeatures: (on: boolean) => Promise<void>;
-  /** Which navigation is in front, classic or the map (ADR-0069). */
-  readonly shell: Shell;
-  /** Persists the choice. */
-  readonly chooseShell: (shell: Shell) => Promise<void>;
 }
 
 const SettingsContext = createContext<SettingsValue | undefined>(undefined);
@@ -54,7 +49,6 @@ export function SettingsProvider({ children }: { children: ReactNode }): JSX.Ele
   const [active, setActive] = useState<string>(DEFAULT_LOCALE);
   const [theme, setTheme] = useState<Theme>('system');
   const [previewFeatures, setPreviewFeatures] = useState(false);
-  const [shell, setShell] = useState<Shell>('classic');
 
   useEffect(() => {
     let cancelled = false;
@@ -70,7 +64,6 @@ export function SettingsProvider({ children }: { children: ReactNode }): JSX.Ele
         if (settings.locale !== null) setActive(settings.locale);
         setTheme(settings.theme);
         setPreviewFeatures(settings.previewFeatures);
-        setShell(settings.shell);
       } catch {
         /* A settings file that cannot be read is not a reason to refuse to
            start. The system language and the system palette are both correct
@@ -110,11 +103,6 @@ export function SettingsProvider({ children }: { children: ReactNode }): JSX.Ele
     setPreviewFeatures(settings.previewFeatures);
   }, []);
 
-  const chooseShell = useCallback(async (next: Shell): Promise<void> => {
-    const settings = await persistShell(next);
-    setShell(settings.shell);
-  }, []);
-
   const value = useMemo<SettingsValue>(
     () => ({
       i18n: createTranslator(active),
@@ -124,10 +112,8 @@ export function SettingsProvider({ children }: { children: ReactNode }): JSX.Ele
       chooseTheme,
       previewFeatures,
       choosePreviewFeatures,
-      shell,
-      chooseShell,
     }),
-    [active, chosen, choose, theme, chooseTheme, previewFeatures, choosePreviewFeatures, shell, chooseShell],
+    [active, chosen, choose, theme, chooseTheme, previewFeatures, choosePreviewFeatures],
   );
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
@@ -150,10 +136,6 @@ export function useTheme(): Pick<SettingsValue, 'theme' | 'chooseTheme'> {
 }
 
 export function usePreview(): Pick<SettingsValue, 'previewFeatures' | 'choosePreviewFeatures'> {
-  return useSettings();
-}
-
-export function useShell(): Pick<SettingsValue, 'shell' | 'chooseShell'> {
   return useSettings();
 }
 
