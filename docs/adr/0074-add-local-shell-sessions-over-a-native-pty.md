@@ -1,7 +1,10 @@
 # ADR-0074: Add local shell sessions over a native PTY
 
 * **Status**: Accepted; the maintainer confirmed directly on 2026-09-19 that
-  local sessions enter this round rather than staying parked
+  local sessions enter this round rather than staying parked. The
+  `capabilities/default.json` line the Decision anticipates below was
+  confirmed unnecessary by the Phase 1 security review (#418): see
+  `docs/security-model.md`, "What a local shell runs".
 * **Date**: 2026-09-19
 
 ## Context
