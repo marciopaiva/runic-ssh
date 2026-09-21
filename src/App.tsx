@@ -9,6 +9,8 @@ import { CommandPalette } from './components/CommandPalette';
 import { ConnectingSurface } from './components/ConnectingSurface';
 import { EmptyPanel } from './components/EmptyPanel';
 import { HostEditorDialog } from './components/HostEditorDialog';
+import { HostsManagerButton } from './components/HostsManagerButton';
+import { HostsManagerSidebar } from './components/HostsManagerSidebar';
 import { HostsSection } from './components/HostsSection';
 import { OpenHostButton } from './components/OpenHostButton';
 import { GroupMenu } from './components/GroupMenu';
@@ -41,6 +43,7 @@ import type { Workspace } from './components/WorkspacePills';
 import {
   actionCommands,
   hostBookCommands,
+  hostsManagerCommand,
   macroCommands,
   sessionCommands,
   usePalette,
@@ -422,6 +425,7 @@ export function App(): JSX.Element {
     readonly text: string;
   } | null>(null);
   const [macrosOpen, setMacrosOpen] = useState(false);
+  const [hostsManagerOpen, setHostsManagerOpen] = useState(false);
   /* How the area is divided, and what each group holds. What is held is a hint
      rather than the truth: `resolveGroups` decides what is actually drawn,
      because a session leaves on its own when its host hangs up. */
@@ -1823,13 +1827,19 @@ export function App(): JSX.Element {
         openSettings,
         runMacro,
         openMacros: () => setMacrosOpen(true),
+        openHostsManager: () => setHostsManagerOpen(true),
       },
     }),
     [i18n, sessions, tabs, activeId, macroTargetId, chosen, maximized, nativeDecorations, previewFeatures, act, choose, closeFocus, activate, useNativeDecorations, choosePreviewFeatures, openSettings, resolvedFocus, focusOn, entries, chooseLayout, layout, sync, filled, muted, armed, receiving, groups, focusedGroup, editorTabs, moveTo, closeGroup, macros, runMacro, workspace, openHostInto, openLocalInto],
   );
 
   const sources = useMemo(
-    () => [() => sessionCommands(context), () => actionCommands(context), () => macroCommands(context)],
+    () => [
+      () => sessionCommands(context),
+      () => actionCommands(context),
+      () => macroCommands(context),
+      () => hostsManagerCommand(context),
+    ],
     [context],
   );
 
@@ -2386,6 +2396,7 @@ export function App(): JSX.Element {
           }}
         />
         <MacrosButton open={macrosOpen} onToggle={() => setMacrosOpen((open) => !open)} />
+        <HostsManagerButton open={hostsManagerOpen} onToggle={() => setHostsManagerOpen((open) => !open)} />
         <ShapeControl layout={layout} onChoose={chooseLayout} />
         <span className="bg-line-subtle h-4 w-px shrink-0" aria-hidden="true" />
         {themeAndLocale}
@@ -2397,6 +2408,7 @@ export function App(): JSX.Element {
           onSelectAll={fanout.includeEveryDestination}
         />
         <SftpSplitControl value={destinationSplit} onChange={setDestinationSplit} />
+        <HostsManagerButton open={hostsManagerOpen} onToggle={() => setHostsManagerOpen((open) => !open)} />
         <span className="bg-line-subtle h-4 w-px shrink-0" aria-hidden="true" />
         {themeAndLocale}
       </>
@@ -2415,6 +2427,7 @@ export function App(): JSX.Element {
           </>
         )}
         <MacrosButton open={macrosOpen} onToggle={() => setMacrosOpen((open) => !open)} />
+        <HostsManagerButton open={hostsManagerOpen} onToggle={() => setHostsManagerOpen((open) => !open)} />
         <span className="bg-line-subtle h-4 w-px shrink-0" aria-hidden="true" />
         {themeAndLocale}
       </>
@@ -2732,6 +2745,17 @@ export function App(): JSX.Element {
           />
         )}
 
+        {workspace === 'sessions' && hostsManagerOpen && (
+          <HostsManagerSidebar
+            sessions={sessions}
+            onUse={openHostInto}
+            onNew={() => openEditor({ kind: 'new' })}
+            onEdit={(sessionId) => openEditor({ kind: 'existing', sessionId })}
+            onDelete={remove}
+            onClose={() => setHostsManagerOpen(false)}
+          />
+        )}
+
         {/* ADR-0045: source in its own column, destinations fanning out into
             a second column stacked as rows. A drop replaces a slot's
             occupant outright, and every occupied pane stays mounted and
@@ -2926,6 +2950,17 @@ export function App(): JSX.Element {
           );
         })()}
 
+        {workspace === 'sftp' && hostsManagerOpen && (
+          <HostsManagerSidebar
+            sessions={sessions}
+            onUse={openHostInto}
+            onNew={() => openEditor({ kind: 'new' })}
+            onEdit={(sessionId) => openEditor({ kind: 'existing', sessionId })}
+            onDelete={remove}
+            onClose={() => setHostsManagerOpen(false)}
+          />
+        )}
+
         {workspace === 'home' && (
         /* One rectangle, always: nothing here is a session, so there is
            nothing to split and no `boxOf` to ask. ADR-0029. ADR-0052 retired
@@ -3009,6 +3044,17 @@ export function App(): JSX.Element {
             onSave={saveMacroDraft}
             onDelete={removeMacro}
             onClose={() => setMacrosOpen(false)}
+          />
+        )}
+
+        {workspace === 'map' && hostsManagerOpen && (
+          <HostsManagerSidebar
+            sessions={sessions}
+            onUse={openHostInto}
+            onNew={() => openEditor({ kind: 'new' })}
+            onEdit={(sessionId) => openEditor({ kind: 'existing', sessionId })}
+            onDelete={remove}
+            onClose={() => setHostsManagerOpen(false)}
           />
         )}
         </div>

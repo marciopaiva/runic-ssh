@@ -65,6 +65,8 @@ export interface CommandActions {
   readonly openHostInto: (sessionId: string) => void;
   /** SFTP's own endpoint with no host behind it, into that same slot. */
   readonly openLocalInto: () => void;
+  /** Opens the hosts-manager sidebar (ADR-0076). */
+  readonly openHostsManager: () => void;
 }
 
 export interface CommandContext {
@@ -468,4 +470,23 @@ export function macroCommands(context: CommandContext): readonly Command[] {
   });
 
   return commands;
+}
+
+/**
+ * The one entry point ADR-0076's contract requires beyond the toolbar
+ * button: never gated, since managing hosts needs no session already open,
+ * the same reasoning `macros:manage` already rests on.
+ */
+export function hostsManagerCommand(context: CommandContext): readonly Command[] {
+  const { i18n, actions } = context;
+
+  return [
+    {
+      id: 'hosts:manage',
+      section: 'actions',
+      title: i18n.t('command.hosts.manage'),
+      keywords: ['host', 'hosts', 'sessions', 'manage', 'gerenciar', 'administrar'],
+      run: actions.openHostsManager,
+    },
+  ];
 }

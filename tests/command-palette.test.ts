@@ -16,6 +16,7 @@ import { isPaletteShortcut, moveBy } from '../src/features/commands/navigation';
 import {
   actionCommands,
   hostBookCommands,
+  hostsManagerCommand,
   macroCommands,
   sessionCommands,
 } from '../src/features/commands/sources';
@@ -79,6 +80,7 @@ function actions(): CommandActions & { readonly calls: string[] } {
     openMacros: () => calls.push('macros:manage'),
     openHostInto: (id) => calls.push(`hostbook:${id}`),
     openLocalInto: () => calls.push('hostbook:local'),
+    openHostsManager: () => calls.push('hosts:manage'),
   };
 }
 
@@ -644,6 +646,20 @@ describe('macros', () => {
        sibling gap), and the two are never the same field. */
     const commands = macroCommands(context({ activeId: 'a', macros: [macro('m1', 'nginx')] }));
     expect(commands.map((entry) => entry.id)).not.toContain('macro:m1');
+  });
+});
+
+describe('the hosts manager command (ADR-0076)', () => {
+  it('always offers a way to manage hosts, no session needed', () => {
+    const entry = hostsManagerCommand(context()).find((command) => command.id === 'hosts:manage');
+    expect(entry).toBeDefined();
+
+    const act = actions();
+    hostsManagerCommand(context({ actions: act }))
+      .find((command) => command.id === 'hosts:manage')
+      ?.run();
+
+    expect(act.calls).toEqual(['hosts:manage']);
   });
 });
 
