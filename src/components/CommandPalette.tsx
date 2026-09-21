@@ -166,41 +166,59 @@ export function CommandPalette({
               {i18n.t('palette.empty', { query })}
             </p>
           ) : (
-            groups.map((group) => (
-              <div key={group.section} role="group" aria-label={i18n.t(SECTION_LABEL[group.section])}>
-                <h2 className="text-ink-faint px-4 pt-2 pb-1 text-[10.5px] font-bold tracking-[0.08em]">
-                  {i18n.t(SECTION_LABEL[group.section])}
-                </h2>
+            groups.map((group) => {
+              /* A sub-heading only means something while the list is a menu:
+                 mid-search, `rank` reorders by score, and a heading over
+                 rows it no longer holds together would announce a group that
+                 is not actually contiguous any more. */
+              const heedGroups = query.trim() === '';
+              let lastGroup: string | undefined;
 
-                {group.entries.map((match) => {
-                  const index = matches.indexOf(match);
-                  const isActive = index === selected;
+              return (
+                <div key={group.section} role="group" aria-label={i18n.t(SECTION_LABEL[group.section])}>
+                  <h2 className="text-ink-faint px-4 pt-2 pb-1 text-[10.5px] font-bold tracking-[0.08em]">
+                    {i18n.t(SECTION_LABEL[group.section])}
+                  </h2>
 
-                  return (
-                    <div
-                      key={match.command.id}
-                      id={optionId(match.command.id)}
-                      role="option"
-                      aria-selected={isActive}
-                      onMouseMove={() => onSelect(index)}
-                      onClick={() => onRun(index)}
-                      className={`flex h-8 cursor-default items-center gap-3 px-4 text-[12.5px] ${
-                        isActive ? 'bg-accent-soft text-ink' : 'text-ink-secondary'
-                      }`}
-                    >
-                      <span className="min-w-0 truncate">
-                        <Highlighted text={match.command.title} at={match.highlights} />
-                      </span>
-                      {match.command.detail !== undefined && (
-                        <span className="text-ink-faint ml-auto shrink-0 font-mono text-[11px]">
-                          {match.command.detail}
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ))
+                  {group.entries.map((match) => {
+                    const index = matches.indexOf(match);
+                    const isActive = index === selected;
+                    const rowGroup = match.command.group;
+                    const showHeading = heedGroups && rowGroup !== undefined && rowGroup !== lastGroup;
+                    if (rowGroup !== undefined) lastGroup = rowGroup;
+
+                    return (
+                      <div key={match.command.id}>
+                        {showHeading && (
+                          <h3 className="text-ink-faint/70 px-4 pt-2.5 pb-1 text-[9.5px] font-semibold tracking-[0.08em] uppercase">
+                            {rowGroup}
+                          </h3>
+                        )}
+                        <div
+                          id={optionId(match.command.id)}
+                          role="option"
+                          aria-selected={isActive}
+                          onMouseMove={() => onSelect(index)}
+                          onClick={() => onRun(index)}
+                          className={`flex h-8 cursor-default items-center gap-3 px-4 text-[12.5px] ${
+                            isActive ? 'bg-accent-soft text-ink' : 'text-ink-secondary'
+                          }`}
+                        >
+                          <span className="min-w-0 truncate">
+                            <Highlighted text={match.command.title} at={match.highlights} />
+                          </span>
+                          {match.command.detail !== undefined && (
+                            <span className="text-ink-faint ml-auto shrink-0 font-mono text-[11px]">
+                              {match.command.detail}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })
           )}
         </div>
       </div>

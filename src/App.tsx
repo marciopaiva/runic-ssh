@@ -1909,8 +1909,11 @@ export function App(): JSX.Element {
      its own keyboard shortcut never fires, shown only from `OpenHostButton`'s
      click. Same presentational `CommandPalette`, same ranking and keyboard
      navigation, a different source. */
+  /* Local shells first: a machine with nothing saved yet still has a
+     terminal, so this belongs above the saved hosts rather than waiting at
+     the bottom for a list that might be empty. */
   const hostSources = useMemo(
-    () => [() => hostBookCommands(context), () => localShellCommands(context)],
+    () => [() => localShellCommands(context), () => hostBookCommands(context)],
     [context],
   );
   const hostPalette = usePalette(hostSources, chrome?.commandModifier ?? 'control', true);

@@ -1,10 +1,8 @@
 {
   "app.name": "Runic SSH",
-  "command.hostbook.new": "Nuevo host",
   "command.hosts.manage": "Administrar hosts...",
   "command.language.system": "Idioma: seguir el sistema",
   "command.language.use": "Idioma: {name}",
-  "command.local.open": "Abrir {name}",
   "command.macros.manage": "Gestionar macros...",
   "command.session.edit": "Editar {name}",
   "command.session.new": "Nueva sesión",
@@ -180,6 +178,7 @@
   "language.en": "English",
   "language.es": "Español",
   "language.pt-BR": "Português (Brasil)",
+  "local.group": "LOCAL",
   "local.shell.cmd": "Símbolo del sistema",
   "local.shell.defaultShell": "Terminal",
   "local.shell.powerShell": "PowerShell",
