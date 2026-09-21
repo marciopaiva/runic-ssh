@@ -12,6 +12,7 @@ import { HostEditorDialog } from './components/HostEditorDialog';
 import { HostsManagerButton } from './components/HostsManagerButton';
 import { HostsManagerSidebar } from './components/HostsManagerSidebar';
 import { HostsSection } from './components/HostsSection';
+import { LocalShellView } from './components/LocalShellView';
 import { OpenHostButton } from './components/OpenHostButton';
 import { GroupMenu } from './components/GroupMenu';
 import { GroupStrip, entryTitle } from './components/GroupStrip';
@@ -44,6 +45,7 @@ import {
   actionCommands,
   hostBookCommands,
   hostsManagerCommand,
+  localShellCommands,
   macroCommands,
   sessionCommands,
   usePalette,
@@ -112,6 +114,7 @@ import {
   EMPTY_WORKSPACE,
   forgetCredential,
   internalVaultStatus,
+  listLocalShellKinds,
   loadWorkspace,
   saveSession,
   saveWorkspace,
@@ -120,7 +123,17 @@ import {
   stopForward,
   submitCredential,
 } from './ipc';
-import type { Forward, Keep, Macro, Secret, Session, SessionDraft, SessionHandle, SuggestedMethod } from './ipc';
+import type {
+  Forward,
+  Keep,
+  LocalShellKind,
+  Macro,
+  Secret,
+  Session,
+  SessionDraft,
+  SessionHandle,
+  SuggestedMethod,
+} from './ipc';
 import type { Component as MapComponent, ComponentKind as MapComponentKind, Workspace as MapWorkspaceModel } from './ipc';
 import type { MapPaneWiring } from './components/map/MapStage';
 import { mapTerminals, mountedOnce, placeSavedHost } from './features/map';
@@ -157,7 +170,7 @@ import {
   removeEntry,
   resolveGroups,
 } from './features/terminal';
-import type { Box, Grid, Group, HeldGroup } from './features/terminal';
+import type { Box, Grid, Group, HeldGroup, LocalShellTab } from './features/terminal';
 import type { TerminalSize } from './features/terminal/use-terminal';
 
 /**
@@ -303,6 +316,13 @@ export function App(): JSX.Element {
   useEffect(() => {
     void appVersion().then(setVersion);
   }, []);
+  /* Fetched once, same reasoning as `version` above: what this platform can
+     open does not change under a running app, and the "+" palette's Local
+     group reads this rather than asking the core again on every open. */
+  const [localShellKinds, setLocalShellKinds] = useState<readonly LocalShellKind[]>([]);
+  useEffect(() => {
+    void listLocalShellKinds().then(setLocalShellKinds);
+  }, []);
   /* Whether the sidebar overlay is summoned over the rail. ADR-0020 rule 4:
      this closes and the rail does not, so the icon that closed it is the way
      back and the window has no state where the list is gone with nothing
@@ -431,6 +451,12 @@ export function App(): JSX.Element {
      because a session leaves on its own when its host hangs up. */
   const [layout, setLayout] = useState<Grid>('1x1');
   const [held, setHeld] = useState<readonly HeldGroup[]>([{ entries: [], activeAt: -1 }]);
+  /* A local shell has no saved session behind it (ADR-0074): nothing in
+     `sessions` names it, so unlike a session tab, its whole existence lives
+     here rather than being derived. The kind is kept alongside the id so the
+     tab can be remounted with the same choice of shell if this state is ever
+     restored, though ADR-0074 does not persist it across a restart today. */
+  const [localShellTabs, setLocalShellTabs] = useState<readonly LocalShellTab[]>([]);
   /* Typing into every pane at once. Off by default and never persisted: this
      is the one switch in the application whose blast radius is more than the
      host being looked at. */
@@ -662,7 +688,10 @@ export function App(): JSX.Element {
      tabs left for `homeEntries` below when they stopped being tabs a group
      could hold, and SFTP left the same way, for its own workspace, once it
      had one. */
-  const entries = useMemo(() => stripEntries(tabs, [], false), [tabs]);
+  const entries = useMemo(
+    () => stripEntries(tabs, localShellTabs.map((tab) => tab.sessionId), [], false),
+    [tabs, localShellTabs],
+  );
   const resolvedFocus = resolveFocus(entries, focus);
   const activeId = focusedSession(resolvedFocus);
   const activeTab = tabs.find((tab) => tab.sessionId === activeId) ?? null;
@@ -695,7 +724,7 @@ export function App(): JSX.Element {
      used to be its own section, chosen from `HomeNav`): theme and language
      are toolbar controls now, always visible rather than a place to focus,
      so an editor target is the only thing `homeEntries` ever holds. */
-  const homeEntries = useMemo(() => stripEntries([], editing, false), [editing]);
+  const homeEntries = useMemo(() => stripEntries([], [], editing, false), [editing]);
   const resolvedHomeFocus = resolveFocus(homeEntries, homeFocus);
   /* The host the editor is open on, or `null` for a new one or none. Read
      again here, at the top level, because the hook below needs it as a
@@ -1061,6 +1090,18 @@ export function App(): JSX.Element {
     [forget, attentionId, abandon, disconnect],
   );
 
+  /* Closing a local shell's tab. Unlike `closeFocus`, there is nothing to
+     disconnect: `useLocalShellTerminal`'s own unmount closes the pty (see
+     that hook's doc comment), and dropping the tab from state is what
+     unmounts it. */
+  const closeLocalShellTab = useCallback(
+    (sessionId: string): void => {
+      forget({ kind: 'local', sessionId });
+      setLocalShellTabs((current) => current.filter((tab) => tab.sessionId !== sessionId));
+    },
+    [forget],
+  );
+
   /* Putting a host, or localhost, into a pane of the SFTP workspace
      (ADR-0045): the source, or one destination slot. The mirror of
      `openHere` for the Sessions grid, except a pane holds at most one
@@ -1234,6 +1275,24 @@ export function App(): JSX.Element {
   const openLocalInto = useCallback((): void => {
     assignSftpEndpoint({ kind: 'local' }, lastFocusedFanoutSlot);
   }, [assignSftpEndpoint, lastFocusedFanoutSlot]);
+
+  /* The "+" palette's local-shell rows (ADR-0074), Sessions only: mint the
+     client-side id its `Focus` needs before the pty exists (`ipc/local-shell.ts`
+     mints its own id only once `openLocalShell` resolves), place it in
+     whichever rectangle asked, and let `LocalShellView` open the shell once
+     it mounts. `activeGroup` rather than a passed-in group number, the same
+     choice `openHostInto` already made: whatever last claimed the "+"
+     (the toolbar button or an empty group's own) already set it. */
+  const openLocalShellInto = useCallback(
+    (kind: LocalShellKind): void => {
+      const sessionId = crypto.randomUUID();
+      setLocalShellTabs((current) => [...current, { sessionId, kind }]);
+      const mine: Focus = { kind: 'local', sessionId };
+      setHeld((current) => moveEntry(current, mine, activeGroup));
+      setFocus(mine);
+    },
+    [activeGroup],
+  );
 
   /* The palette's "open settings" lands here: Home, from any workspace
      (ADR-0075). ADR-0062 already moved theme and language into every
@@ -1791,7 +1850,7 @@ export function App(): JSX.Element {
       groupCount: groups.length,
       focusedGroup,
       focusedTitle:
-        resolvedFocus === null ? null : entryTitle(resolvedFocus, tabs, editorTabs, i18n),
+        resolvedFocus === null ? null : entryTitle(resolvedFocus, tabs, editorTabs, localShellTabs, i18n),
       macros,
       /* Narrowed from the wider `Workspace` union: `home` has no host book of
          its own to speak of, so it narrows to `sessions` like a fresh
@@ -1799,6 +1858,7 @@ export function App(): JSX.Element {
          "this machine" belongs in the list, which needs `sftp` told apart
          from everything else. */
       workspace: workspace === 'sftp' ? 'sftp' : workspace === 'map' ? 'map' : 'sessions',
+      localShellKinds,
       actions: {
         newSession: () => openEditor({ kind: 'new' }),
         editSession: (sessionId: string) => openEditor({ kind: 'existing', sessionId }),
@@ -1813,6 +1873,7 @@ export function App(): JSX.Element {
         closeGroup: () => closeGroup(focusedGroup),
         openHostInto,
         openLocalInto,
+        openLocalShellInto,
         /* Arming always starts with every pane checked. Inheriting a set
            somebody narrowed for a different pair of hosts is the kind of thing
            this switch must never do. */
@@ -1830,7 +1891,7 @@ export function App(): JSX.Element {
         openHostsManager: () => setHostsManagerOpen(true),
       },
     }),
-    [i18n, sessions, tabs, activeId, macroTargetId, chosen, maximized, nativeDecorations, previewFeatures, act, choose, closeFocus, activate, useNativeDecorations, choosePreviewFeatures, openSettings, resolvedFocus, focusOn, entries, chooseLayout, layout, sync, filled, muted, armed, receiving, groups, focusedGroup, editorTabs, moveTo, closeGroup, macros, runMacro, workspace, openHostInto, openLocalInto],
+    [i18n, sessions, tabs, activeId, macroTargetId, chosen, maximized, nativeDecorations, previewFeatures, act, choose, closeFocus, activate, useNativeDecorations, choosePreviewFeatures, openSettings, resolvedFocus, focusOn, entries, chooseLayout, layout, sync, filled, muted, armed, receiving, groups, focusedGroup, editorTabs, localShellTabs, moveTo, closeGroup, macros, runMacro, workspace, openHostInto, openLocalInto, localShellKinds, openLocalShellInto],
   );
 
   const sources = useMemo(
@@ -1848,7 +1909,10 @@ export function App(): JSX.Element {
      its own keyboard shortcut never fires, shown only from `OpenHostButton`'s
      click. Same presentational `CommandPalette`, same ranking and keyboard
      navigation, a different source. */
-  const hostSources = useMemo(() => [() => hostBookCommands(context)], [context]);
+  const hostSources = useMemo(
+    () => [() => hostBookCommands(context), () => localShellCommands(context)],
+    [context],
+  );
   const hostPalette = usePalette(hostSources, chrome?.commandModifier ?? 'control', true);
 
   const palette = usePalette(sources, chrome?.commandModifier ?? 'control', macrosOpen);
@@ -1878,7 +1942,7 @@ export function App(): JSX.Element {
         items.push({
           id: `move:${String(to)}`,
           label: i18n.t('group.move', {
-            name: entryTitle(entry, tabs, editorTabs, i18n),
+            name: entryTitle(entry, tabs, editorTabs, localShellTabs, i18n),
             number: String(to + 1),
           }),
           run: () => {
@@ -2541,6 +2605,7 @@ export function App(): JSX.Element {
                   focus={resolvedFocus}
                   tabs={tabs}
                   editorTabs={editorTabs}
+                  localShellTabs={localShellTabs}
                   labels={paneLabels}
                   dense={layout !== '1x1'}
                   label={
@@ -2572,12 +2637,14 @@ export function App(): JSX.Element {
                     });
                   }}
                   onFocus={focusOn}
-                  /* A group holds only sessions since ADR-0029 and ADR-0044,
-                     but the prop is still typed for the general `Focus`
-                     `GroupStrip` also draws for Home; the guard documents
-                     the invariant rather than trusting it silently. */
+                  /* A group holds sessions and local shells (ADR-0029,
+                     ADR-0044, ADR-0074), but the prop is still typed for the
+                     general `Focus` `GroupStrip` also draws for Home; the
+                     guard documents the invariant rather than trusting it
+                     silently. */
                   onClose={(entry) => {
                     if (entry.kind === 'session') closeFocus(entry);
+                    else if (entry.kind === 'local') closeLocalShellTab(entry.sessionId);
                   }}
                   onMenu={(entry, point) =>
                     setGroupMenu({ group: at, entry, at: point })
@@ -2656,6 +2723,28 @@ export function App(): JSX.Element {
                 onAddAdHocForward={(forward) => addAdHocForward(terminal.sessionId, terminal.handle, forward)}
                 onRemoveAdHocForward={(index) => removeAdHocForward(terminal.sessionId, index)}
                 onEditHost={() => openEditor({ kind: 'existing', sessionId: terminal.sessionId })}
+              />
+            );
+          })}
+
+          {localShellTabs.map((tab) => {
+            const mine: Focus = { kind: 'local', sessionId: tab.sessionId };
+            const box = boxOf(mine);
+
+            return (
+              <LocalShellView
+                key={tab.sessionId}
+                kind={tab.kind}
+                visible={box !== null}
+                focused={sameFocus(resolvedFocus, mine)}
+                frame={bodyStyle(box ?? WHOLE_AREA)}
+                id={panelElementId(mine)}
+                labelledBy={tabElementId(mine)}
+                onPaneFocus={() => focusOn(mine)}
+                onSize={setSize}
+                onFocusHandle={(focus) => focusFns.current.set(tab.sessionId, focus)}
+                modifier={chrome?.commandModifier ?? 'control'}
+                onPasteNeedsConfirming={(text) => setPendingPaste({ sessionId: tab.sessionId, text })}
               />
             );
           })}
@@ -3102,7 +3191,7 @@ export function App(): JSX.Element {
           label={
             groupMenu.entry === null
               ? i18n.t('group.tabs', { number: String(groupMenu.group + 1) })
-              : entryTitle(groupMenu.entry, tabs, editorTabs, i18n)
+              : entryTitle(groupMenu.entry, tabs, editorTabs, localShellTabs, i18n)
           }
           onDismiss={() => setGroupMenu(null)}
         />

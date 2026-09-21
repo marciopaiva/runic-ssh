@@ -3,7 +3,8 @@ import type { JSX, KeyboardEvent } from 'react';
 import { focusAfter, panelElementId, sameFocus, tabElementId } from '../features/chrome';
 import type { Focus, Tab } from '../features/chrome';
 import type { EditorTarget } from '../features/sessions';
-import type { GroupLabel } from '../features/terminal';
+import { localShellLabel } from '../features/terminal';
+import type { GroupLabel, LocalShellTab } from '../features/terminal';
 import type { Translator } from '../lib/i18n';
 import { useTranslator } from '../features/settings';
 
@@ -11,7 +12,7 @@ import { SessionMarker } from './SessionMarker';
 import { SyncToggle } from './SyncToggle';
 import type { SyncState } from './SyncToggle';
 import { Button } from './ui/Button';
-import { EditIcon, SettingsIcon, XIcon } from './ui/icons';
+import { EditIcon, SettingsIcon, TerminalIcon, XIcon } from './ui/icons';
 
 /** What a tab says it is, for a session, a host form or the settings page. */
 export interface EditorTab {
@@ -31,6 +32,7 @@ export function entryTitle(
   entry: Focus,
   tabs: readonly Tab[],
   editorTabs: readonly EditorTab[],
+  localShellTabs: readonly LocalShellTab[],
   i18n: Translator,
 ): string {
   if (entry.kind === 'settings') return i18n.t('tabs.settings');
@@ -40,6 +42,11 @@ export function entryTitle(
       sameFocus({ kind: 'editor', target: candidate.target }, entry),
     );
     return editor?.title ?? '';
+  }
+
+  if (entry.kind === 'local') {
+    const shell = localShellTabs.find((candidate) => candidate.sessionId === entry.sessionId);
+    return shell === undefined ? '' : localShellLabel(shell.kind, i18n);
   }
 
   return tabs.find((candidate) => candidate.sessionId === entry.sessionId)?.title ?? '';
@@ -56,6 +63,8 @@ interface GroupStripProps {
   readonly tabs: readonly Tab[];
   /** One per open host form: what its tab says, and whether it is unsaved. */
   readonly editorTabs: readonly EditorTab[];
+  /** One per open local shell: what kind it is, for its tab's name and icon. */
+  readonly localShellTabs: readonly LocalShellTab[];
   /** `user@host` per session, drawn beside the name when there is room. */
   readonly labels: ReadonlyMap<string, GroupLabel>;
   /** More than one group on screen: names get terse and the keyboard marker appears. */
@@ -109,6 +118,7 @@ export function GroupStrip({
   focus,
   tabs,
   editorTabs,
+  localShellTabs,
   labels,
   dense,
   label,
@@ -154,7 +164,7 @@ export function GroupStrip({
 
   if (solo !== null && soloTab !== null) {
     const id = tabElementId(solo);
-    const title = entryTitle(solo, tabs, editorTabs, i18n);
+    const title = entryTitle(solo, tabs, editorTabs, localShellTabs, i18n);
     const where = labels.get(soloTab.sessionId)?.where ?? null;
     const hasKeyboard = sameFocus(solo, focus);
     const closeLabel = i18n.t('tabs.close', { name: title });
@@ -239,7 +249,7 @@ export function GroupStrip({
               ) ?? null)
             : null;
 
-        const title = entryTitle(entry, tabs, editorTabs, i18n);
+        const title = entryTitle(entry, tabs, editorTabs, localShellTabs, i18n);
 
         /* Only on the tab that is showing, and only when there is room for it.
            With four groups the name is all that fits, and pushing it out of
@@ -300,6 +310,8 @@ export function GroupStrip({
               }`}
             >
               {entry.kind === 'session' && tab !== null && <SessionMarker kind={tab.kind} />}
+
+              {entry.kind === 'local' && <TerminalIcon className="h-3 w-3 shrink-0" />}
 
               {entry.kind === 'editor' && <EditIcon className="h-3 w-3 shrink-0" />}
 

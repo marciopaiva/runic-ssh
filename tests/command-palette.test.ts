@@ -17,6 +17,7 @@ import {
   actionCommands,
   hostBookCommands,
   hostsManagerCommand,
+  localShellCommands,
   macroCommands,
   sessionCommands,
 } from '../src/features/commands/sources';
@@ -24,7 +25,7 @@ import type { CommandActions, CommandContext } from '../src/features/commands/so
 import type { Tab } from '../src/features/chrome';
 import type { LiveSession } from '../src/features/sessions';
 import { createTranslator, offeredLocales } from '../src/lib/i18n';
-import type { Macro, Session } from '../src/ipc';
+import type { LocalShellKind, Macro, Session } from '../src/ipc';
 
 function command(id: string, title: string, extra: Partial<Command> = {}): Command {
   return { id, section: 'actions', title, run: () => undefined, ...extra };
@@ -81,6 +82,7 @@ function actions(): CommandActions & { readonly calls: string[] } {
     openHostInto: (id) => calls.push(`hostbook:${id}`),
     openLocalInto: () => calls.push('hostbook:local'),
     openHostsManager: () => calls.push('hosts:manage'),
+    openLocalShellInto: (kind) => calls.push(`local:${kind.kind}`),
   };
 }
 
@@ -103,6 +105,7 @@ function context(overrides: Partial<CommandContext> = {}): CommandContext {
     focusedTitle: null,
     macros: [],
     workspace: 'sessions',
+    localShellKinds: [],
     actions: actions(),
     ...overrides,
   };
@@ -729,5 +732,35 @@ describe('the host book palette (ADR-0072)', () => {
 
     add?.run();
     expect(act.calls).toEqual(['new']);
+  });
+});
+
+describe('the local shell palette (ADR-0074)', () => {
+  const powerShell: LocalShellKind = { kind: 'powerShell' };
+  const wsl: LocalShellKind = { kind: 'wsl', distro: 'Ubuntu' };
+
+  it('offers one row per shell this platform detected', () => {
+    const commands = localShellCommands(context({ localShellKinds: [powerShell, wsl] }));
+
+    expect(commands.map((entry) => entry.id)).toEqual(['local:powerShell', 'local:wsl:Ubuntu']);
+  });
+
+  it('opens the chosen kind into the same slot a host would land in', () => {
+    const act = actions();
+    localShellCommands(context({ localShellKinds: [powerShell], actions: act }))
+      .find((entry) => entry.id === 'local:powerShell')
+      ?.run();
+
+    expect(act.calls).toEqual(['local:powerShell']);
+  });
+
+  it('leaves local shells out of the SFTP workspace', () => {
+    /* SFTP's "+" places file endpoints, not terminal sessions; a shell has
+       nothing to contribute there. */
+    const commands = localShellCommands(
+      context({ workspace: 'sftp', localShellKinds: [powerShell, wsl] }),
+    );
+
+    expect(commands).toEqual([]);
   });
 });

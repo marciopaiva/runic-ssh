@@ -33,6 +33,7 @@ function tab(sessionId: string): Tab {
 }
 
 const SESSION = (sessionId: string): Focus => ({ kind: 'session', sessionId });
+const LOCAL = (sessionId: string): Focus => ({ kind: 'local', sessionId });
 const NEW: Focus = { kind: 'editor', target: { kind: 'new' } };
 const EDIT = (sessionId: string): Focus => ({
   kind: 'editor',
@@ -44,15 +45,16 @@ const TABS = [tab('a'), tab('b')];
 
 describe('building the strip', () => {
   it('is the sessions alone when nothing else is open', () => {
-    expect(stripEntries(TABS, [], false)).toEqual([SESSION('a'), SESSION('b')]);
+    expect(stripEntries(TABS, [], [], false)).toEqual([SESSION('a'), SESSION('b')]);
   });
 
-  it('puts the editor after the sessions and settings last', () => {
-    /* Session tabs keep the sidebar's order at the front, so opening either of
-       the other two never shifts one sideways under the pointer. */
-    expect(stripEntries(TABS, [{ kind: 'new' }], true)).toEqual([
+  it('puts local shells after the sessions, the editor after that, and settings last', () => {
+    /* Session tabs keep the sidebar's order at the front, so opening any of
+       the other three never shifts one sideways under the pointer. */
+    expect(stripEntries(TABS, ['x'], [{ kind: 'new' }], true)).toEqual([
       SESSION('a'),
       SESSION('b'),
+      LOCAL('x'),
       NEW,
       SETTINGS,
     ]);
@@ -62,12 +64,17 @@ describe('building the strip', () => {
     /* One tab per host is what makes the unsaved question belong to a host
        rather than to a shared form — the shape #96 recorded and parked. */
     expect(
-      stripEntries([tab('a')], [{ kind: 'existing', sessionId: 'b' }, { kind: 'new' }], false),
+      stripEntries(
+        [tab('a')],
+        [],
+        [{ kind: 'existing', sessionId: 'b' }, { kind: 'new' }],
+        false,
+      ),
     ).toEqual([SESSION('a'), EDIT('b'), NEW]);
   });
 
   it('is empty when there is nothing at all', () => {
-    expect(stripEntries([], [], false)).toEqual([]);
+    expect(stripEntries([], [], [], false)).toEqual([]);
   });
 });
 
@@ -89,6 +96,18 @@ describe('telling two tabs apart', () => {
   it('does not confuse a session with the editor on that session', () => {
     expect(sameFocus(SESSION('a'), EDIT('a'))).toBe(false);
   });
+
+  it('separates two local shells', () => {
+    expect(sameFocus(LOCAL('a'), LOCAL('b'))).toBe(false);
+  });
+
+  it('does not confuse a local shell with a session of the same id', () => {
+    expect(sameFocus(LOCAL('a'), SESSION('a'))).toBe(false);
+  });
+
+  it('matches the same local shell', () => {
+    expect(sameFocus(LOCAL('a'), LOCAL('a'))).toBe(true);
+  });
 });
 
 describe('naming a tab uniquely in the DOM', () => {
@@ -100,6 +119,10 @@ describe('naming a tab uniquely in the DOM', () => {
     expect(tabElementId(SESSION('a'))).not.toBe(tabElementId(SESSION('b')));
     expect(panelElementId(SESSION('a'))).not.toBe(panelElementId(SESSION('b')));
   });
+
+  it('differs between a local shell and a session of the same id', () => {
+    expect(tabElementId(LOCAL('a'))).not.toBe(tabElementId(SESSION('a')));
+  });
 });
 
 describe('reading the focus', () => {
@@ -107,9 +130,10 @@ describe('reading the focus', () => {
     expect(focusedSession(SESSION('a'))).toBe('a');
   });
 
-  it('names no session while the editor or settings is focused', () => {
+  it('names no session while a local shell, the editor or settings is focused', () => {
     /* The terminals key their visibility off this. An editor tab that still
        reported a session id would leave a terminal drawn under the form. */
+    expect(focusedSession(LOCAL('a'))).toBeNull();
     expect(focusedSession(EDIT('a'))).toBeNull();
     expect(focusedSession(SETTINGS)).toBeNull();
     expect(focusedSession(null)).toBeNull();
@@ -117,24 +141,29 @@ describe('reading the focus', () => {
 });
 
 describe('keeping the focus on something that exists', () => {
-  const FULL = stripEntries(TABS, [{ kind: 'new' }], true);
+  const FULL = stripEntries(TABS, ['x'], [{ kind: 'new' }], true);
 
   it('leaves a focused tab alone while it is there', () => {
     expect(resolveFocus(FULL, SESSION('b'))).toEqual(SESSION('b'));
+    expect(resolveFocus(FULL, LOCAL('x'))).toEqual(LOCAL('x'));
     expect(resolveFocus(FULL, NEW)).toEqual(NEW);
     expect(resolveFocus(FULL, SETTINGS)).toEqual(SETTINGS);
   });
 
   it('moves off a session whose host dropped the connection', () => {
-    expect(resolveFocus(stripEntries([tab('a')], [], false), SESSION('gone'))).toEqual(
+    expect(resolveFocus(stripEntries([tab('a')], [], [], false), SESSION('gone'))).toEqual(
       SESSION('a'),
     );
+  });
+
+  it('moves off a local shell once it is closed', () => {
+    expect(resolveFocus(stripEntries(TABS, [], [], false), LOCAL('gone'))).toEqual(SESSION('a'));
   });
 
   it('moves off the editor once it is closed', () => {
     /* Saving a new host closes the editor, and nothing else would notice the
        focus is pointing at a tab that is gone. */
-    expect(resolveFocus(stripEntries(TABS, [], false), NEW)).toEqual(SESSION('a'));
+    expect(resolveFocus(stripEntries(TABS, [], [], false), NEW)).toEqual(SESSION('a'));
   });
 
   it('is nothing when the strip is empty', () => {
@@ -143,10 +172,11 @@ describe('keeping the focus on something that exists', () => {
 });
 
 describe('moving along the strip', () => {
-  const FULL = stripEntries(TABS, [{ kind: 'new' }], true);
+  const FULL = stripEntries(TABS, ['x'], [{ kind: 'new' }], true);
 
   it('steps and wraps through every kind', () => {
-    expect(focusAfter(FULL, SESSION('b'), 1)).toEqual(NEW);
+    expect(focusAfter(FULL, SESSION('b'), 1)).toEqual(LOCAL('x'));
+    expect(focusAfter(FULL, LOCAL('x'), 1)).toEqual(NEW);
     expect(focusAfter(FULL, NEW, 1)).toEqual(SETTINGS);
     expect(focusAfter(FULL, SETTINGS, 1)).toEqual(SESSION('a'));
     expect(focusAfter(FULL, SESSION('a'), -1)).toEqual(SETTINGS);
@@ -155,11 +185,11 @@ describe('moving along the strip', () => {
   it('reaches the editor from the keyboard', () => {
     /* The whole reason it is in the ring rather than beside it: a tab that
        only the mouse can reach is a tab a keyboard user does not have. */
-    expect(focusAfter(FULL, NEW, -1)).toEqual(SESSION('b'));
+    expect(focusAfter(FULL, NEW, -1)).toEqual(LOCAL('x'));
   });
 
   it('stays put when it is the only tab', () => {
-    const alone = stripEntries([], [{ kind: 'new' }], false);
+    const alone = stripEntries([], [], [{ kind: 'new' }], false);
 
     expect(focusAfter(alone, NEW, 1)).toEqual(NEW);
     expect(focusAfter(alone, NEW, -1)).toEqual(NEW);
@@ -190,7 +220,7 @@ describe('moving along the strip', () => {
 });
 
 describe('what takes over when a tab closes', () => {
-  const FULL = stripEntries(TABS, [{ kind: 'new' }], true);
+  const FULL = stripEntries(TABS, ['x'], [{ kind: 'new' }], true);
 
   it('falls to the neighbour on the right', () => {
     expect(focusAfterClosing(FULL, SESSION('a'))).toEqual(SESSION('b'));
@@ -201,6 +231,6 @@ describe('what takes over when a tab closes', () => {
   });
 
   it('is nothing when the last tab goes', () => {
-    expect(focusAfterClosing(stripEntries([], [], true), SETTINGS)).toBeNull();
+    expect(focusAfterClosing(stripEntries([], [], [], true), SETTINGS)).toBeNull();
   });
 });

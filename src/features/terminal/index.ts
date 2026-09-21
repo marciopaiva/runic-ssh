@@ -1,5 +1,8 @@
 export { useTerminal } from './use-terminal';
 export type { TerminalState } from './use-terminal';
+export { useLocalShellTerminal } from './use-local-shell-terminal';
+export { localShellKindId, localShellLabel } from './local-shell-kind';
+export type { LocalShellTab } from './local-shell-kind';
 export { terminalTheme } from './theme';
 export { mountedTerminals } from './mounted';
 export type { MountedTerminal } from './mounted';

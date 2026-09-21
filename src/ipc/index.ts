@@ -81,6 +81,17 @@ export {
   watchTerminal,
 } from './terminal';
 export type { DiskIoRate, Filesystem, LoadAverage, NetworkRate, SessionStats, SystemStats, Usage } from './terminal';
+export {
+  CLOSED_EVENT as LOCAL_SHELL_CLOSED_EVENT,
+  OUTPUT_EVENT as LOCAL_SHELL_OUTPUT_EVENT,
+  closeLocalShell,
+  listLocalShellKinds,
+  openLocalShell,
+  resizeLocalShell,
+  watchLocalShell,
+  writeLocalShell,
+} from './local-shell';
+export type { LocalShellKind, SessionId as LocalShellSessionId } from './local-shell';
 export type { SettingsView, Theme } from './settings';
 export {
   FINISHED_EVENT as SFTP_FINISHED_EVENT,

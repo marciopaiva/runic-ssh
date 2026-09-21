@@ -40,6 +40,13 @@ export type IpcError =
   | { readonly code: 'sshTransport' }
   | { readonly code: 'unknownSession'; readonly id: string }
   | { readonly code: 'unknownHandle' }
+  /** ADR-0074. The session id does not name an open local shell. */
+  | { readonly code: 'unknownLocalShell' }
+  /**
+   * ADR-0074. The native pty could not be opened, or the shell's program
+   * could not be spawned behind it.
+   */
+  | { readonly code: 'localShellSpawnFailed' }
   | { readonly code: 'ambiguousCredential' }
   | { readonly code: 'missingCredential' }
   | { readonly code: 'malformedInput' }
@@ -227,6 +234,8 @@ export const CODES: ReadonlySet<IpcErrorCode> = new Set<IpcErrorCode>([
   'sshTransport',
   'unknownSession',
   'unknownHandle',
+  'unknownLocalShell',
+  'localShellSpawnFailed',
   'ambiguousCredential',
   'missingCredential',
   'malformedInput',
