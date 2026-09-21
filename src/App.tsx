@@ -2526,7 +2526,7 @@ export function App(): JSX.Element {
            same height either way, so nothing below it moves. */
         controls={chrome === null ? [] : windowControls(chrome, maximized)}
         leadingInset={chrome?.leadingInset ?? 0}
-        railBelow={shell === 'map'}
+        railBelow={workspace === 'map'}
         onAct={act}
       />
 
