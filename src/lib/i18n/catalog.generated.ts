@@ -548,6 +548,7 @@ export const SOURCE_CATALOG = {
   "status.latency.good": "Latency: good",
   "status.latency.poor": "Latency: poor",
   "status.latency.unknown": "Latency: not measured",
+  "status.localShell": "Local shell",
   "status.monitor.cpu": "CPU usage",
   "status.monitor.disk": "Disk usage",
   "status.monitor.diskIo": "Disk I/O",
