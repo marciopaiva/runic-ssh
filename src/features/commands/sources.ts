@@ -25,10 +25,6 @@ import type { Grid } from '../terminal';
 import type { Command } from './registry';
 
 export interface CommandActions {
-  /** Opens the editor with no session, to add one. */
-  readonly newSession: () => void;
-  /** Opens the editor on an existing session. */
-  readonly editSession: (sessionId: string) => void;
   readonly selectSession: (sessionId: string) => void;
   readonly activateTab: (sessionId: string) => void;
   readonly closeTab: (sessionId: string) => void;
@@ -146,20 +142,7 @@ export function sessionCommands(context: CommandContext): readonly Command[] {
   const { i18n, sessions, tabs, actions } = context;
   const open = new Set(tabs.map((tab) => tab.sessionId));
 
-  /* First, and present even with nothing saved. An SSH client whose palette
-     lists no way to add a host is one nobody can use — which is exactly what
-     shipped before this was here. */
-  const commands: Command[] = [
-    {
-      id: 'session:new',
-      section: 'sessions',
-      title: i18n.t('command.session.new'),
-      keywords: ['new', 'add', 'novo', 'adicionar', 'nueva', 'host'],
-      run: actions.newSession,
-    },
-  ];
-
-  const rest = sessions.map((live) => {
+  return sessions.map((live) => {
     const { session } = live;
     const isOpen = open.has(session.id);
 
@@ -181,17 +164,6 @@ export function sessionCommands(context: CommandContext): readonly Command[] {
       },
     };
   });
-
-  const editing = sessions.map((live) => ({
-    id: `session:edit:${live.session.id}`,
-    section: 'sessions' as const,
-    title: i18n.t('command.session.edit', { name: live.session.name }),
-    detail: `${live.session.user}@${live.session.host}`,
-    keywords: [live.session.host, 'edit', 'editar', 'delete', 'excluir'],
-    run: () => actions.editSession(live.session.id),
-  }));
-
-  return [...commands, ...rest, ...editing];
 }
 
 /**
@@ -211,12 +183,13 @@ export function sessionCommands(context: CommandContext): readonly Command[] {
  * "this machine" row is gone with it.
  *
  * Creating a host is not offered here: this "+" places an existing one, and
- * `command.session.new` in the keyboard palette, Home's own row and the
- * hosts-manager sidebar are already where that starts. The one exception is
- * `mapPlacement`: the map's radial menu has already asked for a `kind`, and
- * with nothing else to place a new host it opens the editor from here too
- * (below), so the palette this gesture is already looking at can also start
- * that host instead of routing to the general keyboard palette.
+ * Home's own row and the hosts-manager sidebar's "+" are already where that
+ * starts (ADR-0076; the general keyboard palette stopped offering its own
+ * `session:new` for the same reason). The one exception is `mapPlacement`:
+ * the map's radial menu has already asked for a `kind`, and with nothing
+ * else to place a new host it opens the editor from here too (below), so the
+ * palette this gesture is already looking at can also start that host
+ * instead of routing to the general keyboard palette.
  */
 export function hostBookCommands(context: CommandContext): readonly Command[] {
   const { i18n, sessions, workspace, mapPlacement, actions } = context;

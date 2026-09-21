@@ -10,8 +10,6 @@ export const SOURCE_CATALOG = {
   "command.language.system": "Language: follow the system",
   "command.language.use": "Language: {name}",
   "command.macros.manage": "Manage macros...",
-  "command.session.edit": "Edit {name}",
-  "command.session.new": "New session",
   "command.session.newForMap": "New host",
   "command.session.select": "Select {name}",
   "command.session.switch": "Switch to {name}",

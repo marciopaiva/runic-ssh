@@ -1876,11 +1876,12 @@ export function App(): JSX.Element {
   );
 
   /* The form opens over whatever workspace asked for it (ADR-0072): Home's own
-     row click and its `+`, the general command palette's `session:edit:*`
-     command (`sources.ts`'s `sessionCommands`), and `SessionBody.onEditHost`
-     from inside a session all land here, and none of them has to leave first
-     any more. The "+" host book palette (`hostBookCommands`) opens a saved
-     host; it has no edit command of its own. */
+     row click and its `+`, the hosts-manager sidebar's pencil (ADR-0076), and
+     `SessionBody.onEditHost` from inside a session all land here, and none of
+     them has to leave first any more. The "+" host book palette
+     (`hostBookCommands`) opens a saved host; it has no edit command of its
+     own, and neither does the general palette any more (`sessionCommands`,
+     ADR-0076's follow-up). */
   const openEditor = useCallback((target: EditorTarget): void => {
     setEditors((current) => withEditor(current, target, savedRef.current));
     setHomeFocus({ kind: 'editor', target });
@@ -1929,8 +1930,6 @@ export function App(): JSX.Element {
       localShellKinds,
       mapPlacement,
       actions: {
-        newSession: () => openEditor({ kind: 'new' }),
-        editSession: (sessionId: string) => openEditor({ kind: 'existing', sessionId }),
         selectSession: activate,
         activateTab: (sessionId: string) => focusOn({ kind: 'session', sessionId }),
         closeTab: (sessionId: string) => closeFocus({ kind: 'session', sessionId }),

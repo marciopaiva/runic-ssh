@@ -4,8 +4,6 @@
   "command.language.system": "Idioma: seguir el sistema",
   "command.language.use": "Idioma: {name}",
   "command.macros.manage": "Gestionar macros...",
-  "command.session.edit": "Editar {name}",
-  "command.session.new": "Nueva sesión",
   "command.session.newForMap": "Nuevo host",
   "command.session.select": "Seleccionar {name}",
   "command.session.switch": "Ir a {name}",
