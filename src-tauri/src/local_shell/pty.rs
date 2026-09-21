@@ -171,16 +171,21 @@ pub async fn pump<S: Sink>(mut events: mpsc::Receiver<ReaderEvent>, mut sink: S)
 
 #[cfg(test)]
 mod tests {
+    #[cfg(not(windows))]
     use std::time::Duration;
 
+    #[cfg(not(windows))]
     use super::*;
+    #[cfg(not(windows))]
     use crate::local_shell::kind::LocalShellKind;
 
+    #[cfg(not(windows))]
     struct CollectingSink {
         batches: Vec<Vec<u8>>,
         closed: Option<Option<u32>>,
     }
 
+    #[cfg(not(windows))]
     impl Sink for CollectingSink {
         fn emit(&mut self, batch: &[u8]) {
             assert!(!batch.is_empty(), "pump must never emit an empty batch");
