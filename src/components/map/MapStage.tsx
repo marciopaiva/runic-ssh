@@ -6,14 +6,12 @@ import { isCursorPositionReport } from '../../features/terminal/clipboard';
 import type { MountedTerminal } from '../../features/terminal';
 import type { ClipboardApi } from '../../features/terminal/use-terminal';
 import {
-  addComponent,
   addLayer,
   addLink,
   addLocal,
   addMember,
   addVision,
   canLink,
-  changeHost,
   componentsOn,
   defaultSize,
   destinationsOf,
@@ -48,7 +46,7 @@ import {
   visionsOn,
   REGION,
 } from '../../features/map';
-import type { AddRefusal, HostAsk, SwitchState } from '../../features/map';
+import type { SwitchState } from '../../features/map';
 import { HUB, useMapStage } from '../../features/map/use-map-stage';
 import { useTranslator } from '../../features/settings';
 import type { Endpoint, PaneEntry } from '../../features/sftp/endpoint';
@@ -62,7 +60,6 @@ import { LineHandle, LineKnot } from './LineHandle';
 import { MapTerminals } from './MapTerminals';
 import type { TerminalWiring } from './MapTerminals';
 import { ComponentWindow } from './ComponentWindow';
-import { HostPicker } from './HostPicker';
 import { HostPopup } from './HostPopup';
 import { MapMenu } from './MapMenu';
 import type { MapMenuItem } from './MapMenu';
@@ -151,9 +148,17 @@ interface MapStageProps {
   /** Opens the host editor over the map for a host already in the book:
       the window's title and the context menu (#357). */
   readonly onEditHost: (sessionId: string) => void;
-  /** Opens the host editor over the map for a host not in the book yet,
-      with `name` typed in and `ask` saying where the saved host goes. */
-  readonly onNewHost: (name: string, ask: HostAsk) => void;
+  /** Asks whatever owns the "+" palette to resolve a host for `kind`: a new
+      component when `changing` is `null`, or that existing component's host
+      pointed elsewhere otherwise, on the layer this stage is currently
+      showing. The palette itself, and what it does with the pick, live above
+      this stage now (`HostPicker`'s old job). */
+  readonly onRequestHost: (kind: ComponentKind, changing: string | null, layer: string | null) => void;
+  /** Whether that "+" is up right now, answering this stage's own
+      `onRequestHost`: kept in the Escape guard below exactly as the old
+      `picker !== null` was, so cancelling out of the palette does not also
+      leave the current layer in the same keystroke (ADR-0068). */
+  readonly pickingHost: boolean;
   /** The editor over the map, framed by `HostPopup`, or nothing. */
   readonly hostPopup: HostPopupState | null;
   /** The terminals: which are mounted, and what the shell wires into each.
@@ -186,13 +191,6 @@ interface MapStageProps {
   readonly onMapReachChange: (reach: (fromHost: string) => readonly string[]) => void;
 }
 
-interface PickerState {
-  readonly kind: ComponentKind;
-  /** The component being pointed elsewhere, or `null` when creating. */
-  readonly changing: string | null;
-  readonly refusal: AddRefusal | null;
-}
-
 /** The name being asked for: a new vision's or layer's, or a new name for
     one (ADR-0067, ADR-0068). */
 type NamingState =
@@ -222,7 +220,8 @@ export function MapStage({
   onDisconnect,
   attemptSurface,
   onEditHost,
-  onNewHost,
+  onRequestHost,
+  pickingHost,
   hostPopup,
   terminals,
   renderSftp,
@@ -234,7 +233,6 @@ export function MapStage({
   onMapReachChange,
 }: MapStageProps): JSX.Element {
   const i18n = useTranslator();
-  const [picker, setPicker] = useState<PickerState | null>(null);
   const [query, setQuery] = useState('');
   /* ADR-0065: the switch per connected set, keyed by the set's members, and
      the windows that spared themselves. In memory only, on purpose: a
@@ -517,7 +515,7 @@ export function MapStage({
       }
       if (action.startsWith('create:')) {
         const kind = action.slice('create:'.length) as ComponentKind;
-        setPicker({ kind, changing: null, refusal: null });
+        onRequestHost(kind, null, currentLayer);
         return;
       }
       if (target === null) return;
@@ -661,7 +659,7 @@ export function MapStage({
           closeComponent(component);
           return;
         case 'changeHost':
-          setPicker({ kind: component.kind, changing: component.id, refusal: null });
+          onRequestHost(component.kind, component.id, component.layer ?? null);
           return;
         case 'editHost':
           if (component.host !== undefined) onEditHost(component.host);
@@ -678,7 +676,7 @@ export function MapStage({
           return;
       }
     },
-    [closeComponent, componentById, currentLayer, handles, layerById, onChange, onConnect, onEditHost, visionById, workspace],
+    [closeComponent, componentById, currentLayer, handles, layerById, onChange, onConnect, onEditHost, onRequestHost, visionById, workspace],
   );
 
   /* A click while a line is being drawn is the line's other end, or the
@@ -778,7 +776,7 @@ export function MapStage({
       stage.fullscreen !== null ||
       stage.menu !== null ||
       stage.radial !== null ||
-      picker !== null ||
+      pickingHost ||
       naming !== null ||
       hostPopup !== null
     ) {
@@ -789,7 +787,7 @@ export function MapStage({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [currentLayer, leaveLayer, stage.linking, stage.fullscreen, stage.menu, stage.radial, picker, naming, hostPopup]);
+  }, [currentLayer, leaveLayer, stage.linking, stage.fullscreen, stage.menu, stage.radial, pickingHost, naming, hostPopup]);
 
   /* ADR-0065, ADR-0019's rules on a set of terminal lines. `stage.open` is
      the map's "showing": a collapsed window is spared the way a tab behind
@@ -870,23 +868,6 @@ export function MapStage({
   useEffect(() => {
     onMapReachChange(mapReach);
   }, [mapReach, onMapReachChange]);
-
-  const pick = useCallback(
-    (sessionId: string): void => {
-      if (picker === null) return;
-      const outcome =
-        picker.changing === null
-          ? addComponent(workspace, picker.kind, sessionId, hosts, currentLayer)
-          : changeHost(workspace, picker.changing, sessionId, hosts);
-      if (!outcome.ok) {
-        setPicker({ ...picker, refusal: outcome.refusal });
-        return;
-      }
-      onChange(outcome.workspace);
-      setPicker(null);
-    },
-    [currentLayer, hosts, onChange, picker, workspace],
-  );
 
   const thumbnail = terminalTreatment(stage.view.scale) === 'thumbnail';
   const needle = query.trim().toLowerCase();
@@ -1607,22 +1588,6 @@ export function MapStage({
           />
         )}
       </div>
-
-      {picker !== null && (
-        <HostPicker
-          kind={picker.kind}
-          changing={picker.changing !== null}
-          hosts={hosts}
-          refusal={picker.refusal}
-          onPick={pick}
-          onNewHost={(name) => {
-            const ask: HostAsk = { kind: picker.changing === null ? picker.kind : null, changing: picker.changing, layer: currentLayer };
-            setPicker(null);
-            onNewHost(name, ask);
-          }}
-          onClose={() => setPicker(null)}
-        />
-      )}
 
       {hostPopup !== null && (
         <HostPopup title={hostPopup.title} detail={hostPopup.detail} onClose={hostPopup.onClose}>

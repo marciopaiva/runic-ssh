@@ -136,7 +136,7 @@ import type {
 } from './ipc';
 import type { Component as MapComponent, ComponentKind as MapComponentKind, Workspace as MapWorkspaceModel } from './ipc';
 import type { MapPaneWiring } from './components/map/MapStage';
-import { mapTerminals, mountedOnce, placeSavedHost } from './features/map';
+import { addComponent, changeHost, mapTerminals, mountedOnce, placeSavedHost } from './features/map';
 import type { HostAsk } from './features/map';
 import { useLocale, usePreview, useTheme } from './features/settings';
 import { visibleDestinationRows } from './features/sftp/browser';
@@ -506,9 +506,68 @@ export function App(): JSX.Element {
      where it was asked once the editor concludes. */
   const [mapEditor, setMapEditor] = useState<{ readonly formId: string; readonly ask: HostAsk } | null>(null);
   /* Written by `finishWizard` when an editor concluded with its host on
-     disk, read by the effect beside the map's own state, which is declared
-     further down and is what the placing needs. */
+     disk, read by the effect beside the map's own state just below. */
   const [mapEditorDone, setMapEditorDone] = useState<{ readonly formId: string; readonly sessionId: string } | null>(null);
+  /* Set while the map's own radial menu is waiting on the "+" palette to
+     resolve a host (`HostPicker`'s old job): the component kind it asked
+     for, the component being re-pointed rather than created, the layer it
+     was standing on, and which hosts to hide because they already carry one
+     of that kind (ADR-0064's duplicate rule, avoided here rather than shown
+     back as a refusal, since nothing in this app has a toast to show it in).
+     `null` everywhere else, so Sessions and SFTP's own "+" never sees it. */
+  const [mapPlacement, setMapPlacement] = useState<{
+    readonly kind: MapComponentKind;
+    readonly changing: string | null;
+    readonly layer: string | null;
+    readonly blockedHostIds: ReadonlySet<string>;
+  } | null>(null);
+
+  /* ADR-0064: the map's own state. Loaded once, held whole, written whole a
+     moment after the last change, so a drag is one write and not sixty.
+     Declared here, ahead of `context` below, so its two new map-placement
+     actions can read `mapWorkspace` and call `changeMap` directly instead of
+     through a ref: both are genuine dependencies of that memo, not a stale
+     snapshot it would otherwise have to guard against. */
+  const [mapWorkspace, setMapWorkspace] = useState<MapWorkspaceModel>(EMPTY_WORKSPACE);
+  useEffect(() => {
+    let live = true;
+    void loadWorkspace()
+      .then((loaded) => {
+        if (live) setMapWorkspace(loaded);
+      })
+      .catch(() => {
+        /* A malformed file is reported by the core the next time the map is
+           written, on the save that fails; until then the map starts empty
+           rather than the workspace refusing to open. */
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+  const mapSave = useRef<{ timer: ReturnType<typeof setTimeout> | null; pending: MapWorkspaceModel | null }>({
+    timer: null,
+    pending: null,
+  });
+  const changeMap = useCallback((next: MapWorkspaceModel): void => {
+    setMapWorkspace(next);
+    const state = mapSave.current;
+    state.pending = next;
+    if (state.timer !== null) clearTimeout(state.timer);
+    state.timer = setTimeout(() => {
+      state.timer = null;
+      const pending = state.pending;
+      state.pending = null;
+      if (pending !== null) void saveWorkspace(pending).catch(() => {});
+    }, 300);
+  }, []);
+  useEffect(
+    () => () => {
+      const state = mapSave.current;
+      if (state.timer !== null) clearTimeout(state.timer);
+      if (state.pending !== null) void saveWorkspace(state.pending).catch(() => {});
+    },
+    [],
+  );
   /* What the wizard's own settled row says happened, keyed by session id.
      `CredentialSaved`/`ConnectionFailure` already state the outcome once,
      the moment it happens; dismissing either clears `attempt` and lands on
@@ -1860,6 +1919,7 @@ export function App(): JSX.Element {
          from everything else. */
       workspace: workspace === 'sftp' ? 'sftp' : workspace === 'map' ? 'map' : 'sessions',
       localShellKinds,
+      mapPlacement,
       actions: {
         newSession: () => openEditor({ kind: 'new' }),
         editSession: (sessionId: string) => openEditor({ kind: 'existing', sessionId }),
@@ -1890,9 +1950,35 @@ export function App(): JSX.Element {
         runMacro,
         openMacros: () => setMacrosOpen(true),
         openHostsManager: () => setHostsManagerOpen(true),
+        /* `HostPicker`'s old `pick()`: resolve the outcome the same way it
+           did, against whichever component `mapPlacement` named, then write
+           it and close the request. The palette has already excluded any
+           host `mapPlacement.blockedHostIds` names, so an `!outcome.ok`
+           result here is defensive rather than expected, and needs nothing
+           more than declining to write. */
+        placeHostOnMap: (sessionId: string) => {
+          if (mapPlacement === null) return;
+          const outcome =
+            mapPlacement.changing === null
+              ? addComponent(mapWorkspace, mapPlacement.kind, sessionId, saved, mapPlacement.layer)
+              : changeHost(mapWorkspace, mapPlacement.changing, sessionId, saved);
+          if (outcome.ok) changeMap(outcome.workspace);
+          setMapPlacement(null);
+        },
+        /* `HostPicker`'s old `onNewHost`: same `HostAsk` shape, carried
+           through to the shared host editor instead of a picker-local form. */
+        newHostForMap: () => {
+          if (mapPlacement === null) return;
+          openEditorOnMap({ kind: 'new' }, {
+            kind: mapPlacement.kind,
+            changing: mapPlacement.changing,
+            layer: mapPlacement.layer,
+          });
+          setMapPlacement(null);
+        },
       },
     }),
-    [i18n, sessions, tabs, activeId, macroTargetId, chosen, maximized, nativeDecorations, previewFeatures, act, choose, closeFocus, activate, useNativeDecorations, choosePreviewFeatures, openSettings, resolvedFocus, focusOn, entries, chooseLayout, layout, sync, filled, muted, armed, receiving, groups, focusedGroup, editorTabs, localShellTabs, moveTo, closeGroup, macros, runMacro, workspace, openHostInto, openLocalInto, localShellKinds, openLocalShellInto],
+    [i18n, sessions, tabs, activeId, macroTargetId, chosen, maximized, nativeDecorations, previewFeatures, act, choose, closeFocus, activate, useNativeDecorations, choosePreviewFeatures, openSettings, resolvedFocus, focusOn, entries, chooseLayout, layout, sync, filled, muted, armed, receiving, groups, focusedGroup, editorTabs, localShellTabs, moveTo, closeGroup, macros, runMacro, workspace, openHostInto, openLocalInto, localShellKinds, openLocalShellInto, mapPlacement, mapWorkspace, saved, changeMap, openEditorOnMap],
   );
 
   const sources = useMemo(
@@ -1918,6 +2004,32 @@ export function App(): JSX.Element {
     [context],
   );
   const hostPalette = usePalette(hostSources, chrome?.commandModifier ?? 'control', true);
+
+  /* The map's own trigger for that same palette (`HostPicker`'s old job):
+     works out which hosts already carry a component of the requested kind
+     (ADR-0064's duplicate rule), so `hostBookCommands` can leave them off the
+     list instead of the picker's old inline refusal, then opens the palette
+     over whichever `mapPlacement` names. */
+  const onRequestMapHost = useCallback(
+    (kind: MapComponentKind, changing: string | null, layer: string | null): void => {
+      const blockedHostIds = new Set(
+        mapWorkspace.components
+          .filter((component) => component.kind === kind && component.id !== changing && component.host !== undefined)
+          .map((component) => component.host as string),
+      );
+      setMapPlacement({ kind, changing, layer, blockedHostIds });
+      hostPalette.show();
+    },
+    [mapWorkspace, hostPalette],
+  );
+
+  /* Covers cancelling out of the palette (Escape, the backdrop click): a
+     successful pick already clears `mapPlacement` itself, but this is what
+     clears it when nothing was picked, so a later, unrelated open from
+     Sessions or SFTP never inherits a stale request. */
+  useEffect(() => {
+    if (!hostPalette.open) setMapPlacement(null);
+  }, [hostPalette.open]);
 
   const palette = usePalette(sources, chrome?.commandModifier ?? 'control', macrosOpen);
 
@@ -2019,49 +2131,6 @@ export function App(): JSX.Element {
       return live === undefined ? endpoint.sessionId : groupLabel(live.session).where;
     },
     [sessions, i18n],
-  );
-
-  /* ADR-0064: the map's own state. Loaded once, held whole, written whole a
-     moment after the last change, so a drag is one write and not sixty. */
-  const [mapWorkspace, setMapWorkspace] = useState<MapWorkspaceModel>(EMPTY_WORKSPACE);
-  useEffect(() => {
-    let live = true;
-    void loadWorkspace()
-      .then((loaded) => {
-        if (live) setMapWorkspace(loaded);
-      })
-      .catch(() => {
-        /* A malformed file is reported by the core the next time the map is
-           written, on the save that fails; until then the map starts empty
-           rather than the workspace refusing to open. */
-      });
-    return () => {
-      live = false;
-    };
-  }, []);
-  const mapSave = useRef<{ timer: ReturnType<typeof setTimeout> | null; pending: MapWorkspaceModel | null }>({
-    timer: null,
-    pending: null,
-  });
-  const changeMap = useCallback((next: MapWorkspaceModel): void => {
-    setMapWorkspace(next);
-    const state = mapSave.current;
-    state.pending = next;
-    if (state.timer !== null) clearTimeout(state.timer);
-    state.timer = setTimeout(() => {
-      state.timer = null;
-      const pending = state.pending;
-      state.pending = null;
-      if (pending !== null) void saveWorkspace(pending).catch(() => {});
-    }, 300);
-  }, []);
-  useEffect(
-    () => () => {
-      const state = mapSave.current;
-      if (state.timer !== null) clearTimeout(state.timer);
-      if (state.pending !== null) void saveWorkspace(state.pending).catch(() => {});
-    },
-    [],
   );
 
   /* #357: the popup lives exactly as long as its editor. Any door the
@@ -3122,7 +3191,8 @@ export function App(): JSX.Element {
               onEditHost={(sessionId) =>
                 openEditorOnMap({ kind: 'existing', sessionId }, { kind: null, changing: null, layer: null })
               }
-              onNewHost={(name, ask) => openEditorOnMap({ kind: 'new' }, ask, name)}
+              onRequestHost={onRequestMapHost}
+              pickingHost={mapPlacement !== null}
               hostPopup={mapHostPopup}
               terminals={mapTerminalWiring}
               renderSftp={renderMapSftp}

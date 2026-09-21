@@ -131,3 +131,17 @@ Sessions, SFTP and Map can manage hosts directly is Option C's question,
 deliberately not decided here. Implementing the hosts-manager sidebar
 itself, the toolbar button, the "Manage hosts..." command, and the
 row-level delete is Phase 3/4's work, tracked against issue #433.
+
+## Addendum: 2026-09-21
+
+The Context section's description of Map, "a new host is created through
+`HostPicker`'s own typed-name flow", describes a state that no longer
+exists. `HostPicker` was removed: Map now resolves a host, new or existing,
+through the same "+" host book palette Sessions and SFTP already use,
+carrying the kind and, for an existing component, which one is changing,
+into the palette rather than opening a second overlay for the same job. The
+maintainer's reason was navigation consistency, the same complaint this ADR
+itself already names in its own Context ("nothing states the shape once").
+Nothing else in this ADR's decision, contract or Consequences changes: the
+hosts-manager sidebar this ADR actually decides is still unbuilt, still
+tracked against #433.

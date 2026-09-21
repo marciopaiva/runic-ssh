@@ -83,6 +83,8 @@ function actions(): CommandActions & { readonly calls: string[] } {
     openLocalInto: () => calls.push('hostbook:local'),
     openHostsManager: () => calls.push('hosts:manage'),
     openLocalShellInto: (kind) => calls.push(`local:${kind.kind}`),
+    placeHostOnMap: (id) => calls.push(`map:place:${id}`),
+    newHostForMap: () => calls.push('map:new'),
   };
 }
 
@@ -106,6 +108,7 @@ function context(overrides: Partial<CommandContext> = {}): CommandContext {
     macros: [],
     workspace: 'sessions',
     localShellKinds: [],
+    mapPlacement: null,
     actions: actions(),
     ...overrides,
   };
@@ -726,6 +729,50 @@ describe('the host book palette (ADR-0072)', () => {
     const commands = hostBookCommands(context());
     expect(commands.map((entry) => entry.id)).not.toContain('hostbook:new');
   });
+
+  it('leaves out a host already carrying a component of the kind the map asked for', () => {
+    /* `HostPicker`'s old `duplicate` refusal (ADR-0064), avoided here by not
+       offering the blocked row rather than showing it and saying no. */
+    const commands = hostBookCommands(
+      context({
+        workspace: 'map',
+        sessions: [live(session('a', 'web-01', 'h1')), live(session('b', 'db-01', 'h2'))],
+        mapPlacement: { kind: 'ssh', changing: null, layer: null, blockedHostIds: new Set(['a']) },
+      }),
+    );
+
+    expect(commands.map((entry) => entry.id)).toEqual(['hostbook:b', 'hostbook:new']);
+  });
+
+  it('places a picked host on the map instead of into a pane, while a placement is requested', () => {
+    const act = actions();
+    hostBookCommands(
+      context({
+        workspace: 'map',
+        sessions: [live(session('a', 'web-01', 'h1'))],
+        mapPlacement: { kind: 'ssh', changing: null, layer: null, blockedHostIds: new Set() },
+        actions: act,
+      }),
+    )
+      .find((entry) => entry.id === 'hostbook:a')
+      ?.run();
+
+    expect(act.calls).toEqual(['map:place:a']);
+  });
+
+  it('offers to create a host on the map while a placement is requested there', () => {
+    const act = actions();
+    const commands = hostBookCommands(
+      context({
+        workspace: 'map',
+        mapPlacement: { kind: 'ssh', changing: null, layer: null, blockedHostIds: new Set() },
+        actions: act,
+      }),
+    );
+
+    commands.find((entry) => entry.id === 'hostbook:new')?.run();
+    expect(act.calls).toEqual(['map:new']);
+  });
 });
 
 describe('the local shell palette (ADR-0074)', () => {
@@ -752,6 +799,21 @@ describe('the local shell palette (ADR-0074)', () => {
        nothing to contribute there. */
     const commands = localShellCommands(
       context({ workspace: 'sftp', localShellKinds: [powerShell, wsl] }),
+    );
+
+    expect(commands).toEqual([]);
+  });
+
+  it('leaves local shells out while the map is asking for a host', () => {
+    /* A local shell answers none of the kinds the map's radial menu asks
+       this "+" for; offering one here would run it into a Sessions tab-strip
+       slot the user is not even looking at. */
+    const commands = localShellCommands(
+      context({
+        workspace: 'map',
+        localShellKinds: [powerShell, wsl],
+        mapPlacement: { kind: 'ssh', changing: null, layer: null, blockedHostIds: new Set() },
+      }),
     );
 
     expect(commands).toEqual([]);
