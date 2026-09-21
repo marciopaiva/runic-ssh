@@ -393,9 +393,63 @@ map, at which point ADR-0032 has to be revisited outright, the way its own
 follow-up says; #360 tracks that, and until then a person who wants the
 stronger guarantee back edits hosts from Home, where it still holds.
 
+## What a local shell runs
+
+ADR-0074 adds a shell on this machine as a fourth kind of session, beside
+SSH, SFTP and the map's own file browser. It answers none of the four
+adversaries above: the process runs under the user's own account, with the
+user's own privileges, and nothing about it crosses a network. A person who
+wants a local shell already has one, in a terminal application this one did
+not write; what changes is where it appears, not what it can do. That does
+not make it free. Two things are true of a local shell that are not true of
+the sessions beside it.
+
+The first is the surface `open_local_shell` exposes. `LocalShellKind` is a
+closed enum, `PowerShell`, `Cmd` and `Wsl(String)` on Windows, a single
+`DefaultShell` elsewhere, detected once at startup from what the platform
+actually offers. The webview can only ever send back one of the values the
+core already enumerated to it; it can never send a path or a command line of
+its own. That is deliberate, in the same way a macro's interpreter (`What a
+macro carries`, above) is a value the core reads off a `#!` line rather than
+one the frontend supplies as free text. Process execution is exactly the
+kind of decision an XSS should not be able to widen, if one ever existed
+elsewhere in the frontend, and a closed enum crossing IPC is what keeps
+`open_local_shell` from becoming a second, easier way to run an arbitrary
+command than the shell it opens already is.
+
+The second is the process itself, once spawned. A local shell is a real
+child of this application, holding a pty the same way an SSH shell holds
+one on the far side of a channel, and it is exactly as capable of outliving
+the handle that opened it. `ssh/registry.rs`'s `has_shell` and its teardown
+on `close` exist because of #94 and ADR-0014, a second remote shell
+abandoning the first. A local shell that survives its tab, or survives the
+application itself, is the same bug at a cost this document has not had to
+name before: an abandoned SSH shell counts against a server's
+`MaxSessions`; an abandoned local shell is a process still running on the
+user's own machine after the application that started it is gone, found
+later by whoever notices it in a process list. The registry entry a local
+shell gets carries the same obligation `has_shell` already carries for SSH,
+and the teardown on tab close and on app exit is where section 6 of
+`CLAUDE.md` asks for a test that proves the path runs, not a comment saying
+it should.
+
+Nothing here widens a Tauri capability. `capabilities/default.json` names
+six Tauri core permissions and no command this crate defines itself
+(ADR-0013): `open_session`, `save_session`, `delete_session` and every other
+`#[tauri::command]` this crate registers are already reachable from the
+webview without an entry there, because the capability file gates plugin
+and core commands, not the ones an application defines and registers
+through `tauri::generate_handler!` directly. `open_local_shell`,
+`write_local_shell`, `resize_local_shell` and `close_local_shell` join that
+list the same way every other domain command already has. ADR-0074's own
+Decision anticipated a `runic:allow-open-local-shell` line pending this
+review; there is no such line to add, and inventing one would be a second,
+unused place for a permission to live. What stands between the webview and
+an arbitrary process is `LocalShellKind` being closed, not an ACL entry.
+
 ## Reviewing a change
 
-Any change touching `vault/`, host key verification, logging, or
-`tauri.conf.json` capabilities requires a proposal and an ADR before
-implementation, and a second read of this document during review. The bar is not
-"does it work" but "what does it hand to a hostile host".
+Any change touching `vault/`, host key verification, logging, local process
+spawning, or `tauri.conf.json` capabilities requires a proposal and an ADR
+before implementation, and a second read of this document during review. The
+bar is not "does it work" but "what does it hand to a hostile host".
