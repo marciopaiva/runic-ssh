@@ -14,7 +14,7 @@
 
 import { offeredLocales } from '../../lib/i18n';
 import type { Translator } from '../../lib/i18n';
-import type { LocalShellKind, Macro } from '../../ipc';
+import type { ComponentKind, LocalShellKind, Macro } from '../../ipc';
 import type { WindowAction } from '../chrome';
 import type { Tab } from '../chrome';
 import { groupSessions, hostRows } from '../sessions';
@@ -25,10 +25,6 @@ import type { Grid } from '../terminal';
 import type { Command } from './registry';
 
 export interface CommandActions {
-  /** Opens the editor with no session, to add one. */
-  readonly newSession: () => void;
-  /** Opens the editor on an existing session. */
-  readonly editSession: (sessionId: string) => void;
   readonly selectSession: (sessionId: string) => void;
   readonly activateTab: (sessionId: string) => void;
   readonly closeTab: (sessionId: string) => void;
@@ -69,6 +65,16 @@ export interface CommandActions {
   readonly openHostsManager: () => void;
   /** Opens a native shell of the given kind into the same slot (ADR-0074). */
   readonly openLocalShellInto: (kind: LocalShellKind) => void;
+  /**
+   * Puts a saved host on the map instead: the new component `mapPlacement`
+   * named, or the existing one's host pointed elsewhere (`HostPicker`'s old
+   * job, now this palette's).
+   */
+  readonly placeHostOnMap: (sessionId: string) => void;
+  /** The map's own "new host": opens the editor over the map with
+      `mapPlacement`'s kind and target carried through, instead of Home's
+      plain new-session editor. */
+  readonly newHostForMap: () => void;
 }
 
 export interface CommandContext {
@@ -108,6 +114,21 @@ export interface CommandContext {
   readonly workspace: 'sessions' | 'sftp' | 'map';
   /** The shells this platform offers, detected once at startup (ADR-0074). */
   readonly localShellKinds: readonly LocalShellKind[];
+  /**
+   * Set only while this "+" is open to answer a request the map's own radial
+   * menu made (creating a component of `kind`, or re-pointing `changing`'s
+   * host): `null` everywhere else, Sessions and SFTP included, since nothing
+   * outside that gesture ever sets it. `hostBookCommands` reads it to hide a
+   * host already carrying a component of that kind (`HostPicker`'s old
+   * `duplicate` refusal, now avoided by not offering the row) and to send a
+   * pick into the map instead of a pane.
+   */
+  readonly mapPlacement: {
+    readonly kind: ComponentKind;
+    readonly changing: string | null;
+    readonly layer: string | null;
+    readonly blockedHostIds: ReadonlySet<string>;
+  } | null;
 }
 
 /**
@@ -121,20 +142,7 @@ export function sessionCommands(context: CommandContext): readonly Command[] {
   const { i18n, sessions, tabs, actions } = context;
   const open = new Set(tabs.map((tab) => tab.sessionId));
 
-  /* First, and present even with nothing saved. An SSH client whose palette
-     lists no way to add a host is one nobody can use — which is exactly what
-     shipped before this was here. */
-  const commands: Command[] = [
-    {
-      id: 'session:new',
-      section: 'sessions',
-      title: i18n.t('command.session.new'),
-      keywords: ['new', 'add', 'novo', 'adicionar', 'nueva', 'host'],
-      run: actions.newSession,
-    },
-  ];
-
-  const rest = sessions.map((live) => {
+  return sessions.map((live) => {
     const { session } = live;
     const isOpen = open.has(session.id);
 
@@ -156,17 +164,6 @@ export function sessionCommands(context: CommandContext): readonly Command[] {
       },
     };
   });
-
-  const editing = sessions.map((live) => ({
-    id: `session:edit:${live.session.id}`,
-    section: 'sessions' as const,
-    title: i18n.t('command.session.edit', { name: live.session.name }),
-    detail: `${live.session.user}@${live.session.host}`,
-    keywords: [live.session.host, 'edit', 'editar', 'delete', 'excluir'],
-    run: () => actions.editSession(live.session.id),
-  }));
-
-  return [...commands, ...rest, ...editing];
 }
 
 /**
@@ -186,27 +183,34 @@ export function sessionCommands(context: CommandContext): readonly Command[] {
  * "this machine" row is gone with it.
  *
  * Creating a host is not offered here: this "+" places an existing one, and
- * `command.session.new` in the keyboard palette, Home's own row and the
- * hosts-manager sidebar are already where that starts.
+ * Home's own row and the hosts-manager sidebar's "+" are already where that
+ * starts (ADR-0076; the general keyboard palette stopped offering its own
+ * `session:new` for the same reason). The one exception is `mapPlacement`:
+ * the map's radial menu has already asked for a `kind`, and with nothing
+ * else to place a new host it opens the editor from here too (below), so the
+ * palette this gesture is already looking at can also start that host
+ * instead of routing to the general keyboard palette.
  */
 export function hostBookCommands(context: CommandContext): readonly Command[] {
-  const { i18n, sessions, workspace, actions } = context;
+  const { i18n, sessions, workspace, mapPlacement, actions } = context;
 
   const commands: Command[] = groupSessions(sessions).flatMap((group) => {
     const heading = group.name ?? i18n.t('sessions.ungrouped');
 
-    return hostRows(group.sessions).map(({ live }) => {
-      const { session } = live;
-      return {
-        id: `hostbook:${session.id}`,
-        section: 'sessions' as const,
-        title: session.name,
-        detail: `${session.user}@${session.host}`,
-        keywords: [session.host, session.user, session.group ?? ''].filter((word) => word !== ''),
-        group: heading,
-        run: () => actions.openHostInto(session.id),
-      };
-    });
+    return hostRows(group.sessions)
+      .filter(({ live }) => mapPlacement === null || !mapPlacement.blockedHostIds.has(live.session.id))
+      .map(({ live }) => {
+        const { session } = live;
+        return {
+          id: `hostbook:${session.id}`,
+          section: 'sessions' as const,
+          title: session.name,
+          detail: `${session.user}@${session.host}`,
+          keywords: [session.host, session.user, session.group ?? ''].filter((word) => word !== ''),
+          group: heading,
+          run: () => (mapPlacement === null ? actions.openHostInto(session.id) : actions.placeHostOnMap(session.id)),
+        };
+      });
   });
 
   if (workspace === 'sftp') {
@@ -220,6 +224,16 @@ export function hostBookCommands(context: CommandContext): readonly Command[] {
       title: i18n.t('sftp.localhost'),
       keywords: ['local', 'localhost'],
       run: actions.openLocalInto,
+    });
+  }
+
+  if (workspace === 'map' && mapPlacement !== null) {
+    commands.push({
+      id: 'hostbook:new',
+      section: 'sessions',
+      title: i18n.t('command.session.newForMap'),
+      keywords: ['new', 'add', 'novo', 'adicionar', 'nueva', 'host'],
+      run: actions.newHostForMap,
     });
   }
 
@@ -249,10 +263,17 @@ export function hostBookCommands(context: CommandContext): readonly Command[] {
  * Placed ahead of `hostBookCommands` in `App.tsx`'s own source list, so this
  * always opens at the top: a local shell needs nothing saved to exist,
  * unlike every row below it.
+ *
+ * Hidden while `mapPlacement` is set: the map's radial menu only ever asks
+ * for `'ssh'`, `'sftp'` or `'monitor'` this way, since `'local'` places
+ * itself straight from `create:local` with no palette involved (ADR-0065).
+ * A local shell answers none of those, so offering one here while the map is
+ * asking would run `openLocalShellInto` into a Sessions tab-strip slot the
+ * user is not even looking at.
  */
 export function localShellCommands(context: CommandContext): readonly Command[] {
-  const { i18n, workspace, localShellKinds, actions } = context;
-  if (workspace === 'sftp') return [];
+  const { i18n, workspace, localShellKinds, mapPlacement, actions } = context;
+  if (workspace === 'sftp' || mapPlacement !== null) return [];
 
   const grouped = localShellKinds.length > 1;
 
