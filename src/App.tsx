@@ -521,6 +521,14 @@ export function App(): JSX.Element {
     readonly layer: string | null;
     readonly blockedHostIds: ReadonlySet<string>;
   } | null>(null);
+  /* Which of the merged palette's two source sets is showing: the host book
+     (and local shells) while `true`, the general command surface while
+     `false`. Set by `openHostPicker`, the sole way anything opens the "+"
+     side of the palette; cleared, alongside `mapPlacement`, the moment the
+     palette closes for any reason, so the keyboard shortcut never inherits a
+     stale mode. Named to stay clear of `MapStage`'s own, unrelated
+     `pickingHost` prop. */
+  const [hostPickerActive, setHostPickerActive] = useState(false);
 
   /* ADR-0064: the map's own state. Loaded once, held whole, written whole a
      moment after the last change, so a drag is one write and not sixty.
@@ -1981,29 +1989,36 @@ export function App(): JSX.Element {
     [i18n, sessions, tabs, activeId, macroTargetId, chosen, maximized, nativeDecorations, previewFeatures, act, choose, closeFocus, activate, useNativeDecorations, choosePreviewFeatures, openSettings, resolvedFocus, focusOn, entries, chooseLayout, layout, sync, filled, muted, armed, receiving, groups, focusedGroup, editorTabs, localShellTabs, moveTo, closeGroup, macros, runMacro, workspace, openHostInto, openLocalInto, localShellKinds, openLocalShellInto, mapPlacement, mapWorkspace, saved, changeMap, openEditorOnMap],
   );
 
-  const sources = useMemo(
-    () => [
-      () => sessionCommands(context),
-      () => actionCommands(context),
-      () => macroCommands(context),
-      () => hostsManagerCommand(context),
-    ],
-    [context],
-  );
-
-  /* The "+" beside the ADR-0072 pills opens this instead of the shortcut
-     palette above: a second, independently driven `usePalette`, suspended so
-     its own keyboard shortcut never fires, shown only from `OpenHostButton`'s
-     click. Same presentational `CommandPalette`, same ranking and keyboard
-     navigation, a different source. */
-  /* Local shells first: a machine with nothing saved yet still has a
+  /* One palette for the whole app: the keyboard shortcut and the "+" beside
+     the ADR-0072 pills used to drive two independently mounted `usePalette`
+     instances with two source sets. `sources` is read fresh on every render
+     (`usePalette`'s own `useMemo`), so which set feeds it is just a matter of
+     which one this picks — `hostPickerActive` says which. Local shells come
+     first in host-picker mode: a machine with nothing saved yet still has a
      terminal, so this belongs above the saved hosts rather than waiting at
      the bottom for a list that might be empty. */
-  const hostSources = useMemo(
-    () => [() => localShellCommands(context), () => hostBookCommands(context)],
-    [context],
+  const sources = useMemo(
+    () =>
+      hostPickerActive
+        ? [() => localShellCommands(context), () => hostBookCommands(context)]
+        : [
+            () => sessionCommands(context),
+            () => actionCommands(context),
+            () => macroCommands(context),
+            () => hostsManagerCommand(context),
+          ],
+    [context, hostPickerActive],
   );
-  const hostPalette = usePalette(hostSources, chrome?.commandModifier ?? 'control', true);
+  const palette = usePalette(sources, chrome?.commandModifier ?? 'control', macrosOpen);
+
+  /* The sole way anything opens the "+" side of the palette: `OpenHostButton`,
+     Sessions' and SFTP's empty-panel prompts, and the map's own trigger just
+     below. `palette.show` is referentially stable, so this does not fight
+     `sources`'s own dependency on `hostPickerActive` above it. */
+  const openHostPicker = useCallback(() => {
+    setHostPickerActive(true);
+    palette.show();
+  }, [palette]);
 
   /* The map's own trigger for that same palette (`HostPicker`'s old job):
      works out which hosts already carry a component of the requested kind
@@ -2018,20 +2033,21 @@ export function App(): JSX.Element {
           .map((component) => component.host as string),
       );
       setMapPlacement({ kind, changing, layer, blockedHostIds });
-      hostPalette.show();
+      openHostPicker();
     },
-    [mapWorkspace, hostPalette],
+    [mapWorkspace, openHostPicker],
   );
 
-  /* Covers cancelling out of the palette (Escape, the backdrop click): a
-     successful pick already clears `mapPlacement` itself, but this is what
-     clears it when nothing was picked, so a later, unrelated open from
-     Sessions or SFTP never inherits a stale request. */
+  /* Covers cancelling out of the palette (Escape, the backdrop click) and a
+     completed pick alike (`usePalette.run` always dismisses before running):
+     whatever closed it, both the mode and any map placement it was standing
+     in for reset together, so a later, unrelated open from Sessions or SFTP
+     never inherits either. */
   useEffect(() => {
-    if (!hostPalette.open) setMapPlacement(null);
-  }, [hostPalette.open]);
-
-  const palette = usePalette(sources, chrome?.commandModifier ?? 'control', macrosOpen);
+    if (palette.open) return;
+    setHostPickerActive(false);
+    setMapPlacement(null);
+  }, [palette.open]);
 
   /* Built once per render rather than looked up per pane: the map is small,
      and four linear searches through the session list to draw four headers is
@@ -2515,12 +2531,12 @@ export function App(): JSX.Element {
     workspace === 'sessions' ? (
       <>
         <WorkspacePills workspace="sessions" onChoose={openWorkspace} />
-        <OpenHostButton onClick={hostPalette.show} />
+        <OpenHostButton onClick={openHostPicker} />
       </>
     ) : workspace === 'sftp' ? (
       <>
         <WorkspacePills workspace="sftp" onChoose={openWorkspace} />
-        <OpenHostButton onClick={hostPalette.show} />
+        <OpenHostButton onClick={openHostPicker} />
       </>
     ) : workspace === 'map' ? (
       <>
@@ -2760,7 +2776,7 @@ export function App(): JSX.Element {
                         variant="panel"
                         onOpenHost={() => {
                           setLastFocusedGroup(at);
-                          hostPalette.show();
+                          openHostPicker();
                         }}
                       />
                     ) : (
@@ -2769,7 +2785,7 @@ export function App(): JSX.Element {
                         variant="group"
                         onOpenHost={() => {
                           setLastFocusedGroup(at);
-                          hostPalette.show();
+                          openHostPicker();
                         }}
                       />
                     ))}
@@ -3025,7 +3041,7 @@ export function App(): JSX.Element {
                         title={i18n.t('sftp.source.empty.title')}
                         onOpenHost={() => {
                           setLastFocusedFanoutSlot({ kind: 'source' });
-                          hostPalette.show();
+                          openHostPicker();
                         }}
                       />
                     </div>
@@ -3077,7 +3093,7 @@ export function App(): JSX.Element {
                                 title={i18n.t('sftp.destination.empty.title')}
                                 onOpenHost={() => {
                                   setLastFocusedFanoutSlot({ kind: 'destination', slot });
-                                  hostPalette.show();
+                                  openHostPicker();
                                 }}
                               />
                             </div>
@@ -3299,20 +3315,6 @@ export function App(): JSX.Element {
         onSelect={palette.select}
         onRun={palette.run}
         onDismiss={palette.dismiss}
-      />
-
-      {/* The "+" beside the ADR-0072 pills, ADR-0072: same component, a
-          second and independently driven `usePalette` behind it. */}
-      <CommandPalette
-        open={hostPalette.open}
-        query={hostPalette.query}
-        matches={hostPalette.matches}
-        selected={hostPalette.selected}
-        onQuery={hostPalette.setQuery}
-        onMove={hostPalette.move}
-        onSelect={hostPalette.select}
-        onRun={hostPalette.run}
-        onDismiss={hostPalette.dismiss}
       />
 
       <HostEditorDialog
