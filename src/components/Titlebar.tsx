@@ -11,6 +11,10 @@ interface TitlebarProps {
   readonly controls: readonly WindowControl[];
   /** Space to keep clear at the leading edge for controls the system draws. */
   readonly leadingInset: number;
+  /** Whether `ActivityRail` renders below this bar, in the `map` shell. Its
+   * own rail draws a matching `w-12`/`border-r`; the mark cell continues that
+   * rule only when there is a rail underneath it to continue. */
+  readonly railBelow: boolean;
   readonly onAct: (action: WindowAction) => void;
 }
 
@@ -41,8 +45,9 @@ interface TitlebarProps {
  * the window, *except* on a button: Tauri's handler stops at the first
  * clickable element it walks through.
  */
-export function Titlebar({ controls, leadingInset, onAct }: TitlebarProps): JSX.Element {
+export function Titlebar({ controls, leadingInset, railBelow, onAct }: TitlebarProps): JSX.Element {
   const i18n = useTranslator();
+  const drawRule = railBelow && leadingInset === 0;
 
   return (
     <header
@@ -54,35 +59,53 @@ export function Titlebar({ controls, leadingInset, onAct }: TitlebarProps): JSX.
       style={{ paddingLeft: `${leadingInset}px` }}
     >
       <div
-        /* The mark sits in a cell the width of the rail below it, and the rule
-           down its trailing edge is that rail's rule continued. On macOS the
-           inset pushes the cell off the rail (ADR-0020 accepts that), so the
-           rule is dropped rather than drawn somewhere it lines up with
-           nothing. */
+        /* With a rail below (the `map` shell), the mark sits in a cell the
+           width of that rail, and the rule down its trailing edge is the
+           rail's own rule continued. On macOS the inset pushes the cell off
+           the rail (ADR-0020 accepts that), so the rule is dropped rather
+           than drawn somewhere it lines up with nothing. It is dropped the
+           same way, permanently, when there is no rail underneath it at
+           all: the toolbar pill switch (ADR-0072) replaced the rail for
+           every workspace but the map, and a rule continuing into nothing
+           reads as a mistake rather than a boundary. */
         className={cn(
-          'flex w-12 shrink-0 items-center justify-center',
-          leadingInset === 0 ? 'border-line-subtle border-r' : '',
+          'flex items-center',
+          railBelow ? 'w-12 shrink-0 justify-center' : 'min-w-0 flex-1 gap-2 pl-3.5',
+          drawRule ? 'border-line-subtle border-r' : '',
         )}
       >
         <LogoMark
-          className="h-[18px] w-[18px]"
+          className="h-[18px] w-[18px] shrink-0"
           strokeWidth={1.4}
           aria-hidden={false}
           role="img"
           aria-label={i18n.t('app.name')}
         />
+
+        {!railBelow && (
+          <span
+            aria-hidden="true"
+            className="text-ink-faint text-[11.5px] font-bold tracking-[0.13em] uppercase"
+          >
+            {i18n.t('app.name')}
+          </span>
+        )}
       </div>
 
       {/* The rest of the bar is drag surface, and the reason the controls sit
-          flush against the trailing edge. */}
-      <div className="flex min-w-0 flex-1 items-center pl-3.5">
-        <span
-          aria-hidden="true"
-          className="text-ink-faint text-[11.5px] font-bold tracking-[0.13em] uppercase"
-        >
-          {i18n.t('app.name')}
-        </span>
-      </div>
+          flush against the trailing edge. With a rail below, the name still
+          needs its own cell next to the mark's; without one, the mark's own
+          cell above already carries it. */}
+      {railBelow && (
+        <div className="flex min-w-0 flex-1 items-center pl-3.5">
+          <span
+            aria-hidden="true"
+            className="text-ink-faint text-[11.5px] font-bold tracking-[0.13em] uppercase"
+          >
+            {i18n.t('app.name')}
+          </span>
+        </div>
+      )}
 
       <WindowControls controls={controls} onAct={onAct} />
     </header>
