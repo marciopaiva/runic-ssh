@@ -20,6 +20,7 @@
 pub mod commands;
 pub mod config;
 pub mod error;
+pub mod local_shell;
 pub mod sftp;
 pub mod ssh;
 pub mod vault;
@@ -72,6 +73,7 @@ pub fn run() -> tauri::Result<()> {
         .manage(vault::SessionSecrets::new())
         .manage(sftp::transfer::Transfers::new())
         .manage(ssh::forward::Forwards::new())
+        .manage(local_shell::registry::Registry::new())
         .invoke_handler(tauri::generate_handler![
             commands::app::app_version,
             commands::chrome::window_chrome,
@@ -137,6 +139,25 @@ pub fn run() -> tauri::Result<()> {
             commands::forward::start_remote_forward,
             commands::forward::start_dynamic_forward,
             commands::forward::stop_forward,
+            commands::local_shell::list_local_shell_kinds,
+            commands::local_shell::open_local_shell,
+            commands::local_shell::write_local_shell,
+            commands::local_shell::resize_local_shell,
+            commands::local_shell::close_local_shell,
         ])
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())?
+        .run(|app_handle, event| {
+            /* A local shell is a child process, and a child process does not
+            die on its own when this one exits: on both Unix and Windows it
+            is reparented rather than killed. Nothing else in this codebase
+            needs this hook (a dropped TCP connection needs no teardown), so
+            it stays contained to the one resource that does. */
+            if let tauri::RunEvent::Exit = event {
+                use tauri::Manager;
+                let registry = app_handle.state::<local_shell::registry::Registry>();
+                tauri::async_runtime::block_on(registry.close_all());
+            }
+        });
+
+    Ok(())
 }

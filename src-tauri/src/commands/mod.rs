@@ -11,6 +11,7 @@ pub mod chrome;
 pub mod credential;
 pub mod forward;
 pub mod journal;
+pub mod local_shell;
 pub mod macros;
 pub mod monitor;
 pub mod ports;

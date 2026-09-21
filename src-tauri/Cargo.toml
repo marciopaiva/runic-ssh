@@ -40,6 +40,9 @@ chacha20poly1305 = "0.11.0"
 getrandom = "0.3"
 hmac = "0.13.0"
 keyring = "4.1.6"
+# A native pty (ConPTY on Windows, a POSIX pty elsewhere) for local shell
+# sessions. See adr/0074-add-local-shell-sessions-over-a-native-pty.md.
+portable-pty = "0.9.0"
 # RSA stays enabled so we can verify an RSA host key, which is a public-key
 # operation and is not what RUSTSEC-2023-0071 attacks. Signing with an RSA
 # private key is refused in ssh::connection instead.
