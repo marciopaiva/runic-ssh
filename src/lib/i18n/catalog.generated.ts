@@ -12,6 +12,7 @@ export const SOURCE_CATALOG = {
   "command.macros.manage": "Manage macros...",
   "command.session.edit": "Edit {name}",
   "command.session.new": "New session",
+  "command.session.newForMap": "New host",
   "command.session.select": "Select {name}",
   "command.session.switch": "Switch to {name}",
   "command.settings.open": "Open settings",

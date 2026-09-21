@@ -258,7 +258,7 @@ export function hostBookCommands(context: CommandContext): readonly Command[] {
     commands.push({
       id: 'hostbook:new',
       section: 'sessions',
-      title: i18n.t('command.session.new'),
+      title: i18n.t('command.session.newForMap'),
       keywords: ['new', 'add', 'novo', 'adicionar', 'nueva', 'host'],
       run: actions.newHostForMap,
     });

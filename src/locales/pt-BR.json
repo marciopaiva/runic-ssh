@@ -6,6 +6,7 @@
   "command.macros.manage": "Gerenciar macros...",
   "command.session.edit": "Editar {name}",
   "command.session.new": "Nova sessão",
+  "command.session.newForMap": "Novo host",
   "command.session.select": "Selecionar {name}",
   "command.session.switch": "Ir para {name}",
   "command.settings.open": "Abrir as configurações",
