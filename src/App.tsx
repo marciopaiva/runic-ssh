@@ -1992,8 +1992,8 @@ export function App(): JSX.Element {
      the ADR-0072 pills used to drive two independently mounted `usePalette`
      instances with two source sets. `sources` is read fresh on every render
      (`usePalette`'s own `useMemo`), so which set feeds it is just a matter of
-     which one this picks — `hostPickerActive` says which. Local shells come
-     first in host-picker mode: a machine with nothing saved yet still has a
+     which one `hostPickerActive` picks. Local shells come first in
+     host-picker mode: a machine with nothing saved yet still has a
      terminal, so this belongs above the saved hosts rather than waiting at
      the bottom for a list that might be empty. */
   const sources = useMemo(
