@@ -17,7 +17,7 @@ import type { Translator } from '../../lib/i18n';
 import type { LocalShellKind, Macro } from '../../ipc';
 import type { WindowAction } from '../chrome';
 import type { Tab } from '../chrome';
-import { hostRows } from '../sessions';
+import { groupSessions, hostRows } from '../sessions';
 import type { LiveSession } from '../sessions';
 import { GRIDS, SHAPE_LABEL, localShellKindId, localShellLabel } from '../terminal';
 import type { Grid } from '../terminal';
@@ -172,37 +172,48 @@ export function sessionCommands(context: CommandContext): readonly Command[] {
 /**
  * The saved host book, for the "+" beside the ADR-0072 pills.
  *
- * Ordered the way Home's own list is (ADR-0060, `hostRows`): a bastion
- * before whatever rides it, rather than the file's raw order. Every row
- * opens into whichever slot the button beside it stands for, `openHostInto`
- * deciding what that means for the workspace showing; the "+" is how the
- * fan-out gets an occupant now that the SFTP sidebar's own pinned "this
- * machine" row is gone with it.
+ * Grouped by `session.group` (`groupSessions`, the same field Home's editor
+ * already writes), ungrouped hosts last under `sessions.ungrouped`: a flat
+ * list stopped being readable once a fleet grew past a screenful, and this
+ * is the field that already exists for it rather than a new one invented for
+ * the palette alone. Bastion nesting (ADR-0060, `hostRows`) still applies,
+ * but only within one group's own hosts; a bastion and a rider filed under
+ * different groups is not nested here, which is a real limitation of asking
+ * one field to carry both hierarchies at once, not something this tries to
+ * hide. Every row opens into whichever slot the button beside it stands for,
+ * `openHostInto` deciding what that means for the workspace showing; the "+"
+ * is how the fan-out gets an occupant now that the SFTP sidebar's own pinned
+ * "this machine" row is gone with it.
  *
- * Before this, the "+" could only place an already-saved host: Sessions and
- * SFTP had no way to create one at all, unlike Home's own row and the
- * keyboard palette's `session:new`. "New host" fixes that the same way this
- * list already fixes everything else, as a row rather than a second button.
+ * Creating a host is not offered here: this "+" places an existing one, and
+ * `command.session.new` in the keyboard palette, Home's own row and the
+ * hosts-manager sidebar are already where that starts.
  */
 export function hostBookCommands(context: CommandContext): readonly Command[] {
   const { i18n, sessions, workspace, actions } = context;
 
-  const commands: Command[] = hostRows(sessions).map(({ live }) => {
-    const { session } = live;
-    return {
-      id: `hostbook:${session.id}`,
-      section: 'sessions',
-      title: session.name,
-      detail: `${session.user}@${session.host}`,
-      keywords: [session.host, session.user, session.group ?? ''].filter((word) => word !== ''),
-      run: () => actions.openHostInto(session.id),
-    };
+  const commands: Command[] = groupSessions(sessions).flatMap((group) => {
+    const heading = group.name ?? i18n.t('sessions.ungrouped');
+
+    return hostRows(group.sessions).map(({ live }) => {
+      const { session } = live;
+      return {
+        id: `hostbook:${session.id}`,
+        section: 'sessions' as const,
+        title: session.name,
+        detail: `${session.user}@${session.host}`,
+        keywords: [session.host, session.user, session.group ?? ''].filter((word) => word !== ''),
+        group: heading,
+        run: () => actions.openHostInto(session.id),
+      };
+    });
   });
 
   if (workspace === 'sftp') {
     /* The same label the pinned sidebar row used to carry (`sftp.localhost`),
        and the one a pane already shows once this is dropped into it: this
-       row replaces that one rather than naming the same endpoint twice. */
+       row replaces that one rather than naming the same endpoint twice. No
+       `group`: it is not a saved host to file under one. */
     commands.unshift({
       id: 'hostbook:local',
       section: 'sessions',
@@ -211,16 +222,6 @@ export function hostBookCommands(context: CommandContext): readonly Command[] {
       run: actions.openLocalInto,
     });
   }
-
-  /* First, and present even with nothing saved, the same reasoning
-     `sessionCommands`'s own `session:new` already rests on. */
-  commands.unshift({
-    id: 'hostbook:new',
-    section: 'sessions',
-    title: i18n.t('command.hostbook.new'),
-    keywords: ['new', 'add', 'novo', 'adicionar', 'nuevo', 'host'],
-    run: actions.newSession,
-  });
 
   return commands;
 }
@@ -233,16 +234,35 @@ export function hostBookCommands(context: CommandContext): readonly Command[] {
  * a local shell is a terminal session like any other, so it belongs beside
  * the saved hosts in Sessions and Map, not in SFTP, whose "+" places file
  * endpoints rather than sessions.
+ *
+ * Titled `sftp.localhost` rather than "Open <kind>": every other row in this
+ * palette is a name over a `user@host` detail, and a shell hiding behind a
+ * verb was the one row that did not read like the host it opens.
+ *
+ * Grouped under `local.group` only once there is more than one: a single
+ * shell (the common case outside Windows, where `detect()` only ever offers
+ * `DefaultShell`) needs no heading of its own, but Windows can offer
+ * PowerShell, Command Prompt and a WSL distro side by side, and at that
+ * point they read as a list that needs the same kind of heading a host
+ * group gets, not three unrelated rows.
+ *
+ * Placed ahead of `hostBookCommands` in `App.tsx`'s own source list, so this
+ * always opens at the top: a local shell needs nothing saved to exist,
+ * unlike every row below it.
  */
 export function localShellCommands(context: CommandContext): readonly Command[] {
   const { i18n, workspace, localShellKinds, actions } = context;
   if (workspace === 'sftp') return [];
 
+  const grouped = localShellKinds.length > 1;
+
   return localShellKinds.map((kind) => ({
     id: `local:${localShellKindId(kind)}`,
     section: 'sessions' as const,
-    title: i18n.t('command.local.open', { name: localShellLabel(kind, i18n) }),
+    title: i18n.t('sftp.localhost'),
+    detail: localShellLabel(kind, i18n),
     keywords: ['local', 'shell', 'terminal'],
+    ...(grouped ? { group: i18n.t('local.group') } : {}),
     run: () => actions.openLocalShellInto(kind),
   }));
 }

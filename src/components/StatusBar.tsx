@@ -24,6 +24,16 @@ import { WarningIcon } from './ui/icons';
 interface StatusBarProps {
   /** `null` when no session is open. */
   readonly kind: ConnectionKind | null;
+  /**
+   * Whether the focused tab is a local shell (ADR-0074) rather than a saved
+   * session. A local shell has no `ConnectionKind`, since none of that
+   * enum's states (connecting, key mismatch, unreachable) apply to a process
+   * that either runs or does not, but it is still a real, live session, and
+   * `kind === null` on its own already means "no tab is open at all". Left
+   * `false` while `kind` is set, so this only ever adds information, never
+   * overrides it.
+   */
+  readonly localShell: boolean;
   /** What the focused session is called, or `null` when a tab is not one. */
   readonly identity: GroupLabel | null;
   readonly stats: SessionStats;
@@ -126,6 +136,7 @@ function LatencyBars({ filled }: { readonly filled: number }): JSX.Element {
  */
 export function StatusBar({
   kind,
+  localShell,
   identity,
   stats,
   size,
@@ -173,15 +184,32 @@ export function StatusBar({
 
       <Cell title={i18n.t('status.state')}>
         <>
-          {kind === null ? (
-            <span className="text-ink-faint">{i18n.t('status.idle')}</span>
-          ) : (
+          {kind !== null ? (
             <>
               <SessionMarker kind={kind} />
               <span className="text-ink-secondary font-semibold">
                 {i18n.t(describeState(kind).label)}
               </span>
             </>
+          ) : localShell ? (
+            <>
+              {/* Filled, the same shape `connected` draws: a local shell has
+                  no states to distinguish it from, only "running" and "not
+                  open", and the second of those is the branch below. */}
+              <span
+                role="img"
+                aria-label={i18n.t('status.localShell')}
+                title={i18n.t('status.localShell')}
+                className="text-ok flex h-3.5 w-3.5 shrink-0 items-center justify-center"
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-current" />
+              </span>
+              <span className="text-ink-secondary font-semibold">
+                {i18n.t('status.localShell')}
+              </span>
+            </>
+          ) : (
+            <span className="text-ink-faint">{i18n.t('status.idle')}</span>
           )}
         </>
       </Cell>

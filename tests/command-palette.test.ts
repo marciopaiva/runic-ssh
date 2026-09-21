@@ -676,7 +676,7 @@ describe('the host book palette (ADR-0072)', () => {
       context({ sessions: [live(rider), live(session('a', 'bastion', 'h1'))] }),
     );
 
-    expect(commands.map((entry) => entry.id)).toEqual(['hostbook:new', 'hostbook:a', 'hostbook:b']);
+    expect(commands.map((entry) => entry.id)).toEqual(['hostbook:a', 'hostbook:b']);
   });
 
   it('reaches a saved host by its address', () => {
@@ -708,7 +708,7 @@ describe('the host book palette (ADR-0072)', () => {
       context({ workspace: 'sftp', sessions: [live(session('a', 'web-01', 'h1'))] }),
     );
 
-    expect(commands.map((entry) => entry.id)).toEqual(['hostbook:new', 'hostbook:local', 'hostbook:a']);
+    expect(commands.map((entry) => entry.id)).toEqual(['hostbook:local', 'hostbook:a']);
   });
 
   it('runs the local endpoint into the same slot a host would land in', () => {
@@ -720,18 +720,11 @@ describe('the host book palette (ADR-0072)', () => {
     expect(act.calls).toEqual(['hostbook:local']);
   });
 
-  it('offers a way to create a host even with nothing saved (#433)', () => {
-    /* Before this, the "+" could only place an already-saved host: Sessions
-       and SFTP had no way to create one at all, unlike Home's own row and
-       the keyboard palette's `session:new`. */
-    const act = actions();
-    const commands = hostBookCommands(context({ actions: act }));
-
-    const add = commands.find((entry) => entry.id === 'hostbook:new');
-    expect(add).toBeDefined();
-
-    add?.run();
-    expect(act.calls).toEqual(['new']);
+  it('does not offer to create a host: this "+" places an existing one', () => {
+    /* Creating one is `command.session.new` in the keyboard palette, Home's
+       own row and the hosts-manager sidebar's own affordance instead. */
+    const commands = hostBookCommands(context());
+    expect(commands.map((entry) => entry.id)).not.toContain('hostbook:new');
   });
 });
 

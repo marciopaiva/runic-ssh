@@ -6,11 +6,9 @@
 
 export const SOURCE_CATALOG = {
   "app.name": "Runic SSH",
-  "command.hostbook.new": "New host",
   "command.hosts.manage": "Manage hosts...",
   "command.language.system": "Language: follow the system",
   "command.language.use": "Language: {name}",
-  "command.local.open": "Open {name}",
   "command.macros.manage": "Manage macros...",
   "command.session.edit": "Edit {name}",
   "command.session.new": "New session",
@@ -186,6 +184,7 @@ export const SOURCE_CATALOG = {
   "language.en": "English",
   "language.es": "Español",
   "language.pt-BR": "Português (Brasil)",
+  "local.group": "LOCAL",
   "local.shell.cmd": "Command Prompt",
   "local.shell.defaultShell": "Terminal",
   "local.shell.powerShell": "PowerShell",
@@ -549,6 +548,7 @@ export const SOURCE_CATALOG = {
   "status.latency.good": "Latency: good",
   "status.latency.poor": "Latency: poor",
   "status.latency.unknown": "Latency: not measured",
+  "status.localShell": "Local shell",
   "status.monitor.cpu": "CPU usage",
   "status.monitor.disk": "Disk usage",
   "status.monitor.diskIo": "Disk I/O",

@@ -26,6 +26,16 @@ export interface Command {
   /** Shown at the trailing edge: a host, a state, a shortcut. */
   readonly detail?: string;
   /**
+   * A sub-heading within the section, drawn above the first row that carries
+   * it and every contiguous row after that shares the same value. Absent
+   * ("no group" and "irrelevant here" are the same case) rows never start
+   * one, which is how a single local shell sits above the first heading
+   * rather than forcing an empty one. Rows meant to sit under one heading
+   * have to arrive from their source already adjacent: this only draws what
+   * it is handed, it does not sort.
+   */
+  readonly group?: string;
+  /**
    * Matched against but never shown.
    *
    * Where a host name goes, so that typing `10.0.4` finds a session listed

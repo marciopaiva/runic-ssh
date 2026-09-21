@@ -169,6 +169,7 @@ import {
   receivingSessions,
   removeEntry,
   resolveGroups,
+  localShellLabel,
 } from './features/terminal';
 import type { Box, Grid, Group, HeldGroup, LocalShellTab } from './features/terminal';
 import type { TerminalSize } from './features/terminal/use-terminal';
@@ -1909,8 +1910,11 @@ export function App(): JSX.Element {
      its own keyboard shortcut never fires, shown only from `OpenHostButton`'s
      click. Same presentational `CommandPalette`, same ranking and keyboard
      navigation, a different source. */
+  /* Local shells first: a machine with nothing saved yet still has a
+     terminal, so this belongs above the saved hosts rather than waiting at
+     the bottom for a list that might be empty. */
   const hostSources = useMemo(
-    () => [() => hostBookCommands(context), () => localShellCommands(context)],
+    () => [() => localShellCommands(context), () => hostBookCommands(context)],
     [context],
   );
   const hostPalette = usePalette(hostSources, chrome?.commandModifier ?? 'control', true);
@@ -1984,9 +1988,25 @@ export function App(): JSX.Element {
     return items;
   }, [groupMenu, groups, tabs, editorTabs, i18n, moveTo, closeGroup]);
 
+  /* A local shell has no `activeId`: `focusedSession` only ever names an SSH
+     session, on purpose, since a local shell is never something broadcast or
+     a macro can target. The status bar still needs to know one is focused,
+     or it reports "No session" under a terminal that is, in fact, running
+     one, which is exactly what a person watching the bar cannot tell apart
+     from the shell having failed to open. */
+  const activeLocalShellTab =
+    resolvedFocus?.kind === 'local'
+      ? (localShellTabs.find((tab) => tab.sessionId === resolvedFocus.sessionId) ?? null)
+      : null;
+
   /* What the status bar says it is describing. Same source as the tabs, so
      the bar and a strip cannot disagree about a session's name. */
-  const activeIdentity = activeId === null ? null : (paneLabels.get(activeId) ?? null);
+  const activeIdentity =
+    activeId !== null
+      ? (paneLabels.get(activeId) ?? null)
+      : activeLocalShellTab !== null
+        ? { name: localShellLabel(activeLocalShellTab.kind, i18n), where: i18n.t('sftp.localhost') }
+        : null;
 
   /* `user@host` for a pane's header, or `localhost`. The session may have
      closed since the endpoint was assigned; the id is shown rather than
@@ -3162,6 +3182,7 @@ export function App(): JSX.Element {
 
       <StatusBar
         kind={activeTab?.kind ?? null}
+        localShell={activeLocalShellTab !== null}
         identity={activeIdentity}
         stats={stats}
         size={size}
