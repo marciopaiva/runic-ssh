@@ -14,12 +14,12 @@
 
 import { offeredLocales } from '../../lib/i18n';
 import type { Translator } from '../../lib/i18n';
-import type { Macro } from '../../ipc';
+import type { LocalShellKind, Macro } from '../../ipc';
 import type { WindowAction } from '../chrome';
 import type { Tab } from '../chrome';
 import { hostRows } from '../sessions';
 import type { LiveSession } from '../sessions';
-import { GRIDS, SHAPE_LABEL } from '../terminal';
+import { GRIDS, SHAPE_LABEL, localShellKindId, localShellLabel } from '../terminal';
 import type { Grid } from '../terminal';
 
 import type { Command } from './registry';
@@ -67,6 +67,8 @@ export interface CommandActions {
   readonly openLocalInto: () => void;
   /** Opens the hosts-manager sidebar (ADR-0076). */
   readonly openHostsManager: () => void;
+  /** Opens a native shell of the given kind into the same slot (ADR-0074). */
+  readonly openLocalShellInto: (kind: LocalShellKind) => void;
 }
 
 export interface CommandContext {
@@ -104,6 +106,8 @@ export interface CommandContext {
    * whether "this machine" belongs in the list at all.
    */
   readonly workspace: 'sessions' | 'sftp' | 'map';
+  /** The shells this platform offers, detected once at startup (ADR-0074). */
+  readonly localShellKinds: readonly LocalShellKind[];
 }
 
 /**
@@ -219,6 +223,28 @@ export function hostBookCommands(context: CommandContext): readonly Command[] {
   });
 
   return commands;
+}
+
+/**
+ * The native shells this platform can open, for the same "+" the host book
+ * uses (ADR-0074).
+ *
+ * Gated the same way `hostBookCommands`'s own `hostbook:local` row is:
+ * a local shell is a terminal session like any other, so it belongs beside
+ * the saved hosts in Sessions and Map, not in SFTP, whose "+" places file
+ * endpoints rather than sessions.
+ */
+export function localShellCommands(context: CommandContext): readonly Command[] {
+  const { i18n, workspace, localShellKinds, actions } = context;
+  if (workspace === 'sftp') return [];
+
+  return localShellKinds.map((kind) => ({
+    id: `local:${localShellKindId(kind)}`,
+    section: 'sessions' as const,
+    title: i18n.t('command.local.open', { name: localShellLabel(kind, i18n) }),
+    keywords: ['local', 'shell', 'terminal'],
+    run: () => actions.openLocalShellInto(kind),
+  }));
 }
 
 /** Everything that is not a place to go. */

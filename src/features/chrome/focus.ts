@@ -28,25 +28,31 @@ import type { EditorTarget } from '../sessions/editor';
 
 export type Focus =
   | { readonly kind: 'session'; readonly sessionId: string }
+  | { readonly kind: 'local'; readonly sessionId: string }
   | { readonly kind: 'editor'; readonly target: EditorTarget }
   | { readonly kind: 'settings' };
 
 /**
  * What the strip holds, left to right: sessions in the sidebar's order, then
- * the host forms in the order they were opened, then settings.
+ * local shells in the order they were opened, then the host forms in the
+ * order they were opened, then settings.
  *
  * Session tabs keep the sidebar's order at the front and settings stays at
  * the end, so opening or closing a form never shifts either sideways under
- * the pointer.
+ * the pointer. Local shells sit between the two for the same reason: they are
+ * opened and closed independently of the sidebar, so giving them their own
+ * fixed band keeps a new one from shifting the editors or settings.
  */
 export function stripEntries(
   tabs: readonly Tab[],
+  localShells: readonly string[],
   editing: readonly EditorTarget[],
   settingsOpen: boolean,
 ): readonly Focus[] {
   const entries: Focus[] = [];
 
   for (const tab of tabs) entries.push({ kind: 'session', sessionId: tab.sessionId });
+  for (const sessionId of localShells) entries.push({ kind: 'local', sessionId });
   for (const target of editing) entries.push({ kind: 'editor', target });
   if (settingsOpen) entries.push({ kind: 'settings' });
 
@@ -59,6 +65,8 @@ export function sameFocus(a: Focus | null, b: Focus | null): boolean {
   if (a.kind !== b.kind) return false;
 
   if (a.kind === 'session' && b.kind === 'session') return a.sessionId === b.sessionId;
+
+  if (a.kind === 'local' && b.kind === 'local') return a.sessionId === b.sessionId;
 
   if (a.kind === 'editor' && b.kind === 'editor') {
     if (a.target.kind !== b.target.kind) return false;
@@ -144,6 +152,7 @@ export function tabElementId(focus: Focus): string {
   if (focus.kind === 'editor') {
     return focus.target.kind === 'new' ? 'editor-tab-new' : `editor-tab-${focus.target.sessionId}`;
   }
+  if (focus.kind === 'local') return `local-tab-${focus.sessionId}`;
 
   return `session-tab-${focus.sessionId}`;
 }

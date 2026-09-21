@@ -57,6 +57,10 @@ pub enum Error {
     #[error("the local forward could not be started")]
     Forward(#[from] crate::ssh::forward::ForwardError),
 
+    /// ADR-0074. Opening a local shell over a native pty.
+    #[error("the local shell could not be started")]
+    LocalShell(#[from] crate::local_shell::error::LocalShellError),
+
     /// ADR-0043. Listing a local directory for the SFTP panel's own side.
     #[error("the local directory could not be listed")]
     LocalDirectory(crate::sftp::local::LocalError),
@@ -94,6 +98,9 @@ pub enum Error {
 
     #[error("that connection is not open")]
     UnknownHandle,
+
+    #[error("that local shell is not open")]
+    UnknownLocalShell,
 
     #[error("both a password and a private key were sent")]
     AmbiguousCredential,
@@ -256,6 +263,11 @@ pub enum IpcError {
     },
     /// The handle does not name an open connection.
     UnknownHandle,
+    /// ADR-0074. The session id does not name an open local shell.
+    UnknownLocalShell,
+    /// ADR-0074. The native pty could not be opened, or the shell's program
+    /// could not be spawned behind it.
+    LocalShellSpawnFailed,
     /// The webview sent both a password and a key, or neither.
     AmbiguousCredential,
     MissingCredential,
@@ -402,6 +414,9 @@ impl From<Error> for IpcError {
             Error::Forward(crate::ssh::forward::ForwardError::BindFailed { port, .. }) => {
                 Self::ForwardBindFailed { port }
             }
+            Error::LocalShell(crate::local_shell::error::LocalShellError::SpawnFailed) => {
+                Self::LocalShellSpawnFailed
+            }
             Error::LocalDirectory(local) => Self::from(local),
             Error::LocalFilesystem(local) => Self::from(local),
             Error::UnknownSession { id } => Self::UnknownSession { id },
@@ -419,6 +434,7 @@ impl From<Error> for IpcError {
                 inner: Box::new(Self::from(*inner)),
             },
             Error::UnknownHandle => Self::UnknownHandle,
+            Error::UnknownLocalShell => Self::UnknownLocalShell,
             Error::AmbiguousCredential => Self::AmbiguousCredential,
             Error::MissingCredential => Self::MissingCredential,
             Error::MalformedInput => Self::MalformedInput,
@@ -675,5 +691,19 @@ mod tests {
 
         assert_eq!(value["code"], "localNameRefused");
         assert_eq!(value["check"], "dotEntry");
+    }
+
+    #[test]
+    fn a_local_shell_spawn_failure_crosses_with_its_own_code() {
+        use crate::local_shell::error::LocalShellError;
+
+        let value = wire(Error::LocalShell(LocalShellError::SpawnFailed));
+        assert_eq!(value["code"], "localShellSpawnFailed");
+    }
+
+    #[test]
+    fn an_unknown_local_shell_crosses_with_its_own_code() {
+        let value = wire(Error::UnknownLocalShell);
+        assert_eq!(value["code"], "unknownLocalShell");
     }
 }

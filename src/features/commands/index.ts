@@ -3,6 +3,13 @@ export type { Command, CommandSection, CommandSource } from './registry';
 export { fold, rank } from './match';
 export type { Match } from './match';
 export { commandAt, isPaletteShortcut, moveBy, selectionAfterQuery } from './navigation';
-export { actionCommands, hostBookCommands, hostsManagerCommand, macroCommands, sessionCommands } from './sources';
+export {
+  actionCommands,
+  hostBookCommands,
+  hostsManagerCommand,
+  localShellCommands,
+  macroCommands,
+  sessionCommands,
+} from './sources';
 export type { CommandActions, CommandContext } from './sources';
 export { usePalette } from './use-palette';
