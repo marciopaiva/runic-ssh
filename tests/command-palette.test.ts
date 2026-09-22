@@ -200,7 +200,7 @@ describe('what a palette row can hold', () => {
   it('keeps every detail short enough not to swallow its own title', () => {
     /* Found by driving the app, not by reading. `detail` is drawn `shrink-0`
        next to a title that is `truncate`, so a long detail does not wrap or
-       clip itself — it takes the row and truncates the title to nothing.
+       clip itself: it takes the row and truncates the title to nothing.
 
        The bound is deliberately generous. This is not a style rule; it is the
        point past which a row stops showing what it does. */
