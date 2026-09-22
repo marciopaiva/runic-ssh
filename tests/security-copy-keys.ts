@@ -190,8 +190,6 @@ export const SECURITY_COPY_KEYS: readonly MessageKey[] = [
 
   // Which sessions receive what you type, added in the v0.2.1 sweep.
   'command.split.sync.detail',
-  'command.split.sync.off',
-  'command.split.sync.on',
   'status.sync',
   'status.sync.announce.off',
   'status.sync.announce.one',
@@ -281,8 +279,15 @@ export const REVIEWS: Readonly<
        here: en.json is the source, not a translation under review, and
        es.json's own narrower scope (#4) never covered these two to begin
        with. */
+    /* Hash moved again 2026-09-22, again with no wording change: the general
+       command palette that exposed `command.split.sync.off` and `.on` as
+       standalone rows was removed (issue tracked in the four-orphan-routes
+       plan); `split:sync` itself still works exactly as before, through
+       `BroadcastButton`, which was already its route and never read from
+       these two strings. Two fewer reviewed strings, not two unreviewed
+       ones. */
     date: '2026-09-03',
-    hash: 'b642fbf3c7a7099bdc77743c4494c65fc0013d989dcd3ab781ec01417694e8e3',
+    hash: 'bd580fa1a3ddffc9197e04a51df1b868359c7421d4d3abd86a8d39f740d5c2b5',
     keys: [
       'credential.cancel',
       'credential.hop.bastion',
@@ -358,8 +363,6 @@ export const REVIEWS: Readonly<
       'sessions.jump.carries',
       'sessions.jump.rides',
       'command.split.sync.detail',
-      'command.split.sync.off',
-      'command.split.sync.on',
       'status.sync',
       'status.sync.announce.off',
       'status.sync.announce.one',

@@ -1,17 +1,10 @@
 /**
  * Opening, closing and driving the palette.
- *
- * The shortcut is bound on the document rather than on a component, because a
- * palette that only opens when something in particular has focus is not a
- * palette. `capture` is deliberate: the terminal takes every keystroke it can,
- * and the shortcut has to be recognised before it reaches one.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
-import type { CommandModifier } from '../../ipc';
-
-import { isPaletteShortcut, moveBy } from './navigation';
+import { moveBy } from './navigation';
 import { rank } from './match';
 import type { Match } from './match';
 import { collect } from './registry';
@@ -30,10 +23,7 @@ interface PaletteState {
   readonly dismiss: () => void;
 }
 
-export function usePalette(
-  sources: readonly CommandSource[],
-  modifier: CommandModifier,
-): PaletteState {
+export function usePalette(sources: readonly CommandSource[]): PaletteState {
   const [open, setOpen] = useState(false);
   const [query, setQueryState] = useState('');
   const [selected, setSelected] = useState(0);
@@ -57,26 +47,6 @@ export function usePalette(
     setSelected(0);
     setOpen(true);
   }, []);
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (isPaletteShortcut(event, modifier)) {
-        event.preventDefault();
-        /* Toggling rather than always opening: pressing it twice should leave
-           the user where they started, not stack a second palette. */
-        setOpen((current) => {
-          if (!current) {
-            setQueryState('');
-            setSelected(0);
-          }
-          return !current;
-        });
-      }
-    };
-
-    document.addEventListener('keydown', onKeyDown, { capture: true });
-    return () => document.removeEventListener('keydown', onKeyDown, { capture: true });
-  }, [modifier]);
 
   const setQuery = useCallback((next: string): void => {
     setQueryState(next);

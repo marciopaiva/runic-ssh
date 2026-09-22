@@ -21,9 +21,8 @@ export type KeyIntent = 'copy' | 'paste' | 'send';
 /**
  * What to do with a key the terminal just saw.
  *
- * `event.code` rather than `event.key`, for the reason `isPaletteShortcut`
- * gives: with Shift held, `key` is whatever the layout produces, and a shortcut
- * should follow the physical key.
+ * `event.code` rather than `event.key`: with Shift held, `key` is whatever the
+ * layout produces, and a shortcut should follow the physical key instead.
  *
  * Ctrl-Insert and Shift-Insert are deliberately absent. xterm produces no key
  * for either, so it never cancels them, and the browser's own copy and paste

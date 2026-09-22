@@ -44,15 +44,7 @@ import { TransfersBar } from './components/TransfersBar';
 import { WorkspacePills } from './components/WorkspacePills';
 import type { Workspace } from './components/WorkspacePills';
 import { EyeOffIcon } from './components/ui/icons';
-import {
-  actionCommands,
-  hostBookCommands,
-  hostsManagerCommand,
-  localShellCommands,
-  macroCommands,
-  sessionCommands,
-  usePalette,
-} from './features/commands';
+import { hostBookCommands, localShellCommands, usePalette } from './features/commands';
 import type { CommandContext } from './features/commands';
 import { applyVariables, ensureTrailingNewline, useMacros, wrapScript } from './features/macros';
 import {
@@ -524,15 +516,6 @@ export function App(): JSX.Element {
     readonly layer: string | null;
     readonly blockedHostIds: ReadonlySet<string>;
   } | null>(null);
-  /* Which of the merged palette's two source sets is showing: the host book
-     (and local shells) while `true`, the general command surface while
-     `false`. Set by `openHostPicker`, the sole way anything opens the "+"
-     side of the palette; cleared, alongside `mapPlacement`, the moment the
-     palette closes for any reason, so the keyboard shortcut never inherits a
-     stale mode. Named to stay clear of `MapStage`'s own, unrelated
-     `pickingHost` prop. */
-  const [hostPickerActive, setHostPickerActive] = useState(false);
-
   /* ADR-0064: the map's own state. Loaded once, held whole, written whole a
      moment after the last change, so a drag is one write and not sixty.
      Declared here, ahead of `context` below, so its two new map-placement
@@ -1382,14 +1365,6 @@ export function App(): JSX.Element {
     [activeGroup],
   );
 
-  /* The palette's "open settings" lands here: Home, from any workspace
-     (ADR-0075). ADR-0062 already moved theme and language into every
-     workspace's own toolbar row, so this is only ever about the host book
-     Home itself holds. */
-  const openSettings = useCallback((): void => {
-    setWorkspace('home');
-  }, []);
-
   /* Shown in the main area rather than as a toast: the user just clicked the
      session and is looking at exactly this space, and a message that
      disappears on its own is one that disappears before it is read. */
@@ -1900,8 +1875,7 @@ export function App(): JSX.Element {
      `SessionBody.onEditHost` from inside a session all land here, and none of
      them has to leave first any more. The "+" host book palette
      (`hostBookCommands`) opens a saved host; it has no edit command of its
-     own, and neither does the general palette any more (`sessionCommands`,
-     ADR-0076's follow-up). */
+     own. */
   const openEditor = useCallback((target: EditorTarget): void => {
     setEditors((current) => withEditor(current, target, savedRef.current));
     setHomeFocus({ kind: 'editor', target });
@@ -1935,21 +1909,6 @@ export function App(): JSX.Element {
     () => ({
       i18n,
       sessions,
-      tabs,
-      activeId,
-      macroTargetId,
-      chosenLocale: chosen,
-      maximized,
-      nativeDecorations,
-      previewFeatures,
-      layout,
-      syncing: sync,
-      panesFilled: filled,
-      groupCount: groups.length,
-      focusedGroup,
-      focusedTitle:
-        resolvedFocus === null ? null : entryTitle(resolvedFocus, tabs, editorTabs, localShellTabs, i18n),
-      macros,
       /* Narrowed from the wider `Workspace` union: `home` has no host book of
          its own to speak of, so it narrows to `sessions` like a fresh
          window does. `hostBookCommands` reads this only to decide whether
@@ -1959,33 +1918,9 @@ export function App(): JSX.Element {
       localShellKinds,
       mapPlacement,
       actions: {
-        selectSession: activate,
-        activateTab: (sessionId: string) => focusOn({ kind: 'session', sessionId }),
-        closeTab: (sessionId: string) => closeFocus({ kind: 'session', sessionId }),
-        moveTab,
-        splitPanel: chooseLayout,
-        moveTabToGroup: (at: number) => {
-          if (resolvedFocus !== null) moveTo(resolvedFocus, at);
-        },
-        closeGroup: () => closeGroup(focusedGroup),
         openHostInto,
         openLocalInto,
         openLocalShellInto,
-        /* Arming always starts with every pane checked. Inheriting a set
-           somebody narrowed for a different pair of hosts is the kind of thing
-           this switch must never do. */
-        toggleSync: () => {
-          setMuted(new Set());
-          setSync((on) => !on);
-        },
-        window: act,
-        chooseLocale: (locale) => void choose(locale),
-        useNativeDecorations,
-        usePreviewFeatures: choosePreviewFeatures,
-        openSettings,
-        runMacro,
-        openMacros: () => setMacrosOpen(true),
-        openHostsManager: () => setHostsManagerOpen(true),
         /* `HostPicker`'s old `pick()`: resolve the outcome the same way it
            did, against whichever component `mapPlacement` named, then write
            it and close the request. The palette has already excluded any
@@ -2014,39 +1949,23 @@ export function App(): JSX.Element {
         },
       },
     }),
-    [i18n, sessions, tabs, activeId, macroTargetId, chosen, maximized, nativeDecorations, previewFeatures, act, choose, closeFocus, activate, useNativeDecorations, choosePreviewFeatures, openSettings, resolvedFocus, focusOn, moveTab, chooseLayout, layout, sync, filled, muted, armed, receiving, groups, focusedGroup, editorTabs, localShellTabs, moveTo, closeGroup, macros, runMacro, workspace, openHostInto, openLocalInto, localShellKinds, openLocalShellInto, mapPlacement, mapWorkspace, saved, changeMap, openEditorOnMap],
+    [i18n, sessions, workspace, openHostInto, openLocalInto, localShellKinds, openLocalShellInto, mapPlacement, mapWorkspace, saved, changeMap, openEditorOnMap],
   );
 
-  /* One palette for the whole app: the keyboard shortcut and the "+" beside
-     the ADR-0072 pills used to drive two independently mounted `usePalette`
-     instances with two source sets. `sources` is read fresh on every render
-     (`usePalette`'s own `useMemo`), so which set feeds it is just a matter of
-     which one `hostPickerActive` picks. Local shells come first in
-     host-picker mode: a machine with nothing saved yet still has a
-     terminal, so this belongs above the saved hosts rather than waiting at
-     the bottom for a list that might be empty. */
+  /* One palette for the whole app: the "+" beside the ADR-0072 pills is the
+     only thing that opens it now (ADR-0072's host book, plus local shells,
+     ADR-0074). Local shells come first: a machine with nothing saved yet
+     still has a terminal, so this belongs above the saved hosts rather than
+     waiting at the bottom for a list that might be empty. */
   const sources = useMemo(
-    () =>
-      hostPickerActive
-        ? [() => localShellCommands(context), () => hostBookCommands(context)]
-        : [
-            () => sessionCommands(context),
-            () => actionCommands(context),
-            () => macroCommands(context),
-            () => hostsManagerCommand(context),
-          ],
-    [context, hostPickerActive],
+    () => [() => localShellCommands(context), () => hostBookCommands(context)],
+    [context],
   );
-  const palette = usePalette(sources, chrome?.commandModifier ?? 'control');
+  const palette = usePalette(sources);
 
-  /* The sole way anything opens the "+" side of the palette: `OpenHostButton`,
-     Sessions' and SFTP's empty-panel prompts, and the map's own trigger just
-     below. `palette.show` is referentially stable, so this does not fight
-     `sources`'s own dependency on `hostPickerActive` above it. */
-  const openHostPicker = useCallback(() => {
-    setHostPickerActive(true);
-    palette.show();
-  }, [palette]);
+  /* The sole way anything opens the "+" palette: `OpenHostButton`, Sessions'
+     and SFTP's empty-panel prompts, and the map's own trigger just below. */
+  const openHostPicker = palette.show;
 
   /* The map's own trigger for that same palette (`HostPicker`'s old job):
      works out which hosts already carry a component of the requested kind
@@ -2068,12 +1987,10 @@ export function App(): JSX.Element {
 
   /* Covers cancelling out of the palette (Escape, the backdrop click) and a
      completed pick alike (`usePalette.run` always dismisses before running):
-     whatever closed it, both the mode and any map placement it was standing
-     in for reset together, so a later, unrelated open from Sessions or SFTP
-     never inherits either. */
+     whatever closed it, any map placement it was standing in for resets too,
+     so a later, unrelated open from Sessions or SFTP never inherits it. */
   useEffect(() => {
     if (palette.open) return;
-    setHostPickerActive(false);
     setMapPlacement(null);
   }, [palette.open]);
 
