@@ -2025,7 +2025,7 @@ export function App(): JSX.Element {
           ],
     [context, hostPickerActive],
   );
-  const palette = usePalette(sources, chrome?.commandModifier ?? 'control', macrosOpen);
+  const palette = usePalette(sources, chrome?.commandModifier ?? 'control');
 
   /* The sole way anything opens the "+" side of the palette: `OpenHostButton`,
      Sessions' and SFTP's empty-panel prompts, and the map's own trigger just
