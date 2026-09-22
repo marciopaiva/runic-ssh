@@ -13,6 +13,11 @@ interface HomeSummaryPanelProps {
   readonly sessions: readonly LiveSession[];
   readonly macros: readonly Macro[];
   readonly onOpenMacros: () => void;
+  /** Jumps to this session's tab in Sessions, opening one if it does not
+      have one yet (`activate` in `App.tsx`: the same path the palette and
+      the retry button already use, so a session connected from SFTP gets a
+      Sessions tab on click same as one connected from here). */
+  readonly onActivateSession: (sessionId: string) => void;
 }
 
 /**
@@ -29,7 +34,12 @@ interface HomeSummaryPanelProps {
  * saved, with a way to open them without leaving Home for Sessions or Map
  * first.
  */
-export function HomeSummaryPanel({ sessions, macros, onOpenMacros }: HomeSummaryPanelProps): JSX.Element {
+export function HomeSummaryPanel({
+  sessions,
+  macros,
+  onOpenMacros,
+  onActivateSession,
+}: HomeSummaryPanelProps): JSX.Element {
   const i18n = useTranslator();
   const connected = sessions.filter((live) => live.kind === 'connected');
   const { bastions, direct } = hostSections(hostRows(sessions));
@@ -112,10 +122,17 @@ export function HomeSummaryPanel({ sessions, macros, onOpenMacros }: HomeSummary
             {connected.map((live) => {
               const label = groupLabel(live.session);
               return (
-                <li key={live.session.id} className="flex items-center gap-2.5 py-1.5">
-                  <SessionMarker kind={live.kind} />
-                  <span className="text-ink-secondary min-w-0 flex-1 truncate text-[12.5px]">{label.name}</span>
-                  <span className="text-ink-faint shrink-0 truncate font-mono text-[10.5px]">{label.where}</span>
+                <li key={live.session.id}>
+                  <button
+                    type="button"
+                    onClick={() => onActivateSession(live.session.id)}
+                    aria-label={i18n.t('home.hosts.summary.open', { name: label.name })}
+                    className="hover:bg-surface-raised/50 flex w-full items-center gap-2.5 rounded px-1 py-1.5 text-left"
+                  >
+                    <SessionMarker kind={live.kind} />
+                    <span className="text-ink-secondary min-w-0 flex-1 truncate text-[12.5px]">{label.name}</span>
+                    <span className="text-ink-faint shrink-0 truncate font-mono text-[10.5px]">{label.where}</span>
+                  </button>
                 </li>
               );
             })}

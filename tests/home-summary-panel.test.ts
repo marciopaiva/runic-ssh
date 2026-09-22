@@ -60,14 +60,19 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-async function mount(sessions: readonly LiveSession[], macros: readonly Macro[], onOpenMacros: () => void = () => {}) {
+async function mount(
+  sessions: readonly LiveSession[],
+  macros: readonly Macro[],
+  onOpenMacros: () => void = () => {},
+  onActivateSession: (sessionId: string) => void = () => {},
+) {
   const container = document.createElement('div');
   document.body.appendChild(container);
   containers.push(container);
   const root = createRoot(container);
 
   await act(async () => {
-    root.render(createElement(HomeSummaryPanel, { sessions, macros, onOpenMacros }));
+    root.render(createElement(HomeSummaryPanel, { sessions, macros, onOpenMacros, onActivateSession }));
   });
 
   return {
@@ -147,6 +152,24 @@ describe('the Home summary panel', () => {
     });
 
     expect(onOpenMacros).toHaveBeenCalled();
+
+    await probe.unmount();
+  });
+
+  it('jumps to a connected session when its row is clicked', async () => {
+    const onActivateSession = vi.fn();
+    const sessions = [live('web-1', {}, 'connected')];
+
+    const probe = await mount(sessions, [], () => {}, onActivateSession);
+
+    const button = probe.container.querySelector('button[aria-label="Open web-1 in Sessions"]');
+    if (button === null) throw new Error('expected a row for the connected session');
+
+    await act(async () => {
+      button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(onActivateSession).toHaveBeenCalledWith('web-1');
 
     await probe.unmount();
   });

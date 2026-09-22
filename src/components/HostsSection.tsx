@@ -47,6 +47,9 @@ interface HostsSectionProps {
       renders `detail` instead: Home's own route to the macros sidebar. */
   readonly macros: readonly Macro[];
   readonly onOpenMacros: () => void;
+  /** Passed through to `HomeSummaryPanel`, unused everywhere else: jumps a
+      live session into its Sessions tab. */
+  readonly onActivateSession: (sessionId: string) => void;
 }
 
 /**
@@ -85,6 +88,7 @@ export function HostsSection({
   detail,
   macros,
   onOpenMacros,
+  onActivateSession,
 }: HostsSectionProps): JSX.Element {
   const i18n = useTranslator();
   const [query, setQuery] = useState('');
@@ -213,7 +217,12 @@ export function HostsSection({
       <div className="min-w-0 flex-1 overflow-y-auto">
         {selectedId === null && !creatingNew ? (
           sessions.length > 0 ? (
-            <HomeSummaryPanel sessions={sessions} macros={macros} onOpenMacros={onOpenMacros} />
+            <HomeSummaryPanel
+              sessions={sessions}
+              macros={macros}
+              onOpenMacros={onOpenMacros}
+              onActivateSession={onActivateSession}
+            />
           ) : (
             <EmptyPanel
               modifier={modifier}

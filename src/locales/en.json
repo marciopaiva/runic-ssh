@@ -117,6 +117,7 @@
   "home.hosts.summary.connectedNow": "Connected now",
   "home.hosts.summary.direct.one": "1 direct",
   "home.hosts.summary.direct.other": "{count} direct",
+  "home.hosts.summary.open": "Open {name} in Sessions",
   "home.hosts.summary.saved.one": "1 host saved",
   "home.hosts.summary.saved.other": "{count} hosts saved",
   "home.macros.summary.manage": "Manage macros",

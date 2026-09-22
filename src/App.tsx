@@ -3149,6 +3149,7 @@ export function App(): JSX.Element {
                   detail={null}
                   macros={macros}
                   onOpenMacros={() => setMacrosOpen(true)}
+                  onActivateSession={activate}
                 />
               );
             })()}
