@@ -2621,7 +2621,7 @@ export function App(): JSX.Element {
     );
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="border-line-subtle flex h-full flex-col border">
       <Titlebar
         /* Until the core answers, the bar draws without controls. It is the
            same height either way, so nothing below it moves. */
