@@ -119,10 +119,10 @@ function LatencyBars({ filled }: { readonly filled: number }): JSX.Element {
 /**
  * The bar along the bottom.
  *
- * Everything on it is measured. The two numbers come from the core — bytes
+ * Everything on it is measured. The two numbers come from the core: bytes
  * counted as they pass through the pump, and a round trip timed against the
- * host — and the size is whatever the remote pty was last told. The encoding
- * and the terminal type are constants, shown because they answer a question
+ * host. The size is whatever the remote pty was last told. The encoding and
+ * the terminal type are constants, shown because they answer a question
  * people ask of an SSH client, not because they are settings.
  */
 export function StatusBar({
