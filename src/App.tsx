@@ -3241,7 +3241,6 @@ export function App(): JSX.Element {
         identity={activeIdentity}
         stats={stats}
         size={size}
-        modifier={chrome?.commandModifier ?? 'control'}
         syncing={hostsReceiving}
         via={activeCarrier}
         announcement={announcement}

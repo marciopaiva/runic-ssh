@@ -519,7 +519,6 @@
   "status.monitor.uptime.days": "{days}d {hours}h",
   "status.monitor.uptime.hours": "{hours}h {minutes}m",
   "status.monitor.uptime.minutes": "{minutes}m",
-  "status.palette": "Comandos",
   "status.size": "Tamaño del terminal",
   "status.state": "Conexión",
   "status.sync": "Escribiendo en todos los grupos",
