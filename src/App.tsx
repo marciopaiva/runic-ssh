@@ -1225,6 +1225,18 @@ export function App(): JSX.Element {
     [homeEntries],
   );
 
+  /* #357: tell the map an editor concluded with its host on disk, whichever
+     door it left through. Read before the editor is removed: `finished`
+     needs `editorsRef` still holding the slot this `target` names. The
+     effect this feeds is itself a no-op when there is no map editor waiting
+     on the result, and `target` staying `new` means nothing was ever saved
+     to place. */
+  const notifyMapEditorDone = useCallback((target: EditorTarget): void => {
+    if (target.kind !== 'existing') return;
+    const finished = findEditor(editorsRef.current, target);
+    if (finished !== null) setMapEditorDone({ formId: finished.formId, sessionId: target.sessionId });
+  }, []);
+
   /* The form's own Cancel button. No tab to close since ADR-0029's follow-up
      put Hosts behind a list rather than a strip, so this is reached from
      inside the form instead of from an X beside its name. */
@@ -1245,10 +1257,15 @@ export function App(): JSX.Element {
         return;
       }
 
+      /* A host saved through the map's own "New host" but closed with
+         "Skip test" or a plain Escape/backdrop, rather than a passing test's
+         `onAutoFinish`, used to leave the session on disk without ever
+         reaching the component it was created for. */
+      notifyMapEditorDone(target);
       setEditors((current) => withoutEditor(current, target));
       forgetHome(focus);
     },
-    [forgetHome],
+    [forgetHome, notifyMapEditorDone],
   );
 
   /* Sending a tab to another rectangle by name. Sessions only: Home has one
