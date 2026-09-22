@@ -7,7 +7,6 @@ import type { MapToolbarContent } from './components/map/MapStage';
 import { BroadcastButton } from './components/BroadcastButton';
 import { CommandPalette } from './components/CommandPalette';
 import { ConnectingSurface } from './components/ConnectingSurface';
-import { DecorationsButton } from './components/DecorationsButton';
 import { EmptyPanel } from './components/EmptyPanel';
 import { HostEditorDialog } from './components/HostEditorDialog';
 import { HostsManagerButton } from './components/HostsManagerButton';
@@ -272,7 +271,7 @@ function shownSession(group: Group): string | null {
 export function App(): JSX.Element {
   const { sessions, setState, attach, reload } = useSessions();
   const { macros, save: saveMacroDraft, remove: removeMacro } = useMacros();
-  const { chrome, maximized, act, refused, nativeDecorations, useNativeDecorations } = useChrome();
+  const { chrome, maximized, act, refused } = useChrome();
   const { i18n, chosen, choose } = useLocale();
   const { theme, chooseTheme } = useTheme();
   const { previewFeatures, choosePreviewFeatures } = usePreview();
@@ -2562,10 +2561,7 @@ export function App(): JSX.Element {
         {persistentControls}
       </>
     ) : workspace === 'home' ? (
-      <>
-        <DecorationsButton native={nativeDecorations} onToggle={() => useNativeDecorations(!nativeDecorations)} />
-        {persistentControls}
-      </>
+      persistentControls
     ) : undefined;
 
   return (
