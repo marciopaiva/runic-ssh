@@ -10,10 +10,10 @@ interface DecorationsButtonProps {
 }
 
 /**
- * ADR-0005's escape hatch, in the one toolbar row every workspace renders
- * (ADR-0062): whether the title bar comes from us or from the window
- * manager needs to be reachable from wherever the window already is, not
- * from a settings screen it might not be on.
+ * ADR-0005's escape hatch: whether the title bar comes from us or from the
+ * window manager. Lives in Home's own toolbar row only, one click away from
+ * any workspace through the Home pill, rather than a settings screen it
+ * might not be on.
  */
 export function DecorationsButton({ native, onToggle }: DecorationsButtonProps): JSX.Element {
   const i18n = useTranslator();

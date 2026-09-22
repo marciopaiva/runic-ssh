@@ -1,14 +1,18 @@
 import type { JSX } from 'react';
 
+import { hostRows, hostSections } from '../features/sessions';
 import type { LiveSession } from '../features/sessions';
 import { useTranslator } from '../features/settings';
 import { groupLabel } from '../features/terminal';
+import type { Macro } from '../ipc';
 
 import { LogoMark } from './LogoMark';
 import { SessionMarker } from './SessionMarker';
 
 interface HomeSummaryPanelProps {
   readonly sessions: readonly LiveSession[];
+  readonly macros: readonly Macro[];
+  readonly onOpenMacros: () => void;
 }
 
 /**
@@ -19,13 +23,16 @@ interface HomeSummaryPanelProps {
  * Sessions with no tab yet. It is not honest here: the book already holds
  * whatever hosts are saved the moment this screen renders, so "nothing
  * selected" is not "nothing to say." This keeps `HostsSection`'s own row
- * language (ADR-0052 still holds, no card grid) and says the two things the
- * hero mark alone could not: how many hosts exist, and which of them are
- * live right now.
+ * language (ADR-0052 still holds, no card grid) and says what the hero mark
+ * alone could not: how many hosts exist and how they are shaped (direct vs.
+ * jump servers), which of them are live right now, and how many macros are
+ * saved, with a way to open them without leaving Home for Sessions or Map
+ * first.
  */
-export function HomeSummaryPanel({ sessions }: HomeSummaryPanelProps): JSX.Element {
+export function HomeSummaryPanel({ sessions, macros, onOpenMacros }: HomeSummaryPanelProps): JSX.Element {
   const i18n = useTranslator();
   const connected = sessions.filter((live) => live.kind === 'connected');
+  const { bastions, direct } = hostSections(hostRows(sessions));
 
   return (
     <div className="flex h-full flex-col gap-7 p-10">
@@ -54,7 +61,45 @@ export function HomeSummaryPanel({ sessions }: HomeSummaryPanelProps): JSX.Eleme
               { count: String(connected.length) },
             )}
           </span>
+          {sessions.length > 0 && (direct.length > 0 || bastions.length > 0) && (
+            <span className="text-ink-faint text-[11.5px]">
+              {[
+                direct.length > 0 &&
+                  i18n.t(
+                    i18n.plural(direct.length) === 'one'
+                      ? 'home.hosts.summary.direct.one'
+                      : 'home.hosts.summary.direct.other',
+                    { count: String(direct.length) },
+                  ),
+                bastions.length > 0 &&
+                  i18n.t(
+                    i18n.plural(bastions.length) === 'one'
+                      ? 'home.hosts.summary.bastions.one'
+                      : 'home.hosts.summary.bastions.other',
+                    { count: String(bastions.length) },
+                  ),
+              ]
+                .filter((part): part is string => part !== false)
+                .join(', ')}
+            </span>
+          )}
         </div>
+      </div>
+
+      <div className="border-line-subtle flex max-w-[420px] items-center justify-between gap-3 border-t pt-4">
+        <span className="text-ink-secondary text-[12.5px]">
+          {i18n.t(
+            i18n.plural(macros.length) === 'one' ? 'home.macros.summary.one' : 'home.macros.summary.other',
+            { count: String(macros.length) },
+          )}
+        </span>
+        <button
+          type="button"
+          onClick={onOpenMacros}
+          className="text-accent shrink-0 text-[12px] font-semibold hover:underline"
+        >
+          {i18n.t('home.macros.summary.manage')}
+        </button>
       </div>
 
       {connected.length > 0 && (

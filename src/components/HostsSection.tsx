@@ -12,7 +12,7 @@ import {
 } from '../features/sessions';
 import type { HostRow, LiveSession } from '../features/sessions';
 import { useTranslator } from '../features/settings';
-import type { CommandModifier } from '../ipc';
+import type { CommandModifier, Macro } from '../ipc';
 
 import { EmptyPanel } from './EmptyPanel';
 import { HomeSummaryPanel } from './HomeSummaryPanel';
@@ -43,6 +43,10 @@ interface HostsSectionProps {
   /** The form itself, assembled by the caller: its wiring is `App.tsx`'s, not
    * this component's, the way `SessionsSidebar` never assembled a terminal. */
   readonly detail: ReactNode;
+  /** Passed through to `HomeSummaryPanel`, unused everywhere else this
+      renders `detail` instead: Home's own route to the macros sidebar. */
+  readonly macros: readonly Macro[];
+  readonly onOpenMacros: () => void;
 }
 
 /**
@@ -79,6 +83,8 @@ export function HostsSection({
   onNew,
   onCloseSidebar,
   detail,
+  macros,
+  onOpenMacros,
 }: HostsSectionProps): JSX.Element {
   const i18n = useTranslator();
   const [query, setQuery] = useState('');
@@ -207,7 +213,7 @@ export function HostsSection({
       <div className="min-w-0 flex-1 overflow-y-auto">
         {selectedId === null && !creatingNew ? (
           sessions.length > 0 ? (
-            <HomeSummaryPanel sessions={sessions} />
+            <HomeSummaryPanel sessions={sessions} macros={macros} onOpenMacros={onOpenMacros} />
           ) : (
             <EmptyPanel
               modifier={modifier}

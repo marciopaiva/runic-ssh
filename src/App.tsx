@@ -2460,23 +2460,20 @@ export function App(): JSX.Element {
   })();
 
   /* ADR-0075: one Toolbar shared by every workspace, `leading`/`trailing`
-     built per workspace below. Theme, language (ADR-0062) and the drawn/
-     native title bar switch render in every workspace's own row
-     unconditionally, so reaching any of them never means switching away
-     from whichever workspace is actually in use. This is also Home's own
-     toolbar content in full (ADR-0072 addendum): the pills give it a way
-     in and out, and this is what was already there for every other
-     workspace before that pill existed. */
+     built per workspace below. Theme and language (ADR-0062) render in
+     every workspace's own row unconditionally, so reaching either never
+     means switching away from whichever workspace is actually in use. The
+     drawn/native title bar switch does not: now that the Home pill puts
+     Home one click away from anywhere, it lives only on Home's own row,
+     the same placement ADR-0052 first gave theme and language before
+     ADR-0062 widened those two everywhere. */
   const persistentControls = (
-    <>
-      <DecorationsButton native={nativeDecorations} onToggle={() => useNativeDecorations(!nativeDecorations)} />
-      <ThemeLanguageControls
-        theme={theme}
-        onChooseTheme={(next) => void chooseTheme(next)}
-        chosenLocale={chosen}
-        onChooseLocale={(locale) => void choose(locale)}
-      />
-    </>
+    <ThemeLanguageControls
+      theme={theme}
+      onChooseTheme={(next) => void chooseTheme(next)}
+      chosenLocale={chosen}
+      onChooseLocale={(locale) => void choose(locale)}
+    />
   );
 
   const toolbarLeading =
@@ -2564,9 +2561,12 @@ export function App(): JSX.Element {
         <span className="bg-line-subtle h-4 w-px shrink-0" aria-hidden="true" />
         {persistentControls}
       </>
-    ) : (
-      persistentControls
-    );
+    ) : workspace === 'home' ? (
+      <>
+        <DecorationsButton native={nativeDecorations} onToggle={() => useNativeDecorations(!nativeDecorations)} />
+        {persistentControls}
+      </>
+    ) : undefined;
 
   return (
     <div className="border-line-subtle flex h-full flex-col border">
@@ -3147,11 +3147,23 @@ export function App(): JSX.Element {
                      drawing it here too, whenever this screen also happens
                      to be showing, mounted the same form twice. */
                   detail={null}
+                  macros={macros}
+                  onOpenMacros={() => setMacrosOpen(true)}
                 />
               );
             })()}
           </div>
         </main>
+        )}
+
+        {workspace === 'home' && macrosOpen && (
+          <MacrosSidebar
+            macros={macros}
+            onRun={runMacro}
+            onSave={saveMacroDraft}
+            onDelete={removeMacro}
+            onClose={() => setMacrosOpen(false)}
+          />
         )}
 
         {workspace === 'map' && (
