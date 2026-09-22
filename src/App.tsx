@@ -3147,9 +3147,6 @@ export function App(): JSX.Element {
                      drawing it here too, whenever this screen also happens
                      to be showing, mounted the same form twice. */
                   detail={null}
-                  macros={macros}
-                  onOpenMacros={() => setMacrosOpen(true)}
-                  onActivateSession={activate}
                 />
               );
             })()}
