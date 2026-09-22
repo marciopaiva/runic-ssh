@@ -7,6 +7,7 @@ import type { MapToolbarContent } from './components/map/MapStage';
 import { BroadcastButton } from './components/BroadcastButton';
 import { CommandPalette } from './components/CommandPalette';
 import { ConnectingSurface } from './components/ConnectingSurface';
+import { DecorationsButton } from './components/DecorationsButton';
 import { EmptyPanel } from './components/EmptyPanel';
 import { HostEditorDialog } from './components/HostEditorDialog';
 import { HostsManagerButton } from './components/HostsManagerButton';
@@ -35,12 +36,14 @@ import { SftpSelectAllButton } from './components/SftpSelectAllButton';
 import { SftpSplitControl } from './components/SftpSplitControl';
 import { StatusBar } from './components/StatusBar';
 import { SessionBody } from './components/SessionBody';
+import { TabCycleControl } from './components/TabCycleControl';
 import { ThemeLanguageControls } from './components/ThemeLanguageControls';
 import { Titlebar } from './components/Titlebar';
 import { Toolbar } from './components/Toolbar';
 import { TransfersBar } from './components/TransfersBar';
 import { WorkspacePills } from './components/WorkspacePills';
 import type { Workspace } from './components/WorkspacePills';
+import { EyeOffIcon } from './components/ui/icons';
 import {
   actionCommands,
   hostBookCommands,
@@ -1919,6 +1922,15 @@ export function App(): JSX.Element {
     setMapEditor({ formId: opened.formId, ask });
   }, []);
 
+  /* Standalone so both the surviving palette action and `TabCycleControl`
+     (A4) can call it without going through `CommandActions`. */
+  const moveTab = useCallback(
+    (step: 1 | -1): void => {
+      focusOn(focusAfter(entries, resolvedFocus, step));
+    },
+    [focusOn, entries, resolvedFocus],
+  );
+
   const context = useMemo<CommandContext>(
     () => ({
       i18n,
@@ -1950,7 +1962,7 @@ export function App(): JSX.Element {
         selectSession: activate,
         activateTab: (sessionId: string) => focusOn({ kind: 'session', sessionId }),
         closeTab: (sessionId: string) => closeFocus({ kind: 'session', sessionId }),
-        moveTab: (step) => focusOn(focusAfter(entries, resolvedFocus, step)),
+        moveTab,
         splitPanel: chooseLayout,
         moveTabToGroup: (at: number) => {
           if (resolvedFocus !== null) moveTo(resolvedFocus, at);
@@ -2002,7 +2014,7 @@ export function App(): JSX.Element {
         },
       },
     }),
-    [i18n, sessions, tabs, activeId, macroTargetId, chosen, maximized, nativeDecorations, previewFeatures, act, choose, closeFocus, activate, useNativeDecorations, choosePreviewFeatures, openSettings, resolvedFocus, focusOn, entries, chooseLayout, layout, sync, filled, muted, armed, receiving, groups, focusedGroup, editorTabs, localShellTabs, moveTo, closeGroup, macros, runMacro, workspace, openHostInto, openLocalInto, localShellKinds, openLocalShellInto, mapPlacement, mapWorkspace, saved, changeMap, openEditorOnMap],
+    [i18n, sessions, tabs, activeId, macroTargetId, chosen, maximized, nativeDecorations, previewFeatures, act, choose, closeFocus, activate, useNativeDecorations, choosePreviewFeatures, openSettings, resolvedFocus, focusOn, moveTab, chooseLayout, layout, sync, filled, muted, armed, receiving, groups, focusedGroup, editorTabs, localShellTabs, moveTo, closeGroup, macros, runMacro, workspace, openHostInto, openLocalInto, localShellKinds, openLocalShellInto, mapPlacement, mapWorkspace, saved, changeMap, openEditorOnMap],
   );
 
   /* One palette for the whole app: the keyboard shortcut and the "+" beside
@@ -2531,16 +2543,23 @@ export function App(): JSX.Element {
   })();
 
   /* ADR-0075: one Toolbar shared by every workspace, `leading`/`trailing`
-     built per workspace below. Theme and language (ADR-0062) render in
-     every workspace's own row unconditionally, so reaching either never
-     means switching away from whichever workspace is actually in use. */
-  const themeAndLocale = (
-    <ThemeLanguageControls
-      theme={theme}
-      onChooseTheme={(next) => void chooseTheme(next)}
-      chosenLocale={chosen}
-      onChooseLocale={(locale) => void choose(locale)}
-    />
+     built per workspace below. Theme, language (ADR-0062) and the drawn/
+     native title bar switch render in every workspace's own row
+     unconditionally, so reaching any of them never means switching away
+     from whichever workspace is actually in use. This is also Home's own
+     toolbar content in full (ADR-0072 addendum): the pills give it a way
+     in and out, and this is what was already there for every other
+     workspace before that pill existed. */
+  const persistentControls = (
+    <>
+      <DecorationsButton native={nativeDecorations} onToggle={() => useNativeDecorations(!nativeDecorations)} />
+      <ThemeLanguageControls
+        theme={theme}
+        onChooseTheme={(next) => void chooseTheme(next)}
+        chosenLocale={chosen}
+        onChooseLocale={(locale) => void choose(locale)}
+      />
+    </>
   );
 
   const toolbarLeading =
@@ -2566,6 +2585,8 @@ export function App(): JSX.Element {
           <MapCrumb segments={mapToolbar.crumb} {...(mapToolbar.onBack === undefined ? {} : { onBack: mapToolbar.onBack })} />
         )}
       </>
+    ) : workspace === 'home' ? (
+      <WorkspacePills workspace="home" onChoose={openWorkspace} />
     ) : undefined;
 
   const toolbarTrailing =
@@ -2583,8 +2604,9 @@ export function App(): JSX.Element {
         <MacrosButton open={macrosOpen} onToggle={() => setMacrosOpen((open) => !open)} />
         <HostsManagerButton open={hostsManagerOpen} onToggle={() => setHostsManagerOpen((open) => !open)} />
         <ShapeControl layout={layout} onChoose={chooseLayout} />
+        {tabs.length > 1 && <TabCycleControl onPrevious={() => moveTab(-1)} onNext={() => moveTab(1)} />}
         <span className="bg-line-subtle h-4 w-px shrink-0" aria-hidden="true" />
-        {themeAndLocale}
+        {persistentControls}
       </>
     ) : workspace === 'sftp' ? (
       <>
@@ -2595,7 +2617,7 @@ export function App(): JSX.Element {
         <SftpSplitControl value={destinationSplit} onChange={setDestinationSplit} />
         <HostsManagerButton open={hostsManagerOpen} onToggle={() => setHostsManagerOpen((open) => !open)} />
         <span className="bg-line-subtle h-4 w-px shrink-0" aria-hidden="true" />
-        {themeAndLocale}
+        {persistentControls}
       </>
     ) : workspace === 'map' ? (
       <>
@@ -2611,13 +2633,22 @@ export function App(): JSX.Element {
             <span className="bg-line-subtle h-4 w-px shrink-0" aria-hidden="true" />
           </>
         )}
+        <button
+          type="button"
+          onClick={() => choosePreviewFeatures(false)}
+          aria-label={i18n.t('command.preview.hideMap')}
+          title={i18n.t('command.preview.hideMap')}
+          className="text-ink-muted hover:bg-surface-raised/50 hover:text-ink flex h-6 w-7 shrink-0 items-center justify-center rounded"
+        >
+          <EyeOffIcon className="h-3.5 w-3.5" />
+        </button>
         <MacrosButton open={macrosOpen} onToggle={() => setMacrosOpen((open) => !open)} />
         <HostsManagerButton open={hostsManagerOpen} onToggle={() => setHostsManagerOpen((open) => !open)} />
         <span className="bg-line-subtle h-4 w-px shrink-0" aria-hidden="true" />
-        {themeAndLocale}
+        {persistentControls}
       </>
     ) : (
-      themeAndLocale
+      persistentControls
     );
 
   return (

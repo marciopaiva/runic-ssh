@@ -220,3 +220,29 @@ own `home`/`map` rail slots do not depend on any of the three and were
 confirmed unaffected by running the app. `empty.group.hint`, the copy an empty
 rectangle shows, no longer tells the reader to drag a host in; it names the
 click-then-"+" path this ADR replaced dragging with.
+
+## Addendum: 2026-09-22
+
+Two claims above do not match the current tree. **Home's fate**, stated in
+Context as "absorbed into SSH's own '+', not kept as a fourth rail slot,"
+and the Implemented note's claim that `HostsSection.tsx` and
+`SessionsSidebar.tsx` "were deleted outright": `SessionsSidebar.tsx` never
+existed to delete, and `HostsSection.tsx` was never deleted. It still exists
+and still renders for `workspace === 'home'`. Neither correction changes
+this ADR's actual decision (Option B, the toolbar pill switch replacing
+`ActivityRail`); both are the Implemented section describing work that was
+not carried out, left uncorrected until now.
+
+The "no fourth pill" half of Home's fate is superseded outright, not just
+corrected. `settings:open`, the general command palette's only route to
+`workspace === 'home'`, had no route anywhere else in the UI. Removing that
+palette (tracked in the session that added this addendum) meant either
+building Home a route or leaving it unreachable, and unreachable is not a
+real option for a workspace `HostsSection.tsx` still renders. `WorkspacePills`
+gained a fourth pill, `Home`, alongside SSH, SFTP and MAPA, on the same
+`role="tab"` row and the same `onChoose(workspace)` contract the other three
+already used. This costs the one rail slot Option B's Decision section
+argued against restoring, spent on the one screen that otherwise had no way
+in or out at all; it does not reopen Option B's broader decision to fold the
+rail into the toolbar, only the specific claim that Home needed no pill of
+its own.
