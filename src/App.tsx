@@ -136,7 +136,7 @@ import type {
 } from './ipc';
 import type { Component as MapComponent, ComponentKind as MapComponentKind, Workspace as MapWorkspaceModel } from './ipc';
 import type { MapPaneWiring } from './components/map/MapStage';
-import { mapTerminals, mountedOnce, placeSavedHost } from './features/map';
+import { addComponent, changeHost, mapTerminals, mountedOnce, placeSavedHost } from './features/map';
 import type { HostAsk } from './features/map';
 import { useLocale, usePreview, useTheme } from './features/settings';
 import { visibleDestinationRows } from './features/sftp/browser';
@@ -506,9 +506,76 @@ export function App(): JSX.Element {
      where it was asked once the editor concludes. */
   const [mapEditor, setMapEditor] = useState<{ readonly formId: string; readonly ask: HostAsk } | null>(null);
   /* Written by `finishWizard` when an editor concluded with its host on
-     disk, read by the effect beside the map's own state, which is declared
-     further down and is what the placing needs. */
+     disk, read by the effect beside the map's own state just below. */
   const [mapEditorDone, setMapEditorDone] = useState<{ readonly formId: string; readonly sessionId: string } | null>(null);
+  /* Set while the map's own radial menu is waiting on the "+" palette to
+     resolve a host (`HostPicker`'s old job): the component kind it asked
+     for, the component being re-pointed rather than created, the layer it
+     was standing on, and which hosts to hide because they already carry one
+     of that kind (ADR-0064's duplicate rule, avoided here rather than shown
+     back as a refusal, since nothing in this app has a toast to show it in).
+     `null` everywhere else, so Sessions and SFTP's own "+" never sees it. */
+  const [mapPlacement, setMapPlacement] = useState<{
+    readonly kind: MapComponentKind;
+    readonly changing: string | null;
+    readonly layer: string | null;
+    readonly blockedHostIds: ReadonlySet<string>;
+  } | null>(null);
+  /* Which of the merged palette's two source sets is showing: the host book
+     (and local shells) while `true`, the general command surface while
+     `false`. Set by `openHostPicker`, the sole way anything opens the "+"
+     side of the palette; cleared, alongside `mapPlacement`, the moment the
+     palette closes for any reason, so the keyboard shortcut never inherits a
+     stale mode. Named to stay clear of `MapStage`'s own, unrelated
+     `pickingHost` prop. */
+  const [hostPickerActive, setHostPickerActive] = useState(false);
+
+  /* ADR-0064: the map's own state. Loaded once, held whole, written whole a
+     moment after the last change, so a drag is one write and not sixty.
+     Declared here, ahead of `context` below, so its two new map-placement
+     actions can read `mapWorkspace` and call `changeMap` directly instead of
+     through a ref: both are genuine dependencies of that memo, not a stale
+     snapshot it would otherwise have to guard against. */
+  const [mapWorkspace, setMapWorkspace] = useState<MapWorkspaceModel>(EMPTY_WORKSPACE);
+  useEffect(() => {
+    let live = true;
+    void loadWorkspace()
+      .then((loaded) => {
+        if (live) setMapWorkspace(loaded);
+      })
+      .catch(() => {
+        /* A malformed file is reported by the core the next time the map is
+           written, on the save that fails; until then the map starts empty
+           rather than the workspace refusing to open. */
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+  const mapSave = useRef<{ timer: ReturnType<typeof setTimeout> | null; pending: MapWorkspaceModel | null }>({
+    timer: null,
+    pending: null,
+  });
+  const changeMap = useCallback((next: MapWorkspaceModel): void => {
+    setMapWorkspace(next);
+    const state = mapSave.current;
+    state.pending = next;
+    if (state.timer !== null) clearTimeout(state.timer);
+    state.timer = setTimeout(() => {
+      state.timer = null;
+      const pending = state.pending;
+      state.pending = null;
+      if (pending !== null) void saveWorkspace(pending).catch(() => {});
+    }, 300);
+  }, []);
+  useEffect(
+    () => () => {
+      const state = mapSave.current;
+      if (state.timer !== null) clearTimeout(state.timer);
+      if (state.pending !== null) void saveWorkspace(state.pending).catch(() => {});
+    },
+    [],
+  );
   /* What the wizard's own settled row says happened, keyed by session id.
      `CredentialSaved`/`ConnectionFailure` already state the outcome once,
      the moment it happens; dismissing either clears `attempt` and lands on
@@ -1158,6 +1225,18 @@ export function App(): JSX.Element {
     [homeEntries],
   );
 
+  /* #357: tell the map an editor concluded with its host on disk, whichever
+     door it left through. Read before the editor is removed: `finished`
+     needs `editorsRef` still holding the slot this `target` names. The
+     effect this feeds is itself a no-op when there is no map editor waiting
+     on the result, and `target` staying `new` means nothing was ever saved
+     to place. */
+  const notifyMapEditorDone = useCallback((target: EditorTarget): void => {
+    if (target.kind !== 'existing') return;
+    const finished = findEditor(editorsRef.current, target);
+    if (finished !== null) setMapEditorDone({ formId: finished.formId, sessionId: target.sessionId });
+  }, []);
+
   /* The form's own Cancel button. No tab to close since ADR-0029's follow-up
      put Hosts behind a list rather than a strip, so this is reached from
      inside the form instead of from an X beside its name. */
@@ -1178,10 +1257,15 @@ export function App(): JSX.Element {
         return;
       }
 
+      /* A host saved through the map's own "New host" but closed with
+         "Skip test" or a plain Escape/backdrop, rather than a passing test's
+         `onAutoFinish`, used to leave the session on disk without ever
+         reaching the component it was created for. */
+      notifyMapEditorDone(target);
       setEditors((current) => withoutEditor(current, target));
       forgetHome(focus);
     },
-    [forgetHome],
+    [forgetHome, notifyMapEditorDone],
   );
 
   /* Sending a tab to another rectangle by name. Sessions only: Home has one
@@ -1809,11 +1893,12 @@ export function App(): JSX.Element {
   );
 
   /* The form opens over whatever workspace asked for it (ADR-0072): Home's own
-     row click and its `+`, the general command palette's `session:edit:*`
-     command (`sources.ts`'s `sessionCommands`), and `SessionBody.onEditHost`
-     from inside a session all land here, and none of them has to leave first
-     any more. The "+" host book palette (`hostBookCommands`) opens a saved
-     host; it has no edit command of its own. */
+     row click and its `+`, the hosts-manager sidebar's pencil (ADR-0076), and
+     `SessionBody.onEditHost` from inside a session all land here, and none of
+     them has to leave first any more. The "+" host book palette
+     (`hostBookCommands`) opens a saved host; it has no edit command of its
+     own, and neither does the general palette any more (`sessionCommands`,
+     ADR-0076's follow-up). */
   const openEditor = useCallback((target: EditorTarget): void => {
     setEditors((current) => withEditor(current, target, savedRef.current));
     setHomeFocus({ kind: 'editor', target });
@@ -1860,9 +1945,8 @@ export function App(): JSX.Element {
          from everything else. */
       workspace: workspace === 'sftp' ? 'sftp' : workspace === 'map' ? 'map' : 'sessions',
       localShellKinds,
+      mapPlacement,
       actions: {
-        newSession: () => openEditor({ kind: 'new' }),
-        editSession: (sessionId: string) => openEditor({ kind: 'existing', sessionId }),
         selectSession: activate,
         activateTab: (sessionId: string) => focusOn({ kind: 'session', sessionId }),
         closeTab: (sessionId: string) => closeFocus({ kind: 'session', sessionId }),
@@ -1890,36 +1974,96 @@ export function App(): JSX.Element {
         runMacro,
         openMacros: () => setMacrosOpen(true),
         openHostsManager: () => setHostsManagerOpen(true),
+        /* `HostPicker`'s old `pick()`: resolve the outcome the same way it
+           did, against whichever component `mapPlacement` named, then write
+           it and close the request. The palette has already excluded any
+           host `mapPlacement.blockedHostIds` names, so an `!outcome.ok`
+           result here is defensive rather than expected, and needs nothing
+           more than declining to write. */
+        placeHostOnMap: (sessionId: string) => {
+          if (mapPlacement === null) return;
+          const outcome =
+            mapPlacement.changing === null
+              ? addComponent(mapWorkspace, mapPlacement.kind, sessionId, saved, mapPlacement.layer)
+              : changeHost(mapWorkspace, mapPlacement.changing, sessionId, saved);
+          if (outcome.ok) changeMap(outcome.workspace);
+          setMapPlacement(null);
+        },
+        /* `HostPicker`'s old `onNewHost`: same `HostAsk` shape, carried
+           through to the shared host editor instead of a picker-local form. */
+        newHostForMap: () => {
+          if (mapPlacement === null) return;
+          openEditorOnMap({ kind: 'new' }, {
+            kind: mapPlacement.kind,
+            changing: mapPlacement.changing,
+            layer: mapPlacement.layer,
+          });
+          setMapPlacement(null);
+        },
       },
     }),
-    [i18n, sessions, tabs, activeId, macroTargetId, chosen, maximized, nativeDecorations, previewFeatures, act, choose, closeFocus, activate, useNativeDecorations, choosePreviewFeatures, openSettings, resolvedFocus, focusOn, entries, chooseLayout, layout, sync, filled, muted, armed, receiving, groups, focusedGroup, editorTabs, localShellTabs, moveTo, closeGroup, macros, runMacro, workspace, openHostInto, openLocalInto, localShellKinds, openLocalShellInto],
+    [i18n, sessions, tabs, activeId, macroTargetId, chosen, maximized, nativeDecorations, previewFeatures, act, choose, closeFocus, activate, useNativeDecorations, choosePreviewFeatures, openSettings, resolvedFocus, focusOn, entries, chooseLayout, layout, sync, filled, muted, armed, receiving, groups, focusedGroup, editorTabs, localShellTabs, moveTo, closeGroup, macros, runMacro, workspace, openHostInto, openLocalInto, localShellKinds, openLocalShellInto, mapPlacement, mapWorkspace, saved, changeMap, openEditorOnMap],
   );
 
-  const sources = useMemo(
-    () => [
-      () => sessionCommands(context),
-      () => actionCommands(context),
-      () => macroCommands(context),
-      () => hostsManagerCommand(context),
-    ],
-    [context],
-  );
-
-  /* The "+" beside the ADR-0072 pills opens this instead of the shortcut
-     palette above: a second, independently driven `usePalette`, suspended so
-     its own keyboard shortcut never fires, shown only from `OpenHostButton`'s
-     click. Same presentational `CommandPalette`, same ranking and keyboard
-     navigation, a different source. */
-  /* Local shells first: a machine with nothing saved yet still has a
+  /* One palette for the whole app: the keyboard shortcut and the "+" beside
+     the ADR-0072 pills used to drive two independently mounted `usePalette`
+     instances with two source sets. `sources` is read fresh on every render
+     (`usePalette`'s own `useMemo`), so which set feeds it is just a matter of
+     which one `hostPickerActive` picks. Local shells come first in
+     host-picker mode: a machine with nothing saved yet still has a
      terminal, so this belongs above the saved hosts rather than waiting at
      the bottom for a list that might be empty. */
-  const hostSources = useMemo(
-    () => [() => localShellCommands(context), () => hostBookCommands(context)],
-    [context],
+  const sources = useMemo(
+    () =>
+      hostPickerActive
+        ? [() => localShellCommands(context), () => hostBookCommands(context)]
+        : [
+            () => sessionCommands(context),
+            () => actionCommands(context),
+            () => macroCommands(context),
+            () => hostsManagerCommand(context),
+          ],
+    [context, hostPickerActive],
   );
-  const hostPalette = usePalette(hostSources, chrome?.commandModifier ?? 'control', true);
-
   const palette = usePalette(sources, chrome?.commandModifier ?? 'control', macrosOpen);
+
+  /* The sole way anything opens the "+" side of the palette: `OpenHostButton`,
+     Sessions' and SFTP's empty-panel prompts, and the map's own trigger just
+     below. `palette.show` is referentially stable, so this does not fight
+     `sources`'s own dependency on `hostPickerActive` above it. */
+  const openHostPicker = useCallback(() => {
+    setHostPickerActive(true);
+    palette.show();
+  }, [palette]);
+
+  /* The map's own trigger for that same palette (`HostPicker`'s old job):
+     works out which hosts already carry a component of the requested kind
+     (ADR-0064's duplicate rule), so `hostBookCommands` can leave them off the
+     list instead of the picker's old inline refusal, then opens the palette
+     over whichever `mapPlacement` names. */
+  const onRequestMapHost = useCallback(
+    (kind: MapComponentKind, changing: string | null, layer: string | null): void => {
+      const blockedHostIds = new Set(
+        mapWorkspace.components
+          .filter((component) => component.kind === kind && component.id !== changing && component.host !== undefined)
+          .map((component) => component.host as string),
+      );
+      setMapPlacement({ kind, changing, layer, blockedHostIds });
+      openHostPicker();
+    },
+    [mapWorkspace, openHostPicker],
+  );
+
+  /* Covers cancelling out of the palette (Escape, the backdrop click) and a
+     completed pick alike (`usePalette.run` always dismisses before running):
+     whatever closed it, both the mode and any map placement it was standing
+     in for reset together, so a later, unrelated open from Sessions or SFTP
+     never inherits either. */
+  useEffect(() => {
+    if (palette.open) return;
+    setHostPickerActive(false);
+    setMapPlacement(null);
+  }, [palette.open]);
 
   /* Built once per render rather than looked up per pane: the map is small,
      and four linear searches through the session list to draw four headers is
@@ -2019,49 +2163,6 @@ export function App(): JSX.Element {
       return live === undefined ? endpoint.sessionId : groupLabel(live.session).where;
     },
     [sessions, i18n],
-  );
-
-  /* ADR-0064: the map's own state. Loaded once, held whole, written whole a
-     moment after the last change, so a drag is one write and not sixty. */
-  const [mapWorkspace, setMapWorkspace] = useState<MapWorkspaceModel>(EMPTY_WORKSPACE);
-  useEffect(() => {
-    let live = true;
-    void loadWorkspace()
-      .then((loaded) => {
-        if (live) setMapWorkspace(loaded);
-      })
-      .catch(() => {
-        /* A malformed file is reported by the core the next time the map is
-           written, on the save that fails; until then the map starts empty
-           rather than the workspace refusing to open. */
-      });
-    return () => {
-      live = false;
-    };
-  }, []);
-  const mapSave = useRef<{ timer: ReturnType<typeof setTimeout> | null; pending: MapWorkspaceModel | null }>({
-    timer: null,
-    pending: null,
-  });
-  const changeMap = useCallback((next: MapWorkspaceModel): void => {
-    setMapWorkspace(next);
-    const state = mapSave.current;
-    state.pending = next;
-    if (state.timer !== null) clearTimeout(state.timer);
-    state.timer = setTimeout(() => {
-      state.timer = null;
-      const pending = state.pending;
-      state.pending = null;
-      if (pending !== null) void saveWorkspace(pending).catch(() => {});
-    }, 300);
-  }, []);
-  useEffect(
-    () => () => {
-      const state = mapSave.current;
-      if (state.timer !== null) clearTimeout(state.timer);
-      if (state.pending !== null) void saveWorkspace(state.pending).catch(() => {});
-    },
-    [],
   );
 
   /* #357: the popup lives exactly as long as its editor. Any door the
@@ -2446,12 +2547,12 @@ export function App(): JSX.Element {
     workspace === 'sessions' ? (
       <>
         <WorkspacePills workspace="sessions" onChoose={openWorkspace} />
-        <OpenHostButton onClick={hostPalette.show} />
+        <OpenHostButton onClick={openHostPicker} />
       </>
     ) : workspace === 'sftp' ? (
       <>
         <WorkspacePills workspace="sftp" onChoose={openWorkspace} />
-        <OpenHostButton onClick={hostPalette.show} />
+        <OpenHostButton onClick={openHostPicker} />
       </>
     ) : workspace === 'map' ? (
       <>
@@ -2526,7 +2627,7 @@ export function App(): JSX.Element {
            same height either way, so nothing below it moves. */
         controls={chrome === null ? [] : windowControls(chrome, maximized)}
         leadingInset={chrome?.leadingInset ?? 0}
-        railBelow={shell === 'map'}
+        railBelow={workspace === 'map'}
         onAct={act}
       />
 
@@ -2691,7 +2792,7 @@ export function App(): JSX.Element {
                         variant="panel"
                         onOpenHost={() => {
                           setLastFocusedGroup(at);
-                          hostPalette.show();
+                          openHostPicker();
                         }}
                       />
                     ) : (
@@ -2700,7 +2801,7 @@ export function App(): JSX.Element {
                         variant="group"
                         onOpenHost={() => {
                           setLastFocusedGroup(at);
-                          hostPalette.show();
+                          openHostPicker();
                         }}
                       />
                     ))}
@@ -2956,7 +3057,7 @@ export function App(): JSX.Element {
                         title={i18n.t('sftp.source.empty.title')}
                         onOpenHost={() => {
                           setLastFocusedFanoutSlot({ kind: 'source' });
-                          hostPalette.show();
+                          openHostPicker();
                         }}
                       />
                     </div>
@@ -3008,7 +3109,7 @@ export function App(): JSX.Element {
                                 title={i18n.t('sftp.destination.empty.title')}
                                 onOpenHost={() => {
                                   setLastFocusedFanoutSlot({ kind: 'destination', slot });
-                                  hostPalette.show();
+                                  openHostPicker();
                                 }}
                               />
                             </div>
@@ -3122,7 +3223,8 @@ export function App(): JSX.Element {
               onEditHost={(sessionId) =>
                 openEditorOnMap({ kind: 'existing', sessionId }, { kind: null, changing: null, layer: null })
               }
-              onNewHost={(name, ask) => openEditorOnMap({ kind: 'new' }, ask, name)}
+              onRequestHost={onRequestMapHost}
+              pickingHost={mapPlacement !== null}
               hostPopup={mapHostPopup}
               terminals={mapTerminalWiring}
               renderSftp={renderMapSftp}
@@ -3229,20 +3331,6 @@ export function App(): JSX.Element {
         onSelect={palette.select}
         onRun={palette.run}
         onDismiss={palette.dismiss}
-      />
-
-      {/* The "+" beside the ADR-0072 pills, ADR-0072: same component, a
-          second and independently driven `usePalette` behind it. */}
-      <CommandPalette
-        open={hostPalette.open}
-        query={hostPalette.query}
-        matches={hostPalette.matches}
-        selected={hostPalette.selected}
-        onQuery={hostPalette.setQuery}
-        onMove={hostPalette.move}
-        onSelect={hostPalette.select}
-        onRun={hostPalette.run}
-        onDismiss={hostPalette.dismiss}
       />
 
       <HostEditorDialog

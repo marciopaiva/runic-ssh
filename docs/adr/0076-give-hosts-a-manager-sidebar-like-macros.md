@@ -131,3 +131,44 @@ Sessions, SFTP and Map can manage hosts directly is Option C's question,
 deliberately not decided here. Implementing the hosts-manager sidebar
 itself, the toolbar button, the "Manage hosts..." command, and the
 row-level delete is Phase 3/4's work, tracked against issue #433.
+
+## Addendum: 2026-09-21
+
+The Context section's description of Map, "a new host is created through
+`HostPicker`'s own typed-name flow", describes a state that no longer
+exists. `HostPicker` was removed: Map now resolves a host, new or existing,
+through the same "+" host book palette Sessions and SFTP already use,
+carrying the kind and, for an existing component, which one is changing,
+into the palette rather than opening a second overlay for the same job. The
+maintainer's reason was navigation consistency, the same complaint this ADR
+itself already names in its own Context ("nothing states the shape once").
+Nothing else in this ADR's decision, contract or Consequences changes: the
+hosts-manager sidebar this ADR actually decides is still unbuilt, still
+tracked against #433.
+
+## Addendum: 2026-09-21 (2)
+
+The keyboard-shortcut palette and the "+" host book palette were two
+independently mounted `usePalette` instances with two source lists. They are
+now one component instance: which source list feeds it is chosen by how it
+was opened, the "+" (and the map's own radial-menu trigger) asking for the
+host book, the keyboard shortcut asking for the general surface. Nothing
+about the hook or the presentational `<CommandPalette>` changed; this was a
+rewiring of `App.tsx`'s two call sites into one.
+
+Point 6's own words, "not a second place to edit or delete," turned out to
+already be violated by a surface this ADR never analyzed:
+`sessionCommands`, the general palette's own source, offered `session:new`
+and `session:edit:${id}` next to the host book's quick-use rows,
+independent of the hosts-manager sidebar this ADR introduced. Once both
+palettes shared one component, that redundancy sat in the same list as
+"Manage hosts...", visibly duplicating it. `sessionCommands` no longer
+offers either row; it now does only what point 6 asks of the palette,
+switching to an open session or selecting a closed one. Creating and
+editing a host now go exclusively through Home's own row and the
+hosts-manager sidebar.
+
+`SessionWizard`'s own inline delete button was considered for removal on
+the same "duplicate" reasoning and rejected: `HostsSection.tsx` has no
+delete affordance of its own, so that button is Home's only way to delete a
+saved host, not a second one next to the sidebar's trash icon. It stays.

@@ -62,8 +62,6 @@ function actions(): CommandActions & { readonly calls: string[] } {
   const calls: string[] = [];
   return {
     calls,
-    newSession: () => calls.push('new'),
-    editSession: (id) => calls.push(`edit:${id}`),
     selectSession: (id) => calls.push(`select:${id}`),
     activateTab: (id) => calls.push(`activate:${id}`),
     closeTab: (id) => calls.push(`close:${id}`),
@@ -83,6 +81,8 @@ function actions(): CommandActions & { readonly calls: string[] } {
     openLocalInto: () => calls.push('hostbook:local'),
     openHostsManager: () => calls.push('hosts:manage'),
     openLocalShellInto: (kind) => calls.push(`local:${kind.kind}`),
+    placeHostOnMap: (id) => calls.push(`map:place:${id}`),
+    newHostForMap: () => calls.push('map:new'),
   };
 }
 
@@ -106,6 +106,7 @@ function context(overrides: Partial<CommandContext> = {}): CommandContext {
     macros: [],
     workspace: 'sessions',
     localShellKinds: [],
+    mapPlacement: null,
     actions: actions(),
     ...overrides,
   };
@@ -277,20 +278,6 @@ describe('the shortcut', () => {
 });
 
 describe('what the palette offers', () => {
-  it('offers a way to add a host even with nothing saved', () => {
-    /* An SSH client whose palette lists no way to add a host is one nobody
-       can use. That shipped once — the "+" opened the palette, and the
-       palette had nothing to open. */
-    const act = actions();
-    const commands = sessionCommands(context({ actions: act }));
-
-    const add = commands.find((entry) => entry.id === 'session:new');
-    expect(add).toBeDefined();
-
-    add?.run();
-    expect(act.calls).toEqual(['new']);
-  });
-
   it('reaches every saved host', () => {
     const commands = sessionCommands(
       context({ sessions: [live(session('a', 'web-01', '10.0.4.31'))] }),
@@ -298,16 +285,6 @@ describe('what the palette offers', () => {
 
     const reach = commands.find((entry) => entry.id === 'session:a');
     expect(reach?.keywords).toContain('10.0.4.31');
-  });
-
-  it('offers a way to edit every saved host', () => {
-    const act = actions();
-    const commands = sessionCommands(
-      context({ sessions: [live(session('a', 'web-01', 'h1'))], actions: act }),
-    );
-
-    commands.find((entry) => entry.id === 'session:edit:a')?.run();
-    expect(act.calls).toEqual(['edit:a']);
   });
 
   it('switches to an open session and selects a closed one', () => {
@@ -721,10 +698,55 @@ describe('the host book palette (ADR-0072)', () => {
   });
 
   it('does not offer to create a host: this "+" places an existing one', () => {
-    /* Creating one is `command.session.new` in the keyboard palette, Home's
-       own row and the hosts-manager sidebar's own affordance instead. */
+    /* Creating one is Home's own row or the hosts-manager sidebar's own
+       affordance instead (ADR-0076); the general palette has no create
+       command of its own either. */
     const commands = hostBookCommands(context());
     expect(commands.map((entry) => entry.id)).not.toContain('hostbook:new');
+  });
+
+  it('leaves out a host already carrying a component of the kind the map asked for', () => {
+    /* `HostPicker`'s old `duplicate` refusal (ADR-0064), avoided here by not
+       offering the blocked row rather than showing it and saying no. */
+    const commands = hostBookCommands(
+      context({
+        workspace: 'map',
+        sessions: [live(session('a', 'web-01', 'h1')), live(session('b', 'db-01', 'h2'))],
+        mapPlacement: { kind: 'ssh', changing: null, layer: null, blockedHostIds: new Set(['a']) },
+      }),
+    );
+
+    expect(commands.map((entry) => entry.id)).toEqual(['hostbook:b', 'hostbook:new']);
+  });
+
+  it('places a picked host on the map instead of into a pane, while a placement is requested', () => {
+    const act = actions();
+    hostBookCommands(
+      context({
+        workspace: 'map',
+        sessions: [live(session('a', 'web-01', 'h1'))],
+        mapPlacement: { kind: 'ssh', changing: null, layer: null, blockedHostIds: new Set() },
+        actions: act,
+      }),
+    )
+      .find((entry) => entry.id === 'hostbook:a')
+      ?.run();
+
+    expect(act.calls).toEqual(['map:place:a']);
+  });
+
+  it('offers to create a host on the map while a placement is requested there', () => {
+    const act = actions();
+    const commands = hostBookCommands(
+      context({
+        workspace: 'map',
+        mapPlacement: { kind: 'ssh', changing: null, layer: null, blockedHostIds: new Set() },
+        actions: act,
+      }),
+    );
+
+    commands.find((entry) => entry.id === 'hostbook:new')?.run();
+    expect(act.calls).toEqual(['map:new']);
   });
 });
 
@@ -752,6 +774,21 @@ describe('the local shell palette (ADR-0074)', () => {
        nothing to contribute there. */
     const commands = localShellCommands(
       context({ workspace: 'sftp', localShellKinds: [powerShell, wsl] }),
+    );
+
+    expect(commands).toEqual([]);
+  });
+
+  it('leaves local shells out while the map is asking for a host', () => {
+    /* A local shell answers none of the kinds the map's radial menu asks
+       this "+" for; offering one here would run it into a Sessions tab-strip
+       slot the user is not even looking at. */
+    const commands = localShellCommands(
+      context({
+        workspace: 'map',
+        localShellKinds: [powerShell, wsl],
+        mapPlacement: { kind: 'ssh', changing: null, layer: null, blockedHostIds: new Set() },
+      }),
     );
 
     expect(commands).toEqual([]);

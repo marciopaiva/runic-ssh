@@ -159,9 +159,12 @@ impl Default for Registry {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(not(windows))]
     use std::time::Duration;
 
+    #[cfg(not(windows))]
     use super::*;
+    #[cfg(not(windows))]
     use crate::local_shell::kind::LocalShellKind;
 
     #[cfg(not(windows))]
