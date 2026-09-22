@@ -3133,7 +3133,6 @@ export function App(): JSX.Element {
                   selectedId={homeEditorTarget?.kind === 'existing' ? homeEditorTarget.sessionId : null}
                   creatingNew={homeEditorTarget?.kind === 'new'}
                   sidebarOpen={sidebarOpen}
-                  modifier={chrome?.commandModifier ?? 'control'}
                   onSelect={(sessionId) => {
                     openEditor({ kind: 'existing', sessionId });
                     setSidebarOpen(false);

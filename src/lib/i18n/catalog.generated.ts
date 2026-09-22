@@ -113,8 +113,6 @@ export const SOURCE_CATALOG = {
   "home.hosts.bastions.collapsed.other": "{count} hosts",
   "home.hosts.bastions.expand": "Expand {name}",
   "home.hosts.direct": "Direct",
-  "home.hosts.empty.body": "Pick a host on the left to change it, or add one.",
-  "home.hosts.empty.title": "No host selected",
   "home.hosts.filter": "Filter hosts",
   "home.title": "Home",
   "hostKey.action.cancel": "Cancel",
