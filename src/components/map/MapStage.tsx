@@ -48,6 +48,7 @@ import {
 } from '../../features/map';
 import type { SwitchState } from '../../features/map';
 import { HUB, useMapStage } from '../../features/map/use-map-stage';
+import { useMapSearch } from '../../features/map/use-map-search';
 import { useTranslator } from '../../features/settings';
 import type { Endpoint, PaneEntry } from '../../features/sftp/endpoint';
 import type { MapDestination, PaneReport } from '../../features/sftp/use-fanout';
@@ -233,7 +234,6 @@ export function MapStage({
   onMapReachChange,
 }: MapStageProps): JSX.Element {
   const i18n = useTranslator();
-  const [query, setQuery] = useState('');
   /* ADR-0065: the switch per connected set, keyed by the set's members, and
      the windows that spared themselves. In memory only, on purpose: a
      restart never comes up armed, and a set that changed is a new key. */
@@ -870,22 +870,18 @@ export function MapStage({
   }, [mapReach, onMapReachChange]);
 
   const thumbnail = terminalTreatment(stage.view.scale) === 'thumbnail';
-  const needle = query.trim().toLowerCase();
-  const matches = useCallback(
-    (component: Component): boolean => {
-      if (needle === '') return true;
-      const host = hostOf(component);
-      if (host === null) return i18n.t('map.local.name').toLowerCase().includes(needle);
-      if (host === undefined) return false;
-      return `${host.name} ${host.host} ${host.user}`.toLowerCase().includes(needle);
-    },
-    [hostOf, i18n, needle],
-  );
-
-  const onQuerySubmit = useCallback((): void => {
-    const first = level.find(matches);
-    if (first !== undefined) act(first.id, stage.open.has(first.id) ? 'collapse' : 'open');
-  }, [act, level, matches, stage.open]);
+  const isOpen = useCallback((id: string): boolean => stage.open.has(id), [stage.open]);
+  const { query, onQueryChange, onQuerySubmit, matches } = useMapSearch({
+    workspace,
+    currentLayer,
+    setCurrentLayer,
+    exitFullscreen: stage.exitFullscreen,
+    componentById,
+    isOpen,
+    act,
+    hostOf,
+    localName: i18n.t('map.local.name'),
+  });
 
   /* The map's own row of the shared toolbar (ADR-0069): the crumb, search,
      zoom and Recenter, reported up rather than drawn in a second bar here.
@@ -911,12 +907,12 @@ export function MapStage({
       crumb,
       ...(onBack === undefined ? {} : { onBack }),
       query,
-      onQueryChange: setQuery,
+      onQueryChange,
       onQuerySubmit,
       zoomPercent,
       onRecenter: stage.recenter,
     }),
-    [crumb, onBack, onQuerySubmit, query, stage.recenter, zoomPercent],
+    [crumb, onBack, onQueryChange, onQuerySubmit, query, stage.recenter, zoomPercent],
   );
   useEffect(() => {
     onToolbarChange(toolbarContent);
