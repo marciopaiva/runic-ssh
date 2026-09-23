@@ -854,10 +854,33 @@ connection, not just accepting connections and doing nothing with them.
 Remote and Dynamic forwards share the same start-on-connect mechanism and
 the same editor section; this pass drove Local specifically, since it is
 the direction with the least new surface (`open_forward` already proven
-by every jump chain, ADR-0054's own words). Driving Remote (the server
-initiating a channel back to this machine) and Dynamic (a local SOCKS
-listener) the same concrete way is open work, not assumed safe by
-analogy here.
+by every jump chain, ADR-0054's own words).
+
+Confirmed on Linux on 2026-09-22, against the same `runic-test-sshd`
+fixture on port 2222, same fingerprint
+`SHA256:aFlhIVptureOEVBRgdbFwxN3+m0oKeVC8hLnP8ihBqI`: a host saved with
+both a Remote forward (bind port 18023, target `127.0.0.1:2222`, the
+server's own address for itself) and a Dynamic forward (bind port
+18024), connected together. The Tunnels tab showed both **running** the
+instant the session connected, and the status bar's forward count read
+2.
+
+Remote's bind lives inside the server's own network namespace, not on
+this machine, so it could not be reached from here directly; it was read
+from inside the container instead, `podman exec runic-test-sshd sh -c
+"nc 127.0.0.1 18023"`. It returned the exact same banner, byte for byte,
+as a direct read of port 2222:
+`SSH-2.0-OpenSSH_10.3\r\n`. That is the same proof Local's fingerprint
+comparison gave, in the form Remote's direction allows: the far end of
+the forward is genuinely the target's own sshd, not an empty listener.
+
+Dynamic's bind is a SOCKS5 proxy on this machine. A CONNECT to
+`127.0.0.1:2222` through it, as the SSH server would see that address,
+returned the same banner again, over the same one connection the
+terminal was using. Closing the session's tab dropped both: the Remote
+bind stopped answering inside the container, and the Dynamic bind
+refused new connections on this machine, matching the existing table's
+third row for both directions, not only Local.
 
 ### The host book organized by topology (ADR-0060)
 
