@@ -281,14 +281,13 @@ export function App(): JSX.Element {
   const { previewFeatures, choosePreviewFeatures } = usePreview();
   /* Which main area is showing. ADR-0029: Sessions keeps groups, splitting and
      the sync switch; Home holds the dashboard and the host editor, neither of
-     which is terminal-shaped, in a strip of its own with neither. Home is no
-     longer the classic shell's landing screen (ADR-0072): its own rail is
-     gone, so a window that opened straight there would have nowhere left to
-     point a user with nothing open yet. Sessions' own toolbar carries that job
-     now, via `OpenHostButton`, so a fresh window lands there instead. The map
-     is a fourth peer value here (ADR-0075), reached through its own pill like
+     which is terminal-shaped, in a strip of its own with neither. A fresh
+     window lands on Home: it is the host book, the thing worth seeing before
+     anything is open, and the SSH pill that connects one is one click away
+     either way (ADR-0072's addendum gave Home that pill back). The map is a
+     fourth peer value here (ADR-0075), reached through its own pill like
      Sessions and SFTP are. */
-  const [workspace, setWorkspace] = useState<Workspace>('sessions');
+  const [workspace, setWorkspace] = useState<Workspace>('home');
   /* Turning the preview off while the map is in front leaves nowhere to
      stand, since the pill that reached it stays visible but the workspace it
      names is gated again; fall back to Sessions (ADR-0066, ADR-0075). */
