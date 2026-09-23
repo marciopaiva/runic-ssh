@@ -3,22 +3,14 @@ import type { JSX } from 'react';
 import type { ConnectionKind } from '../features/sessions';
 import { describeState, FORWARD_KIND_LABEL } from '../features/sessions';
 import { useTranslator } from '../features/settings';
-import {
-  ENCODING,
-  FORWARD_STATE_LABEL,
-  TERM,
-  anyForwardFailed,
-  gradeLatency,
-  paletteKeys,
-} from '../features/status';
+import { ENCODING, FORWARD_STATE_LABEL, TERM, anyForwardFailed, gradeLatency } from '../features/status';
 import type { Announcement, ForwardStatus } from '../features/status';
 import type { GroupLabel } from '../features/terminal';
 import type { TerminalSize } from '../features/terminal/use-terminal';
-import type { CommandModifier, SessionStats } from '../ipc';
+import type { SessionStats } from '../ipc';
 
 import { SessionMarker } from './SessionMarker';
 import { Button } from './ui/Button';
-import { Kbd } from './ui/Kbd';
 import { WarningIcon } from './ui/icons';
 
 interface StatusBarProps {
@@ -38,7 +30,6 @@ interface StatusBarProps {
   readonly identity: GroupLabel | null;
   readonly stats: SessionStats;
   readonly size: TerminalSize | null;
-  readonly modifier: CommandModifier;
   /** How many hosts a keystroke reaches, or `null` when it reaches one. */
   readonly syncing: number | null;
   /**
@@ -128,11 +119,11 @@ function LatencyBars({ filled }: { readonly filled: number }): JSX.Element {
 /**
  * The bar along the bottom.
  *
- * Everything on it is measured except the palette hint. The two numbers come
- * from the core — bytes counted as they pass through the pump, and a round trip
- * timed against the host — and the size is whatever the remote pty was last
- * told. The encoding and the terminal type are constants, shown because they
- * answer a question people ask of an SSH client, not because they are settings.
+ * Everything on it is measured. The two numbers come from the core: bytes
+ * counted as they pass through the pump, and a round trip timed against the
+ * host. The size is whatever the remote pty was last told. The encoding and
+ * the terminal type are constants, shown because they answer a question
+ * people ask of an SSH client, not because they are settings.
  */
 export function StatusBar({
   kind,
@@ -140,7 +131,6 @@ export function StatusBar({
   identity,
   stats,
   size,
-  modifier,
   syncing,
   announcement,
   credentialUnsaved,
@@ -397,15 +387,6 @@ export function StatusBar({
           </Cell>
         </>
       )}
-
-      <div className="text-ink-secondary flex shrink-0 items-center gap-1.5 pr-4 pl-3">
-        <span className="flex items-center gap-1">
-          {paletteKeys(modifier).map((key) => (
-            <Kbd key={key}>{key}</Kbd>
-          ))}
-        </span>
-        <span>{i18n.t('status.palette')}</span>
-      </div>
     </footer>
   );
 }

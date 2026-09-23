@@ -12,11 +12,9 @@ import {
 } from '../features/sessions';
 import type { HostRow, LiveSession } from '../features/sessions';
 import { useTranslator } from '../features/settings';
-import type { CommandModifier } from '../ipc';
 
-import { EmptyPanel } from './EmptyPanel';
-import { HomeSummaryPanel } from './HomeSummaryPanel';
 import { HostKindIcon } from './HostKindIcon';
+import { LogoMark } from './LogoMark';
 import { SidebarOverlay } from './SidebarOverlay';
 import { ChevronRightIcon, PlusIcon, SearchIcon } from './ui/icons';
 
@@ -32,9 +30,6 @@ interface HostsSectionProps {
       until now. ADR-0071: an overlay now, not a reflowing sidebar, so
       closing it is this component's own job, not just the rail's. */
   readonly sidebarOpen: boolean;
-  /** For `EmptyPanel`'s own command-palette hint, unused while `title`/
-      `body` are overridden below but part of its uniform signature. */
-  readonly modifier: CommandModifier;
   readonly onSelect: (sessionId: string) => void;
   readonly onNew: () => void;
   /** Called after the overlay closes on its own (Escape, backdrop click) so
@@ -74,7 +69,6 @@ export function HostsSection({
   selectedId,
   creatingNew,
   sidebarOpen,
-  modifier,
   onSelect,
   onNew,
   onCloseSidebar,
@@ -206,15 +200,10 @@ export function HostsSection({
 
       <div className="min-w-0 flex-1 overflow-y-auto">
         {selectedId === null && !creatingNew ? (
-          sessions.length > 0 ? (
-            <HomeSummaryPanel sessions={sessions} />
-          ) : (
-            <EmptyPanel
-              modifier={modifier}
-              title={i18n.t('home.hosts.empty.title')}
-              body={i18n.t('home.hosts.empty.body')}
-            />
-          )
+          <div className="flex h-full flex-col items-center justify-center gap-3.5" aria-hidden="true">
+            <LogoMark className="h-16 w-16" />
+            <span className="text-ink text-[27px] font-extrabold tracking-tight">{i18n.t('app.name')}</span>
+          </div>
         ) : (
           detail
         )}

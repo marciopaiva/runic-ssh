@@ -34,23 +34,3 @@ export function selectionAfterQuery(): number {
 export function commandAt(matches: readonly Match[], selected: number): Match | null {
   return matches[selected] ?? null;
 }
-
-/**
- * Whether a key event is the palette's shortcut.
- *
- * `event.code` rather than `event.key`: with Shift held, `key` is `P` on a US
- * layout and something else on layouts where Shift-P is not P. The physical
- * key is the same everywhere, which is what a shortcut should follow.
- */
-export function isPaletteShortcut(
-  event: Pick<KeyboardEvent, 'code' | 'shiftKey' | 'ctrlKey' | 'metaKey'>,
-  modifier: 'meta' | 'control',
-): boolean {
-  if (event.code !== 'KeyP' || !event.shiftKey) return false;
-
-  /* Exclusive: Ctrl-Cmd-Shift-P on a Mac is not this shortcut, and treating it
-     as one would swallow a system or terminal binding. */
-  return modifier === 'meta'
-    ? event.metaKey && !event.ctrlKey
-    : event.ctrlKey && !event.metaKey;
-}
