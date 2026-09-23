@@ -211,19 +211,12 @@ export const SECURITY_COPY_KEYS: readonly MessageKey[] = [
   // The sentence that states the review guarantee itself.
   'settings.language.hint',
 
-  // The internal vault's own copy (ADR-0035): what it is, the master
-  // password it asks for, and what a reset costs. Added 2026-08-29, not yet
-  // in any locale's reviewed scope below.
-  'vault.description',
-  'vault.disable',
-  'vault.disable.hint',
-  'vault.enable.hint',
-  'vault.password',
-  'vault.password.confirm',
-  'vault.password.mismatch',
-  'vault.reset.hint',
+  // The internal vault's own status copy (ADR-0035) was removed with its
+  // dead UI (issue #310). What is left is the failure copy that still
+  // renders when a connection needs the vault mid-session: the vault is
+  // there but locked. Added 2026-08-29, not yet in any locale's reviewed
+  // scope below.
   'vault.unlock.body',
-  'vault.error.wrongPassword',
 
   // The internal vault surfacing mid-connection (ADR-0035), reusing the
   // keychain's own failure copy for the same claim about a different store.
