@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties, JSX, MouseEvent as ReactMouseEvent } from 'react';
 
-import type { Session, SessionHandle } from '../ipc';
+import type { Session, SessionHandle, ShellSlot } from '../ipc';
 import { useTerminal } from '../features/terminal/use-terminal';
 import type { ClipboardApi } from '../features/terminal/use-terminal';
 import type { TerminalSize } from '../features/terminal/use-terminal';
@@ -11,6 +11,10 @@ import { Card } from './ui/Card';
 
 export interface TerminalViewProps {
   readonly handle: SessionHandle | null;
+  /** Which of the connection's (at most two) shells this terminal is wired
+      to. ADR-0077. Defaults to the primary, which is every caller from
+      before that ADR. */
+  readonly slot?: ShellSlot | undefined;
   /** For the ADR-0051 MOTD banner: the session this terminal belongs to
       (`null` if it no longer exists in the saved list), and the full saved
       list, for naming a jump host it rides. */
@@ -80,6 +84,7 @@ export interface TerminalViewProps {
  */
 export function TerminalView({
   handle,
+  slot,
   session,
   sessions,
   visible,
@@ -108,6 +113,7 @@ export function TerminalView({
     broadcasting,
     session,
     sessions,
+    slot ?? 'primary',
   );
 
   /* Reported upward rather than read downward: the status bar is a sibling,

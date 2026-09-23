@@ -24,6 +24,14 @@
  * field: a change that widens the gate, or adds a second `TerminalView`
  * mount site outside it, fails here rather than silently reopening what
  * ADR-0032 relied on.
+ *
+ * ADR-0077 adds one sanctioned exception: the second shell it allows mounts
+ * a bare `TerminalView` directly in App.tsx rather than through
+ * `SessionBody`, since it has no forwards or monitor facet of its own to
+ * switch to. The `ADR-0064` describe block below checks that this third
+ * site exists inside the exact same Sessions-workspace gate as
+ * `SessionBody`'s, so the property this file guards, that nothing renders
+ * remote output while Home is showing, still holds for it.
  */
 
 import { readFileSync, readdirSync } from 'node:fs';
@@ -88,7 +96,7 @@ describe('the map is the one other place a terminal mounts (ADR-0064)', () => {
     });
   }
 
-  it('mounts TerminalView in SessionBody.tsx and MapTerminals.tsx, nowhere else', () => {
+  it('mounts TerminalView in App.tsx, SessionBody.tsx and MapTerminals.tsx, nowhere else', () => {
     const sites = walk(srcDir)
       .filter((file) => /\.tsx?$/.test(file) && !file.endsWith('TerminalView.tsx'))
       .filter((file) => /<TerminalView\b/.test(readFileSync(file, 'utf8')))
@@ -96,7 +104,26 @@ describe('the map is the one other place a terminal mounts (ADR-0064)', () => {
          backslashes on Windows, and CI runs there too. */
       .map((file) => path.relative(srcDir, file).split(path.sep).join('/'))
       .sort();
-    expect(sites).toEqual(['components/SessionBody.tsx', 'components/map/MapTerminals.tsx']);
+    /* ADR-0077's secondary shell is a bare `TerminalView`, not a
+       `SessionBody`: it has no forwards or monitor facet of its own to
+       switch to. It is App.tsx's own second mount site, checked below
+       against the same Sessions-workspace gate as `SessionBody`'s, so this
+       allowlist growing to three is the sanctioned exception, not a widening
+       nobody noticed. */
+    expect(sites).toEqual(['App.tsx', 'components/SessionBody.tsx', 'components/map/MapTerminals.tsx']);
+  });
+
+  it('mounts its App.tsx TerminalView inside the same Sessions-workspace gate as SessionBody (ADR-0077)', () => {
+    const sessionsGate = source.indexOf("{workspace === 'sessions' && !mapPreviewPromptOpen && (\n");
+    const homeGate = source.indexOf("        {workspace === 'home' && (");
+    const secondaryTerminalView = source.indexOf('<TerminalView');
+
+    expect(sessionsGate, 'the Sessions workspace gate').toBeGreaterThan(-1);
+    expect(homeGate, 'the Home workspace gate').toBeGreaterThan(-1);
+    expect(secondaryTerminalView, 'the secondary-shell TerminalView mount site').toBeGreaterThan(-1);
+
+    expect(secondaryTerminalView).toBeGreaterThan(sessionsGate);
+    expect(secondaryTerminalView).toBeLessThan(homeGate);
   });
 
   it('renders the map, and so its stack, only inside the map workspace branch', () => {

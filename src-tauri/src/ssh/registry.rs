@@ -32,6 +32,30 @@ impl std::fmt::Display for SessionHandle {
     }
 }
 
+/// Which of the (at most two) shells on a connection this is about.
+///
+/// ADR-0077: a connection carries exactly one extra shell, never an arbitrary
+/// number, so this is a fixed pair rather than a free identifier. `Primary` is
+/// the shell every connection has always opened; `Secondary` is the one #120
+/// asks for, multiplexed over the same transport. There is no third variant,
+/// and adding one is its own ADR, not an extension of this one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ShellSlot {
+    Primary,
+    Secondary,
+}
+
+/// The slot an omitted argument means. Every existing caller of `send_input`
+/// and `resize_terminal` predates the secondary shell and names no slot at
+/// all; defaulting to `Primary` is what keeps those call sites compiling
+/// unchanged rather than mechanically threading a slot through every one.
+impl Default for ShellSlot {
+    fn default() -> Self {
+        Self::Primary
+    }
+}
+
 /// A live connection and the identity it was opened under.
 ///
 /// The user name lives here rather than being looked up again at
@@ -42,8 +66,6 @@ pub struct Open {
     pub connection: Connection,
     pub session_id: String,
     pub user: String,
-    /// Set once a shell is running: where keystrokes go.
-    pub input: Option<tokio::sync::mpsc::Sender<crate::ssh::terminal::Input>>,
 }
 
 /// A session handed to an operation that needs the connection to itself.
@@ -73,10 +95,12 @@ struct Entry {
     connection: Shared,
     session_id: String,
     user: String,
-    input: Option<tokio::sync::mpsc::Sender<crate::ssh::terminal::Input>>,
+    input: HashMap<ShellSlot, tokio::sync::mpsc::Sender<crate::ssh::terminal::Input>>,
     /// How much has moved, shared with the pump. Created here rather than when
     /// a shell opens, so the status bar has something to read from the moment
-    /// a handle exists rather than a hole that fills in later.
+    /// a handle exists rather than a hole that fills in later. Shared across
+    /// both slots: the status bar reports one connection's throughput, not a
+    /// shell's, and the latency probe it rides on is per connection too.
     counters: Arc<Counters>,
 }
 
@@ -104,7 +128,7 @@ impl Registry {
                 connection: crate::ssh::connection::share(open.connection),
                 session_id: open.session_id,
                 user: open.user,
-                input: open.input,
+                input: HashMap::new(),
                 counters: Arc::new(Counters::default()),
             },
         );
@@ -197,44 +221,72 @@ impl Registry {
         Some(close_shared(entry.connection).await)
     }
 
-    /// Records where a session's keystrokes should be sent.
+    /// Records where a slot's keystrokes should be sent.
     pub async fn attach_input(
         &self,
         handle: SessionHandle,
+        slot: ShellSlot,
         sender: tokio::sync::mpsc::Sender<crate::ssh::terminal::Input>,
     ) {
         if let Some(entry) = self.open.lock().await.get_mut(&handle) {
-            entry.input = Some(sender);
+            entry.input.insert(slot, sender);
         }
     }
 
-    /// Whether a shell has already been opened on this handle.
+    /// Whether a shell has already been opened on this slot.
     ///
-    /// `input` is set when a shell attaches and is never cleared afterwards, so
-    /// this answers "has this handle ever had a shell", which is the question
-    /// the caller needs: a second shell on one connection is wrong whether or
-    /// not the first has since exited. Opening one anyway abandons the first —
-    /// it keeps running, holds a pty, and counts against the server's
-    /// `MaxSessions` (#94, ADR-0014).
-    pub async fn has_shell(&self, handle: SessionHandle) -> bool {
+    /// A slot's sender is set when its shell attaches and, for as long as that
+    /// shell has not been explicitly closed, is never cleared, so this answers
+    /// "has this slot ever had a shell", which is the question the caller
+    /// needs: a second shell on the same slot is wrong whether or not the
+    /// first has since exited. Opening one anyway abandons the first: it
+    /// keeps running, holds a pty, and counts against the server's
+    /// `MaxSessions` (#94, ADR-0014; ADR-0077 extends the rule to a second,
+    /// named slot instead of refusing every second shell outright).
+    pub async fn has_shell(&self, handle: SessionHandle, slot: ShellSlot) -> bool {
         self.open
             .lock()
             .await
             .get(&handle)
-            .is_some_and(|entry| entry.input.is_some())
+            .is_some_and(|entry| entry.input.contains_key(&slot))
     }
 
-    /// Sends a keystroke or a resize, if that session has a shell running.
+    /// Sends a keystroke or a resize to one slot, if that slot has a shell
+    /// running.
     ///
     /// The map lock is released before awaiting the send: a full input queue
-    /// must slow down one session, not every session.
+    /// must slow down one shell, not every shell on the connection.
     pub async fn send_input(
         &self,
         handle: SessionHandle,
+        slot: ShellSlot,
         input: crate::ssh::terminal::Input,
     ) -> Option<()> {
-        let sender = self.open.lock().await.get(&handle)?.input.clone()?;
+        let sender = self
+            .open
+            .lock()
+            .await
+            .get(&handle)?
+            .input
+            .get(&slot)?
+            .clone();
         sender.send(input).await.ok()
+    }
+
+    /// Detaches a slot's shell, closing only that shell.
+    ///
+    /// Dropping the sender is the whole mechanism: `pump` (`ssh/terminal.rs`)
+    /// reads from the paired receiver in a loop, and a channel with no sender
+    /// left resolves that `recv()` to `None`, which is what makes the loop
+    /// break, flush what it has buffered, and report closed. Nothing here
+    /// touches the connection or the other slot. Returns whether a shell was
+    /// there to detach, so a caller can tell a real close from a no-op.
+    pub async fn detach_input(&self, handle: SessionHandle, slot: ShellSlot) -> bool {
+        self.open
+            .lock()
+            .await
+            .get_mut(&handle)
+            .is_some_and(|entry| entry.input.remove(&slot).is_some())
     }
 
     /// The byte counters for a session, to hand to its pump or to read.

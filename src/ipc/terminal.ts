@@ -17,14 +17,30 @@ import type { SessionHandle } from './sessions';
 export const OUTPUT_EVENT = 'terminal://output';
 export const CLOSED_EVENT = 'terminal://closed';
 
+/**
+ * Which of a connection's (at most two) shells this is about. ADR-0077.
+ *
+ * A connection's first shell is always `'primary'`; `'secondary'` is the one
+ * "duplicate this shell" opens, multiplexed over the same transport. There is
+ * no third value, by construction of `ShellSlot` in `ssh/registry.rs`.
+ */
+export type ShellSlot = 'primary' | 'secondary';
+
 interface OutputEvent {
   readonly handle: SessionHandle;
+  readonly slot: ShellSlot;
   readonly data: string;
 }
 
 interface ClosedEvent {
   readonly handle: SessionHandle;
+  readonly slot: ShellSlot;
   readonly exitStatus: number | null;
+}
+
+/** Keys the per-slot maps below, since a shell is addressed by both. */
+function slotKey(handle: SessionHandle, slot: ShellSlot): string {
+  return `${handle}:${slot}`;
 }
 
 function decode(base64: string): Uint8Array {
@@ -44,13 +60,30 @@ function encode(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-/** Starts a shell and begins streaming its output. */
+/**
+ * Starts a shell and begins streaming its output.
+ *
+ * `slot` defaults to the primary, which is every caller from before
+ * ADR-0077. A secondary shell is opened through `duplicate_shell` rather
+ * than `open_terminal` on the Rust side, since it has its own guard (the
+ * primary must already exist, and there must not be a secondary yet) instead
+ * of `open_terminal`'s.
+ */
 export async function openTerminal(
   handle: SessionHandle,
   columns: number,
   rows: number,
+  slot: ShellSlot = 'primary',
 ): Promise<void> {
+  if (slot === 'secondary') {
+    return invoke<void>('duplicate_shell', { handle, columns, rows });
+  }
   return invoke<void>('open_terminal', { handle, columns, rows });
+}
+
+/** Closes one shell. Never the primary: closing that is disconnecting. */
+export async function closeShell(handle: SessionHandle, slot: ShellSlot): Promise<void> {
+  return invoke<void>('close_shell', { handle, slot });
 }
 
 /**
@@ -63,25 +96,27 @@ export async function openTerminal(
 const MAX_INPUT_BYTES = 32 * 1024;
 
 /**
- * The write in flight for each session, so the next one can wait for it.
+ * The write in flight for each session's shell, so the next one can wait for
+ * it.
  *
- * Keyed by handle and not global: a slow host must not hold up the keystrokes
- * going to a different one, which is the whole point of typing into several
- * sessions at once.
+ * Keyed by handle and slot together and not globally: a slow host must not
+ * hold up the keystrokes going to a different session, or to the other shell
+ * of the same one, which is the whole point of typing into several sessions,
+ * or several shells, at once.
  */
-const inFlight = new Map<SessionHandle, Promise<void>>();
+const inFlight = new Map<string, Promise<void>>();
 
 /** One write, split to fit what the core accepts. */
-async function deliver(handle: SessionHandle, bytes: Uint8Array): Promise<void> {
+async function deliver(handle: SessionHandle, slot: ShellSlot, bytes: Uint8Array): Promise<void> {
   for (let at = 0; at < bytes.length; at += MAX_INPUT_BYTES) {
     const piece = bytes.subarray(at, at + MAX_INPUT_BYTES);
-    await invoke<void>('send_input', { handle, data: encode(piece) });
+    await invoke<void>('send_input', { handle, data: encode(piece), slot });
   }
 
   /* An empty write still crosses. Something the host is waiting on may be
      nothing at all, and swallowing it here would be a silent change. */
   if (bytes.length === 0) {
-    await invoke<void>('send_input', { handle, data: '' });
+    await invoke<void>('send_input', { handle, data: '', slot });
   }
 }
 
@@ -93,17 +128,26 @@ async function deliver(handle: SessionHandle, bytes: Uint8Array): Promise<void> 
  * is reading a byte stream, and two calls in flight could deliver a paste
  * shuffled.
  *
- * Queued per handle for the same reason one call is split in order. Splitting
- * alone only orders the pieces of a single write; a second write starting while
- * the first is still going would interleave with it, and a keystroke landing in
- * the middle of a pasted key is not something the host can be asked to sort
- * out. Typing into several sessions at once makes overlapping writes ordinary
- * rather than rare, so the ordering is stated here instead of being inherited
- * from how fast the calls happened to be made.
+ * Queued per handle and slot for the same reason one call is split in order.
+ * Splitting alone only orders the pieces of a single write; a second write
+ * starting while the first is still going would interleave with it, and a
+ * keystroke landing in the middle of a pasted key is not something the host
+ * can be asked to sort out. Typing into several sessions at once, or into a
+ * session's two shells at once, makes overlapping writes ordinary rather than
+ * rare, so the ordering is stated here instead of being inherited from how
+ * fast the calls happened to be made.
+ *
+ * `slot` defaults to the primary, which is every caller from before
+ * ADR-0077.
  */
-export function sendInput(handle: SessionHandle, bytes: Uint8Array): Promise<void> {
-  const sent = (inFlight.get(handle) ?? Promise.resolve()).then(() =>
-    deliver(handle, bytes),
+export function sendInput(
+  handle: SessionHandle,
+  bytes: Uint8Array,
+  slot: ShellSlot = 'primary',
+): Promise<void> {
+  const key = slotKey(handle, slot);
+  const sent = (inFlight.get(key) ?? Promise.resolve()).then(() =>
+    deliver(handle, slot, bytes),
   );
 
   /* What the next write waits on never carries a rejection. A refused write is
@@ -114,11 +158,11 @@ export function sendInput(handle: SessionHandle, bytes: Uint8Array): Promise<voi
     () => {},
   );
 
-  inFlight.set(handle, settled);
+  inFlight.set(key, settled);
   void settled.then(() => {
-    /* Only the last write clears the slot, so a session that goes quiet stops
+    /* Only the last write clears the slot, so a shell that goes quiet stops
        costing an entry while one that is busy keeps its order. */
-    if (inFlight.get(handle) === settled) inFlight.delete(handle);
+    if (inFlight.get(key) === settled) inFlight.delete(key);
   });
 
   return sent;
@@ -128,27 +172,28 @@ export async function resizeTerminal(
   handle: SessionHandle,
   columns: number,
   rows: number,
+  slot: ShellSlot = 'primary',
 ): Promise<void> {
-  return invoke<void>('resize_terminal', { handle, columns, rows });
+  return invoke<void>('resize_terminal', { handle, columns, rows, slot });
 }
 
 type OutputHandler = (bytes: Uint8Array) => void;
 type ClosedHandler = (exitStatus: number | null) => void;
 
-const outputWatchers = new Map<SessionHandle, OutputHandler>();
-const closedWatchers = new Map<SessionHandle, ClosedHandler>();
+const outputWatchers = new Map<string, OutputHandler>();
+const closedWatchers = new Map<string, ClosedHandler>();
 
 /**
- * A `CLOSED_EVENT` that arrived for a handle nobody was watching yet.
+ * A `CLOSED_EVENT` that arrived for a handle and slot nobody was watching yet.
  *
  * `open_terminal`'s spawned pump (`ssh/terminal.rs`) calls `sink.closed()` the
  * instant its channel reports EOF or Close, with no minimum delay: unlike
  * output, which waits for the first rate-limit tick, a shell that closes
  * right after opening can have this fire before a caller here has even
- * finished registering. One entry per handle is enough: a session closes
- * exactly once.
+ * finished registering. One entry per handle and slot is enough: a shell
+ * closes exactly once.
  */
-const unclaimedClosed = new Map<SessionHandle, number | null>();
+const unclaimedClosed = new Map<string, number | null>();
 
 /**
  * Subscribed once, unfiltered, the first time anything here needs it, kept
@@ -172,15 +217,17 @@ let subscribed: Promise<void> | null = null;
 function ensureSubscribed(): Promise<void> {
   subscribed ??= (async () => {
     await listen<OutputEvent>(OUTPUT_EVENT, (event) => {
-      outputWatchers.get(event.payload.handle)?.(decode(event.payload.data));
+      const key = slotKey(event.payload.handle, event.payload.slot);
+      outputWatchers.get(key)?.(decode(event.payload.data));
     });
     await listen<ClosedEvent>(CLOSED_EVENT, (event) => {
-      const { handle, exitStatus } = event.payload;
-      const watcher = closedWatchers.get(handle);
+      const { handle, slot, exitStatus } = event.payload;
+      const key = slotKey(handle, slot);
+      const watcher = closedWatchers.get(key);
       if (watcher) {
         watcher(exitStatus);
       } else {
-        unclaimedClosed.set(handle, exitStatus);
+        unclaimedClosed.set(key, exitStatus);
       }
     });
   })();
@@ -188,33 +235,39 @@ function ensureSubscribed(): Promise<void> {
 }
 
 /**
- * Watches one session's output and closing, from before it is opened.
+ * Watches one shell's output and closing, from before it is opened.
  *
  * Registers before the caller opens the shell, and checks
  * {@link unclaimedClosed} first: between them, a `CLOSED_EVENT` for this
- * handle cannot be lost, whichever of the two races it against.
+ * handle and slot cannot be lost, whichever of the two races it against.
+ *
+ * `slot` defaults to the primary, which is every caller from before
+ * ADR-0077.
  */
 export async function watchTerminal(
   handle: SessionHandle,
   onBatch: OutputHandler,
   onClose: ClosedHandler,
+  slot: ShellSlot = 'primary',
 ): Promise<UnlistenFn> {
   await ensureSubscribed();
 
-  outputWatchers.set(handle, onBatch);
+  const key = slotKey(handle, slot);
 
-  if (unclaimedClosed.has(handle)) {
-    const exitStatus = unclaimedClosed.get(handle) ?? null;
-    unclaimedClosed.delete(handle);
+  outputWatchers.set(key, onBatch);
+
+  if (unclaimedClosed.has(key)) {
+    const exitStatus = unclaimedClosed.get(key) ?? null;
+    unclaimedClosed.delete(key);
     onClose(exitStatus);
   } else {
-    closedWatchers.set(handle, onClose);
+    closedWatchers.set(key, onClose);
   }
 
   return () => {
-    outputWatchers.delete(handle);
-    closedWatchers.delete(handle);
-    unclaimedClosed.delete(handle);
+    outputWatchers.delete(key);
+    closedWatchers.delete(key);
+    unclaimedClosed.delete(key);
   };
 }
 

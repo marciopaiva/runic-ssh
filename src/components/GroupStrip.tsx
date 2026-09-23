@@ -49,7 +49,14 @@ export function entryTitle(
     return shell === undefined ? '' : localShellLabel(shell.kind, i18n);
   }
 
-  return tabs.find((candidate) => candidate.sessionId === entry.sessionId)?.title ?? '';
+  const title = tabs.find((candidate) => candidate.sessionId === entry.sessionId)?.title ?? '';
+
+  /* The second shell ADR-0077 allows shares its session's name with the
+     first: nothing else names it, since it is the same host and the same
+     saved entry, only a second channel over the same connection. Without a
+     suffix the two tabs would read as one duplicated by a rendering bug
+     rather than by request. */
+  return entry.slot === 'secondary' ? i18n.t('tabs.session.secondary', { name: title }) : title;
 }
 
 interface GroupStripProps {

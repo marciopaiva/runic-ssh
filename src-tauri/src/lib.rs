@@ -112,6 +112,8 @@ pub fn run() -> tauri::Result<()> {
             commands::credential::submit_credential,
             commands::credential::dismiss_credential,
             commands::terminal::open_terminal,
+            commands::terminal::duplicate_shell,
+            commands::terminal::close_shell,
             commands::terminal::send_input,
             commands::terminal::resize_terminal,
             commands::terminal::session_stats,

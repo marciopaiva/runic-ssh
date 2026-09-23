@@ -33,6 +33,7 @@ function tab(sessionId: string): Tab {
 }
 
 const SESSION = (sessionId: string): Focus => ({ kind: 'session', sessionId });
+const SECONDARY = (sessionId: string): Focus => ({ kind: 'session', sessionId, slot: 'secondary' });
 const LOCAL = (sessionId: string): Focus => ({ kind: 'local', sessionId });
 const NEW: Focus = { kind: 'editor', target: { kind: 'new' } };
 const EDIT = (sessionId: string): Focus => ({
@@ -76,6 +77,30 @@ describe('building the strip', () => {
   it('is empty when there is nothing at all', () => {
     expect(stripEntries([], [], [], false)).toEqual([]);
   });
+
+  it('gives a duplicated session a second entry right after its own (ADR-0077)', () => {
+    expect(stripEntries(TABS, [], [], false, new Set(['a']))).toEqual([
+      SESSION('a'),
+      SECONDARY('a'),
+      SESSION('b'),
+    ]);
+  });
+
+  it('never gives a third entry, however the set is built', () => {
+    /* `duplicated` is a set of session ids, not a count: a session in it
+       once gets exactly the one secondary entry the doc comment promises. */
+    expect(stripEntries([tab('a')], [], [], false, new Set(['a', 'a']))).toEqual([
+      SESSION('a'),
+      SECONDARY('a'),
+    ]);
+  });
+
+  it('ignores a duplicated id that names no open tab', () => {
+    expect(stripEntries(TABS, [], [], false, new Set(['gone']))).toEqual([
+      SESSION('a'),
+      SESSION('b'),
+    ]);
+  });
 });
 
 describe('telling two tabs apart', () => {
@@ -108,6 +133,24 @@ describe('telling two tabs apart', () => {
   it('matches the same local shell', () => {
     expect(sameFocus(LOCAL('a'), LOCAL('a'))).toBe(true);
   });
+
+  it('separates a session\'s two shells (ADR-0077)', () => {
+    expect(sameFocus(SESSION('a'), SECONDARY('a'))).toBe(false);
+  });
+
+  it('treats an explicit primary slot the same as none', () => {
+    expect(sameFocus(SESSION('a'), { kind: 'session', sessionId: 'a', slot: 'primary' })).toBe(
+      true,
+    );
+  });
+
+  it('matches the same session\'s secondary shell', () => {
+    expect(sameFocus(SECONDARY('a'), SECONDARY('a'))).toBe(true);
+  });
+
+  it('does not confuse one session\'s secondary shell with another session\'s', () => {
+    expect(sameFocus(SECONDARY('a'), SECONDARY('b'))).toBe(false);
+  });
 });
 
 describe('naming a tab uniquely in the DOM', () => {
@@ -122,6 +165,15 @@ describe('naming a tab uniquely in the DOM', () => {
 
   it('differs between a local shell and a session of the same id', () => {
     expect(tabElementId(LOCAL('a'))).not.toBe(tabElementId(SESSION('a')));
+  });
+
+  it('differs between a session\'s two shells (ADR-0077)', () => {
+    expect(tabElementId(SECONDARY('a'))).not.toBe(tabElementId(SESSION('a')));
+    expect(panelElementId(SECONDARY('a'))).not.toBe(panelElementId(SESSION('a')));
+  });
+
+  it('is stable for the same secondary shell', () => {
+    expect(tabElementId(SECONDARY('a'))).toBe(tabElementId(SECONDARY('a')));
   });
 });
 

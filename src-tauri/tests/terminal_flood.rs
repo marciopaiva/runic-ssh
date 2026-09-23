@@ -407,6 +407,215 @@ async fn typing_reaches_the_shell_and_a_resize_reaches_the_pty() {
     .await;
 }
 
+/// A server that treats the first channel opened on a connection as the
+/// flood and every other channel as quiet, so a test can open two channels
+/// on one `Handle` and know which pump to expect load on.
+///
+/// ADR-0077's second shell is exactly this shape: two channels multiplexed
+/// over the connection the first shell already opened, each with its own
+/// `pump`. This is the measurement its Follow-up section calls for, that
+/// ADR-0014 left unresolved: whether output meant for one shell can reach
+/// the other, and whether a flooding shell can starve its sibling's input.
+#[derive(Clone, Default)]
+struct TwoChannelServer {
+    flood_budget: Arc<AtomicU64>,
+    flood_channel: Arc<tokio::sync::Mutex<Option<ChannelId>>>,
+    quiet_input: Arc<tokio::sync::Mutex<Vec<u8>>>,
+}
+
+impl russh::server::Server for TwoChannelServer {
+    type Handler = Self;
+    fn new_client(&mut self, _peer: Option<std::net::SocketAddr>) -> Self {
+        self.clone()
+    }
+}
+
+impl ServerHandler for TwoChannelServer {
+    type Error = russh::Error;
+
+    async fn auth_none(&mut self, _user: &str) -> Result<Auth, Self::Error> {
+        Ok(Auth::Accept)
+    }
+
+    async fn channel_open_session(
+        &mut self,
+        channel: Channel<ServerMsg>,
+        reply: ChannelOpenHandle,
+        _session: &mut Session,
+    ) -> Result<(), Self::Error> {
+        reply.accept().await;
+
+        let mut flood_channel = self.flood_channel.lock().await;
+        if flood_channel.is_some() {
+            /* The quiet channel: nothing writes to it on its own, it only
+            ever answers `data()` below. */
+            return Ok(());
+        }
+        *flood_channel = Some(channel.id());
+        drop(flood_channel);
+
+        let budget = Arc::clone(&self.flood_budget);
+        tokio::spawn(async move {
+            let chunk = vec![b'x'; 8 * 1024];
+            loop {
+                let left = budget.load(Ordering::Relaxed);
+                if left == 0 {
+                    break;
+                }
+                let take = left.min(chunk.len() as u64) as usize;
+                if channel.data(&chunk[..take]).await.is_err() {
+                    break;
+                }
+                budget.fetch_sub(take as u64, Ordering::Relaxed);
+            }
+            let _ = channel.eof().await;
+        });
+
+        Ok(())
+    }
+
+    async fn shell_request(
+        &mut self,
+        _channel: ChannelId,
+        _session: &mut Session,
+    ) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    async fn data(
+        &mut self,
+        channel: ChannelId,
+        data: &[u8],
+        _session: &mut Session,
+    ) -> Result<(), Self::Error> {
+        /* Only the quiet channel's input is kept: bytes arriving tagged with
+        the flood channel's id here would mean the two channels' streams got
+        crossed on the way in, which is exactly what this test exists to
+        catch. */
+        if *self.flood_channel.lock().await != Some(channel) {
+            self.quiet_input.lock().await.extend_from_slice(data);
+        }
+        Ok(())
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn two_pumps_on_one_connection_do_not_cross_talk_or_starve_each_other() {
+    /* Two channels, one `Handle`: the shape ADR-0077 adds. One floods, the
+    other carries a keystroke, and both run through their own `pump` at the
+    same time. */
+    const FLOOD_BUDGET: u64 = 32 * 1024 * 1024;
+
+    let host_key =
+        russh::keys::PrivateKey::random(&mut rand::rng(), russh::keys::Algorithm::Ed25519).unwrap();
+    let config = Arc::new(russh::server::Config {
+        keys: vec![host_key],
+        methods: [MethodKind::None].as_slice().into(),
+        ..Default::default()
+    });
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .unwrap();
+    let port = listener.local_addr().unwrap().port();
+
+    let server = TwoChannelServer {
+        flood_budget: Arc::new(AtomicU64::new(FLOOD_BUDGET)),
+        ..Default::default()
+    };
+    let quiet_input = Arc::clone(&server.quiet_input);
+    tokio::spawn(async move {
+        let mut server = server;
+        let _ = server.run_on_socket(config, &listener).await;
+    });
+
+    let client_config = Arc::new(russh::client::Config::default());
+    let mut handle = russh::client::connect(client_config, ("127.0.0.1", port), AcceptEverything)
+        .await
+        .expect("connects");
+    assert!(
+        handle
+            .authenticate_none("anyone")
+            .await
+            .expect("auth runs")
+            .success(),
+        "the test server accepts anyone"
+    );
+
+    /* Opened in this order deliberately: the server treats the first channel
+    as the flood, the second as quiet. */
+    let flood_channel = handle.channel_open_session().await.expect("a channel");
+    let quiet_channel = handle.channel_open_session().await.expect("a channel");
+
+    let flood_bytes = Arc::new(AtomicU64::new(0));
+    let flood_collector = Collector {
+        batches: Arc::new(AtomicU64::new(0)),
+        bytes: Arc::clone(&flood_bytes),
+        largest: Arc::new(AtomicU64::new(0)),
+    };
+    let (_flood_sender, flood_receiver) = tokio::sync::mpsc::channel(16);
+    let flood_pump = tokio::spawn(pump(
+        flood_channel,
+        flood_collector,
+        flood_receiver,
+        Arc::new(Counters::default()),
+    ));
+
+    let quiet_bytes = Arc::new(AtomicU64::new(0));
+    let quiet_collector = Collector {
+        batches: Arc::new(AtomicU64::new(0)),
+        bytes: Arc::clone(&quiet_bytes),
+        largest: Arc::new(AtomicU64::new(0)),
+    };
+    let (quiet_sender, quiet_receiver) = tokio::sync::mpsc::channel(16);
+    let quiet_pump = tokio::spawn(pump(
+        quiet_channel,
+        quiet_collector,
+        quiet_receiver,
+        Arc::new(Counters::default()),
+    ));
+
+    /* Let the flood get going before the keystroke, the same way
+    `a_keystroke_stays_responsive_while_the_host_is_flooding` does for a
+    single channel. */
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+
+    const CTRL_C: &[u8] = &[0x03];
+    let sent = std::time::Instant::now();
+    quiet_sender
+        .send(Input::Keys(CTRL_C.to_vec()))
+        .await
+        .unwrap();
+
+    wait_until("the keystroke to reach the quiet channel", || async {
+        !quiet_input.lock().await.is_empty()
+    })
+    .await;
+    let latency = sent.elapsed();
+
+    assert_eq!(
+        quiet_input.lock().await.as_slice(),
+        CTRL_C,
+        "the quiet channel's own pump is what should have carried this"
+    );
+    assert!(
+        latency < std::time::Duration::from_millis(100),
+        "a keystroke on the quiet shell waited {latency:?} behind its sibling's flood"
+    );
+
+    let flood_report = flood_pump.await.expect("the flood pump finishes");
+    assert_eq!(
+        flood_report.bytes_forwarded, FLOOD_BUDGET,
+        "the flood channel's own pump lost bytes while its sibling was quiet"
+    );
+
+    quiet_pump.abort_handle().abort();
+    assert_eq!(
+        quiet_bytes.load(Ordering::Relaxed),
+        0,
+        "the quiet terminal received bytes that belonged to the flooding one"
+    );
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn a_keystroke_stays_responsive_while_the_host_is_flooding() {
     /* The keystroke that stops a flood is Ctrl-C, so what matters is not only

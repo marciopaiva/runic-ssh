@@ -72,6 +72,7 @@ export type {
 } from './sessions';
 export {
   CLOSED_EVENT,
+  closeShell,
   OUTPUT_EVENT,
   openTerminal,
   resizeTerminal,
@@ -80,7 +81,16 @@ export {
   sessionStats,
   watchTerminal,
 } from './terminal';
-export type { DiskIoRate, Filesystem, LoadAverage, NetworkRate, SessionStats, SystemStats, Usage } from './terminal';
+export type {
+  DiskIoRate,
+  Filesystem,
+  LoadAverage,
+  NetworkRate,
+  SessionStats,
+  ShellSlot,
+  SystemStats,
+  Usage,
+} from './terminal';
 export {
   CLOSED_EVENT as LOCAL_SHELL_CLOSED_EVENT,
   OUTPUT_EVENT as LOCAL_SHELL_OUTPUT_EVENT,
