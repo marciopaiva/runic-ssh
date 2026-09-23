@@ -25,9 +25,10 @@
 import { tabAfter } from './tabs';
 import type { Tab } from './tabs';
 import type { EditorTarget } from '../sessions/editor';
+import type { ShellSlot } from '../../ipc';
 
 export type Focus =
-  | { readonly kind: 'session'; readonly sessionId: string }
+  | { readonly kind: 'session'; readonly sessionId: string; readonly slot?: ShellSlot | undefined }
   | { readonly kind: 'local'; readonly sessionId: string }
   | { readonly kind: 'editor'; readonly target: EditorTarget }
   | { readonly kind: 'settings' };
@@ -42,16 +43,26 @@ export type Focus =
  * the pointer. Local shells sit between the two for the same reason: they are
  * opened and closed independently of the sidebar, so giving them their own
  * fixed band keeps a new one from shifting the editors or settings.
+ *
+ * A session in `duplicated` (ADR-0077) gets a second entry right after its
+ * primary one, for the secondary shell "duplicate this shell" opened. There
+ * is never a third: `duplicated` is a set of session ids, not a count.
  */
 export function stripEntries(
   tabs: readonly Tab[],
   localShells: readonly string[],
   editing: readonly EditorTarget[],
   settingsOpen: boolean,
+  duplicated: ReadonlySet<string> = new Set(),
 ): readonly Focus[] {
   const entries: Focus[] = [];
 
-  for (const tab of tabs) entries.push({ kind: 'session', sessionId: tab.sessionId });
+  for (const tab of tabs) {
+    entries.push({ kind: 'session', sessionId: tab.sessionId });
+    if (duplicated.has(tab.sessionId)) {
+      entries.push({ kind: 'session', sessionId: tab.sessionId, slot: 'secondary' });
+    }
+  }
   for (const sessionId of localShells) entries.push({ kind: 'local', sessionId });
   for (const target of editing) entries.push({ kind: 'editor', target });
   if (settingsOpen) entries.push({ kind: 'settings' });
@@ -64,7 +75,9 @@ export function sameFocus(a: Focus | null, b: Focus | null): boolean {
   if (a === null || b === null) return a === b;
   if (a.kind !== b.kind) return false;
 
-  if (a.kind === 'session' && b.kind === 'session') return a.sessionId === b.sessionId;
+  if (a.kind === 'session' && b.kind === 'session') {
+    return a.sessionId === b.sessionId && (a.slot ?? 'primary') === (b.slot ?? 'primary');
+  }
 
   if (a.kind === 'local' && b.kind === 'local') return a.sessionId === b.sessionId;
 
@@ -154,7 +167,9 @@ export function tabElementId(focus: Focus): string {
   }
   if (focus.kind === 'local') return `local-tab-${focus.sessionId}`;
 
-  return `session-tab-${focus.sessionId}`;
+  return focus.slot === 'secondary'
+    ? `session-tab-${focus.sessionId}-secondary`
+    : `session-tab-${focus.sessionId}`;
 }
 
 /**

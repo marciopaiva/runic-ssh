@@ -36,13 +36,14 @@ vi.mock('@tauri-apps/api/event', () => ({
 }));
 
 const { CLOSED_EVENT, OUTPUT_EVENT, watchTerminal } = await import('../src/ipc/terminal');
+type ShellSlot = 'primary' | 'secondary';
 
-function emitOutput(handle: number, text: string): void {
-  listeners.get(OUTPUT_EVENT)?.({ payload: { handle, data: btoa(text) } });
+function emitOutput(handle: number, text: string, slot: ShellSlot = 'primary'): void {
+  listeners.get(OUTPUT_EVENT)?.({ payload: { handle, slot, data: btoa(text) } });
 }
 
-function emitClosed(handle: number, exitStatus: number | null): void {
-  listeners.get(CLOSED_EVENT)?.({ payload: { handle, exitStatus } });
+function emitClosed(handle: number, exitStatus: number | null, slot: ShellSlot = 'primary'): void {
+  listeners.get(CLOSED_EVENT)?.({ payload: { handle, slot, exitStatus } });
 }
 
 function decoded(bytes: Uint8Array): string {

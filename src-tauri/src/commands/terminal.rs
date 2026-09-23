@@ -8,7 +8,7 @@ use tauri::{AppHandle, Emitter, Runtime, State};
 use tokio::sync::mpsc;
 
 use crate::error::{Error, IpcError};
-use crate::ssh::registry::{Registry, SessionHandle};
+use crate::ssh::registry::{Registry, SessionHandle, ShellSlot};
 use crate::ssh::stats::Transfer;
 use crate::ssh::terminal::{pump, Input, OutputBatch, Sink};
 
@@ -37,6 +37,7 @@ pub const MAX_INPUT_BYTES: usize = 32 * 1024;
 #[serde(rename_all = "camelCase")]
 struct OutputEvent {
     handle: SessionHandle,
+    slot: ShellSlot,
     #[serde(flatten)]
     batch: OutputBatch,
 }
@@ -45,13 +46,15 @@ struct OutputEvent {
 #[serde(rename_all = "camelCase")]
 struct ClosedEvent {
     handle: SessionHandle,
+    slot: ShellSlot,
     exit_status: Option<u32>,
 }
 
-/// Sends batches to the webview, keyed by handle.
+/// Sends batches to the webview, keyed by handle and slot.
 struct WebviewSink<R: Runtime> {
     app: AppHandle<R>,
     handle: SessionHandle,
+    slot: ShellSlot,
 }
 
 impl<R: Runtime> Sink for WebviewSink<R> {
@@ -62,6 +65,7 @@ impl<R: Runtime> Sink for WebviewSink<R> {
             OUTPUT_EVENT,
             OutputEvent {
                 handle: self.handle,
+                slot: self.slot,
                 batch: OutputBatch::encode(batch),
             },
         );
@@ -72,13 +76,50 @@ impl<R: Runtime> Sink for WebviewSink<R> {
             CLOSED_EVENT,
             ClosedEvent {
                 handle: self.handle,
+                slot: self.slot,
                 exit_status,
             },
         );
     }
 }
 
-/// Starts an interactive shell and begins streaming its output.
+/// Opens a shell on one slot and begins streaming its output. Shared by
+/// [`open_terminal`] and [`duplicate_shell`], which differ only in which slot
+/// they hardcode and which guard they check first.
+async fn start_shell<R: Runtime>(
+    app: AppHandle<R>,
+    registry: &Registry,
+    handle: SessionHandle,
+    slot: ShellSlot,
+    columns: u16,
+    rows: u16,
+) -> Result<(), IpcError> {
+    let shared = registry.shared(handle).await.ok_or(Error::UnknownHandle)?;
+    let channel = {
+        let held = shared.lock().await;
+        let connection = held.as_ref().ok_or(Error::UnknownHandle)?;
+        Some(connection.open_shell(columns, rows).await)
+    }
+    .ok_or(Error::UnknownHandle)?
+    .map_err(Box::new)?;
+
+    let (sender, receiver) = mpsc::channel(INPUT_QUEUE);
+    registry.attach_input(handle, slot, sender).await;
+
+    let counters = registry
+        .counters(handle)
+        .await
+        .ok_or(Error::UnknownHandle)?;
+
+    let sink = WebviewSink { app, handle, slot };
+    tauri::async_runtime::spawn(async move {
+        pump(channel, sink, receiver, counters).await;
+    });
+
+    Ok(())
+}
+
+/// Starts the connection's primary shell and begins streaming its output.
 #[tauri::command]
 pub async fn open_terminal<R: Runtime>(
     app: AppHandle<R>,
@@ -92,31 +133,59 @@ pub async fn open_terminal<R: Runtime>(
     call opened a second shell and abandoned the first: it kept running, held a
     pty, and counted against the server's MaxSessions, so a session stopped
     being able to open a shell at all after about ten of them (#94). */
-    if registry.has_shell(handle).await {
+    if registry.has_shell(handle, ShellSlot::Primary).await {
         return Err(Error::TerminalAlreadyOpen.into());
     }
 
-    let shared = registry.shared(handle).await.ok_or(Error::UnknownHandle)?;
-    let channel = {
-        let held = shared.lock().await;
-        let connection = held.as_ref().ok_or(Error::UnknownHandle)?;
-        Some(connection.open_shell(columns, rows).await)
+    start_shell(app, &registry, handle, ShellSlot::Primary, columns, rows).await
+}
+
+/// Opens the connection's one extra shell (ADR-0077), multiplexed over the
+/// same transport `open_terminal` already used. Refuses a third shell the
+/// same way `open_terminal` refuses a second: by checking the slot it is
+/// about to claim, not by counting.
+#[tauri::command]
+pub async fn duplicate_shell<R: Runtime>(
+    app: AppHandle<R>,
+    registry: State<'_, Registry>,
+    handle: SessionHandle,
+    columns: u16,
+    rows: u16,
+) -> Result<(), IpcError> {
+    if !registry.has_shell(handle, ShellSlot::Primary).await {
+        return Err(Error::UnknownHandle.into());
     }
-    .ok_or(Error::UnknownHandle)?
-    .map_err(Box::new)?;
+    if registry.has_shell(handle, ShellSlot::Secondary).await {
+        return Err(Error::TerminalAlreadyOpen.into());
+    }
 
-    let (sender, receiver) = mpsc::channel(INPUT_QUEUE);
-    registry.attach_input(handle, sender).await;
+    start_shell(app, &registry, handle, ShellSlot::Secondary, columns, rows).await
+}
 
-    let counters = registry
-        .counters(handle)
-        .await
-        .ok_or(Error::UnknownHandle)?;
+/// Closes the secondary shell only, leaving the primary and the connection
+/// untouched.
+///
+/// `slot` is required rather than defaulted, unlike [`send_input`] and
+/// [`resize_terminal`]: those fall back to the primary because every existing
+/// caller means the primary and always will, but a caller of this command
+/// that meant to close the primary would actually want to disconnect the
+/// session, which is a different command entirely. Refusing `Primary` here
+/// keeps that mistake from silently detaching the primary's sender while the
+/// connection, and `has_shell`'s "ever had a shell" bookkeeping for it, stay
+/// exactly as they were.
+#[tauri::command]
+pub async fn close_shell(
+    registry: State<'_, Registry>,
+    handle: SessionHandle,
+    slot: ShellSlot,
+) -> Result<(), IpcError> {
+    if slot == ShellSlot::Primary {
+        return Err(Error::MalformedInput.into());
+    }
 
-    let sink = WebviewSink { app, handle };
-    tauri::async_runtime::spawn(async move {
-        pump(channel, sink, receiver, counters).await;
-    });
+    if !registry.detach_input(handle, slot).await {
+        return Err(Error::UnknownHandle.into());
+    }
 
     Ok(())
 }
@@ -148,16 +217,21 @@ pub fn check_input_size(encoded: &str) -> Result<Vec<u8>, Error> {
 ///
 /// Base64 in this direction too, for the same reason as the other: a paste can
 /// contain any byte, and a JSON string cannot.
+///
+/// `slot` defaults to the primary when omitted, which every caller that
+/// predates ADR-0077 does: Tauri hands a missing key to an `Option<T>`
+/// parameter as `None`, so none of those call sites needed to change.
 #[tauri::command]
 pub async fn send_input(
     registry: State<'_, Registry>,
     handle: SessionHandle,
     data: String,
+    slot: Option<ShellSlot>,
 ) -> Result<(), IpcError> {
     let bytes = check_input_size(&data)?;
 
     registry
-        .send_input(handle, Input::Keys(bytes))
+        .send_input(handle, slot.unwrap_or_default(), Input::Keys(bytes))
         .await
         .ok_or(Error::UnknownHandle)?;
 
@@ -171,13 +245,18 @@ pub async fn resize_terminal(
     handle: SessionHandle,
     columns: u16,
     rows: u16,
+    slot: Option<ShellSlot>,
 ) -> Result<(), IpcError> {
     if columns == 0 || rows == 0 {
         return Err(Error::MalformedInput.into());
     }
 
     registry
-        .send_input(handle, Input::Resize { columns, rows })
+        .send_input(
+            handle,
+            slot.unwrap_or_default(),
+            Input::Resize { columns, rows },
+        )
         .await
         .ok_or(Error::UnknownHandle)?;
 

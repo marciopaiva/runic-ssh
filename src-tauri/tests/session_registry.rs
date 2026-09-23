@@ -22,7 +22,7 @@ use russh::{Channel, MethodKind};
 
 use runic_ssh::ssh::connection::{connect, Credential, Endpoint};
 use runic_ssh::ssh::known_hosts::KnownHosts;
-use runic_ssh::ssh::registry::{Open, Registry};
+use runic_ssh::ssh::registry::{Open, Registry, ShellSlot};
 use runic_ssh::ssh::terminal::Input;
 use runic_ssh::vault::Secret;
 
@@ -117,12 +117,13 @@ async fn open_session() -> (
             connection,
             session_id: "web-01".to_owned(),
             user: USER.to_owned(),
-            input: None,
         })
         .await;
 
     let (sender, receiver) = tokio::sync::mpsc::channel(8);
-    registry.attach_input(handle, sender).await;
+    registry
+        .attach_input(handle, ShellSlot::Primary, sender)
+        .await;
 
     (registry, handle, receiver)
 }
@@ -151,7 +152,7 @@ async fn a_keystroke_is_not_dropped_while_the_session_is_busy() {
     tokio::time::sleep(Duration::from_millis(50)).await;
 
     let sent = registry
-        .send_input(handle, Input::Keys(b"ls\n".to_vec()))
+        .send_input(handle, ShellSlot::Primary, Input::Keys(b"ls\n".to_vec()))
         .await;
 
     assert!(
@@ -282,7 +283,7 @@ async fn a_closed_session_stops_answering() {
     assert!(registry.close(handle).await.is_none());
     assert!(registry.session_of(handle).await.is_none());
     assert!(registry
-        .send_input(handle, Input::Keys(b"ls\n".to_vec()))
+        .send_input(handle, ShellSlot::Primary, Input::Keys(b"ls\n".to_vec()))
         .await
         .is_none());
     assert!(registry
@@ -323,7 +324,6 @@ async fn a_second_session() -> (Open, u16, ()) {
             connection,
             session_id: "second".to_owned(),
             user: USER.to_owned(),
-            input: None,
         },
         port,
         (),
@@ -341,7 +341,7 @@ async fn a_handle_says_whether_it_already_has_a_shell() {
 
     /* `open_session` attaches an input channel, which is what a running shell
     leaves behind in the map. */
-    assert!(registry.has_shell(handle).await);
+    assert!(registry.has_shell(handle, ShellSlot::Primary).await);
 
     /* A second session, as it looks after authenticating and before anyone has
     asked for a terminal. Built rather than moved out of the first: since
@@ -351,7 +351,7 @@ async fn a_handle_says_whether_it_already_has_a_shell() {
     let fresh = registry.insert(second).await;
 
     assert!(
-        !registry.has_shell(fresh).await,
+        !registry.has_shell(fresh, ShellSlot::Primary).await,
         "a connection with no shell must not be mistaken for one that has one, \
          or the first terminal a session opens would be refused"
     );
@@ -359,8 +359,10 @@ async fn a_handle_says_whether_it_already_has_a_shell() {
     /* And the answer follows the entry rather than the connection: attaching
     input is what makes it true. */
     let (sender, _receiver) = tokio::sync::mpsc::channel(1);
-    registry.attach_input(fresh, sender).await;
-    assert!(registry.has_shell(fresh).await);
+    registry
+        .attach_input(fresh, ShellSlot::Primary, sender)
+        .await;
+    assert!(registry.has_shell(fresh, ShellSlot::Primary).await);
 
     registry
         .close(handle)
@@ -368,9 +370,66 @@ async fn a_handle_says_whether_it_already_has_a_shell() {
         .expect("the session is open")
         .expect("it closes");
     assert!(
-        !registry.has_shell(handle).await,
+        !registry.has_shell(handle, ShellSlot::Primary).await,
         "a handle that no longer names a session has no shell"
     );
+}
+
+#[tokio::test]
+async fn the_two_slots_are_independent() {
+    /* ADR-0077: a connection carries exactly one extra shell, addressed by a
+    fixed slot rather than a free id. This is the invariant the whole feature
+    rests on: opening, or closing, one slot must not be visible on the
+    other. */
+    let (registry, handle, _primary_input) = open_session().await;
+
+    assert!(
+        !registry.has_shell(handle, ShellSlot::Secondary).await,
+        "the primary shell open_session attaches must not be mistaken for a secondary one"
+    );
+
+    let (secondary_sender, mut secondary_input) = tokio::sync::mpsc::channel(8);
+    registry
+        .attach_input(handle, ShellSlot::Secondary, secondary_sender)
+        .await;
+
+    assert!(registry.has_shell(handle, ShellSlot::Primary).await);
+    assert!(registry.has_shell(handle, ShellSlot::Secondary).await);
+
+    /* Routing: a keystroke sent to one slot must not be observable on the
+    other's receiver. */
+    registry
+        .send_input(handle, ShellSlot::Secondary, Input::Keys(b"pwd\n".to_vec()))
+        .await
+        .expect("the secondary slot has a shell");
+    assert_eq!(
+        secondary_input.recv().await,
+        Some(Input::Keys(b"pwd\n".to_vec()))
+    );
+
+    /* Closing only the secondary must leave the primary untouched, which is
+    the whole point of `close_shell` refusing `Primary`: closing a session's
+    only remaining shell is a different command (disconnect), not this one. */
+    assert!(registry.detach_input(handle, ShellSlot::Secondary).await);
+    assert!(
+        !registry.has_shell(handle, ShellSlot::Secondary).await,
+        "detaching the secondary must clear only that slot"
+    );
+    assert!(
+        registry.has_shell(handle, ShellSlot::Primary).await,
+        "detaching the secondary must not touch the primary"
+    );
+
+    /* Detaching an already-gone slot reports that, rather than pretending
+    something happened. */
+    assert!(!registry.detach_input(handle, ShellSlot::Secondary).await);
+
+    /* And the connection itself is unaffected: sending to the still-attached
+    primary still works after the secondary is gone. */
+    assert!(registry
+        .send_input(handle, ShellSlot::Primary, Input::Keys(b"ls\n".to_vec()))
+        .await
+        .is_some());
 }
 
 #[tokio::test]

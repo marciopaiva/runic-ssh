@@ -36,6 +36,7 @@ import { SftpSplitControl } from './components/SftpSplitControl';
 import { StatusBar } from './components/StatusBar';
 import { SessionBody } from './components/SessionBody';
 import { TabCycleControl } from './components/TabCycleControl';
+import { TerminalView } from './components/TerminalView';
 import { ThemeLanguageControls } from './components/ThemeLanguageControls';
 import { Titlebar } from './components/Titlebar';
 import { Toolbar } from './components/Toolbar';
@@ -104,6 +105,7 @@ import { isCursorPositionReport, preparePaste } from './features/terminal/clipbo
 import {
   appVersion,
   asIpcError,
+  closeShell,
   deleteSession,
   disconnectSession,
   EMPTY_WORKSPACE,
@@ -127,6 +129,7 @@ import type {
   Session,
   SessionDraft,
   SessionHandle,
+  ShellSlot,
   SuggestedMethod,
 } from './ipc';
 import type { Component as MapComponent, ComponentKind as MapComponentKind, Workspace as MapWorkspaceModel } from './ipc';
@@ -438,6 +441,10 @@ export function App(): JSX.Element {
      way every other question does, per ADR-0015. */
   const [pendingPaste, setPendingPaste] = useState<{
     readonly sessionId: string;
+    /** Which shell asked, ADR-0077. Absent for the primary, which is every
+        caller from before that ADR; a secondary paste confirms straight to
+        its own channel rather than through the broadcast fan-out. */
+    readonly slot?: ShellSlot;
     readonly text: string;
   } | null>(null);
   const [macrosOpen, setMacrosOpen] = useState(false);
@@ -460,6 +467,35 @@ export function App(): JSX.Element {
   /* Panes turned off in their own header while the switch is armed. Three of
      four machines in a pool, with the database spared, is the ordinary case. */
   const [muted, setMuted] = useState<ReadonlySet<string>>(new Set());
+  /* Sessions with a second shell open on the same connection (ADR-0077).
+     There is never a third: this is membership, not a count, and the tab it
+     adds is always the fixed `'secondary'` slot. */
+  const [duplicated, setDuplicated] = useState<ReadonlySet<string>>(new Set());
+  /* Adds the second tab; the shell itself is opened by the `TerminalView`
+     that tab mounts, the same way the first shell is opened by mounting the
+     first one. Nothing here calls `openTerminal` directly. */
+  const duplicateShell = useCallback((sessionId: string): void => {
+    setDuplicated((current) => (current.has(sessionId) ? current : new Set(current).add(sessionId)));
+  }, []);
+  /* The reverse: tells the core to drop the secondary channel, then drops
+     the tab once that call settles either way, so a refused close does not
+     leave a pane the user just asked to close still on screen. */
+  const closeSecondaryShell = useCallback(
+    (sessionId: string): void => {
+      const live = sessions.find((entry) => entry.session.id === sessionId);
+      if (live?.handle == null) return;
+
+      void closeShell(live.handle, 'secondary').finally(() => {
+        setDuplicated((current) => {
+          if (!current.has(sessionId)) return current;
+          const next = new Set(current);
+          next.delete(sessionId);
+          return next;
+        });
+      });
+    },
+    [sessions],
+  );
   /* Sessions whose credential the user asked to keep and the store refused.
      Held for the life of the session rather than shown once and forgotten: the
      fact stays true, and a message that leaves before it is read is the thing
@@ -756,8 +792,8 @@ export function App(): JSX.Element {
      could hold, and SFTP left the same way, for its own workspace, once it
      had one. */
   const entries = useMemo(
-    () => stripEntries(tabs, localShellTabs.map((tab) => tab.sessionId), [], false),
-    [tabs, localShellTabs],
+    () => stripEntries(tabs, localShellTabs.map((tab) => tab.sessionId), [], false, duplicated),
+    [tabs, localShellTabs, duplicated],
   );
   const resolvedFocus = resolveFocus(entries, focus);
   const activeId = focusedSession(resolvedFocus);
@@ -1077,6 +1113,15 @@ export function App(): JSX.Element {
         void stopForward(handle);
       }
       setAdHocForwards((current) => withoutSession(current, sessionId));
+
+      /* The core tears the secondary shell down with the connection either
+         way; this is only the strip forgetting a tab whose pane is gone. */
+      setDuplicated((current) => {
+        if (!current.has(sessionId)) return current;
+        const next = new Set(current);
+        next.delete(sessionId);
+        return next;
+      });
 
       void disconnectSession(live.handle).finally(() => {
         attach(sessionId, null);
@@ -2038,6 +2083,38 @@ export function App(): JSX.Element {
       }
     }
 
+    /* Duplicating and closing a shell (ADR-0077) are per-tab, not per-entry
+       like the move above, so each only ever offers the one action its own
+       slot makes sense for: the primary can gain a second shell it does not
+       already have, the secondary can only be closed. */
+    if (entry !== null && entry.kind === 'session') {
+      const slot = entry.slot ?? 'primary';
+      const connected = tabs.some((tab) => tab.sessionId === entry.sessionId && tab.handle !== null);
+
+      if (slot === 'primary' && connected && !duplicated.has(entry.sessionId)) {
+        items.push({
+          id: 'duplicate-shell',
+          label: i18n.t('group.duplicateShell'),
+          run: () => {
+            duplicateShell(entry.sessionId);
+            setGroupMenu(null);
+          },
+        });
+      }
+
+      if (slot === 'secondary') {
+        items.push({
+          id: 'close-shell',
+          label: i18n.t('group.closeShell'),
+          destructive: true,
+          run: () => {
+            closeSecondaryShell(entry.sessionId);
+            setGroupMenu(null);
+          },
+        });
+      }
+    }
+
     /* How many connections this is about to drop, on the control that drops
        them. The same shape the broadcast switch uses in the palette: the count
        belongs where it is read a moment before the decision, not in a dialog
@@ -2067,7 +2144,18 @@ export function App(): JSX.Element {
     });
 
     return items;
-  }, [groupMenu, groups, tabs, editorTabs, i18n, moveTo, closeGroup]);
+  }, [
+    groupMenu,
+    groups,
+    tabs,
+    editorTabs,
+    i18n,
+    moveTo,
+    closeGroup,
+    duplicated,
+    duplicateShell,
+    closeSecondaryShell,
+  ]);
 
   /* A local shell has no `activeId`: `focusedSession` only ever names an SSH
      session, on purpose, since a local shell is never something broadcast or
@@ -2220,7 +2308,9 @@ export function App(): JSX.Element {
   );
 
   const pasteBox =
-    pendingPaste === null ? null : boxOf({ kind: 'session', sessionId: pendingPaste.sessionId });
+    pendingPaste === null
+      ? null
+      : boxOf({ kind: 'session', sessionId: pendingPaste.sessionId, slot: pendingPaste.slot });
 
   /* ADR-0021's own guard for "nowhere for a broadcast to reach," reused
      rather than reinvented: `groupSyncState` refuses the identical shape
@@ -2789,6 +2879,49 @@ export function App(): JSX.Element {
             );
           })}
 
+          {/* The second shell ADR-0077 allows, one connection's own duplicate
+              of itself. A bare `TerminalView` rather than a `SessionBody`:
+              it has no forwards or monitor of its own to switch to, only the
+              terminal, and it never joins `receivingSessions`/`inputTargets`
+              (`sendInput` below is called directly, not through `broadcast`),
+              since a fan-out that could land on either of a session's two
+              shells depending on which was open last is not one anybody
+              asked for. */}
+          {mounted
+            .filter((terminal) => duplicated.has(terminal.sessionId))
+            .map((terminal) => {
+              const mine: Focus = { kind: 'session', sessionId: terminal.sessionId, slot: 'secondary' };
+              const box = boxOf(mine);
+
+              return (
+                <TerminalView
+                  key={`${terminal.sessionId}:secondary`}
+                  handle={terminal.handle}
+                  slot="secondary"
+                  session={saved.find((one) => one.id === terminal.sessionId) ?? null}
+                  sessions={saved}
+                  visible={box !== null}
+                  focused={sameFocus(resolvedFocus, mine)}
+                  frame={bodyStyle(box ?? WHOLE_AREA)}
+                  id={panelElementId(mine)}
+                  labelledBy={tabElementId(mine)}
+                  onPaneFocus={() => focusOn(mine)}
+                  onSize={setSize}
+                  /* Never registered in `focusFns`: that map is read by
+                     macros and the keyboard shortcuts that target a session
+                     by id, and a second entry under the same id would just
+                     be whichever of the two shells mounted last. */
+                  onFocusHandle={() => {}}
+                  modifier={chrome?.commandModifier ?? 'control'}
+                  onPasteNeedsConfirming={(text) =>
+                    setPendingPaste({ sessionId: terminal.sessionId, slot: 'secondary', text })
+                  }
+                  onInput={(bytes) => void sendInput(terminal.handle, bytes, 'secondary')}
+                  broadcasting={false}
+                />
+              );
+            })}
+
           {localShellTabs.map((tab) => {
             const mine: Focus = { kind: 'local', sessionId: tab.sessionId };
             const box = boxOf(mine);
@@ -2819,15 +2952,28 @@ export function App(): JSX.Element {
             <div className="absolute" style={bodyStyle(pasteBox)}>
               <PasteConfirm
                 text={pendingPaste.text}
-                hosts={inputTargets(groups, pendingPaste.sessionId, sync, muted).length}
+                hosts={
+                  /* A secondary shell (ADR-0077) is never part of the sync
+                     fan-out, so it always reaches exactly the one channel
+                     that asked. */
+                  pendingPaste.slot === 'secondary'
+                    ? 1
+                    : inputTargets(groups, pendingPaste.sessionId, sync, muted).length
+                }
                 onCancel={() => setPendingPaste(null)}
                 onConfirm={() => {
-                  /* Through the same fan-out a keystroke takes, so a confirmed
-                     paste reaches exactly the hosts the question named. */
-                  broadcast(
-                    pendingPaste.sessionId,
-                    new TextEncoder().encode(preparePaste(pendingPaste.text)),
-                  );
+                  const bytes = new TextEncoder().encode(preparePaste(pendingPaste.text));
+                  if (pendingPaste.slot === 'secondary') {
+                    /* Straight to its own channel, the same way its ordinary
+                       keystrokes bypass the fan-out: this pane is not a
+                       broadcast target. */
+                    const live = sessions.find((entry) => entry.session.id === pendingPaste.sessionId);
+                    if (live?.handle != null) void sendInput(live.handle, bytes, 'secondary');
+                  } else {
+                    /* Through the same fan-out a keystroke takes, so a confirmed
+                       paste reaches exactly the hosts the question named. */
+                    broadcast(pendingPaste.sessionId, bytes);
+                  }
                   setPendingPaste(null);
                 }}
               />

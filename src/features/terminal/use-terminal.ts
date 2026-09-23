@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Terminal } from '@xterm/xterm';
 
 import { openTerminal, resizeTerminal, watchTerminal } from '../../ipc';
-import type { Session, SessionHandle } from '../../ipc';
+import type { Session, SessionHandle, ShellSlot } from '../../ipc';
 import { useTranslator } from '../settings';
 
 import { keyIntent, pasteNeedsConfirming } from './clipboard';
@@ -87,6 +87,10 @@ export function useTerminal(
       than printed with nothing to say. */
   session: Session | null,
   sessions: readonly Session[],
+  /** Which of the connection's (at most two) shells this terminal is wired
+      to. ADR-0077. Defaults to the primary, which is every caller from
+      before that ADR. */
+  slot: ShellSlot = 'primary',
 ): TerminalState {
   const i18n = useTranslator();
   const [state, setState] = useState<Omit<TerminalState, 'focus' | 'clipboard'>>({
@@ -231,9 +235,10 @@ export function useTerminal(
         (exitStatus) => {
           setState((current) => ({ ...current, closed: true, exitStatus }));
         },
+        slot,
       );
 
-      await openTerminal(handle, terminal.cols, terminal.rows);
+      await openTerminal(handle, terminal.cols, terminal.rows, slot);
 
       /* Ctrl-C is the keystroke this has to be careful with. Returning `false`
          makes xterm return from its key handler before it calls
@@ -295,7 +300,7 @@ export function useTerminal(
          count keeps drawing at the old width. */
       const observer = new ResizeObserver(() => {
         fit.fit();
-        void resizeTerminal(handle, terminal.cols, terminal.rows);
+        void resizeTerminal(handle, terminal.cols, terminal.rows, slot);
         setState((current) => ({
           ...current,
           size: { columns: terminal.cols, rows: terminal.rows },
@@ -324,7 +329,7 @@ export function useTerminal(
       terminalRef.current = null;
       for (const stop of teardown.reverse()) stop();
     };
-  }, [container, handle]);
+  }, [container, handle, slot]);
 
   return { ...state, focus, clipboard };
 }
