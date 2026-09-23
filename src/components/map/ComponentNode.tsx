@@ -70,10 +70,17 @@ export function ComponentNode({
           title={i18n.t(connected ? 'map.component.connected' : 'map.component.saved')}
         />
       </div>
-      <span className="text-ink-secondary group-hover:text-ink max-w-[140px] truncate text-[11.5px] font-semibold">
-        {name}
-      </span>
-      <span className="text-ink-faint font-mono text-[10.5px] whitespace-nowrap">{who}</span>
+      {/* Hidden while dragging: at the same point as a drop target's own
+          label, the two would overlap and both go illegible (#387). The name
+          the user is holding is not new information; the target's is. */}
+      {!dragging && (
+        <>
+          <span className="text-ink-secondary group-hover:text-ink max-w-[140px] truncate text-[11.5px] font-semibold">
+            {name}
+          </span>
+          <span className="text-ink-faint font-mono text-[10.5px] whitespace-nowrap">{who}</span>
+        </>
+      )}
     </div>
   );
 }

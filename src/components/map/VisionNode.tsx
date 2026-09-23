@@ -57,12 +57,19 @@ export function VisionNode({ vision, at, kinds, dimmed, dragging, receiving, onP
           {String(count)}
         </span>
       </div>
-      <span className="text-ink-secondary group-hover:text-ink max-w-[140px] truncate text-[11.5px] font-semibold">{vision.name}</span>
-      <span className="flex gap-1" title={i18n.t(count === 1 ? 'map.vision.count.one' : 'map.vision.count.other', { count: String(count) })}>
-        {kinds.map((kind, i) => (
-          <span key={`${kind}-${String(i)}`} className="h-[7px] w-[7px] rounded-full" style={{ background: kindColor(kind) }} />
-        ))}
-      </span>
+      {/* Hidden while dragging: at the same point as a drop target's own
+          label, the two would overlap and both go illegible (#387). The name
+          the user is holding is not new information; the target's is. */}
+      {!dragging && (
+        <>
+          <span className="text-ink-secondary group-hover:text-ink max-w-[140px] truncate text-[11.5px] font-semibold">{vision.name}</span>
+          <span className="flex gap-1" title={i18n.t(count === 1 ? 'map.vision.count.one' : 'map.vision.count.other', { count: String(count) })}>
+            {kinds.map((kind, i) => (
+              <span key={`${kind}-${String(i)}`} className="h-[7px] w-[7px] rounded-full" style={{ background: kindColor(kind) }} />
+            ))}
+          </span>
+        </>
+      )}
     </div>
   );
 }
