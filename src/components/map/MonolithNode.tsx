@@ -52,7 +52,12 @@ export function MonolithNode({ layer, at, count, dimmed, dragging, receiving, on
       <div className={`relative transition-transform duration-normal group-hover:-translate-y-0.5 ${receiving ? 'scale-110' : ''}`}>
         <MonolithGlyph count={count} highlighted={receiving} />
       </div>
-      <span className="text-ink-secondary group-hover:text-ink max-w-[140px] truncate text-[11.5px] font-semibold">{layer.name}</span>
+      {/* Hidden while dragging: at the same point as a drop target's own
+          label, the two would overlap and both go illegible (#387). The name
+          the user is holding is not new information; the target's is. */}
+      {!dragging && (
+        <span className="text-ink-secondary group-hover:text-ink max-w-[140px] truncate text-[11.5px] font-semibold">{layer.name}</span>
+      )}
     </div>
   );
 }
