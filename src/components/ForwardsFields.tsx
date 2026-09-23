@@ -80,6 +80,12 @@ export function ForwardsFields({ value, wrong, onChange }: ForwardsFieldsProps):
                 })}
               </div>
 
+              {/* A divider, not a fourth pill: the bind-port input otherwise
+                  shares the segmented buttons' own border and radius, and
+                  read as one more choice in the radiogroup rather than a
+                  field (#334). */}
+              <div aria-hidden="true" className="bg-line-subtle h-4 w-px" />
+
               <input
                 value={forward.bindPort}
                 onChange={(event) => update(index, { bindPort: event.target.value })}
