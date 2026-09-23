@@ -38,6 +38,7 @@ export {
 } from './connect';
 export type { ConnectStage, FailureCode, HeldDecision, HostKeyVerdict } from './connect';
 export { useConnect } from './use-connect';
+export type { Attempt } from './use-connect';
 export {
   EMPTY_DRAFT,
   EMPTY_FORWARD,

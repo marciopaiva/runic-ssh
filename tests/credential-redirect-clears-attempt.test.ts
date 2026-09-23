@@ -128,7 +128,7 @@ describe('a connect redirected for a missing credential', () => {
     /* The connection it opened is closed, and the editor is where this
        continues: nothing is in progress any more. */
     expect(ipc.disconnectSession).toHaveBeenCalledWith(1);
-    expect(probe.state().attempt).toBeNull();
+    expect(probe.state().attempts.has('s1')).toBe(false);
 
     await probe.unmount();
   });
@@ -147,7 +147,7 @@ describe('a connect redirected for a missing credential', () => {
 
     expect(wiring.onCredentialMissing).toHaveBeenCalledWith('s1', 'bastion');
     expect(wiring.onFailed).not.toHaveBeenCalled();
-    expect(probe.state().attempt).toBeNull();
+    expect(probe.state().attempts.has('s1')).toBe(false);
 
     await probe.unmount();
   });
@@ -168,7 +168,7 @@ describe('a connect redirected for a missing credential', () => {
 
     expect(wiring.onCredentialMissing).not.toHaveBeenCalled();
     expect(wiring.onFailed).toHaveBeenCalledWith('s1', 'sshTransport');
-    expect(probe.state().attempt?.stage.stage).toBe('failed');
+    expect(probe.state().attempts.get('s1')?.stage.stage).toBe('failed');
 
     await probe.unmount();
   });
