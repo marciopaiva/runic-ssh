@@ -86,13 +86,11 @@ const FAILURES: Partial<Record<IpcErrorCode, Failure>> = {
     body: 'failure.keychain.body',
     retryable: true,
   },
-  /* ADR-0035. `vaultLocked` gets its own copy, reused from the Settings
-     screen that unlocks it, because that is exactly what is wrong: the
-     credential is there and the master password has not been given yet this
-     run. `vaultNotConfigured` and `vaultUnreadable` are the rarer cases,
-     a race with the vault being disabled mid-session or a corrupted file,
-     and share one generic message the same way the keychain's two codes
-     do above. */
+  /* ADR-0035. `vaultLocked` gets its own copy: the credential is there and
+     the master password has not been given yet this run. `vaultNotConfigured`
+     and `vaultUnreadable` are the rarer cases, a race with the vault being
+     disabled mid-session or a corrupted file, and share one generic message
+     the same way the keychain's two codes do above. */
   vaultLocked: {
     title: 'vault.unlock.title',
     body: 'vault.unlock.body',
