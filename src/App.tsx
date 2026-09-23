@@ -91,6 +91,7 @@ import {
   wrongHostFields,
 } from './features/sessions';
 import type {
+  Attempt,
   CarriedOn,
   DraftValues,
   EditorAction,
@@ -585,7 +586,7 @@ export function App(): JSX.Element {
     new Map(),
   );
 
-  const { attempt, connect, trust, abandon } = useConnect({
+  const { attempts, connect, trust, abandon } = useConnect({
     onConnecting: (sessionId) => setState(sessionId, 'connecting'),
     onOpened: (sessionId, handle, via) => {
       attach(sessionId, handle);
@@ -725,13 +726,26 @@ export function App(): JSX.Element {
     },
   });
 
-  /* The session an unresolved attempt names. It keeps its tab so that the
+  /* The sessions an unresolved attempt names. Each keeps its tab so that the
      surface asking about it has a panel to render in — ADR-0015. Dismissing
-     the failure clears the attempt, and the tab goes with it. */
-  const attentionId = attempt?.sessionId ?? null;
+     a failure clears its attempt, and that tab goes with it. */
+  const attentionIds = useMemo(() => new Set(attempts.keys()), [attempts]);
   const tabs = useMemo(
-    () => openTabs(sessions, attentionId, terminalWanted),
-    [sessions, attentionId, terminalWanted],
+    () => openTabs(sessions, attentionIds, terminalWanted),
+    [sessions, attentionIds, terminalWanted],
+  );
+  /* Whether `sessionId` has an unresolved attempt still running. The guard
+     shared by `activate`, `openHere`, `assignSftpEndpoint` and
+     `connectFromMap`, all of which decline to start a second attempt over a
+     first one already in flight for the same session (issue #306: attempts
+     for *different* sessions now run concurrently, so this is scoped to one
+     session rather than the single global attempt it used to be). */
+  const attemptInProgressFor = useCallback(
+    (sessionId: string): boolean => {
+      const attempt = attempts.get(sessionId);
+      return attempt !== undefined && isInProgress(attempt.stage);
+    },
+    [attempts],
   );
   /* A tab disappears when its host drops the connection, which nobody
      clicked. Resolving on render is what keeps the active tab pointing at
@@ -1137,10 +1151,10 @@ export function App(): JSX.Element {
          away — it is derived from the live session, which was still open. A
          control that looks like it did nothing is indistinguishable from one
          that is not wired up. */
-      if (attentionId === target.sessionId) abandon();
+      if (attentionIds.has(target.sessionId)) abandon(target.sessionId);
       disconnect(target.sessionId);
     },
-    [forget, attentionId, abandon, disconnect],
+    [forget, attentionIds, abandon, disconnect],
   );
 
   /* Closing a local shell's tab. Unlike `closeFocus`, there is nothing to
@@ -1190,11 +1204,11 @@ export function App(): JSX.Element {
          the same guard `activate` keeps for Sessions. The later target
          wins, since that is the drop the maintainer just made. */
       sftpConnectTargets.current.set(sessionId, target);
-      if (attempt !== null && attempt.sessionId === sessionId && isInProgress(attempt.stage)) return;
+      if (attemptInProgressFor(sessionId)) return;
 
       void connect(sessionId);
     },
-    [connect, sessions, attempt, fanout],
+    [connect, sessions, attemptInProgressFor, fanout],
   );
 
   /* Closing an editor or settings tab in Home. No group to take it out of and
@@ -1284,11 +1298,11 @@ export function App(): JSX.Element {
 
       for (const entry of group.entries) {
         if (entry.kind !== 'session') continue;
-        if (attentionId === entry.sessionId) abandon();
+        if (attentionIds.has(entry.sessionId)) abandon(entry.sessionId);
         disconnect(entry.sessionId);
       }
     },
-    [groups, entries, attentionId, abandon, disconnect],
+    [groups, entries, attentionIds, abandon, disconnect],
   );
 
   /* Putting a saved host in a particular rectangle.
@@ -1315,13 +1329,13 @@ export function App(): JSX.Element {
       /* Already open, or already on its way. Both only move; a second connect
          to the same host is two sockets with the first orphaned. */
       if (live.handle !== null) return;
-      if (attempt !== null && attempt.sessionId === sessionId && isInProgress(attempt.stage)) {
+      if (attemptInProgressFor(sessionId)) {
         return;
       }
 
       void connect(sessionId);
     },
-    [sessions, attempt, connect, wantTerminal],
+    [sessions, attemptInProgressFor, connect, wantTerminal],
   );
 
   /* The "+" beside the ADR-0072 pills. Routes to whichever of the two
@@ -1364,18 +1378,6 @@ export function App(): JSX.Element {
     [activeGroup],
   );
 
-  /* Shown in the main area rather than as a toast: the user just clicked the
-     session and is looking at exactly this space, and a message that
-     disappears on its own is one that disappears before it is read. */
-  const failedSession =
-    attempt === null || attempt.stage.stage !== 'failed'
-      ? null
-      : (sessions.find((live) => live.session.id === attempt.sessionId)?.session ?? null);
-  const failed =
-    failedSession === null || attempt === null || attempt.stage.stage !== 'failed'
-      ? null
-      : { session: failedSession, code: attempt.stage.code, hop: attempt.stage.hop };
-
   /* Activating a saved host is what starts a connection. An open one only
      switches, which is why the palette and the retry button both route
      through here rather than each deciding for themselves. */
@@ -1400,106 +1402,113 @@ export function App(): JSX.Element {
 
       /* Already on its way. A double click on a row used to start a second
          connection to the same host: two sockets, the first orphaned, and with
-         one attempt held at a time the first was silently replaced.
-         `isInProgress` and not merely "has an attempt", because retrying from
-         the failure surface is this same call on a session whose attempt is
-         still held — and that one must go through. */
-      if (attempt !== null && attempt.sessionId === sessionId && isInProgress(attempt.stage)) {
+         one attempt held per session, the first was silently replaced.
+         `attemptInProgressFor` and not merely "has an attempt", because
+         retrying from the failure surface is this same call on a session
+         whose attempt is still held, and that one must go through. */
+      if (attemptInProgressFor(sessionId)) {
         focusOn({ kind: 'session', sessionId });
         return;
       }
 
       void connect(sessionId);
     },
-    [connect, sessions, attempt, focusOn, wantTerminal],
+    [connect, sessions, attemptInProgressFor, focusOn, wantTerminal],
   );
 
-  /* What the attempt has to say, as one branch instead of four nested ones at
+  /* What an attempt has to say, as one branch instead of four nested ones at
      the call site. Revoked and certificate-required end in no decision at all
-     and used to render nothing — the attempt stopped behind an empty window. */
-  const attemptSurface = ((): JSX.Element | null => {
-    if (attempt === null) return null;
+     and used to render nothing: the attempt stopped behind an empty window.
+     Takes the `Attempt` explicitly (issue #306): several may now run at once,
+     one per session, so there is no single implicit attempt left to close
+     over. */
+  const attemptSurfaceFor = useCallback(
+    (attempt: Attempt): JSX.Element | null => {
+      const decision = attempt.stage.stage === 'deciding' ? attempt.decision : null;
 
-    const decision = attempt.stage.stage === 'deciding' ? attempt.decision : null;
+      if (decision !== null) {
+        if (!isOverridable(decision.verdict)) {
+          return (
+            <HostKeyRefused
+              host={decision.host}
+              fingerprint={decision.offered}
+              reason={decision.verdict === 'revoked' ? 'revoked' : 'certificateRequired'}
+              hop={decision.hop}
+              onCancel={() => abandon(attempt.sessionId)}
+            />
+          );
+        }
 
-    if (decision !== null) {
-      if (!isOverridable(decision.verdict)) {
+        if (needsConfirmation(decision.verdict)) {
+          return (
+            <HostKeyBlocked
+              host={decision.host}
+              storedFingerprints={decision.stored}
+              offeredFingerprint={decision.offered}
+              hop={decision.hop}
+              onReplace={(confirmation) => void trust(attempt.sessionId, confirmation)}
+              onCancel={() => abandon(attempt.sessionId)}
+            />
+          );
+        }
+
         return (
-          <HostKeyRefused
+          <HostKeyPrompt
             host={decision.host}
+            port={decision.port}
+            keyType={decision.keyType}
             fingerprint={decision.offered}
-            reason={decision.verdict === 'revoked' ? 'revoked' : 'certificateRequired'}
             hop={decision.hop}
-            onCancel={abandon}
+            onTrust={() => void trust(attempt.sessionId)}
+            onCancel={() => abandon(attempt.sessionId)}
           />
         );
       }
 
-      if (needsConfirmation(decision.verdict)) {
+      /* Only reached while the attempt is still running. A cancel here bumps
+         its generation in `useConnect`, so the answer that eventually arrives
+         is dropped rather than reopening this panel. */
+      if (isInProgress(attempt.stage)) {
+        const live = sessions.find((entry) => entry.session.id === attempt.sessionId);
+        if (live === undefined) return null;
+
+        return <ConnectingSurface session={live.session} onCancel={() => abandon(attempt.sessionId)} />;
+      }
+
+      /* `'settled'` is a completed wizard test. The wizard closes itself the
+         instant one succeeds (`onAutoFinish` below) rather than waiting on a
+         card here to be dismissed, so there is nothing left for this surface
+         to show for it. Only ever reached by the `'inline'` intent, which
+         only the wizard ever starts, so nothing outside it could have shown
+         this card anyway. */
+      if (attempt.stage.stage === 'settled') return null;
+
+      /* A completed wizard test that failed. The wizard shows this inline,
+         next to the credential field it is about, rather than as a card here:
+         `testFailure` in `wizardFor` below, computed the same way this
+         surface's own `failed` is, is what feeds that. Only ever reached by
+         the `'inline'` intent, for the same reason `'settled'` above is. */
+      if (attempt.stage.stage === 'failed' && attempt.intent === 'inline') return null;
+
+      if (attempt.stage.stage === 'failed') {
+        const session = sessions.find((live) => live.session.id === attempt.sessionId)?.session;
+        if (session === undefined) return null;
+
         return (
-          <HostKeyBlocked
-            host={decision.host}
-            storedFingerprints={decision.stored}
-            offeredFingerprint={decision.offered}
-            hop={decision.hop}
-            onReplace={(confirmation) => void trust(confirmation)}
-            onCancel={abandon}
+          <ConnectionFailure
+            session={session}
+            code={attempt.stage.code}
+            hop={attempt.stage.hop}
+            onRetry={() => activate(session.id)}
+            onDismiss={() => abandon(attempt.sessionId)}
           />
         );
       }
 
-      return (
-        <HostKeyPrompt
-          host={decision.host}
-          port={decision.port}
-          keyType={decision.keyType}
-          fingerprint={decision.offered}
-          hop={decision.hop}
-          onTrust={() => void trust()}
-          onCancel={abandon}
-        />
-      );
-    }
-
-    /* Only reached while the attempt is still running. A cancel here bumps the
-       generation in `useConnect`, so the answer that eventually arrives is
-       dropped rather than reopening this panel. */
-    if (isInProgress(attempt.stage)) {
-      const live = sessions.find((entry) => entry.session.id === attempt.sessionId);
-      if (live === undefined) return null;
-
-      return <ConnectingSurface session={live.session} onCancel={abandon} />;
-    }
-
-    /* `'settled'` is a completed wizard test. The wizard closes itself the
-       instant one succeeds (`onAutoFinish` below) rather than waiting on a
-       card here to be dismissed, so there is nothing left for this surface
-       to show for it. Only ever reached by the `'inline'` intent, which
-       only the wizard ever starts, so nothing outside it could have shown
-       this card anyway. */
-    if (attempt.stage.stage === 'settled') return null;
-
-    /* A completed wizard test that failed. The wizard shows this inline,
-       next to the credential field it is about, rather than as a card here:
-       `testFailure` below, computed the same way this surface's own `failed`
-       is, is what feeds that. Only ever reached by the `'inline'` intent,
-       for the same reason `'settled'` above is. */
-    if (attempt.stage.stage === 'failed' && attempt.intent === 'inline') return null;
-
-    if (failed !== null) {
-      return (
-        <ConnectionFailure
-          session={failed.session}
-          code={failed.code}
-          hop={failed.hop}
-          onRetry={() => activate(failed.session.id)}
-          onDismiss={abandon}
-        />
-      );
-    }
-
-    return null;
-  })();
+      return null;
+    },
+    [sessions, trust, abandon, activate],
+  );
 
   const save = useCallback(
     async (draft: SessionDraft) => {
@@ -2127,16 +2136,18 @@ export function App(): JSX.Element {
       const live = sessions.find((entry) => entry.session.id === sessionId);
       if (live === undefined || live.handle !== null) return;
       mapConnectTargets.current.add(sessionId);
-      if (attempt !== null && attempt.sessionId === sessionId && isInProgress(attempt.stage)) return;
+      if (attemptInProgressFor(sessionId)) return;
       void connect(sessionId);
     },
-    [connect, sessions, attempt],
+    [connect, sessions, attemptInProgressFor],
   );
 
   const mapAttemptSurface = useCallback(
-    (sessionId: string): JSX.Element | null =>
-      attempt !== null && attempt.sessionId === sessionId ? attemptSurface : null,
-    [attempt, attemptSurface],
+    (sessionId: string): JSX.Element | null => {
+      const attempt = attempts.get(sessionId);
+      return attempt === undefined ? null : attemptSurfaceFor(attempt);
+    },
+    [attempts, attemptSurfaceFor],
   );
 
   /* One terminal per SSH component whose host is connected. The stack itself
@@ -2210,8 +2221,6 @@ export function App(): JSX.Element {
 
   const pasteBox =
     pendingPaste === null ? null : boxOf({ kind: 'session', sessionId: pendingPaste.sessionId });
-  const attemptBox =
-    attempt === null ? null : boxOf({ kind: 'session', sessionId: attempt.sessionId });
 
   /* ADR-0021's own guard for "nowhere for a broadcast to reach," reused
      rather than reinvented: `groupSyncState` refuses the identical shape
@@ -2225,6 +2234,7 @@ export function App(): JSX.Element {
   const wizardFor = (target: EditorTarget, onMap: boolean): JSX.Element | null => {
     const open = findEditor(editors, target);
     const editingId = target?.kind === 'existing' ? target.sessionId : null;
+    const attempt = editingId === null ? undefined : attempts.get(editingId);
     const jump =
       open === null ? null : jumpHostChoice(saved, editingId, open.values.proxyJump);
     const duplicate =
@@ -2263,15 +2273,13 @@ export function App(): JSX.Element {
         );
       })();
     /* The plain unknown-key decision, read as data rather than
-       through `attemptSurface`'s own rendered card: reported
+       through `attemptSurfaceFor`'s own rendered card: reported
        live, 2026-09-07, that card had never been fit to Access's
        width ("nao incluimos esse card no fluxo"). `HostKeyBlocked`
        and `HostKeyRefused` are untouched, still `testSurface`'s,
        below. */
     const hostKeyDecision =
-      attempt !== null &&
-      editingId !== null &&
-      attempt.sessionId === editingId &&
+      attempt !== undefined &&
       attempt.stage.stage === 'deciding' &&
       attempt.decision !== null &&
       isOverridable(attempt.decision.verdict) &&
@@ -2282,8 +2290,8 @@ export function App(): JSX.Element {
             keyType: attempt.decision.keyType,
             fingerprint: attempt.decision.offered,
             hop: attempt.decision.hop,
-            onTrust: () => void trust(),
-            onCancel: abandon,
+            onTrust: () => void trust(attempt.sessionId),
+            onCancel: () => abandon(attempt.sessionId),
           }
         : null;
     /* ADR-0030: the same host key and credential screens Sessions
@@ -2293,22 +2301,14 @@ export function App(): JSX.Element {
        proof phase. Not shown when `hostKeyDecision` already
        covers it. */
     const testSurface =
-      attempt !== null &&
-      editingId !== null &&
-      attempt.sessionId === editingId &&
-      hostKeyDecision === null
-        ? attemptSurface
-        : null;
-    /* The same failed attempt `attemptSurface` itself refuses to
+      attempt !== undefined && hostKeyDecision === null ? attemptSurfaceFor(attempt) : null;
+    /* The same failed attempt `attemptSurfaceFor` itself refuses to
        show a card for, `intent === 'inline'` and reached here.
        Handed to the wizard as data rather than a `ReactNode`: it
        renders this next to the credential field it is about, not
        as a card of its own. */
     const testFailure =
-      attempt !== null &&
-      editingId !== null &&
-      attempt.sessionId === editingId &&
-      attempt.stage.stage === 'failed'
+      attempt !== undefined && attempt.stage.stage === 'failed'
         ? { code: attempt.stage.code, hop: attempt.stage.hop }
         : null;
     /* ADR-0033: the bastion's own field. A session behind
@@ -2317,14 +2317,11 @@ export function App(): JSX.Element {
        through; nothing about answering a request was ever
        window-specific, only opening one was. */
     const bastionStage =
-      attempt !== null &&
-      editingId !== null &&
-      attempt.sessionId === editingId &&
-      attempt.stage.stage === 'awaitingBastionCredential'
+      attempt !== undefined && attempt.stage.stage === 'awaitingBastionCredential'
         ? attempt.stage
         : null;
     const bastionCredential =
-      bastionStage === null
+      bastionStage === null || attempt === undefined
         ? null
         : {
             prompt: bastionStage.prompt,
@@ -2335,7 +2332,7 @@ export function App(): JSX.Element {
                   : { privateKey: secret.privateKey, passphrase: secret.passphrase ?? null };
               void submitCredential(bastionStage.request, wire, keep);
             },
-            onCancel: abandon,
+            onCancel: () => abandon(attempt.sessionId),
           };
     const panelTitle =
       target === null
@@ -2393,7 +2390,7 @@ export function App(): JSX.Element {
       onSave={() => hostFieldsValid(target)}
       onTest={(method, credential) => testInWizard(target, method, credential)}
       onAutoFinish={() => {
-        abandon();
+        if (editingId !== null) abandon(editingId);
         finishWizard(target);
       }}
       testSurface={testSurface}
@@ -2869,18 +2866,27 @@ export function App(): JSX.Element {
               />
             ))}
 
-          {/* Everything an attempt has to say, inside the group of the session
-              it names. ADR-0015, read as ADR-0020 reads it: the group whose
-              active tab that session is. Positioned and last in document order
-              so it paints over that session's terminal, and bounded to that
-              group, so a question about one session cannot cover another.
-              Absent entirely when its session is showing nowhere: there is no
-              honest place to draw it, and the tab is still on a strip. */}
-          {attempt !== null && attemptSurface !== null && attemptBox !== null && (
-            <div className="absolute" style={bodyStyle(attemptBox)}>
-              {attemptSurface}
-            </div>
-          )}
+          {/* Everything each running attempt has to say, inside the group of
+              the session it names. ADR-0015, read as ADR-0020 reads it: the
+              group whose active tab that session is. Positioned and last in
+              document order so it paints over that session's terminal, and
+              bounded to that group, so a question about one session cannot
+              cover another. Issue #306: several may be in flight at once, one
+              per session, so this is a loop rather than the single card it
+              used to be. Absent entirely when its session is showing nowhere:
+              there is no honest place to draw it, and the tab is still on a
+              strip. */}
+          {Array.from(attempts.values()).map((attempt) => {
+            const surface = attemptSurfaceFor(attempt);
+            const box = boxOf({ kind: 'session', sessionId: attempt.sessionId });
+            if (surface === null || box === null) return null;
+
+            return (
+              <div key={attempt.sessionId} className="absolute" style={bodyStyle(box)}>
+                {surface}
+              </div>
+            );
+          })}
         </main>
         )}
 
@@ -2921,26 +2927,37 @@ export function App(): JSX.Element {
             .map((endpoint, slot) => (endpoint === null ? null : { endpoint, slot }))
             .filter((entry): entry is { endpoint: Endpoint; slot: number } => entry !== null);
 
-          /* Which pane, if any, `attempt` belongs to: an endpoint already
-             assigned, or (mid-connect, before `onOpened` resolves it) the
-             pane `assignSftpEndpoint` recorded it for. Positioned inside
-             that pane's own wrapper rather than full-area, now that several
-             panes can be on screen together. */
-          const attemptDestination =
-            attempt === null
-              ? undefined
-              : occupied.find((entry) => entry.endpoint.kind === 'remote' && entry.endpoint.sessionId === attempt.sessionId);
-          const attemptTarget: SftpTarget | null =
-            attempt === null
-              ? null
-              : fanout.source?.kind === 'remote' && fanout.source.sessionId === attempt.sessionId
-                ? { kind: 'source' }
-                : attemptDestination !== undefined
-                  ? { kind: 'destination', slot: attemptDestination.slot }
-                  : (sftpConnectTargets.current.get(attempt.sessionId) ?? null);
-
           const sameTarget = (a: SftpTarget, b: SftpTarget): boolean =>
             a.kind === 'source' ? b.kind === 'source' : b.kind === 'destination' && a.slot === b.slot;
+
+          /* Which pane, if any, a session's own connection belongs to: an
+             endpoint already assigned, or (mid-connect, before `onOpened`
+             resolves it) the pane `assignSftpEndpoint` recorded it for. */
+          const targetOf = (sessionId: string): SftpTarget | null => {
+            if (fanout.source?.kind === 'remote' && fanout.source.sessionId === sessionId) {
+              return { kind: 'source' };
+            }
+            const destination = occupied.find(
+              (entry) => entry.endpoint.kind === 'remote' && entry.endpoint.sessionId === sessionId,
+            );
+            if (destination !== undefined) return { kind: 'destination', slot: destination.slot };
+            return sftpConnectTargets.current.get(sessionId) ?? null;
+          };
+
+          /* Several attempts can be running at once now (issue #306), one per
+             pane, but this workspace still shows only one at a time, full-area:
+             the source pane's own, deliberately narrow column clipped a host
+             key prompt's Trust button below the fold the one time this was
+             nested inside it instead. `lastFocusedFanoutSlot` breaks the tie
+             (the pane clicked last), and every attempt not shown keeps
+             running silently, updating session state until it is focused. */
+          const focusedAttempt = Array.from(attempts.values()).find((attempt) => {
+            const target = targetOf(attempt.sessionId);
+            return target !== null && sameTarget(target, lastFocusedFanoutSlot);
+          });
+          const attemptTarget: SftpTarget | null =
+            focusedAttempt === undefined ? null : targetOf(focusedAttempt.sessionId);
+          const focusedSurface = focusedAttempt === undefined ? null : attemptSurfaceFor(focusedAttempt);
 
           const dragOverHandlers = (target: SftpTarget) =>
             sftpDragging === null && draggedEntries === null
@@ -3089,16 +3106,16 @@ export function App(): JSX.Element {
               />
 
               {/* Host-key decisions, the "Reaching <host>…" surface and the
-                  rest of `attemptSurface` assume a full pane's worth of
+                  rest of `attemptSurfaceFor` assume a full pane's worth of
                   room, the size every other surface using it already gets
                   (Sessions' own `bodyStyle`, ADR-0044's one rectangle).
                   The source pane's own, deliberately narrow column clipped a
                   host key prompt's Trust button below the fold when this
                   was nested inside it instead. Full-area, gated on
-                  `attemptTarget` so it only covers the workspace while the
-                  attempt actually belongs to one of its panes. */}
-              {attemptTarget !== null && attemptSurface !== null && (
-                <div className="absolute inset-0">{attemptSurface}</div>
+                  `attemptTarget` so it only covers the workspace while
+                  `focusedAttempt` actually belongs to one of its panes. */}
+              {attemptTarget !== null && focusedSurface !== null && (
+                <div className="absolute inset-0">{focusedSurface}</div>
               )}
             </main>
           );

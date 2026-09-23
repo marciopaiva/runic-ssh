@@ -61,7 +61,7 @@ interface PreCollectedCredential {
   readonly keep: Keep;
 }
 
-interface Attempt {
+export interface Attempt {
   readonly sessionId: string;
   readonly stage: ConnectStage;
   /** What the attempt is for. Only the ending differs. See `ConnectIntent`. */
@@ -95,7 +95,7 @@ interface Attempt {
 }
 
 interface ConnectState {
-  readonly attempt: Attempt | null;
+  readonly attempts: ReadonlyMap<string, Attempt>;
   readonly connect: (
     sessionId: string,
     intent?: ConnectIntent,
@@ -103,8 +103,8 @@ interface ConnectState {
     credential?: PreCollectedCredential | null,
   ) => Promise<void>;
   /** Accepts the held host key and connects again. */
-  readonly trust: (confirmation?: string) => Promise<void>;
-  readonly abandon: () => void;
+  readonly trust: (sessionId: string, confirmation?: string) => Promise<void>;
+  readonly abandon: (sessionId: string) => void;
 }
 
 interface Wiring {
@@ -169,8 +169,8 @@ interface Wiring {
 }
 
 export function useConnect(wiring: Wiring): ConnectState {
-  const [attempt, setAttempt] = useState<Attempt | null>(null);
-  /* Which attempt the answers still belong to.
+  const [attempts, setAttempts] = useState<ReadonlyMap<string, Attempt>>(new Map());
+  /* Which attempt a session's answers still belong to.
    *
    * Nothing here can cancel an `await` that is already in flight — the core has
    * no abort for a connect, and a TCP connect to a host that does not answer
@@ -181,8 +181,12 @@ export function useConnect(wiring: Wiring): ConnectState {
    *
    * A connection that opens after being abandoned is closed rather than kept:
    * it has no tab, so nothing could ever reach it, and leaving it open holds a
-   * channel on the server that nobody can see. */
-  const generation = useRef(0);
+   * channel on the server that nobody can see.
+   *
+   * Kept per session, not as one shared counter: bumping it used to invalidate
+   * every session's in-flight attempt at once, the moment a second one started,
+   * which is the whole reason connecting was never concurrent. ADR-0015. */
+  const generation = useRef<Map<string, number>>(new Map());
   const {
     onOpened,
     onConnecting,
@@ -193,7 +197,23 @@ export function useConnect(wiring: Wiring): ConnectState {
     onCredentialMissing,
   } = wiring;
 
-  const current = useCallback((mine: number): boolean => generation.current === mine, []);
+  const current = useCallback(
+    (sessionId: string, mine: number): boolean => generation.current.get(sessionId) === mine,
+    [],
+  );
+
+  const setAttempt = useCallback((sessionId: string, next: Attempt): void => {
+    setAttempts((current) => new Map(current).set(sessionId, next));
+  }, []);
+
+  const clearAttempt = useCallback((sessionId: string): void => {
+    setAttempts((current) => {
+      if (!current.has(sessionId)) return current;
+      const next = new Map(current);
+      next.delete(sessionId);
+      return next;
+    });
+  }, []);
 
   const fail = useCallback(
     (
@@ -203,10 +223,10 @@ export function useConnect(wiring: Wiring): ConnectState {
       intent: ConnectIntent,
       method?: SuggestedMethod,
     ): void => {
-      if (!current(mine)) return;
+      if (!current(sessionId, mine)) return;
 
       const { code, hop } = reported;
-      setAttempt({
+      setAttempt(sessionId, {
         sessionId,
         stage: { stage: 'failed', code, hop },
         intent,
@@ -219,7 +239,7 @@ export function useConnect(wiring: Wiring): ConnectState {
          reached, and the reason is one hop further away than usual. */
       onFailed(sessionId, code);
     },
-    [onFailed, current],
+    [onFailed, current, setAttempt],
   );
 
   const authenticate = useCallback(
@@ -232,12 +252,12 @@ export function useConnect(wiring: Wiring): ConnectState {
       credential?: PreCollectedCredential | null,
     ): Promise<void> => {
       const { handle } = opened;
-      if (!current(mine)) {
+      if (!current(sessionId, mine)) {
         void disconnectSession(handle);
         return;
       }
 
-      setAttempt({
+      setAttempt(sessionId, {
         sessionId,
         stage: { stage: 'connecting' },
         intent,
@@ -256,13 +276,13 @@ export function useConnect(wiring: Wiring): ConnectState {
         try {
           await authenticateSession(handle, credential.secret);
         } catch (rejection) {
-          if (!current(mine)) return;
+          if (!current(sessionId, mine)) return;
           void disconnectSession(handle);
           fail(sessionId, reportedFailure(asIpcError(rejection) ?? null), mine, intent, method);
           return;
         }
 
-        if (!current(mine)) {
+        if (!current(sessionId, mine)) {
           void disconnectSession(handle);
           return;
         }
@@ -281,7 +301,7 @@ export function useConnect(wiring: Wiring): ConnectState {
         }
 
         void disconnectSession(handle);
-        setAttempt({
+        setAttempt(sessionId, {
           sessionId,
           stage: { stage: 'settled', keeping },
           intent,
@@ -300,11 +320,11 @@ export function useConnect(wiring: Wiring): ConnectState {
          field for this host to begin with. */
       try {
         await authenticateWithSaved(handle);
-        if (!current(mine)) {
+        if (!current(sessionId, mine)) {
           void disconnectSession(handle);
           return;
         }
-        setAttempt(null);
+        clearAttempt(sessionId);
         onOpened(sessionId, handle, opened.via ?? null);
         /* The far host had a saved credential. The jump host may still have
            been asked about and refused on the way here. */
@@ -314,7 +334,7 @@ export function useConnect(wiring: Wiring): ConnectState {
         /* The connection is open and unusable either way. Closing it is the
            only way not to leave a socket nobody can reach. */
         void disconnectSession(handle);
-        if (!current(mine)) return;
+        if (!current(sessionId, mine)) return;
 
         /* ADR-0039: nothing usable was saved, and there is nowhere left in
            Sessions to collect one. The wizard on this host's own entry is.
@@ -327,7 +347,7 @@ export function useConnect(wiring: Wiring): ConnectState {
              continues, so nothing is in progress any more. An attempt left
              at `connecting` here is the "Reaching…" card that sat over the
              redirected editor with Save reading "Proving" (#358). */
-          setAttempt(null);
+          clearAttempt(sessionId);
           onCredentialMissing(sessionId, 'target');
           return;
         }
@@ -335,7 +355,16 @@ export function useConnect(wiring: Wiring): ConnectState {
         fail(sessionId, reported, mine, intent, method);
       }
     },
-    [fail, onOpened, onCredentialRefused, onCredentialSettled, onCredentialMissing, current],
+    [
+      fail,
+      onOpened,
+      onCredentialRefused,
+      onCredentialSettled,
+      onCredentialMissing,
+      current,
+      setAttempt,
+      clearAttempt,
+    ],
   );
 
   const attemptConnect = useCallback(
@@ -351,10 +380,10 @@ export function useConnect(wiring: Wiring): ConnectState {
       method?: SuggestedMethod,
       credential?: PreCollectedCredential | null,
     ): Promise<void> => {
-      generation.current += 1;
-      const mine = generation.current;
+      const mine = (generation.current.get(sessionId) ?? 0) + 1;
+      generation.current.set(sessionId, mine);
 
-      setAttempt({
+      setAttempt(sessionId, {
         sessionId,
         stage: { stage: 'connecting' },
         intent,
@@ -373,10 +402,10 @@ export function useConnect(wiring: Wiring): ConnectState {
       let unlisten;
       if (intent === 'inline') {
         const registering = onInlineCredentialRequest((request) => {
-          if (!current(mine)) return;
+          if (!current(sessionId, mine)) return;
           void credentialPrompt(request).then((prompt) => {
-            if (!current(mine)) return;
-            setAttempt({
+            if (!current(sessionId, mine)) return;
+            setAttempt(sessionId, {
               sessionId,
               stage: { stage: 'awaitingBastionCredential', request, prompt },
               intent,
@@ -433,11 +462,11 @@ export function useConnect(wiring: Wiring): ConnectState {
              can only be `intent === 'open'`: the wizard's own test still
              collects the bastion's credential inline, on the same call, so
              the chain never fails this way while it is running. */
-          if (current(mine) && reported.hop === 'bastion' && shouldPromptAfterSaved(reported.code)) {
+          if (current(sessionId, mine) && reported.hop === 'bastion' && shouldPromptAfterSaved(reported.code)) {
             /* Over, not failed: the redirect is the answer. Left in place,
                the `connecting` stage drew a "Reaching…" card over the
                editor it opened and held every field shut (#358). */
-            setAttempt(null);
+            clearAttempt(sessionId);
             onCredentialMissing(sessionId, 'bastion');
             return;
           }
@@ -450,9 +479,9 @@ export function useConnect(wiring: Wiring): ConnectState {
            screens want the key type and the port too. */
         try {
           const decision = await readDecision(held.pending);
-          if (!current(mine)) return;
+          if (!current(sessionId, mine)) return;
 
-          setAttempt({
+          setAttempt(sessionId, {
             sessionId,
             stage: { stage: 'deciding', decision: held },
             intent,
@@ -470,7 +499,7 @@ export function useConnect(wiring: Wiring): ConnectState {
 
       await authenticate(sessionId, opened, mine, intent, method, credential);
     },
-    [authenticate, fail, onConnecting, onCredentialMissing, current],
+    [authenticate, fail, onConnecting, onCredentialMissing, current, setAttempt, clearAttempt],
   );
 
   const connect = useCallback(
@@ -486,9 +515,10 @@ export function useConnect(wiring: Wiring): ConnectState {
   );
 
   const trust = useCallback(
-    async (confirmation?: string): Promise<void> => {
-      if (attempt === null || attempt.stage.stage !== 'deciding') return;
-      const { sessionId, intent, method, credential } = attempt;
+    async (sessionId: string, confirmation?: string): Promise<void> => {
+      const attempt = attempts.get(sessionId);
+      if (attempt === undefined || attempt.stage.stage !== 'deciding') return;
+      const { intent, method, credential } = attempt;
       /* `Attempt.method` is `| null`, normalised on the way in; the calls
          below take a parameter that is optional instead, the ordinary shape
          for something most callers never pass. */
@@ -501,7 +531,7 @@ export function useConnect(wiring: Wiring): ConnectState {
         fail(
           sessionId,
           { code: asIpcError(rejection)?.code ?? 'unknownDecision', hop: null },
-          generation.current,
+          generation.current.get(sessionId) ?? 0,
           intent,
           suggested,
         );
@@ -516,39 +546,44 @@ export function useConnect(wiring: Wiring): ConnectState {
          editor already suggested. */
       await attemptConnect(sessionId, intent, pending, suggested, credential);
     },
-    [attempt, attemptConnect, fail],
+    [attempts, attemptConnect, fail],
   );
 
   /* Bumping the generation is what makes this a cancel rather than a hide: any
      answer still in flight now belongs to nobody and is dropped on arrival. */
-  const abandon = useCallback((): void => {
-    generation.current += 1;
+  const abandon = useCallback(
+    (sessionId: string): void => {
+      generation.current.set(sessionId, (generation.current.get(sessionId) ?? 0) + 1);
 
-    /* Told to the core as well as forgotten here. A decision left behind may be
-       holding the credential typed for a jump host, and a secret the user asked
-       us not to keep must not outlive the attempt they walked away from. The
-       rejection is swallowed on purpose: cancelling has already happened as far
-       as the user is concerned, and there is nothing for them to do about a
-       tidy-up that failed. */
-    if (attempt !== null && attempt.stage.stage === 'deciding') {
-      void dismissHostKey(attempt.stage.decision.pending).catch(() => undefined);
-    }
+      const attempt = attempts.get(sessionId);
 
-    /* ADR-0033. There is no window to answer for a bastion mid-chain either.
-       The connection is held inside the still-running `connect_session`
-       call, and dismissing its request is what lets that call unwind on its
-       own, closing everything it opened exactly as a dismissed window
-       already does today. */
-    if (attempt !== null && attempt.stage.stage === 'awaitingBastionCredential') {
-      void dismissCredential(attempt.stage.request).catch(() => undefined);
-    }
+      /* Told to the core as well as forgotten here. A decision left behind may
+         be holding the credential typed for a jump host, and a secret the user
+         asked us not to keep must not outlive the attempt they walked away
+         from. The rejection is swallowed on purpose: cancelling has already
+         happened as far as the user is concerned, and there is nothing for
+         them to do about a tidy-up that failed. */
+      if (attempt !== undefined && attempt.stage.stage === 'deciding') {
+        void dismissHostKey(attempt.stage.decision.pending).catch(() => undefined);
+      }
 
-    setAttempt(null);
-    if (attempt !== null) {
-      const settled = attempt.stage.stage === 'settled' || attempt.stage.stage === 'failed';
-      onAbandoned(attempt.sessionId, settled);
-    }
-  }, [attempt, onAbandoned]);
+      /* ADR-0033. There is no window to answer for a bastion mid-chain either.
+         The connection is held inside the still-running `connect_session`
+         call, and dismissing its request is what lets that call unwind on its
+         own, closing everything it opened exactly as a dismissed window
+         already does today. */
+      if (attempt !== undefined && attempt.stage.stage === 'awaitingBastionCredential') {
+        void dismissCredential(attempt.stage.request).catch(() => undefined);
+      }
 
-  return { attempt, connect, trust, abandon };
+      clearAttempt(sessionId);
+      if (attempt !== undefined) {
+        const settled = attempt.stage.stage === 'settled' || attempt.stage.stage === 'failed';
+        onAbandoned(sessionId, settled);
+      }
+    },
+    [attempts, onAbandoned, clearAttempt],
+  );
+
+  return { attempts, connect, trust, abandon };
 }

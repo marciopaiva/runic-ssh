@@ -20,10 +20,10 @@ export interface Tab {
 /**
  * The sessions that have earned a tab, in the order the sidebar lists them.
  *
- * `attentionId` is the session an unresolved connection attempt names — one
- * waiting on a host key decision, on a saved credential being tried, or
- * sitting on a failure nobody has dismissed. It keeps its tab even with no
- * handle, because
+ * `attentionIds` names the sessions an unresolved connection attempt names:
+ * each one waiting on a host key decision, on a saved credential being
+ * tried, or sitting on a failure nobody has dismissed. They keep their tab
+ * even with no handle, because
  * ADR-0015 renders those surfaces inside the session's own panel and a session
  * with no tab has no panel to render them in. Before it, failing dropped the
  * tab and took away the only place the failure could have been shown.
@@ -32,20 +32,20 @@ export interface Tab {
  * handle with Sessions (one SSH transport, multiplexed channels), but that
  * never meant Sessions should draw a tab for it. Gating the whole condition
  * on `terminalWanted` rather than only adding a fourth clause also covers
- * the `attentionId` case: an SFTP-initiated connection stopped on a host-key
+ * the `attentionIds` case: an SFTP-initiated connection stopped on a host-key
  * decision used to earn a tab here too, even though the decision itself
  * renders over the SFTP pane, not this one.
  */
 export function openTabs(
   sessions: readonly LiveSession[],
-  attentionId: string | null,
+  attentionIds: ReadonlySet<string>,
   terminalWanted: ReadonlySet<string>,
 ): readonly Tab[] {
   return sessions
     .filter(
       (live) =>
         terminalWanted.has(live.session.id) &&
-        (live.handle !== null || live.kind === 'connecting' || live.session.id === attentionId),
+        (live.handle !== null || live.kind === 'connecting' || attentionIds.has(live.session.id)),
     )
     .map((live) => ({
       sessionId: live.session.id,
