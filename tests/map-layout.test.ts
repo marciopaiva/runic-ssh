@@ -6,12 +6,14 @@ import { describe, expect, it } from 'vitest';
 
 import {
   HOME_VIEW,
+  HONEYCOMB_STEP,
   REFIT_MIN,
   RING_MAX,
   ZOOM_MAX,
   ZOOM_MIN,
   fitTo,
   honeycombPositions,
+  honeycombSlotPosition,
   placeChildren,
   ringPositions,
   terminalTreatment,
@@ -40,6 +42,29 @@ describe('placing children', () => {
     expect(radii.slice(0, 6).every((r) => r === 10)).toBe(true);
     expect(radii.slice(6, 18).every((r) => r === 20)).toBe(true);
     expect(radii.slice(18).every((r) => r === 30)).toBe(true);
+  });
+
+  it('spaces honeycomb neighbours closer than a glyph label, from the first ring on (docs/measurements/map-ring-capacity.md)', () => {
+    /* The 140px label track every node sets (ComponentNode.tsx,
+    VisionNode.tsx, MonolithNode.tsx) is kept as a literal here on purpose:
+    no shared constant exists to import, and that absence is itself part of
+    what the measurement found. This is a regression guard, not a design
+    goal: it is meant to fail, loudly, the day HONEYCOMB_STEP or a label's
+    width changes enough to actually fix the crowding, so that whoever does
+    that touches the measurement doc too. */
+    const LABEL_TRACK_WIDTH = 140;
+
+    const neighbourSpacing = (ring: number): number => {
+      const base = ring === 1 ? 0 : Array.from({ length: ring - 1 }, (_, i) => 6 * (i + 1)).reduce((a, b) => a + b, 0);
+      const a = honeycombSlotPosition(base, CENTRE);
+      const b = honeycombSlotPosition(base + 1, CENTRE);
+      return Math.hypot(b.x - a.x, b.y - a.y);
+    };
+
+    for (const ring of [1, 2, 3]) {
+      expect(neighbourSpacing(ring)).toBeLessThan(LABEL_TRACK_WIDTH);
+    }
+    expect(HONEYCOMB_STEP).toBeLessThan(LABEL_TRACK_WIDTH);
   });
 
   it('uses a ring up to the limit and a honeycomb beyond it', () => {
