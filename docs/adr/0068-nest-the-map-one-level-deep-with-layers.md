@@ -130,3 +130,15 @@ level in view.
 and the vision menus, ships with this. If the preview's signal ever asks
 for nesting, `parent` is the field and this record is the one to
 supersede. The cut of the classic workspaces stays where ADR-0066 left it.
+
+**2026-09-24**: measured the "honeycomb past eight" line above
+(`docs/measurements/map-ring-capacity.md`, issue #386). The honeycomb's
+labels are already crowded at the first item past the ring, not only at a
+large count: the tightest spacing the honeycomb ever produces is its first
+ring, which equals `HONEYCOMB_STEP` (118px) exactly, and every later ring is
+looser, converging toward about 124px. Since that is below the 140px name
+label every node sets, the crowding is a fixed, one-time comparison decided
+the moment `RING_MAX` is exceeded, not something that gets worse as a layer
+fills up with loose components. Still recorded as the accepted tradeoff
+above, not a decision to fix it now; the measurement is what the next person
+who touches `HONEYCOMB_STEP` or a label's width should read first.
