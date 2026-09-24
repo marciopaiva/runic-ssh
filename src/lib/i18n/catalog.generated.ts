@@ -302,7 +302,6 @@ export const SOURCE_CATALOG = {
   "map.vision.rename": "Rename",
   "map.vision.remove": "Remove the vision",
   "map.vision.remove.detail": "the members stay",
-  "map.vision.restore": "Restore: the others come back",
   "map.vision.maximized": "{name} maximized · {count} waiting",
   "map.vision.count.one": "{count} component",
   "map.vision.count.other": "{count} components",

@@ -111,7 +111,7 @@ export function VisionRegion({
               {button(i18n.t('map.vision.close'), '–', onClose)}
             </>
           ) : (
-            button(i18n.t('map.vision.restore'), '❐', onRestore)
+            button(i18n.t('map.window.restore'), '❐', onRestore)
           )}
         </span>
       </div>
