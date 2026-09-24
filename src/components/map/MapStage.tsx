@@ -67,6 +67,7 @@ import { ComponentWindow } from './ComponentWindow';
 import { HostPopup } from './HostPopup';
 import { MapMenu } from './MapMenu';
 import type { MapMenuItem } from './MapMenu';
+import { MapNode } from './MapNode';
 import { NameDialog } from './NameDialog';
 import { Radial } from './Radial';
 import type { RadialOption } from './Radial';
@@ -1249,13 +1250,10 @@ export function MapStage({
             })}
           </svg>
 
-          <div
-            role="button"
-            tabIndex={0}
-            aria-label={currentLayerObj?.name ?? i18n.t('map.crumb.root')}
-            data-component={HUB}
-            className="absolute flex -translate-x-1/2 -translate-y-1/2 cursor-pointer flex-col items-center gap-1.5 select-none"
-            style={{ left: hub.x, top: hub.y }}
+          <MapNode
+            id={HUB}
+            label={currentLayerObj?.name ?? i18n.t('map.crumb.root')}
+            at={hub}
             onPointerDown={(event) => stage.onNodePointerDown(HUB, event)}
             onContextMenu={(event) => {
               event.preventDefault();
@@ -1263,9 +1261,12 @@ export function MapStage({
               const rect = event.currentTarget.parentElement?.parentElement?.getBoundingClientRect();
               stage.openMenu(HUB, { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) });
             }}
+            onKeyOpen={() => {}}
           >
             {/* The layer's own monolith stands where the rune stands
-                outside one, and holds what the rune holds (ADR-0068). */}
+                outside one, and holds what the rune holds (ADR-0068). A
+                click on the hub is already a no-op (you are inside it);
+                Enter and Space match that, not a new action (#387). */}
             {currentLayerObj === undefined ? <RuneGlyph /> : <MonolithGlyph count={level.length + levelVisions.length} hub />}
             {currentLayerObj !== undefined && (
               <span className="text-ink text-[12px] font-semibold whitespace-nowrap">{currentLayerObj.name}</span>
@@ -1275,7 +1276,7 @@ export function MapStage({
               {levelVisions.length > 0 &&
                 ` · ${i18n.t(i18n.plural(levelVisions.length) === 'one' ? 'map.status.visions.one' : 'map.status.visions.other', { count: String(levelVisions.length) })}`}
             </span>
-          </div>
+          </MapNode>
 
           {levelLayers.map((layer) => {
             const at = stage.positions.get(layer.id);

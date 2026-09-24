@@ -4,6 +4,7 @@ import type { Component, Point, Session } from '../../ipc';
 import { useTranslator } from '../../features/settings';
 
 import { KindGlyph } from './glyphs';
+import { MapNode } from './MapNode';
 
 interface ComponentNodeProps {
   readonly component: Component;
@@ -43,24 +44,7 @@ export function ComponentNode({
   const name = host === null ? i18n.t('map.local.name') : host.name;
   const who = host === null ? i18n.t('sftp.localhost') : `${host.user}@${host.host}${host.port === 22 ? '' : `:${String(host.port)}`}`;
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      aria-label={name}
-      data-component={component.id}
-      className={`group absolute flex -translate-x-1/2 -translate-y-1/2 cursor-pointer flex-col items-center gap-1.5 select-none transition-opacity duration-normal ${
-        dimmed ? 'opacity-20' : ''
-      } ${dragging ? 'z-50 opacity-90' : ''}`}
-      style={{ left: at.x, top: at.y }}
-      onPointerDown={onPointerDown}
-      onContextMenu={onContextMenu}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          onKeyOpen();
-        }
-      }}
-    >
+    <MapNode id={component.id} label={name} at={at} dimmed={dimmed} dragging={dragging} onPointerDown={onPointerDown} onContextMenu={onContextMenu} onKeyOpen={onKeyOpen}>
       <div className="relative transition-transform duration-normal group-hover:-translate-y-0.5">
         <KindGlyph kind={component.kind} />
         <span
@@ -81,6 +65,6 @@ export function ComponentNode({
           <span className="text-ink-faint font-mono text-[10.5px] whitespace-nowrap">{who}</span>
         </>
       )}
-    </div>
+    </MapNode>
   );
 }
