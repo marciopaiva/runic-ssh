@@ -3,6 +3,7 @@ import type { JSX, PointerEvent as ReactPointerEvent } from 'react';
 import type { Layer, Point } from '../../ipc';
 
 import { MonolithGlyph } from './glyphs';
+import { MapNode } from './MapNode';
 
 interface MonolithNodeProps {
   readonly layer: Layer;
@@ -30,25 +31,7 @@ interface MonolithNodeProps {
  */
 export function MonolithNode({ layer, at, count, dimmed, dragging, receiving, onPointerDown, onContextMenu, onKeyOpen }: MonolithNodeProps): JSX.Element {
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      aria-label={layer.name}
-      data-component={layer.id}
-      data-layer=""
-      className={`group absolute flex -translate-x-1/2 -translate-y-1/2 cursor-pointer flex-col items-center gap-1.5 select-none transition-opacity duration-normal ${
-        dimmed ? 'opacity-20' : ''
-      } ${dragging ? 'z-50 opacity-90' : ''}`}
-      style={{ left: at.x, top: at.y }}
-      onPointerDown={onPointerDown}
-      onContextMenu={onContextMenu}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          onKeyOpen();
-        }
-      }}
-    >
+    <MapNode id={layer.id} label={layer.name} at={at} dimmed={dimmed} dragging={dragging} extraAttr="data-layer" onPointerDown={onPointerDown} onContextMenu={onContextMenu} onKeyOpen={onKeyOpen}>
       <div className={`relative transition-transform duration-normal group-hover:-translate-y-0.5 ${receiving ? 'scale-110' : ''}`}>
         <MonolithGlyph count={count} highlighted={receiving} />
       </div>
@@ -58,6 +41,6 @@ export function MonolithNode({ layer, at, count, dimmed, dragging, receiving, on
       {!dragging && (
         <span className="text-ink-secondary group-hover:text-ink max-w-[140px] truncate text-[11.5px] font-semibold">{layer.name}</span>
       )}
-    </div>
+    </MapNode>
   );
 }
