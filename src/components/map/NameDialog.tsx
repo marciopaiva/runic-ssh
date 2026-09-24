@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import type { JSX } from 'react';
 
-import { MAX_VISION_NAME } from '../../features/map';
 import { useTranslator } from '../../features/settings';
 import { SessionSurface, SurfaceAction } from '../SessionSurface';
 
@@ -10,6 +9,9 @@ interface NameDialogProps {
   readonly body: string;
   /** The name to start from: empty for a new vision, the current one to rename. */
   readonly initial: string;
+  /** The caller's own limit: `MAX_VISION_NAME` or `MAX_LAYER_NAME`, since a
+      vision and a layer do not share one (#387). */
+  readonly maxLength: number;
   readonly onSave: (name: string) => void;
   readonly onClose: () => void;
 }
@@ -19,11 +21,11 @@ interface NameDialogProps {
  * (ADR-0015): what a new vision is called, or what an existing one becomes.
  * Enter saves, Escape leaves, and an empty name saves nothing.
  */
-export function NameDialog({ title, body, initial, onSave, onClose }: NameDialogProps): JSX.Element {
+export function NameDialog({ title, body, initial, maxLength, onSave, onClose }: NameDialogProps): JSX.Element {
   const i18n = useTranslator();
   const [name, setName] = useState(initial);
   const trimmed = name.trim();
-  const acceptable = trimmed.length > 0 && trimmed.length <= MAX_VISION_NAME;
+  const acceptable = trimmed.length > 0 && trimmed.length <= maxLength;
   const save = (): void => {
     if (acceptable) onSave(trimmed);
   };
@@ -58,7 +60,7 @@ export function NameDialog({ title, body, initial, onSave, onClose }: NameDialog
             autoFocus
             type="text"
             value={name}
-            maxLength={MAX_VISION_NAME}
+            maxLength={maxLength}
             onChange={(event) => setName(event.target.value)}
             onKeyDown={(event) => {
               if (event.key !== 'Enter') return;

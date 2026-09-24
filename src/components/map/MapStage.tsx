@@ -44,11 +44,14 @@ import {
   toStage,
   visibleMidpoint,
   visionsOn,
+  MAX_LAYER_NAME,
+  MAX_VISION_NAME,
   REGION,
 } from '../../features/map';
 import type { SwitchState } from '../../features/map';
 import { HUB, useMapStage } from '../../features/map/use-map-stage';
 import { useMapSearch } from '../../features/map/use-map-search';
+import { useEscapeRouter } from '../../features/map/escape-router';
 import { useTranslator } from '../../features/settings';
 import type { Endpoint, PaneEntry } from '../../features/sftp/endpoint';
 import type { MapDestination, PaneReport } from '../../features/sftp/use-fanout';
@@ -763,31 +766,21 @@ export function MapStage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentLayer]);
 
-  /* Escape leaves a layer, the way it leaves a vision filling the screen;
-     guarded off while anything else on the map has its own Escape to
-     answer first (found running this: closing the menu with Escape left
-     the layer in the same keystroke too, since both listeners sat on
-     `window` at once), so one Escape undoes one thing at a time
-     (ADR-0068). */
-  useEffect(() => {
-    if (
-      currentLayer === null ||
-      stage.linking !== null ||
-      stage.fullscreen !== null ||
-      stage.menu !== null ||
-      stage.radial !== null ||
-      pickingHost ||
-      naming !== null ||
-      hostPopup !== null
-    ) {
-      return undefined;
-    }
-    const onKey = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') leaveLayer();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [currentLayer, leaveLayer, stage.linking, stage.fullscreen, stage.menu, stage.radial, pickingHost, naming, hostPopup]);
+  /* One Escape, one thing undone: ranked by what sits on top, from the
+     host editor down to leaving a layer, the way it leaves a vision
+     filling the screen. `pickingHost` has no Escape of its own to answer
+     (the palette above this stage owns that); it only has to keep a
+     lower entry from firing in its place (ADR-0068, #387). */
+  useEscapeRouter([
+    { active: hostPopup !== null, onEscape: () => hostPopup?.onClose() },
+    { active: naming !== null, onEscape: () => setNaming(null) },
+    { active: stage.menu !== null, onEscape: stage.closeMenu },
+    { active: stage.radial !== null, onEscape: stage.closeRadial },
+    { active: pickingHost, onEscape: () => {} },
+    { active: stage.fullscreen !== null, onEscape: stage.exitFullscreen },
+    { active: stage.linking !== null, onEscape: stage.cancelLink },
+    { active: currentLayer !== null, onEscape: leaveLayer },
+  ]);
 
   /* ADR-0065, ADR-0019's rules on a set of terminal lines. `stage.open` is
      the map's "showing": a collapsed window is spared the way a tab behind
@@ -1603,6 +1596,7 @@ export function MapStage({
                 : 'map.vision.name.title.rename',
           )}
           body={i18n.t(naming.target === 'layer' ? 'map.layer.name.body' : 'map.vision.name.body')}
+          maxLength={naming.target === 'layer' ? MAX_LAYER_NAME : MAX_VISION_NAME}
           initial={
             naming.kind !== 'rename'
               ? ''

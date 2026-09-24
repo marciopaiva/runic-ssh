@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import type { JSX, ReactNode } from 'react';
 
 import { useTranslator } from '../../features/settings';
@@ -8,8 +7,9 @@ interface HostPopupProps {
   readonly detail: string;
   /** The wizard, rendered by the shell: the popup only frames it (#357). */
   readonly children: ReactNode;
-  /** The wizard's own Cancel, reached from the veil and from Escape, so an
-      unsaved draft is asked about the same way it is in Home. */
+  /** The wizard's own Cancel, reached from the veil and from the stage's
+      Escape router (ADR-0068, #387), so an unsaved draft is asked about
+      the same way it is in Home. */
   readonly onClose: () => void;
 }
 
@@ -24,14 +24,6 @@ interface HostPopupProps {
  */
 export function HostPopup({ title, detail, children, onClose }: HostPopupProps): JSX.Element {
   const i18n = useTranslator();
-
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
 
   return (
     <div
