@@ -28,20 +28,57 @@ interface MapMenuProps {
  * is always there.
  */
 export function MapMenu({ at, title, items, onPick, onClose }: MapMenuProps): JSX.Element {
-  const first = useRef<HTMLButtonElement | null>(null);
+  const refs = useRef<(HTMLButtonElement | null)[]>([]);
 
   /* Escape is the stage's own router now (ADR-0068, #387): the menu is one
      of several things it could undo, ranked against the others, rather
      than closing itself on a listener that knew nothing about them. */
   useEffect(() => {
-    first.current?.focus();
+    const openable = items.findIndex((item) => item.disabled !== true);
+    refs.current[openable === -1 ? 0 : openable]?.focus();
     const onDown = (event: PointerEvent): void => {
       const target = event.target as HTMLElement | null;
       if (target?.closest('[data-map-menu]') === null) onClose();
     };
     window.addEventListener('pointerdown', onDown, true);
     return () => window.removeEventListener('pointerdown', onDown, true);
+    /* The item list is fixed for the life of one open menu: re-running this
+       on every render of a fresh `items` array would steal focus back from
+       whatever arrow navigation already moved it to. */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onClose]);
+
+  /* Arrow, Home and End move focus among the enabled items, wrapping at the
+     ends; a disabled entry is skipped, never landed on. */
+  const onMenuKeyDown = (event: React.KeyboardEvent): void => {
+    const openable: number[] = [];
+    items.forEach((item, i) => {
+      if (item.disabled !== true) openable.push(i);
+    });
+    if (openable.length === 0) return;
+    const current = refs.current.findIndex((el) => el === document.activeElement);
+    const position = openable.indexOf(current);
+    const focusAt = (next: number): void => {
+      const idx = openable[next];
+      if (idx === undefined) return;
+      event.preventDefault();
+      refs.current[idx]?.focus();
+    };
+    switch (event.key) {
+      case 'ArrowDown':
+        focusAt(position === -1 ? 0 : (position + 1) % openable.length);
+        break;
+      case 'ArrowUp':
+        focusAt(position === -1 ? openable.length - 1 : (position - 1 + openable.length) % openable.length);
+        break;
+      case 'Home':
+        focusAt(0);
+        break;
+      case 'End':
+        focusAt(openable.length - 1);
+        break;
+    }
+  };
 
   return (
     <div
@@ -51,6 +88,7 @@ export function MapMenu({ at, title, items, onPick, onClose }: MapMenuProps): JS
       /* The stage starts a pan on any pointer down it sees, and unmounts this
          menu doing so; a press on an item must not reach it. */
       onPointerDown={(event) => event.stopPropagation()}
+      onKeyDown={onMenuKeyDown}
       className="border-line-strong absolute z-[320] min-w-[200px] rounded-md border p-1 shadow-5"
       style={{
         left: Math.max(0, at.x),
@@ -64,7 +102,9 @@ export function MapMenu({ at, title, items, onPick, onClose }: MapMenuProps): JS
       {items.map((item, i) => (
         <button
           key={item.id}
-          ref={i === 0 ? first : undefined}
+          ref={(el) => {
+            refs.current[i] = el;
+          }}
           type="button"
           role="menuitem"
           disabled={item.disabled === true}
