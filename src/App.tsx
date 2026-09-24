@@ -2628,6 +2628,7 @@ export function App(): JSX.Element {
               onQuerySubmit={mapToolbar.onQuerySubmit}
               zoomPercent={mapToolbar.zoomPercent}
               onRecenter={mapToolbar.onRecenter}
+              onFitAll={mapToolbar.onFitAll}
             />
             <span className="bg-line-subtle h-4 w-px shrink-0" aria-hidden="true" />
           </>
