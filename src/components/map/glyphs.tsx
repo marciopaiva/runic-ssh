@@ -182,44 +182,58 @@ export function MonolithGlyph({ count, hub = false, highlighted = false }: { rea
   const w = hub ? 100 : 78;
   const h = hub ? 132 : 108;
   const icon = hub ? 26 : 20;
+  const gap = 6;
+  const lineHeight = 12;
+  const blockTop = (h - (icon + gap + lineHeight)) / 2;
+  const iconX = (w - icon) / 2;
+  const textY = blockTop + icon + gap + 9;
   return (
-    <div
-      style={{
-        position: 'relative',
-        width: w,
-        height: h,
-        borderRadius: 6,
-        background: 'linear-gradient(170deg, var(--rs-surface-raised), var(--rs-surface-panel))',
-        border: `1px solid ${highlighted ? 'var(--rs-glass-edge-hot)' : 'var(--rs-glass-edge-strong)'}`,
-        boxShadow: 'inset 0 1px 0 var(--rs-glass-top), var(--rs-shadow-3)',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 6,
-      }}
+    <svg
+      viewBox={`0 0 ${String(w)} ${String(h)}`}
+      width={w}
+      height={h}
+      style={{ overflow: 'visible', filter: 'drop-shadow(0 8px 14px var(--rs-map-shadow))' }}
+      aria-hidden="true"
     >
-      <span
-        aria-hidden="true"
-        style={{
-          position: 'absolute',
-          left: 10,
-          right: 10,
-          top: 0,
-          height: 2,
-          borderRadius: '0 0 2px 2px',
-          background: 'linear-gradient(90deg, transparent, var(--rs-accent-bright), transparent)',
-          opacity: 0.7,
-        }}
+      <Defs />
+      <defs>
+        <linearGradient id="map-monolith-light" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="var(--rs-accent-bright)" stopOpacity="0" />
+          <stop offset=".5" stopColor="var(--rs-accent-bright)" stopOpacity=".7" />
+          <stop offset="1" stopColor="var(--rs-accent-bright)" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <rect
+        className="map-glyph-edge"
+        x="1"
+        y="1"
+        width={w - 2}
+        height={h - 2}
+        rx="6"
+        fill="url(#map-glass)"
+        stroke={highlighted ? 'var(--rs-glass-edge-hot)' : EDGE}
+        strokeWidth="1.2"
       />
-      <svg viewBox="0 0 24 24" fill="none" stroke="var(--rs-accent)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" style={{ width: icon, height: icon }} aria-hidden="true">
+      <rect x="10" y="1" width={w - 20} height="2" rx="1" fill="url(#map-monolith-light)" />
+      <svg
+        x={iconX}
+        y={blockTop}
+        width={icon}
+        height={icon}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="var(--rs-accent)"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
         <path d="M4 21V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16" />
         <path d="M9 21v-6h6v6" />
         <path d="M2 21h20" />
       </svg>
-      <span className="mono" style={{ fontSize: 10.5, color: 'var(--rs-text-faint)' }}>
+      <text x={w / 2} y={textY} textAnchor="middle" className="mono" fontSize="10.5" fill="var(--rs-text-faint)">
         {count}
-      </span>
-    </div>
+      </text>
+    </svg>
   );
 }
