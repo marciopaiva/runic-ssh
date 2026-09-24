@@ -1023,7 +1023,8 @@ host to this machine) and a folder are in the code and nobody has driven
 them on the map yet.
 
 The terminal window's own menu (#115). Right-click inside a terminal on
-the map; Sessions' panes keep the webview's menu until v0.9.0.
+the map; Sessions' panes still keep the webview's own menu, tracked
+separately as #460.
 
 | Do this | Expect |
 | --- | --- |

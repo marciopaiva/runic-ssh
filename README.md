@@ -74,25 +74,29 @@ Each line is a feature that ships; the record behind it is one click away.
 - **Monitor**: CPU, memory, disk, network, processes and logs, read over the connection already open. No agent installed.
 - **Macros**: sequential, typed straight into the shell, or a script that runs isolated with `$host`/`$port`/`$username` as real variables ([ADR-0070](docs/adr/0070-split-macros-into-sequential-and-script-types.md)).
 - **SFTP beside the terminal**: one source, up to four destinations, folders copied recursively ([ADR-0041](docs/adr/0041-use-russh-sftp-instead-of-writing-the-protocol.md)).
-- **A map**: a saved host becomes a component you place, wired with lines that broadcast typing or transfer files, grouped into named visions, or nested in layers ([ADR-0064](docs/adr/0064-keep-the-map-in-its-own-file-beside-the-host-book.md), [ADR-0067](docs/adr/0067-make-the-vision-the-successor-of-the-group.md), [ADR-0068](docs/adr/0068-nest-the-map-one-level-deep-with-layers.md)). Still a **preview**: off by default, revealed from the command palette ([ADR-0066](docs/adr/0066-ship-the-map-as-an-opt-in-preview-with-classic-as-the-default.md)).
-- **A command palette** on `Ctrl+Shift+P`; **light and dark** everywhere; **English, Brazilian Portuguese and Spanish**, security copy reviewed before a language ships ([ADR-0007](docs/adr/0007-localize-in-the-frontend-from-typed-error-codes.md)).
+- **A map**: a saved host becomes a component you place, wired with lines that broadcast typing or transfer files, grouped into named visions, or nested in layers ([ADR-0064](docs/adr/0064-keep-the-map-in-its-own-file-beside-the-host-book.md), [ADR-0067](docs/adr/0067-make-the-vision-the-successor-of-the-group.md), [ADR-0068](docs/adr/0068-nest-the-map-one-level-deep-with-layers.md)). A fixed toolbar pill next to SSH, SFTP and Monitor, not a separate shell ([ADR-0073](docs/adr/0073-promote-the-map-to-a-fixed-pill.md), [ADR-0075](docs/adr/0075-fold-the-map-into-the-workspace-switch.md)); still a **preview** on a fresh install, off until you accept the prompt the pill opens.
+- **One "+" to open a host**, searched and grouped by topology, replacing a separate Home screen and a separate command palette ([ADR-0072](docs/adr/0072-fold-home-sessions-and-sftp-into-an-ssh-sftp-toolbar-switch.md)); hosts and macros each get their own docked manager sidebar ([ADR-0076](docs/adr/0076-give-hosts-a-manager-sidebar-like-macros.md)).
+- **A local shell**, a PTY with no SSH connection behind it, opened from the same palette as a saved host and living beside it in Sessions and on the map ([ADR-0074](docs/adr/0074-add-local-shell-sessions-over-a-native-pty.md)).
+- **A second shell on a connection already open**, multiplexed over the same transport, capped at exactly two ([ADR-0077](docs/adr/0077-allow-one-extra-shell-per-connected-session.md)).
+- **Light and dark** everywhere; **English, Brazilian Portuguese and Spanish**, security copy reviewed before a language ships ([ADR-0007](docs/adr/0007-localize-in-the-frontend-from-typed-error-codes.md)).
 
-Not yet: session import from OpenSSH and PuTTY, and a signed installer of any
-kind. Those are the roadmap, not this list. What each release still does not
-do is in [`CHANGELOG.md`](CHANGELOG.md), under *Known limitations*, on purpose.
+Not yet: a signed installer of any kind. That is the roadmap, not this list.
+Session import from OpenSSH and PuTTY was considered and dropped ([#128](https://github.com/marciopaiva/runic-ssh/issues/128)):
+it will not be implemented. What each release still does not do is in
+[`CHANGELOG.md`](CHANGELOG.md), under *Known limitations*, on purpose.
 
 ## Downloads
 
 Installers for all three platforms are attached to each
 [release](https://github.com/marciopaiva/runic-ssh/releases), with a
 `SHA256SUMS` covering every file. Currently
-[v0.8.0](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.8.0):
+[v0.9.0](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.9.0):
 
 | Platform | Download |
 | --- | --- |
-| Windows | [`.msi`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.8.0/Runic-SSH_0.8.0_x64_en-US.msi) (WiX) or [`.exe`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.8.0/Runic-SSH_0.8.0_x64-setup.exe) (NSIS) |
-| macOS | [`.dmg`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.8.0/Runic-SSH_0.8.0_aarch64.dmg), Apple Silicon only |
-| Linux | [`.deb`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.8.0/Runic-SSH_0.8.0_amd64.deb), [`.rpm`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.8.0/Runic-SSH-0.8.0-1.x86_64.rpm), [`.AppImage`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.8.0/Runic-SSH_0.8.0_amd64.AppImage) |
+| Windows | [`.msi`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.9.0/Runic-SSH_0.9.0_x64_en-US.msi) (WiX) or [`.exe`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.9.0/Runic-SSH_0.9.0_x64-setup.exe) (NSIS) |
+| macOS | [`.dmg`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.9.0/Runic-SSH_0.9.0_aarch64.dmg), Apple Silicon only |
+| Linux | [`.deb`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.9.0/Runic-SSH_0.9.0_amd64.deb), [`.rpm`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.9.0/Runic-SSH-0.9.0-1.x86_64.rpm), [`.AppImage`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.9.0/Runic-SSH_0.9.0_amd64.AppImage) |
 
 **Nothing is code-signed.** Windows shows SmartScreen, macOS says the
 application is damaged; both are what an operating system says about a binary
@@ -117,7 +121,7 @@ sha256sum -c SHA256SUMS --ignore-missing   # before installing anything
 - [x] **v0.6.0**: the map, first layer: a component is one host in one kind, and its icon opens in place. *2026-09-10*
 - [x] **v0.7.0**: lines between components: broadcast between terminals, transfer between SFTP browsers; the map moves behind a preview. *2026-09-10*
 - [x] **v0.8.0**: visions, a named set of components that lays itself out and fills the screen; layers, maps inside the map; macros gain a script type, isolated with real variables. *2026-09-13*
-- [ ] **v0.9.0**: refinements, and the classic-versus-map decision the preview is gathering evidence for.
+- [x] **v0.9.0**: the chrome collapses to a toolbar, Home folds into a "+" host palette, the map becomes a fixed workspace pill instead of a separate shell, local shell sessions, a second shell per connection. *2026-09-24*
 - [ ] **v1.0.0**: production grade stability, and a signed installer on every platform.
 
 A direction, not a promise. What a tool like this should do next is better
