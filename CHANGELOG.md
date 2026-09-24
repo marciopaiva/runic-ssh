@@ -14,14 +14,18 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 ## [0.9.0] — 2026-09-24
 
 Cuts the Sessions, SFTP and Monitor workspaces as v0.8.0 already warned they
-would (ADR-0071, ADR-0072): the activity rail collapses to a single fixed
-toolbar, Home folds into a "+" host palette instead of a workspace of its
-own, and opening a saved host is a search action rather than a panel toggle.
-The map resolves the classic-versus-map question the v0.7.0 preview was
-gathering evidence for (ADR-0073, ADR-0075): it stops being a second shell
-behind a setting and becomes a fourth workspace pill, MAP, sitting next to
-SSH, SFTP and Monitor, still gated by the same preview prompt on a fresh
-install. Hosts gain a manager sidebar of their own, built to the same shape
+would (ADR-0071, ADR-0072): the activity rail collapses into a single fixed
+toolbar, and opening a saved host into a rectangle or a fan-out slot is now
+a search action through a "+" palette rather than a panel toggle. Home kept
+its own pill on that same toolbar rather than folding into the palette: an
+early draft of ADR-0072 retired it, then restored it once removing it left
+the general command palette with no other route to Home's screen at all
+(ADR-0072 addendum, 2026-09-22). The map resolves the classic-versus-map
+question the v0.7.0 preview was gathering evidence for (ADR-0073, ADR-0075):
+it stops being a second shell behind a setting and becomes the toolbar's
+fourth pill, MAP, sitting next to Home, SSH and SFTP, still gated by the
+same preview prompt on a fresh install. Hosts gain a manager sidebar of
+their own, built to the same shape
 macros already have (ADR-0076). A connected session can open a second shell
 multiplexed over the same transport, deliberately this time, capped at
 exactly two (ADR-0077, amends ADR-0014). Local shells, PTYs with no SSH
@@ -31,13 +35,15 @@ session (ADR-0074).
 ### Added
 
 - The chrome collapses by default and comes back as an overlay summoned on
-  demand (ADR-0071); Home, Sessions and SFTP fold into one SSH/SFTP toolbar
-  switch (ADR-0072), with the saved host book reached through a "+" palette
-  instead of its own screen. Home's former "Connected now" list survives
-  inside that fold: clicking a live session there jumps straight to its tab
-  in Sessions, reusing the same `activate` path the palette and the retry
-  button already drove.
-- The map becomes a fixed workspace pill next to SSH, SFTP and Monitor
+  demand (ADR-0071); Sessions and SFTP fold into one SSH/SFTP toolbar switch,
+  and the saved host book opens into a rectangle or a fan-out slot through a
+  "+" palette instead of a list panel (ADR-0072). Home keeps its own pill on
+  that toolbar rather than folding into the palette, restored once an early
+  draft's removal left the general command palette with no route to Home's
+  screen at all (ADR-0072 addendum, 2026-09-22). Home's "Connected now" list
+  still jumps a live session straight to its tab in Sessions, reusing the
+  same `activate` path the palette and the retry button already drove.
+- The map becomes a fixed workspace pill next to Home, SSH and SFTP
   (ADR-0073), then stops being a shell-level choice entirely and joins the
   ordinary workspace switch (ADR-0075): a fresh install still meets the
   preview prompt before the map opens, but accepting it now switches a
