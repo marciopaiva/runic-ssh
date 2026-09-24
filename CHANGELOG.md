@@ -11,6 +11,103 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-09-24
+
+Cuts the Sessions, SFTP and Monitor workspaces as v0.8.0 already warned they
+would (ADR-0071, ADR-0072): the activity rail collapses to a single fixed
+toolbar, Home folds into a "+" host palette instead of a workspace of its
+own, and opening a saved host is a search action rather than a panel toggle.
+The map resolves the classic-versus-map question the v0.7.0 preview was
+gathering evidence for (ADR-0073, ADR-0075): it stops being a second shell
+behind a setting and becomes a fourth workspace pill, MAP, sitting next to
+SSH, SFTP and Monitor, still gated by the same preview prompt on a fresh
+install. Hosts gain a manager sidebar of their own, built to the same shape
+macros already have (ADR-0076). A connected session can open a second shell
+multiplexed over the same transport, deliberately this time, capped at
+exactly two (ADR-0077, amends ADR-0014). Local shells, PTYs with no SSH
+connection behind them, join Sessions and the map as their own kind of
+session (ADR-0074).
+
+### Added
+
+- The chrome collapses by default and comes back as an overlay summoned on
+  demand (ADR-0071); Home, Sessions and SFTP fold into one SSH/SFTP toolbar
+  switch (ADR-0072), with the saved host book reached through a "+" palette
+  instead of its own screen. Home's former "Connected now" list survives
+  inside that fold: clicking a live session there jumps straight to its tab
+  in Sessions, reusing the same `activate` path the palette and the retry
+  button already drove.
+- The map becomes a fixed workspace pill next to SSH, SFTP and Monitor
+  (ADR-0073), then stops being a shell-level choice entirely and joins the
+  ordinary workspace switch (ADR-0075): a fresh install still meets the
+  preview prompt before the map opens, but accepting it now switches a
+  workspace, not the whole window.
+- The map's search reaches every level, not just the one in view (#441), and
+  its "+" gained the same grouped, searchable host palette Sessions and SFTP
+  now share, unifying what used to be three different ways to start a
+  connection into one (#438, #442).
+- Local shell sessions: a PTY with no SSH connection behind it, opened from
+  the host palette next to saved hosts, living in Sessions and on the map
+  like any other session (ADR-0074, #437, #438).
+- A connected session can open a second shell on the same connection,
+  multiplexed over the transport already open rather than a second socket
+  and a second login; the cap is exactly two, by construction, never three
+  (ADR-0077, amends ADR-0014, #449).
+- Hosts gain their own manager sidebar, docked the same way macros already
+  are (ADR-0076, #435).
+- Connection attempts now run concurrently, one per session, instead of
+  queued behind each other (#448).
+- Remote and dynamic port forwards are driven live rather than only
+  documented as working (#446).
+- Consistent chrome across the map's own surfaces: one shared node shape,
+  keyboard navigation through menus, and the monolith's glass finish now
+  matches the rest (#455). Escape now routes through one ranked listener
+  instead of several competing handlers (#454). A "Fit all" button was added
+  to the map toolbar, giving the double-click-empty-canvas gesture a visible,
+  discoverable affordance for the first time (#459).
+- The map's ring measures and documents its own honeycomb crowding at high
+  node counts (#386, #458).
+
+### Fixed
+
+- A session's forwards split into a Terminal/Tunnels facet bar instead of
+  one crowded panel (#414).
+- A forward row's bind port no longer reads together with its kind picker;
+  the two are visually distinguished (#447, #334).
+- Placing a new host on the map no longer skips it when the host was saved
+  without running a connection test first (#444).
+- A dragged node on the map no longer overlaps its own label with a drop
+  target's (#452).
+- The Windows build's local-shell test helpers are gated behind
+  `cfg(not(windows))`, clearing a clippy failure specific to that target
+  (#443).
+- A round of icon-consistency fixes across the toolbar, macros sidebar and
+  map crumb, found by systematic audit rather than one at a time (#402,
+  #404 through #409, #425, #427, #428).
+- `design/canvas/` is retired (CLAUDE.md §4): visual decisions are now
+  reviewed by running the app, not by maintaining a second, hand-authored
+  copy of the UI in Python.
+
+### Known limitations
+
+- The terminal's own context menu (#115) still only reaches the map; a
+  Sessions pane keeps the webview's default menu. v0.8.0 said this would be
+  cut over in this release; it was not, and is tracked as its own follow-up
+  rather than carried as a silent gap.
+- Session import from OpenSSH and PuTTY will not be implemented (#128,
+  closed as a scope decision, not deferred). It no longer appears on the
+  roadmap.
+- The map is a fixed workspace pill now, but a fresh install still meets it
+  behind the `previewFeatures` prompt (ADR-0073, ADR-0075); it is not the
+  default until that setting's own default changes.
+- A script macro's interpreter still has to already exist on the remote
+  host; nothing checks or falls back beyond defaulting to `sh`.
+- On Linux, pasting into a map terminal's menu still only works from
+  Ctrl-Shift-V, not the menu entry itself (`docs/measurements/terminal-menu-clipboard.md`).
+  Windows has not been measured.
+- macOS remains unbuilt and untested; no signed installer exists for any
+  platform.
+
 ## [0.8.0] — 2026-09-13
 
 Visions and layers finish the map's spatial model this release (ADR-0067,
