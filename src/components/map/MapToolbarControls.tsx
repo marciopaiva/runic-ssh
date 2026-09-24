@@ -8,15 +8,16 @@ interface MapToolbarControlsProps {
   readonly onQuerySubmit: () => void;
   readonly zoomPercent: number;
   readonly onRecenter: () => void;
+  readonly onFitAll: () => void;
 }
 
 /**
  * The map's own controls in the shared toolbar (ADR-0069): search, the
- * zoom reading and Recenter, at the trailing edge before the shell switch
- * and theme and language. Where the map's own second bar used to hold
- * these.
+ * zoom reading, Fit all and Recenter, at the trailing edge before the
+ * shell switch and theme and language. Where the map's own second bar
+ * used to hold these.
  */
-export function MapToolbarControls({ query, onQueryChange, onQuerySubmit, zoomPercent, onRecenter }: MapToolbarControlsProps): JSX.Element {
+export function MapToolbarControls({ query, onQueryChange, onQuerySubmit, zoomPercent, onRecenter, onFitAll }: MapToolbarControlsProps): JSX.Element {
   const i18n = useTranslator();
   return (
     <>
@@ -32,6 +33,13 @@ export function MapToolbarControls({ query, onQueryChange, onQuerySubmit, zoomPe
         className="bg-surface-input border-line-subtle focus:border-accent text-ink h-6 w-[220px] shrink-0 rounded border px-2 text-[12px] outline-none"
       />
       <span className="text-ink-faint font-mono text-[10.5px] tabular-nums">{i18n.t('map.toolbar.zoom', { percent: String(zoomPercent) })}</span>
+      <button
+        type="button"
+        className="border-line-subtle text-ink-muted hover:text-ink hover:border-line-strong h-6 shrink-0 rounded border px-2.5 text-[11px]"
+        onClick={onFitAll}
+      >
+        {i18n.t('map.toolbar.fitAll')}
+      </button>
       <button
         type="button"
         className="border-line-subtle text-ink-muted hover:text-ink hover:border-line-strong h-6 shrink-0 rounded border px-2.5 text-[11px]"

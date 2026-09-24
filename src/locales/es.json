@@ -233,6 +233,7 @@
   "map.status.components.one": "1 componente",
   "map.status.components.other": "{count} componentes",
   "map.status.connected": "{count} conectados",
+  "map.toolbar.fitAll": "Encuadrar todo",
   "map.toolbar.recenter": "Centrar",
   "map.toolbar.search": "Buscar hosts y componentes",
   "map.toolbar.zoom": "{percent}%",

@@ -239,6 +239,7 @@ export const SOURCE_CATALOG = {
   "map.status.components.one": "1 component",
   "map.status.components.other": "{count} components",
   "map.status.connected": "{count} connected",
+  "map.toolbar.fitAll": "Fit all",
   "map.toolbar.recenter": "Recenter",
   "map.toolbar.search": "Search hosts and components",
   "map.toolbar.zoom": "{percent}%",

@@ -135,6 +135,7 @@ export interface MapToolbarContent {
   readonly onQuerySubmit: () => void;
   readonly zoomPercent: number;
   readonly onRecenter: () => void;
+  readonly onFitAll: () => void;
 }
 
 interface MapStageProps {
@@ -905,8 +906,9 @@ export function MapStage({
       onQuerySubmit,
       zoomPercent,
       onRecenter: stage.recenter,
+      onFitAll: stage.fitAll,
     }),
-    [crumb, onBack, onQueryChange, onQuerySubmit, query, stage.recenter, zoomPercent],
+    [crumb, onBack, onQueryChange, onQuerySubmit, query, stage.fitAll, stage.recenter, zoomPercent],
   );
   useEffect(() => {
     onToolbarChange(toolbarContent);
