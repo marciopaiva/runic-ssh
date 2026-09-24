@@ -140,3 +140,21 @@ Context no longer holds for that popup. `docs/security-model.md`, "What the
 map stores", records what still protects the field there, and #360 carries
 the decision this document says has to be remade, scheduled with the v0.9.0
 cut that removes Sessions altogether.
+
+**Follow-up, 2026-09-23**: remade ahead of that cut, on the maintainer's own
+decision rather than waiting for Sessions to force the question. #360 named
+three options: accept the exposure and rewrite the reasoning around what
+still protects it, unmount the map's terminals while the popup is open, or
+bring back a structural isolation for the field alone. The first is taken.
+Nothing about the field changes: it stays uncontrolled, submitted straight
+to the core, and no host byte is ever interpolated into markup anywhere in
+this document, so the residual risk is exactly the one already accepted for
+Home's own field, now also carried by the map's popup. The other two options
+were priced and set aside for the same reasons #360 gave: unmounting costs a
+live terminal's buffer on every edit and contradicts ADR-0014, and a second
+structural isolation repeats the cost ADR-0039 already judged not worth
+paying once. No further change is planned for the map's current
+architecture. Revisit if a structural isolation ever becomes cheap, or if
+the map's role changes enough to make the exposure worth re-costing; the
+guard in the Decision section still protects Home's own case exactly as
+written, unaffected by this.

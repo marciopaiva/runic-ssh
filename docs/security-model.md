@@ -388,10 +388,11 @@ xterm.js into its own canvas, the bytes a host sends are never interpolated
 into markup anywhere in this document, and the field is uncontrolled and
 submitted straight to the core, so the exposure is the one ADR-0032 already
 accepted for Home's own inline field, minus the structural argument that
-made it moot there. v0.9.0 removes Sessions and moves every editor into the
-map, at which point ADR-0032 has to be revisited outright, the way its own
-follow-up says; #360 tracks that, and until then a person who wants the
-stronger guarantee back edits hosts from Home, where it still holds.
+made it moot there. ADR-0032's follow-up of 2026-09-23 accepts that exposure
+outright for the map's popup, rather than waiting for v0.9.0's removal of
+Sessions to force the question, and #360 is closed on that decision. A
+person who wants the original, stronger guarantee back still gets it by
+editing a host from Home, where no terminal shares the document.
 
 ## What a local shell runs
 
