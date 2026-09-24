@@ -296,7 +296,6 @@
   "map.vision.rename": "Renomear",
   "map.vision.remove": "Remover a visão",
   "map.vision.remove.detail": "os membros ficam",
-  "map.vision.restore": "Restaurar: os outros voltam",
   "map.vision.maximized": "{name} maximizado · {count} esperando",
   "map.vision.count.one": "{count} componente",
   "map.vision.count.other": "{count} componentes",
