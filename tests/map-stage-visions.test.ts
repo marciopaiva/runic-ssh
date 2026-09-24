@@ -145,20 +145,6 @@ describe('a vision on the stage', () => {
     expect(changes).toEqual([]);
   });
 
-  it('leaves the screen on Escape, and only while filling it', () => {
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-    });
-    expect(api?.fullscreen).toBeNull();
-    act(() => {
-      api?.enterFullscreen('v1');
-    });
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-    });
-    expect(api?.fullscreen).toBeNull();
-  });
-
   it('maximizes a member inside its region, a child window, and restores it', () => {
     act(() => {
       api?.openWindow('c2');

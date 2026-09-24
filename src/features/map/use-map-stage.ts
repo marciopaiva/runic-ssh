@@ -560,17 +560,6 @@ export function useMapStage({ workspace, components, visions, layers, onChange, 
     [centre, positions],
   );
 
-  /* Escape ends a line being drawn. Listened for only while one is, and
-     removed with it, so the map never holds a key listener it has no use
-     for; `tests/map-stage-teardown.test.ts` holds that. */
-  useEffect(() => {
-    if (linking === null) return;
-    const onKey = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') setLinking(null);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [linking]);
   const closeRadial = useCallback((): void => {
     setRadial(null);
     if (tracking.current?.kind === 'radial') tracking.current = null;
@@ -926,18 +915,6 @@ export function useMapStage({ workspace, components, visions, layers, onChange, 
       return null;
     });
   }, []);
-
-  /* Escape leaves a vision filling the screen. Listened for only while one
-     is, and removed with it, the way the line's is (ADR-0065);
-     `tests/map-stage-teardown.test.ts` holds that. */
-  useEffect(() => {
-    if (fullscreen === null) return;
-    const onKey = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') exitFullscreen();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [exitFullscreen, fullscreen]);
 
   /* A vision that left the map while filling the screen leaves the mode
      with it, rather than a bar naming nothing. */

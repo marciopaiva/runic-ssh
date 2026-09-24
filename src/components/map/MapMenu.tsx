@@ -30,21 +30,17 @@ interface MapMenuProps {
 export function MapMenu({ at, title, items, onPick, onClose }: MapMenuProps): JSX.Element {
   const first = useRef<HTMLButtonElement | null>(null);
 
+  /* Escape is the stage's own router now (ADR-0068, #387): the menu is one
+     of several things it could undo, ranked against the others, rather
+     than closing itself on a listener that knew nothing about them. */
   useEffect(() => {
     first.current?.focus();
-    const onKey = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') onClose();
-    };
     const onDown = (event: PointerEvent): void => {
       const target = event.target as HTMLElement | null;
       if (target?.closest('[data-map-menu]') === null) onClose();
     };
-    window.addEventListener('keydown', onKey);
     window.addEventListener('pointerdown', onDown, true);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      window.removeEventListener('pointerdown', onDown, true);
-    };
+    return () => window.removeEventListener('pointerdown', onDown, true);
   }, [onClose]);
 
   return (

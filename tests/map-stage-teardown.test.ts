@@ -135,25 +135,11 @@ describe('the map stage tears down what it registers', () => {
     const pending = vi.getTimerCount();
     expect(pending).toBeGreaterThan(0);
 
-    /* A line being drawn listens for Escape; unmounting mid-line must drop
-       that listener with the line (ADR-0065). */
-    act(() => {
-      api?.startLink('c1');
-    });
-    expect(added.get('keydown') ?? 0).toBeGreaterThan(0);
-
-    /* A vision filling the screen listens for Escape too; unmounting in
-       that state must drop the listener with the mode (ADR-0067). */
-    act(() => {
-      api?.enterFullscreen('v1');
-    });
-    expect(added.get('keydown') ?? 0).toBeGreaterThan(1);
-
     act(() => {
       root.unmount();
     });
 
-    for (const type of ['pointermove', 'pointerup', 'pointercancel', 'keydown']) {
+    for (const type of ['pointermove', 'pointerup', 'pointercancel']) {
       expect(removed.get(type) ?? 0, `${type} listeners removed`).toBe(added.get(type) ?? 0);
       expect(added.get(type) ?? 0).toBeGreaterThan(0);
     }
