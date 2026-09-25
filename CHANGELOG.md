@@ -40,9 +40,13 @@ session (ADR-0074).
   "+" palette instead of a list panel (ADR-0072). Home keeps its own pill on
   that toolbar rather than folding into the palette, restored once an early
   draft's removal left the general command palette with no route to Home's
-  screen at all (ADR-0072 addendum, 2026-09-22). Home's "Connected now" list
-  still jumps a live session straight to its tab in Sessions, reusing the
-  same `activate` path the palette and the retry button already drove.
+  screen at all (ADR-0072 addendum, 2026-09-22). Home briefly grew a
+  "Connected now" list that jumped a live session straight to its tab in
+  Sessions, reusing the same `activate` path the palette and the retry
+  button already drove; it was pulled again before release ("design: reduce
+  Home to its logo and version"), so Home stays its own logo pill with
+  nothing else, and a live session is reached through Sessions or the "+"
+  palette instead.
 - The map becomes a fixed workspace pill next to Home, SSH and SFTP
   (ADR-0073), then stops being a shell-level choice entirely and joins the
   ordinary workspace switch (ADR-0075): a fresh install still meets the
