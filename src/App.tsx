@@ -405,12 +405,11 @@ export function App(): JSX.Element {
      from a file manager must never be able to look like a tab. */
   const [dragging, setDragging] = useState<Focus | null>(null);
   const [dropOver, setDropOver] = useState<number | null>(null);
-  /* The SFTP workspace's own drag, the mirror of `dragging`/`dropOver` above:
-     what is being dragged (a saved host or localhost, ADR-0045), and which
-     pane the pointer is currently over. `'source'` and a destination slot
-     number are both valid drop targets, so `dropOver` is a plain union
-     rather than reusing the Sessions grid's index. */
-  const [sftpDragging, setSftpDragging] = useState<DraggedEndpoint | null>(null);
+  /* The SFTP workspace's own drop target, the mirror of `dropOver` above:
+     which pane a dragged file entry (ADR-0045) is currently over. `'source'`
+     and a destination slot number are both valid drop targets, so
+     `sftpDropOver` is a plain union rather than reusing the Sessions grid's
+     index. */
   const [sftpDropOver, setSftpDropOver] = useState<SftpTarget | null>(null);
   /* Which fan-out pane a host from the palette lands in (ADR-0072): the
      source pane, or whichever destination slot was clicked last. Defaults to
@@ -3106,7 +3105,7 @@ export function App(): JSX.Element {
           const focusedSurface = focusedAttempt === undefined ? null : attemptSurfaceFor(focusedAttempt);
 
           const dragOverHandlers = (target: SftpTarget) =>
-            sftpDragging === null && draggedEntries === null
+            draggedEntries === null
               ? {}
               : {
                   onDragOver: (event: DragEvent) => {
@@ -3118,10 +3117,7 @@ export function App(): JSX.Element {
                     setSftpDropOver((current) => (current !== null && sameTarget(current, target) ? null : current)),
                   onDrop: (event: DragEvent) => {
                     event.preventDefault();
-                    if (sftpDragging !== null) {
-                      assignSftpEndpoint(sftpDragging, target);
-                      setSftpDragging(null);
-                    } else if (draggedEntries !== null && target.kind === 'destination') {
+                    if (draggedEntries !== null && target.kind === 'destination') {
                       fanout.sendEntriesToDestination(draggedEntries, target.slot);
                     }
                     setSftpDropOver(null);
