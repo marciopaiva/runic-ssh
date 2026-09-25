@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import type { JSX, ReactNode } from 'react';
 
+import logoDark from '../../assets/logo-dark.png';
+import logoLight from '../../assets/logo-light.png';
 import {
   filterHosts,
   hostGroupLabel,
@@ -14,7 +16,6 @@ import type { HostRow, LiveSession } from '../features/sessions';
 import { useTranslator } from '../features/settings';
 
 import { HostKindIcon } from './HostKindIcon';
-import { LogoMark } from './LogoMark';
 import { SidebarOverlay } from './SidebarOverlay';
 import { ChevronRightIcon, PlusIcon, SearchIcon } from './ui/icons';
 
@@ -200,9 +201,9 @@ export function HostsSection({
 
       <div className="min-w-0 flex-1 overflow-y-auto">
         {selectedId === null && !creatingNew ? (
-          <div className="flex h-full flex-col items-center justify-center gap-3.5" aria-hidden="true">
-            <LogoMark className="h-16 w-16" />
-            <span className="text-ink text-[27px] font-extrabold tracking-tight">{i18n.t('app.name')}</span>
+          <div className="flex h-full flex-col items-center justify-center" aria-hidden="true">
+            <img src={logoDark} alt="" className="rs-logo-dark h-16 w-auto" />
+            <img src={logoLight} alt="" className="rs-logo-light h-16 w-auto" />
           </div>
         ) : (
           detail

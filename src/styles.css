@@ -144,3 +144,27 @@ body {
 .group:hover .map-glyph-edge {
   stroke: var(--rs-glass-edge-hot);
 }
+
+/* Home's brand lockup ships as two rasters, one per theme, because the
+   wordmark's colour is baked into the pixels rather than read from a token
+   the way the rest of the interface is. Same three-state cascade tokens.css
+   uses for colour: dark by default, an explicit light choice overrides it,
+   and the system-light case applies only when nothing has overridden it to
+   dark. */
+.rs-logo-light {
+  display: none;
+}
+:root[data-theme='light'] .rs-logo-dark {
+  display: none;
+}
+:root[data-theme='light'] .rs-logo-light {
+  display: block;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) .rs-logo-dark {
+    display: none;
+  }
+  :root:not([data-theme='dark']) .rs-logo-light {
+    display: block;
+  }
+}
