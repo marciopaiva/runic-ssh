@@ -48,10 +48,46 @@ workflow produced, and it is the answer to "is this usable yet".
 | --- | --- | --- | --- |
 | Linux, `.deb` | **yes**, 2026-09-13 | 0.8.0 | **downloaded from the release** |
 | Linux, `.rpm` | no | | no RPM distribution to hand |
-| Linux, `.AppImage` | no | | discouraged anyway, see below |
-| Windows, `.exe` (NSIS) | **yes**, 2026-08-26 | 0.1.1 | **a workflow artifact, copied in through WSL** |
+| Linux, `.AppImage` | **yes**, 2026-09-24 | 0.9.0 | **downloaded from the release, extracted rather than run through FUSE** |
+| Windows, `.exe` (NSIS) | **yes**, 2026-09-24 | 0.9.0 | **the maintainer's own install, upgraded in place** |
 | Windows, `.msi` (WiX) | built, not installed | | the NSIS package was the one exercised |
 | macOS, `.dmg` | **no** | | needs an Apple Silicon Mac |
+
+**All six 0.9.0 assets were downloaded from the release**: their sizes match
+`gh api repos/marciopaiva/runic-ssh/releases/tags/v0.9.0` byte for byte, every
+one is covered by `SHA256SUMS`, and `sha256sum -c SHA256SUMS --ignore-missing`
+reported `OK` on all six. `apt install` was skipped on purpose: it would have
+overwritten the maintainer's own dpkg-managed 0.8.0 install, so the
+`.AppImage` was extracted (`--appimage-extract`) and run as
+`squashfs-root/usr/bin/runic-ssh` instead, on an isolated display and a fresh
+`XDG_CONFIG_HOME` seeded with `previewFeatures: true` and one saved host
+(`127.0.0.1:2222`, the WSL2 fixture). It launched and the status bar read
+`v0.9.0`. Driven: an unknown host key trusted and a session connected; a
+second shell opened on that connection (ADR-0077), its own tab with a fresh
+login banner, typed into independently of the first; SFTP against the same
+host, browsing a real remote listing; a local shell (ADR-0074) running the
+host's own `bash` as the logged-in user, not a sandboxed stand-in. Home
+showed only its logo and wordmark with two sessions and a local shell open,
+which is correct: `HomeSummaryPanel` and its "Connected now" list were built
+mid-cycle and pulled again before release (`design: reduce Home to its logo
+and version`, 2026-09-22), a fact the changelog got wrong until this pass
+caught it. Visions, layers, port forwarding and macros were not re-driven on
+the package this time; earlier paragraphs in this file and `docs/testing.md`
+stand for them.
+
+**The same 0.9.0 `.exe` (NSIS) was installed on the maintainer's own Windows
+machine**, upgraded in place from 0.8.0 with their explicit approval, through
+WSL interop rather than a display of its own. `HKCU:\...\Uninstall` confirms
+`DisplayVersion 0.9.0` and the status bar agreed. Driven against the same
+WSL2 fixture, reached at its `eth0` address rather than `127.0.0.1` since
+Windows and the fixture are not on the same network namespace: a second
+shell (ADR-0077), its duplicate tab independent of the first; SFTP browsing,
+a real remote listing; a local shell (ADR-0074, PowerShell), after finding
+that a freshly opened local-shell tab does not hold keyboard focus and a
+click inside the terminal body is needed before typing reaches it rather
+than the quick-open palette. Home matched Linux: logo only, no session list,
+confirming the behavior above is not a Linux-only quirk. macOS was not
+touched; nobody here has the hardware.
 
 **The 0.8.0 `.deb` was downloaded from the release**, every file on the
 page (six installers plus `SHA256SUMS`) accounted for in the sums list, and
