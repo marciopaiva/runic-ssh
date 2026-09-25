@@ -202,8 +202,8 @@ export function HostsSection({
       <div className="min-w-0 flex-1 overflow-y-auto">
         {selectedId === null && !creatingNew ? (
           <div className="flex h-full flex-col items-center justify-center" aria-hidden="true">
-            <img src={logoDark} alt="" className="rs-logo-dark h-16 w-auto" />
-            <img src={logoLight} alt="" className="rs-logo-light h-16 w-auto" />
+            <img src={logoDark} alt="" className="rs-logo-dark h-32 w-auto" />
+            <img src={logoLight} alt="" className="rs-logo-light h-32 w-auto" />
           </div>
         ) : (
           detail
