@@ -34,13 +34,14 @@ cargo test --test against_openssh -- --ignored --nocapture
 
 The same container is the only way to reach a live credential exchange by hand.
 ADR-0039 retired the separate prompt window: what opens now, when nothing
-usable is saved, is that host's own entry in Hosts, with a note saying why.
+usable is saved, is the host's own entry in `HostEditorDialog`, the same modal
+ADR-0072 made the one place any host is edited, with a note saying why.
 Reaching it takes a saved session with nothing stored or kept, and a real
 server to authenticate against. No amount of clicking gets there without one
 that actually asks.
 
 Save a session against it, connect from Sessions with no credential saved, and
-the editor opens on the host in Hosts with `session.editor.missingCredential`
+the editor opens on the host, over Sessions, with `session.editor.missingCredential`
 showing. For a bastion crossed mid-chain with nothing saved for it, the same
 thing happens for the bastion's own entry, found by its `proxyJump`, once the
 whole chain has failed rather than mid-connection: there is no longer a window
@@ -160,8 +161,11 @@ separate pane header any more; the strip is the header.
 Nothing here can be asserted from a test either, for the same reason as the
 clipboard: what is being checked is what the webview does with a keyboard in
 real rectangles. Typing can be sent synthetically, and so, built up in real
-steps, can moving a host into an empty rectangle: see "What synthetic input
-can and cannot drive" below for the shape a drag needs to actually land.
+steps, can dragging an already-open tab into an empty rectangle: see "What
+synthetic input can and cannot drive" below for the shape a drag needs to
+actually land. Filling an empty rectangle with a host that is not open yet is
+a click instead (ADR-0072): the "+" beside the workspace pills, or the docked
+hosts-manager sidebar's own row, not a drag.
 
 Divide the area from the shape control in the top strip, or from the palette
 (`Ctrl-Shift-P`, then "Split"). One open session is enough: dividing first and
@@ -172,8 +176,8 @@ connected at all the commands are absent, because there is no area to divide.
 | --- | --- |
 | Divide into two columns, two sessions open | both paint, each with its own grid |
 | Resize the window | both re-fit, and neither reports `0x0` |
-| Click inside a group | that group is outlined, and its active tab is highlighted in the host list |
-| Click a host that is not open | it opens as a tab in the focused group |
+| Click inside a group | that group is outlined |
+| Pick a host that is not open, from the "+" palette or the hosts-manager sidebar | it opens as a tab in the focused group |
 | Click a tab that is already on screen | only the focus moves, nothing rearranges |
 | Right-click a tab | a menu offers to send it to another group |
 | Read a group's trailing menu | closing says how many connections it is about to drop |
@@ -190,13 +194,13 @@ session in them, and says so when you hover it.
 | --- | --- |
 | Type | it arrives in the active tab of every group, each host echoing its own |
 | `Ctrl-C` | interrupts in every receiving group |
-| Look at the window | the status bar's top edge is amber and carries the count and the way off; every receiving group is outlined; the rail is amber and holds the settings gear shut |
-| Read the host list | every receiving host is marked, and every connected host that is not receiving is labelled `SPARED` |
+| Look at the window | the status bar's top edge is amber and carries the count and the way off; every receiving group is outlined; the toolbar's own Broadcast button turns amber too, with the same count |
+| Read each group's own switch, on its strip | a receiving group's switch (`SyncToggle`) is lit; a spared one is not |
 | Find the focused group | the outline says nothing now, so the strip's marker is the only thing that does |
 | Uncheck one group's box, with four open | that group stops receiving, the count drops by one |
 | Type after unchecking | the spared group receives nothing |
 | Type *into* the spared group | it reaches that group and no other |
-| Leave a connected session behind another tab | it is connected and is not receiving, and the host list is where that is read |
+| Leave a connected session behind another tab | it is connected and is not receiving, and its own group's switch, on its strip, is where that is read |
 | Uncheck until one is left | the bar stops claiming a broadcast |
 | Turn the switch off and on again | every box is checked again |
 | Click the way off in the status bar | the switch goes off in one click |
@@ -344,7 +348,7 @@ this is still worth a row of its own: only the wizard's own test ever needs it,
 because that is the one call where a bastion mid-chain can turn up needing a
 credential nobody saved, with nowhere else to ask for one now that the separate
 window is not going to open. Everywhere else a missing credential redirects to
-that host's own entry in Hosts (ADR-0039); this is the one path that still
+that host's own entry in `HostEditorDialog` (ADR-0039); this is the one path that still
 shows a hop mid-flow, and `credential.hop.bastion` is the string that says so.
 
 | Do this | Expect |
@@ -484,7 +488,7 @@ ADR-0027 lets the bastion prompt when it has nothing saved, which is what makes
 a machine with no keychain able to use one at all. ADR-0039 changed *where*
 that happens for an ordinary connect from Sessions: the bastion no longer
 prompts mid-chain, so a target and a bastion that both need a credential now
-takes separate visits to Hosts rather than one continuous window sequence.
+takes separate visits to `HostEditorDialog` rather than one continuous window sequence.
 This whole section needs a live pass to confirm; it is written from the code,
 not driven.
 
@@ -493,9 +497,9 @@ none either, and no session open on either.
 
 | Do this | Expect |
 | --- | --- |
-| Connect to the target from Sessions | the whole attempt fails at once, no window, nothing waiting, and the bastion's own entry opens in Hosts with `session.editor.missingCredential` showing |
+| Connect to the target from Sessions | the whole attempt fails at once, no window, nothing waiting, and the bastion's own entry opens in `HostEditorDialog` with `session.editor.missingCredential` showing |
 | Authenticate there, in the host editor's Access column | the wizard closes itself, ADR-0058, with nothing to dismiss first; the target still has not been reached |
-| Go back to Sessions, connect to the target again | the bastion's key and credential are silently reused, and now it is the **target's own** entry that opens in Hosts, with the same notice |
+| Go back to Sessions, connect to the target again | the bastion's key and credential are silently reused, and now it is the **target's own** entry that opens in `HostEditorDialog`, with the same notice |
 | Authenticate there too | the wizard closes itself the same way |
 | Go back to Sessions, connect to the target a third time | both credentials are reused silently, the target's key is checked, and the terminal opens |
 | Connect to a second host behind the same bastion | the bastion is not asked about again |
@@ -921,20 +925,24 @@ Confirmed on Linux on 2026-09-04 in the packaged v0.4.0 build: a plain
 host folded both sections; the same host, after the Local forward above
 was added and saved, opened Forwarding automatically on the next visit.
 
-### Reaching the map (ADR-0066)
+### Reaching the map (ADR-0073, ADR-0075)
 
-The map is a preview, off by default. A fresh `XDG_CONFIG_HOME` shows the
-classic navigation and no map slot on the rail. Open the command palette
-(`Ctrl+Shift+P`), run "Show the map (preview)", and the slot appears; the
-choice is saved in `settings.json` as `"previewFeatures": true`. Running "Hide
-the map" removes the slot again and falls back to Home if the map was showing.
-The drives below assume the preview is on.
+The map is a preview, off by default, but its pill (MAPA) is always in
+`WorkspacePills`, alongside Home, SSH and SFTP: there is no rail slot to
+appear or disappear, because the rail itself retired with ADR-0075. With a
+fresh `XDG_CONFIG_HOME`, clicking the MAPA pill shows `MapPreviewPrompt` in
+the main area instead of the map, explaining that it is a preview; accepting
+it sets `"previewFeatures": true` in `settings.json` and switches to the map
+workspace in the same action, cancelling leaves the workspace wherever it
+was. Once accepted, an eye-off icon in the map's own toolbar turns the
+preview back off and falls back to Sessions. The drives below assume the
+preview is on.
 
 ### The map (ADR-0064)
 
 Two saved hosts in the book, one of them (`web-01`, port 2222) with a
-password the keychain holds, the other not yet registered. The map is the
-fifth slot on the rail.
+password the keychain holds, the other not yet registered. The map is its own
+workspace, chosen from the MAPA pill.
 
 | Do this | Expect |
 | --- | --- |
@@ -1050,32 +1058,27 @@ uses:
 podman run -d --name runic-test-sshd-2223 -p 2223:2222 runic-test-sshd
 ```
 
-The rail's third icon opens the workspace. It carries a numeric badge, how
-many panes are currently occupied, and it locks shut while synchronised
-typing is armed, the same rule Home follows, because a workspace switch mid
-broadcast is the wrong moment to invite one.
+The SFTP pill in `WorkspacePills` opens the workspace, styled like its
+siblings and never locked: there is no rail left to carry a badge or shut a
+switch, and choosing a workspace mid broadcast is unrestricted today.
 
-**Filling a pane is always a drag**, from the same saved-hosts list Sessions
-uses, now shared between both workspaces (ADR-0046). `localhost` sits pinned
-above the search box and drags the same way a saved host does. A plain click
-on any row in that sidebar goes to the **source** pane, always; a
-destination is only ever filled by dropping a row onto one of its slots.
-There is no click-to-fill-a-destination shortcut, which is worth checking for
-directly since it is the one place this UI's two input styles, click and
-drag, do different things rather than the same thing two ways.
+**Filling a pane is a click, on the pane, then a pick**, the same
+click-a-rectangle-then-choose-a-host pattern Sessions uses (ADR-0072,
+ADR-0046: the "+" palette and the docked hosts-manager sidebar's `onUse` are
+shared between both workspaces). Clicking the source pane or a destination
+slot sets it as the target for whichever host is chosen next, whether the
+pane is already filled or still showing its own "open host" prompt;
+`localhost` is the palette's first result, ahead of any saved host, and
+targets the same way one does. Dragging a saved host from a list is gone: the
+only drag left in this workspace moves files between two already-open panes.
 
 | Do this | Expect |
 | --- | --- |
-| Click a saved host in the sidebar | it fills the source pane, replacing whatever was there |
-| Click `localhost` | it fills the source pane the same way |
-| Drag a saved host onto an empty destination slot | it fills that slot and starts browsing there |
-| Drag a host onto an **occupied** slot | it replaces that slot outright, no confirmation |
+| Click the source pane, pick a saved host | it fills the source pane, replacing whatever was there |
+| Click the source pane, pick `localhost` | it fills the source pane the same way |
+| Click an empty destination slot, pick a saved host | it fills that slot and starts browsing there |
+| Click an **occupied** destination slot, pick a different host | it replaces that slot outright, no confirmation |
 | Occupy a slot already marked as spared from an earlier session | it resets to receiving, not spared |
-
-The drag itself needs the multi-step form "What synthetic input can and
-cannot drive" describes below, not a single jump; that section's own
-2026-09-01 measurement is this exact gesture, dragging a saved host into an
-SFTP destination slot.
 
 Splitting the destination side into 1 through 4 rows is the toolbar's fold
 control (`sftp.split.into`), mirroring the shape control Sessions already
