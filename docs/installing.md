@@ -75,6 +75,22 @@ caught it. Visions, layers, port forwarding and macros were not re-driven on
 the package this time; earlier paragraphs in this file and `docs/testing.md`
 stand for them.
 
+**A second pass the same day, on a headless Xvfb display with no window
+manager and no GPU, twice found the toolbar missing the Home pill** (`SSH |
+SFTP | Map` only, screenshotted with ImageMagick's `import -window root`).
+Source review ruled out a code cause: `WorkspacePills.tsx` renders all four
+pills unconditionally, is byte-identical between the `v0.9.0` tag and this
+repository's `HEAD`, and ADR-0072's addendum plus this changelog both say
+Home keeps its own pill on purpose. The maintainer then navigated Home > SSH
+> Home on the same downloaded AppImage in a real desktop session and the
+pill worked as expected, which the headless result cannot explain away.
+`app3.log` from that pass logged repeated `libEGL`/DRI3/DRI2 failures, a
+software-rendering fallback; a stale or partial composite of just the
+toolbar under that degraded path, with no compositor to force a correct
+repaint, is the likely cause, in the same family as this project's earlier
+wedged-GPU EGL crash under WSL2. Filed and closed as not reproducible outside
+that rig, #463.
+
 **The same 0.9.0 `.exe` (NSIS) was installed on the maintainer's own Windows
 machine**, upgraded in place from 0.8.0 with their explicit approval, through
 WSL interop rather than a display of its own. `HKCU:\...\Uninstall` confirms
