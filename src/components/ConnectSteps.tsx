@@ -3,6 +3,8 @@ import type { JSX } from 'react';
 import type { ConnectStep } from '../features/sessions/connect';
 import { useTranslator } from '../features/settings';
 
+import { SigilMark } from './SigilMark';
+
 const STEPS: readonly ConnectStep[] = ['reaching', 'authenticating'];
 
 type Mark = 'done' | 'running' | 'failed' | 'waiting';
@@ -12,6 +14,8 @@ interface ConnectStepsProps {
   readonly step: ConnectStep;
   /** Whether `step` is where it stopped rather than where it is. */
   readonly failed?: boolean;
+  /** The host's saved id, for its sigil. Absent draws the steps alone. */
+  readonly sigilId?: string | undefined;
 }
 
 /**
@@ -20,7 +24,7 @@ interface ConnectStepsProps {
  * Only steps the interface can tell apart for certain (see `ConnectStep`), so
  * what is ticked off has happened and what failed is where it failed.
  */
-export function ConnectSteps({ step, failed = false }: ConnectStepsProps): JSX.Element {
+export function ConnectSteps({ step, failed = false, sigilId }: ConnectStepsProps): JSX.Element {
   const i18n = useTranslator();
   const at = STEPS.indexOf(step);
 
@@ -30,7 +34,7 @@ export function ConnectSteps({ step, failed = false }: ConnectStepsProps): JSX.E
     return 'waiting';
   };
 
-  return (
+  const steps = (
     <ol className="flex flex-col gap-1.5" aria-label={i18n.t('connecting.steps')}>
       {STEPS.map((name, index) => {
         const mark = markOf(index);
@@ -56,5 +60,17 @@ export function ConnectSteps({ step, failed = false }: ConnectStepsProps): JSX.E
         );
       })}
     </ol>
+  );
+
+  if (sigilId === undefined) return steps;
+
+  /* Cut as far as the steps have really got: the first step done is the lower
+     half, and the whole of it is only ever reached by connecting. */
+  const lit = at === 0 ? 0 : 1;
+  return (
+    <div className="flex items-center gap-4">
+      <SigilMark id={sigilId} lit={lit} failed={failed} />
+      {steps}
+    </div>
   );
 }
