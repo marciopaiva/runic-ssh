@@ -88,6 +88,12 @@ export function usePane(endpoint: Endpoint): PaneState & PaneActions {
      being left is read from here rather than from `path` state, which
      would otherwise have to be a dependency. */
   const pathRef = useRef<string | null>(null);
+  /* The endpoint this pane is on right now. A reconnect gives a remote one a
+     new handle without remounting the pane (ADR-0079), and `navigate` below
+     is created once, so it reads the endpoint through this rather than the
+     one it first saw. */
+  const endpointRef = useRef(endpoint);
+  endpointRef.current = endpoint;
 
   const navigate = useCallback(
     (requested: string | null, record: boolean) => {
@@ -96,6 +102,7 @@ export function usePane(endpoint: Endpoint): PaneState & PaneActions {
       setActionError(null);
       const leaving = pathRef.current;
 
+      const endpoint = endpointRef.current;
       const listing =
         endpoint.kind === 'local'
           ? localListDirectory(requested).then((result) => ({
@@ -135,6 +142,16 @@ export function usePane(endpoint: Endpoint): PaneState & PaneActions {
     navigate(null, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /* The same folder again on the new connection, once the handle changes. */
+  const handle = endpoint.kind === 'remote' ? endpoint.handle : null;
+  const firstHandle = useRef(handle);
+  useEffect(() => {
+    if (handle === firstHandle.current) return;
+    firstHandle.current = handle;
+    if (pathRef.current !== null) navigate(pathRef.current, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handle]);
 
   /* Every mutation shares this shape: clear the last action's own error,
      run the IPC call against whichever endpoint kind this pane is, reload
