@@ -51,6 +51,7 @@ export {
   parsePort,
   suggestName,
   toForwards,
+  toKeepalive,
   toMultiplexer,
 } from './draft';
 export { describeKeeping, hasStoredCredential } from './kept';

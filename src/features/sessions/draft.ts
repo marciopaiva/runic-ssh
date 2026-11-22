@@ -89,6 +89,14 @@ export interface DraftValues {
   /** ADR-0079. `''` for a plain shell, otherwise a `Multiplexer`. Never wrong
    * on its own: the picker only offers values the core accepts. */
   readonly multiplexer: string;
+  /** ADR-0079. `'on'` or `'off'`: whether the connection pings the host. A
+   * string like the other form fields, so one `onChange` serves them all. */
+  readonly keepalive: string;
+}
+
+/** Whether a form value turns the keepalive on. Anything but `'off'` does. */
+export function toKeepalive(value: string): boolean {
+  return value !== 'off';
 }
 
 /** The multiplexer a form value names, or `null` for a plain shell. */
@@ -108,6 +116,7 @@ export const EMPTY_DRAFT: DraftValues = {
   kind: 'direct',
   forwards: [],
   multiplexer: '',
+  keepalive: 'on',
 };
 
 /**

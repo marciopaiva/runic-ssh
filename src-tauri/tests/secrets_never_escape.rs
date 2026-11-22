@@ -221,6 +221,7 @@ async fn a_refused_password_leaks_nothing_through_the_whole_path() {
         Endpoint {
             host: "127.0.0.1".to_owned(),
             port,
+            keepalive: true,
         },
         trusting(port, &public),
     )
@@ -258,6 +259,7 @@ async fn a_wrong_passphrase_leaks_neither_the_passphrase_nor_the_key() {
         Endpoint {
             host: "127.0.0.1".to_owned(),
             port,
+            keepalive: true,
         },
         trusting(port, &public),
     )

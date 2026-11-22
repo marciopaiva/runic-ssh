@@ -32,6 +32,7 @@ fn endpoint() -> Endpoint {
     Endpoint {
         host: HOST.to_owned(),
         port: PORT,
+        keepalive: true,
     }
 }
 
@@ -183,6 +184,7 @@ fn bastion_endpoint() -> Endpoint {
     Endpoint {
         host: HOST.to_owned(),
         port: BASTION_PORT,
+        keepalive: true,
     }
 }
 
@@ -190,6 +192,7 @@ fn target_endpoint() -> Endpoint {
     Endpoint {
         host: TARGET_HOST.to_owned(),
         port: TARGET_PORT,
+        keepalive: true,
     }
 }
 
@@ -791,6 +794,7 @@ async fn a_silent_drop_closes_the_shell_and_is_reported_as_lost() {
     let endpoint = Endpoint {
         host: HOST.to_owned(),
         port: DROP_PORT,
+        keepalive: true,
     };
     let (_, offered) = connect_reporting(endpoint.clone(), KnownHosts::default())
         .await
@@ -847,6 +851,7 @@ async fn connected_on(port: u16) -> runic_ssh::ssh::connection::Connection {
     let endpoint = Endpoint {
         host: HOST.to_owned(),
         port,
+        keepalive: true,
     };
     let (_, offered) = connect_reporting(endpoint.clone(), KnownHosts::default())
         .await
@@ -1075,4 +1080,82 @@ async fn measure_what_a_fleet_run_costs_on_real_sshd() {
     c.expect("runs");
     d.expect("runs");
     println!("four hosts at once: {:?}", started.elapsed());
+}
+
+/// ADR-0079: with the keepalive off a silent drop is not noticed, which is
+/// what turning it off means. Pauses the 2223 container for 150 s, longer than
+/// the 120 s the keepalive takes, and always unpauses.
+#[tokio::test]
+#[ignore = "needs the sshd containers, pauses one for 150 seconds"]
+async fn with_the_keepalive_off_a_silent_drop_is_not_noticed() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use runic_ssh::ssh::stats::Counters;
+    use runic_ssh::ssh::terminal::{pump, Sink};
+
+    const CONTAINER: &str = "runic-test-sshd-2223";
+    const PORT_2223: u16 = 2223;
+
+    struct Closed(Arc<AtomicBool>);
+    impl Sink for Closed {
+        fn emit(&mut self, _batch: &[u8]) {}
+        fn closed(&mut self, _exit_status: Option<u32>) {
+            self.0.store(true, Ordering::SeqCst);
+        }
+    }
+
+    struct Unpause;
+    impl Drop for Unpause {
+        fn drop(&mut self) {
+            let _ = std::process::Command::new("podman")
+                .args(["unpause", CONTAINER])
+                .status();
+        }
+    }
+
+    let endpoint = Endpoint {
+        host: HOST.to_owned(),
+        port: PORT_2223,
+        keepalive: false,
+    };
+    let (_, offered) = connect_reporting(endpoint.clone(), KnownHosts::default())
+        .await
+        .err()
+        .expect("an empty known_hosts must refuse");
+    let key = offered.expect("a key was offered").key;
+    let mut known = KnownHosts::default();
+    known.add(KnownHosts::entry_for(HOST, PORT_2223, "ssh-ed25519", key));
+
+    let mut connection = connect(endpoint, known).await.expect("connects");
+    connection
+        .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
+        .await
+        .expect("authenticates");
+    let channel = connection.open_shell(80, 24).await.expect("a shell opens");
+
+    let closed = Arc::new(AtomicBool::new(false));
+    let (_keys, input) = tokio::sync::mpsc::channel(8);
+    let pumping = tokio::spawn(pump(
+        channel,
+        Closed(Arc::clone(&closed)),
+        input,
+        Arc::new(Counters::default()),
+    ));
+
+    let _unpause = Unpause;
+    assert!(std::process::Command::new("podman")
+        .args(["pause", CONTAINER])
+        .status()
+        .expect("podman runs")
+        .success());
+
+    tokio::time::sleep(Duration::from_secs(150)).await;
+
+    assert!(
+        !closed.load(Ordering::SeqCst),
+        "nothing pinged, so nothing noticed"
+    );
+    pumping.abort();
 }

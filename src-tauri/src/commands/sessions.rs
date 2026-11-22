@@ -628,6 +628,7 @@ fn endpoint_of(session: &Session) -> Endpoint {
     Endpoint {
         host: session.host.clone(),
         port: session.port,
+        keepalive: session.keepalive,
     }
 }
 

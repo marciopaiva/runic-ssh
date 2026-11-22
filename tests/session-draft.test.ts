@@ -22,6 +22,7 @@ import {
   parsePort,
   suggestName,
   toForwards,
+  toKeepalive,
   toMultiplexer,
 } from '../src/features/sessions/draft';
 import type { DraftValues, ForwardDraft } from '../src/features/sessions/draft';
@@ -36,6 +37,7 @@ const valid: DraftValues = {
   kind: 'direct',
   forwards: [],
   multiplexer: '',
+  keepalive: 'on',
 };
 
 const withValue = (field: keyof DraftValues, value: string): DraftValues => ({
@@ -69,6 +71,7 @@ describe('a session draft', () => {
           kind: 'direct',
           forwards: [],
           multiplexer: '',
+          keepalive: 'on',
         }),
       ].sort(),
     ).toEqual(['host', 'name', 'port', 'user'].sort());
@@ -216,5 +219,13 @@ describe('the multiplexer choice (ADR-0079)', () => {
     expect(toMultiplexer('screen')).toBe('screen');
     expect(toMultiplexer('')).toBeNull();
     expect(toMultiplexer('zellij; reboot')).toBeNull();
+  });
+});
+
+describe('the keepalive choice (ADR-0079)', () => {
+  it('is on unless the form says off', () => {
+    expect(toKeepalive('on')).toBe(true);
+    expect(toKeepalive('')).toBe(true);
+    expect(toKeepalive('off')).toBe(false);
   });
 });

@@ -130,6 +130,7 @@ No new place handles a credential or a host key.
 
 * tmux and screen reattach, with the host setting and the migration it needs.
 * Rebinding SFTP panes, Monitor and ad hoc tunnels to the new handle.
-* An off switch for the keepalive, if the idle-timeout cost is felt.
+* An off switch for the keepalive, if the idle-timeout cost is felt. Done per
+  host (`Session.keepalive`, on by default and absent from the file while on).
 * Revisit if people want a reconnect that survives the app being closed,
   which this does not attempt.

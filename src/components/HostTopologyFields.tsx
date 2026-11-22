@@ -157,6 +157,22 @@ export function HostTopologyFields({
           {i18n.t('session.editor.multiplexer.hint')}
         </span>
       </label>
+
+      {/* ADR-0079. On unless turned off. */}
+      <label className="flex items-start gap-2">
+        <input
+          type="checkbox"
+          checked={values.keepalive !== 'off'}
+          onChange={(event) => onChange('keepalive', event.target.checked ? 'on' : 'off')}
+          className="mt-0.5"
+        />
+        <span className="flex flex-col gap-0.5">
+          <span className="text-ink-muted text-[11px]">{i18n.t('session.editor.keepalive')}</span>
+          <span className="text-ink-faint text-[11px] leading-snug">
+            {i18n.t('session.editor.keepalive.hint')}
+          </span>
+        </span>
+      </label>
     </div>
   );
 }
