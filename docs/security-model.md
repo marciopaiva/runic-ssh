@@ -448,6 +448,54 @@ review; there is no such line to add, and inventing one would be a second,
 unused place for a permission to live. What stands between the webview and
 an arbitrary process is `LocalShellKind` being closed, not an ACL entry.
 
+## What a fleet run carries
+
+A fleet run (ADR-0078) is the second surface, after Monitor, that executes on a
+remote host something the person did not type at that moment, and the first
+whose reach is several hosts at once. It runs one saved **script** macro on
+the sessions the person ticked, over an exec channel on each connection that is
+already authenticated.
+
+What the IPC surface carries is a macro id and session handles. No command text
+crosses it. The core loads the macro from `macros.json`, refuses any that is not
+a script, and builds the command itself: a heredoc into the interpreter the
+`#!` line names, with `host`, `port` and `username` exported inside it from the
+saved session record, each single-quoted. An interpreter name outside
+`[A-Za-z0-9_.-]+` falls back to `sh`, because the name is spliced in unquoted.
+The heredoc marker is chosen so that no line of the script equals it.
+
+The invariant Monitor's section states, that the frontend never sends a
+command, does not survive this feature unchanged, and it is better to say so
+than to imply it does. What holds now is that the frontend sends only the id of
+text that was saved earlier. A compromised webview could still save a macro and
+run it. That reach is not new: such a webview can already write into every open
+pty through `send_input`, and synchronised typing reaches all of them. This is
+a second path to the same hosts, not a wider one, and it is why the run always
+shows the script and every target and waits for a confirmation, with no
+threshold below which it skips that.
+
+Limits, because a host is adversary 1: each of stdout and stderr is cut at
+64 KiB per host, and a host has 30 seconds, channel open included. When either
+limit is hit the channel is closed, not abandoned, and the host reports no exit
+status. A run opens one exec channel per host, so it adds at most one to that
+host's `MaxSessions` count while it lasts.
+
+Only sessions that are already connected can be reached. A run never opens a
+connection, asks for a credential or shows a host key question, so nothing in
+credential handling or host key verification is touched.
+
+What comes back is drawn as text with every control character except newline
+and tab made visible, never as markup. Results are held in memory for the open
+dialog and dropped when it closes. Nothing is written to disk or logged, but
+output can contain secrets (a script that prints a file), and what is on screen
+can be photographed or shared. The application does not scan for them, for the
+reason the macro section gives.
+
+Known limits: the wrapping exists in Rust here and in TypeScript for macros
+typed into a pty, and the two must stay equivalent. The `export` lines inside
+the heredoc are shell syntax, so an interpreter that is not a shell reads them
+as its own source; this is the behaviour ADR-0070 already has.
+
 ## Reviewing a change
 
 Any change touching `vault/`, host key verification, logging, local process
