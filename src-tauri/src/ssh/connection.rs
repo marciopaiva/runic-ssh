@@ -92,9 +92,11 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
 /// how many unanswered asks it takes to give up (ADR-0079).
 ///
 /// Without this a cut network leaves a half-open connection that never closes
-/// its channels, so nothing could tell a drop from a quiet shell. Thirty
-/// seconds times three closes one in about ninety. The cost is real traffic:
-/// it keeps alive a session a server would have timed out when idle.
+/// its channels, so nothing could tell a drop from a quiet shell. russh gives
+/// up once the unanswered asks exceed the limit, so thirty seconds and a limit
+/// of three close a silent connection after about two minutes (measured
+/// against a paused sshd). The cost is real traffic: it keeps alive a session
+/// a server would have timed out when idle.
 const KEEPALIVE_INTERVAL: Duration = Duration::from_secs(30);
 const KEEPALIVE_MAX_MISSED: usize = 3;
 

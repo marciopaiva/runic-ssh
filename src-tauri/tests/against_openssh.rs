@@ -750,3 +750,94 @@ async fn a_fleet_script_runs_on_real_sshd_with_its_variables_streams_and_limits(
         .expect("still usable");
     assert_eq!(after.stdout, b"still-here\n");
 }
+
+/// A silent drop on a real sshd (ADR-0079).
+///
+/// Pauses the container so it stops answering without closing anything, which
+/// is what a cut network looks like from here: no FIN, no RST. The keepalive
+/// has to notice, the shell has to close, and the probe afterwards has to call
+/// the connection lost. Takes about two minutes, and always unpauses.
+#[tokio::test]
+#[ignore = "needs the sshd containers, pauses one for about two minutes"]
+async fn a_silent_drop_closes_the_shell_and_is_reported_as_lost() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+    use std::time::{Duration, Instant};
+
+    use runic_ssh::ssh::connection::is_lost;
+    use runic_ssh::ssh::stats::Counters;
+    use runic_ssh::ssh::terminal::{pump, Sink};
+
+    const CONTAINER: &str = "runic-test-sshd-2223";
+    const DROP_PORT: u16 = 2223;
+
+    struct Closed(Arc<AtomicBool>);
+    impl Sink for Closed {
+        fn emit(&mut self, _batch: &[u8]) {}
+        fn closed(&mut self, _exit_status: Option<u32>) {
+            self.0.store(true, Ordering::SeqCst);
+        }
+    }
+
+    struct Unpause;
+    impl Drop for Unpause {
+        fn drop(&mut self) {
+            let _ = std::process::Command::new("podman")
+                .args(["unpause", CONTAINER])
+                .status();
+        }
+    }
+
+    let endpoint = Endpoint {
+        host: HOST.to_owned(),
+        port: DROP_PORT,
+    };
+    let (_, offered) = connect_reporting(endpoint.clone(), KnownHosts::default())
+        .await
+        .err()
+        .expect("an empty known_hosts must refuse");
+    let key = offered.expect("a key was offered").key;
+    let mut known = KnownHosts::default();
+    known.add(KnownHosts::entry_for(HOST, DROP_PORT, "ssh-ed25519", key));
+
+    let mut connection = connect(endpoint, known).await.expect("connects");
+    connection
+        .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
+        .await
+        .expect("authenticates");
+    let channel = connection.open_shell(80, 24).await.expect("a shell opens");
+    let shared = share(connection);
+
+    let closed = Arc::new(AtomicBool::new(false));
+    let (_keys, input) = tokio::sync::mpsc::channel(8);
+    let pumping = tokio::spawn(pump(
+        channel,
+        Closed(Arc::clone(&closed)),
+        input,
+        Arc::new(Counters::default()),
+    ));
+
+    assert!(!is_lost(&shared).await, "a live host answers the probe");
+
+    let _unpause = Unpause;
+    assert!(std::process::Command::new("podman")
+        .args(["pause", CONTAINER])
+        .status()
+        .expect("podman runs")
+        .success());
+
+    let started = Instant::now();
+    tokio::time::timeout(Duration::from_secs(150), pumping)
+        .await
+        .expect("the keepalive closed the shell inside 150 s")
+        .expect("the pump finished");
+    let waited = started.elapsed();
+    println!("silent drop noticed after {waited:?}");
+
+    assert!(closed.load(Ordering::SeqCst), "the sink was told");
+    assert!(
+        waited > Duration::from_secs(60),
+        "not before the misses add up"
+    );
+    assert!(is_lost(&shared).await, "the probe calls it lost");
+}
