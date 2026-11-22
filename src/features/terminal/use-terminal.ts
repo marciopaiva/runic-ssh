@@ -12,6 +12,7 @@ import { openTerminal, resizeTerminal, watchTerminal } from '../../ipc';
 import type { Session, SessionHandle, ShellSlot } from '../../ipc';
 import { useTranslator } from '../settings';
 
+import { forgetTerminalCwd, parseOsc7, reportTerminalCwd } from './cwd';
 import { keyIntent, pasteNeedsConfirming } from './clipboard';
 import { motdBanner } from './motd';
 import { terminalTheme } from './theme';
@@ -194,6 +195,20 @@ export function useTerminal(
       writeRef.current = (bytes) => terminal.write(bytes);
       terminalRef.current = terminal;
 
+      /* The folder the shell says it is in (OSC 7), for the SFTP pane's "the
+         terminal's folder". Registered before output starts, so the first
+         prompt is not missed. Only the primary shell reports: with a second
+         shell on the connection (ADR-0077) there would be two answers to one
+         question, and the first shell is the one the pane is paired with. */
+      const cwdHandler =
+        slot === 'primary'
+          ? terminal.parser.registerOscHandler(7, (data) => {
+              const cwd = parseOsc7(data);
+              if (cwd !== null) reportTerminalCwd(handle, cwd);
+              return true;
+            })
+          : null;
+
       /* ADR-0051: written before `watchTerminal` starts below, which is what
          a real remote MOTD would arrive through, so this can never race one.
          Read once, at connect: a MOTD already on screen keeps whatever
@@ -317,6 +332,10 @@ export function useTerminal(
         () => typed.dispose(),
         () => binary.dispose(),
         stopWatching,
+        () => {
+          cwdHandler?.dispose();
+          if (slot === 'primary') forgetTerminalCwd(handle);
+        },
         () => terminal.dispose(),
       );
     };
