@@ -108,6 +108,11 @@ fn client_config() -> client::Config {
     client::Config {
         keepalive_interval: Some(KEEPALIVE_INTERVAL),
         keepalive_max: KEEPALIVE_MAX_MISSED,
+        /* Small packets go out at once. Without it each keystroke and each
+        request waits on the kernel's delayed acknowledgement, about 40 ms on
+        loopback (measured, docs/measurements/fleet-limits.md), which OpenSSH
+        avoids for interactive use the same way. */
+        nodelay: true,
         ..client::Config::default()
     }
 }
