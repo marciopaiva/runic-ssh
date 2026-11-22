@@ -16,6 +16,7 @@ import type { HostRow, LiveSession } from '../features/sessions';
 import { useTranslator } from '../features/settings';
 
 import { HostKindIcon } from './HostKindIcon';
+import { SigilBadge } from './SigilMark';
 import { SidebarOverlay } from './SidebarOverlay';
 import { ChevronRightIcon, PlusIcon, SearchIcon } from './ui/icons';
 
@@ -289,6 +290,7 @@ function HostRowItem({
             invented for this list. */}
         <span className="flex min-w-0 items-center gap-1.5">
           <HostKindIcon kind={session.kind} className="text-ink-faint h-3 w-3 shrink-0" />
+          <SigilBadge id={session.id} live={row.live.kind === 'connected'} className="h-3.5 w-3.5" />
           <span className="truncate text-[12.5px]">{session.name}</span>
           {group !== null && (
             <span className="text-ink-muted bg-surface-raised ml-auto shrink-0 rounded px-1.5 py-px text-[9px]">

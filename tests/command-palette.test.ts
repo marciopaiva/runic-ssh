@@ -236,6 +236,16 @@ describe('the host book palette (ADR-0072)', () => {
     expect(commands.find((entry) => entry.id === 'hostbook:a')?.keywords).toContain('10.0.4.31');
   });
 
+  it('carries the host id for its sigil, lit only while connected', () => {
+    const connected = { ...live(session('a', 'web-01', 'h1')), kind: 'connected' as const };
+    const saved = live(session('b', 'db-01', 'h2'));
+
+    const commands = hostBookCommands(context({ sessions: [connected, saved] }));
+
+    expect(commands.find((entry) => entry.id === 'hostbook:a')?.sigil).toEqual({ id: 'a', live: true });
+    expect(commands.find((entry) => entry.id === 'hostbook:b')?.sigil).toEqual({ id: 'b', live: false });
+  });
+
   it('puts a chosen host wherever the workspace beside the button stands for', () => {
     const act = actions();
     hostBookCommands(context({ sessions: [live(session('a', 'web-01', 'h1'))], actions: act }))

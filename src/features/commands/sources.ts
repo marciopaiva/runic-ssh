@@ -111,6 +111,7 @@ export function hostBookCommands(context: CommandContext): readonly Command[] {
           section: 'sessions' as const,
           title: session.name,
           detail: `${session.user}@${session.host}`,
+          sigil: { id: session.id, live: live.kind === 'connected' },
           keywords: [session.host, session.user, session.group ?? ''].filter((word) => word !== ''),
           group: heading,
           run: () => (mapPlacement === null ? actions.openHostInto(session.id) : actions.placeHostOnMap(session.id)),

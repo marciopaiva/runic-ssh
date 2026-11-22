@@ -4,6 +4,7 @@ import type { JSX, KeyboardEvent } from 'react';
 import { bySection } from '../features/commands';
 import type { Match } from '../features/commands';
 import { useTranslator } from '../features/settings';
+import { SigilBadge } from './SigilMark';
 
 interface CommandPaletteProps {
   readonly open: boolean;
@@ -204,6 +205,9 @@ export function CommandPalette({
                             isActive ? 'bg-accent-soft text-ink' : 'text-ink-secondary'
                           }`}
                         >
+                          {match.command.sigil !== undefined && (
+                            <SigilBadge id={match.command.sigil.id} live={match.command.sigil.live} className="-mr-1.5 h-4 w-4" />
+                          )}
                           <span className="min-w-0 truncate">
                             <Highlighted text={match.command.title} at={match.highlights} />
                           </span>

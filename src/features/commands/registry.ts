@@ -25,6 +25,9 @@ export interface Command {
   readonly title: string;
   /** Shown at the trailing edge: a host, a state, a shortcut. */
   readonly detail?: string;
+  /** A saved host's id, for the sigil drawn ahead of the title. `live` says
+   * whether the host is connected. Never a key. */
+  readonly sigil?: { readonly id: string; readonly live: boolean };
   /**
    * A sub-heading within the section, drawn above the first row that carries
    * it and every contiguous row after that shares the same value. Absent
