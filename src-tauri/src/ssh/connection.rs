@@ -35,6 +35,9 @@ use crate::ssh::trust::{decide, Trust};
 pub struct Endpoint {
     pub host: String,
     pub port: u16,
+    /// Whether the connection pings the host every 30 s so a silent drop is
+    /// noticed (ADR-0079). Off for a host the person wants left to time out.
+    pub keepalive: bool,
 }
 
 /// Which host in a chain something happened to.
@@ -104,9 +107,9 @@ const KEEPALIVE_MAX_MISSED: usize = 3;
 /// taken to be gone.
 const LOST_PROBE: Duration = Duration::from_secs(2);
 
-fn client_config() -> client::Config {
+fn client_config(keepalive: bool) -> client::Config {
     client::Config {
-        keepalive_interval: Some(KEEPALIVE_INTERVAL),
+        keepalive_interval: keepalive.then_some(KEEPALIVE_INTERVAL),
         keepalive_max: KEEPALIVE_MAX_MISSED,
         /* Small packets go out at once. Without it each keystroke and each
         request waits on the kernel's delayed acknowledgement, about 40 ms on
@@ -485,7 +488,7 @@ pub async fn connect_reporting_within(
     known: KnownHosts,
     timeout: Duration,
 ) -> Result<Connection, (ConnectionError, Option<OfferedKey>)> {
-    let config = Arc::new(client_config());
+    let config = Arc::new(client_config(endpoint.keepalive));
     let address = (endpoint.host.clone(), endpoint.port);
     let offered = Arc::new(std::sync::Mutex::new(None));
     let remote_forwards: RemoteForwards = Arc::new(AsyncMutex::new(HashMap::new()));
@@ -598,7 +601,7 @@ pub async fn connect_via_within(
         }
     };
 
-    let config = Arc::new(client_config());
+    let config = Arc::new(client_config(endpoint.keepalive));
     let offered = Arc::new(std::sync::Mutex::new(None));
     let remote_forwards: RemoteForwards = Arc::new(AsyncMutex::new(HashMap::new()));
 
@@ -1110,5 +1113,22 @@ mod tests {
         forgotten reads as the host the user asked for rather than as a
         bastion that does not exist. */
         assert_eq!(Hop::default(), Hop::Target);
+    }
+}
+
+#[cfg(test)]
+mod keepalive_tests {
+    use super::*;
+
+    #[test]
+    fn keepalive_is_the_configured_interval_when_on_and_absent_when_off() {
+        let on = client_config(true);
+        assert_eq!(on.keepalive_interval, Some(KEEPALIVE_INTERVAL));
+        assert_eq!(on.keepalive_max, KEEPALIVE_MAX_MISSED);
+        assert!(on.nodelay);
+
+        let off = client_config(false);
+        assert_eq!(off.keepalive_interval, None);
+        assert!(off.nodelay, "nodelay is about latency, not about keepalive");
     }
 }

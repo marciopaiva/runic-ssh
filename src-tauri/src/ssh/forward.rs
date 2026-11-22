@@ -334,6 +334,7 @@ mod tests {
             Endpoint {
                 host: "127.0.0.1".to_owned(),
                 port,
+                keepalive: true,
             },
         )
         .await

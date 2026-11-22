@@ -100,6 +100,7 @@ async fn open_session() -> (
         Endpoint {
             host: "127.0.0.1".to_owned(),
             port,
+            keepalive: true,
         },
         known,
     )
@@ -308,6 +309,7 @@ async fn a_second_session() -> (Open, u16, ()) {
         Endpoint {
             host: "127.0.0.1".to_owned(),
             port,
+            keepalive: true,
         },
         known,
     )

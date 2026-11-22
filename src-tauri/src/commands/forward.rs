@@ -45,6 +45,7 @@ pub async fn start_local_forward(
     let target = Endpoint {
         host: target_host,
         port: target_port,
+        keepalive: true,
     };
     let accept_loop = forward::listen(connection, bind_port, target)
         .await
@@ -79,6 +80,7 @@ pub async fn start_remote_forward(
     let target = Endpoint {
         host: target_host,
         port: target_port,
+        keepalive: true,
     };
     let granted = {
         let held = connection.lock().await;

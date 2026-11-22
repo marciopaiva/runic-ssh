@@ -42,6 +42,7 @@ describe('what the form starts with', () => {
       kind: 'direct',
       forwards: [],
       multiplexer: '',
+      keepalive: 'on',
     });
   });
 
@@ -51,6 +52,15 @@ describe('what the form starts with', () => {
     expect(editorValues(saved).multiplexer).toBe('tmux');
     expect(isDirty({ ...editorValues(saved), multiplexer: '' }, saved)).toBe(true);
     expect(isDirty(editorValues(saved), saved)).toBe(false);
+  });
+
+  it('shows keepalive on unless it was saved off, and a change makes the form dirty', () => {
+    expect(editorValues(session({})).keepalive).toBe('on');
+    const off = session({ keepalive: false });
+
+    expect(editorValues(off).keepalive).toBe('off');
+    expect(isDirty({ ...editorValues(off), keepalive: 'on' }, off)).toBe(true);
+    expect(isDirty(editorValues(off), off)).toBe(false);
   });
 
   it('shows a blank form for a session that does not exist yet', () => {

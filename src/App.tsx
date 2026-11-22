@@ -85,6 +85,7 @@ import {
   suggestName,
   targetSession,
   toForwards,
+  toKeepalive,
   toMultiplexer,
   typedInto,
   updateEditor,
@@ -1760,6 +1761,7 @@ export function App(): JSX.Element {
         kind: filled.kind,
         forwards: toForwards(filled.forwards),
         multiplexer: toMultiplexer(filled.multiplexer),
+        keepalive: toKeepalive(filled.keepalive),
       }).then((stored) => {
         /* Re-aimed at what was stored before `after` runs, for a host that did
            not exist a moment ago as much as for one that did: `settled` is

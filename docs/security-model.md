@@ -519,7 +519,9 @@ means the client logs in again while nobody is watching. What bounds that:
   after being cancelled closes the connection it opened.
 * **Keepalive is traffic.** A ping every 30 s, three misses to give up. It
   makes a silent drop visible, and it also keeps an idle session alive that a
-  server's own idle timeout would have closed.
+  server's own idle timeout would have closed. A host can turn it off in the
+  editor; that host is then left to time out, and a drop that sends no
+  close is not noticed.
 
 **The multiplexer command is built in the core.** A host's choice of tmux or
 screen is a saved setting, and the command that opens the shell inside it is

@@ -56,6 +56,7 @@ fn endpoint(port: u16) -> Endpoint {
     Endpoint {
         host: HOST.to_owned(),
         port,
+        keepalive: true,
     }
 }
 
@@ -418,6 +419,7 @@ async fn transferring_to_a_destination_behind_a_jump_host() {
         Endpoint {
             host: HOST.to_owned(),
             port: BASTION_PORT,
+            keepalive: true,
         },
         KnownHosts::default(),
     )
@@ -436,6 +438,7 @@ async fn transferring_to_a_destination_behind_a_jump_host() {
         Endpoint {
             host: HOST.to_owned(),
             port: BASTION_PORT,
+            keepalive: true,
         },
         known.clone(),
     )
@@ -452,6 +455,7 @@ async fn transferring_to_a_destination_behind_a_jump_host() {
     let target_endpoint = Endpoint {
         host: TARGET_HOST.to_owned(),
         port: TARGET_PORT,
+        keepalive: true,
     };
     let failure = connect_via(share(bastion), target_endpoint.clone(), known.clone())
         .await
@@ -468,6 +472,7 @@ async fn transferring_to_a_destination_behind_a_jump_host() {
         Endpoint {
             host: HOST.to_owned(),
             port: BASTION_PORT,
+            keepalive: true,
         },
         known.clone(),
     )

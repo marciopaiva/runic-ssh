@@ -72,7 +72,11 @@ async fn socks4<S: AsyncRead + AsyncWrite + Unpin>(stream: &mut S) -> Option<End
     };
 
     stream.write_all(&GRANTED).await.ok()?;
-    Some(Endpoint { host, port })
+    Some(Endpoint {
+        host,
+        port,
+        keepalive: true,
+    })
 }
 
 /// Reads bytes up to and excluding a `0x00` terminator. `None` past
@@ -156,7 +160,11 @@ async fn socks5<S: AsyncRead + AsyncWrite + Unpin>(stream: &mut S) -> Option<End
         .await
         .ok()?;
 
-    Some(Endpoint { host, port })
+    Some(Endpoint {
+        host,
+        port,
+        keepalive: true,
+    })
 }
 
 #[cfg(test)]

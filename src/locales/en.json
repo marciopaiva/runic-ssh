@@ -397,6 +397,8 @@
   "session.editor.groupHint": "Optional. Sessions are listed under it.",
   "session.editor.host": "Host",
   "session.editor.invalid": "This is not accepted",
+  "session.editor.keepalive": "Keep the connection alive",
+  "session.editor.keepalive.hint": "Pings the host every 30 seconds so a dropped connection is noticed and reconnected. It also stops an idle session from timing out on the server. Turn it off for a host you want left to time out.",
   "session.editor.multiplexer": "Terminal multiplexer",
   "session.editor.multiplexer.none": "None, a plain shell",
   "session.editor.multiplexer.hint": "Opens the shell inside tmux or screen on the host, so a dropped connection comes back to the same session. A host without it gets its normal shell.",

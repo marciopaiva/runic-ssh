@@ -90,6 +90,8 @@ export interface Session {
   readonly forwards: readonly Forward[];
   /** Absent means a plain shell. */
   readonly multiplexer?: Multiplexer | undefined;
+  /** Whether the connection pings the host every 30 s. Absent means on. */
+  readonly keepalive?: boolean | undefined;
 }
 
 /**
@@ -111,6 +113,7 @@ export interface SessionDraft {
   readonly kind: HostKind;
   readonly forwards: readonly Forward[];
   readonly multiplexer?: Multiplexer | null;
+  readonly keepalive?: boolean;
 }
 
 export async function listSessions(): Promise<readonly Session[]> {

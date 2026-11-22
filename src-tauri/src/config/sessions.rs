@@ -125,6 +125,19 @@ pub struct Session {
     /// ADR-0079.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub multiplexer: Option<Multiplexer>,
+    /// Whether the connection pings the host every 30 s (ADR-0079). On unless
+    /// turned off, and absent from the file while on, so every file written
+    /// before this field keeps its behaviour.
+    #[serde(default = "yes", skip_serializing_if = "is_yes")]
+    pub keepalive: bool,
+}
+
+fn yes() -> bool {
+    true
+}
+
+fn is_yes(value: &bool) -> bool {
+    *value
 }
 
 /// Which multiplexer a host's shell runs inside (ADR-0079).
@@ -178,6 +191,8 @@ pub struct SessionDraft {
     pub forwards: Vec<Forward>,
     #[serde(default)]
     pub multiplexer: Option<Multiplexer>,
+    #[serde(default = "yes")]
+    pub keepalive: bool,
 }
 
 /// Why a jump host reference cannot be used.
@@ -508,6 +523,7 @@ pub fn save_session(store: &SessionStore, draft: SessionDraft) -> Result<Session
                 kind: draft.kind,
                 forwards: draft.forwards,
                 multiplexer: draft.multiplexer,
+                keepalive: draft.keepalive,
             };
             sessions.items[index] = session.clone();
             session
@@ -525,6 +541,7 @@ pub fn save_session(store: &SessionStore, draft: SessionDraft) -> Result<Session
                 kind: draft.kind,
                 forwards: draft.forwards,
                 multiplexer: draft.multiplexer,
+                keepalive: draft.keepalive,
             };
             sessions.items.push(session.clone());
             session
@@ -568,6 +585,7 @@ mod tests {
             kind: HostKind::Direct,
             forwards: Vec::new(),
             multiplexer: None,
+            keepalive: true,
         }
     }
 
@@ -1149,6 +1167,7 @@ mod tests {
             kind: HostKind::Direct,
             forwards: Vec::new(),
             multiplexer: None,
+            keepalive: true,
         }
     }
 
@@ -1377,5 +1396,23 @@ mod tests {
         assert!(text.contains(r#""multiplexer":"tmux""#));
         let back: Session = serde_json::from_str(&text).expect("reads back");
         assert_eq!(back.multiplexer, Some(Multiplexer::Tmux));
+    }
+
+    #[test]
+    fn keepalive_is_on_for_a_file_that_never_mentioned_it_and_off_only_when_saved_off() {
+        let old = r#"[{"id":"a","name":"web","host":"h","port":22,"user":"u","kind":"direct","forwards":[]}]"#;
+        let sessions: Sessions = serde_json::from_str(old).expect("an old file still loads");
+        assert!(sessions.items[0].keepalive);
+
+        let mut stored = session("a");
+        assert!(!serde_json::to_string(&stored)
+            .expect("serialises")
+            .contains("keepalive"));
+
+        stored.keepalive = false;
+        let text = serde_json::to_string(&stored).expect("serialises");
+        assert!(text.contains(r#""keepalive":false"#));
+        let back: Session = serde_json::from_str(&text).expect("reads back");
+        assert!(!back.keepalive);
     }
 }

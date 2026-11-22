@@ -307,6 +307,7 @@ fn endpoint(port: u16) -> Endpoint {
     Endpoint {
         host: "127.0.0.1".to_owned(),
         port,
+        keepalive: true,
     }
 }
 
@@ -1227,6 +1228,7 @@ async fn a_local_forward_pumps_bytes_to_a_real_target() {
         Endpoint {
             host: "127.0.0.1".to_owned(),
             port: target_port,
+            keepalive: true,
         },
     )
     .await
@@ -1301,6 +1303,7 @@ async fn stopping_a_forward_closes_a_connection_already_riding_it() {
         Endpoint {
             host: "127.0.0.1".to_owned(),
             port: target_port,
+            keepalive: true,
         },
     )
     .await
@@ -1571,6 +1574,7 @@ async fn a_remote_forward_pumps_bytes_from_the_server_to_a_local_target() {
             Endpoint {
                 host: "127.0.0.1".to_owned(),
                 port: target_port,
+                keepalive: true,
             },
         )
         .await
@@ -1604,6 +1608,7 @@ async fn a_server_that_refuses_forwarding_is_a_real_named_failure() {
             Endpoint {
                 host: "127.0.0.1".to_owned(),
                 port: 0,
+                keepalive: true,
             },
         )
         .await
@@ -1629,6 +1634,7 @@ async fn stopping_a_remote_forward_closes_a_connection_already_riding_it() {
             Endpoint {
                 host: "127.0.0.1".to_owned(),
                 port: target_port,
+                keepalive: true,
             },
         )
         .await

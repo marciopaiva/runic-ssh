@@ -397,6 +397,8 @@
   "session.editor.groupHint": "Opcional. Las sesiones se listan bajo él.",
   "session.editor.host": "Host",
   "session.editor.invalid": "Esto no se acepta",
+  "session.editor.keepalive": "Mantener la conexión viva",
+  "session.editor.keepalive.hint": "Envía un ping al host cada 30 segundos para que una conexión caída se note y se reconecte. También evita que una sesión inactiva expire en el servidor. Desactívalo en un host que quieras dejar expirar.",
   "session.editor.multiplexer": "Multiplexor de terminal",
   "session.editor.multiplexer.none": "Ninguno, una shell normal",
   "session.editor.multiplexer.hint": "Abre la shell dentro de tmux o screen en el host, para que una conexión caída vuelva a la misma sesión. Un host sin él recibe su shell normal.",
