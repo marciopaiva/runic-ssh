@@ -679,3 +679,74 @@ async fn the_sysinfo_command_parses_against_a_real_linux_host() {
         "no hostname reading from a real host: {info:?}"
     );
 }
+
+#[tokio::test]
+#[ignore = "needs the test container; see the module comment"]
+async fn a_fleet_script_runs_on_real_sshd_with_its_variables_streams_and_limits() {
+    /* ADR-0078. `ssh_connection.rs` proves the bounded runner against a fake
+    server that ignores the command. This is the one test that proves the
+    command `fleet::build_command` produces is what a real login shell
+    understands: the heredoc, the three exported variables, stderr kept apart,
+    the exit status, and both limits. */
+    use runic_ssh::ssh::fleet::{build_command, HostVariables};
+    use std::time::Duration;
+
+    let known = trusting(offered_key().await);
+    let mut connection = connect(endpoint(), known).await.expect("connects");
+    connection
+        .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
+        .await
+        .expect("authenticates");
+
+    let vars = HostVariables {
+        host: HOST,
+        port: PORT,
+        user: USER,
+    };
+    let run = |script: &str, cap: usize, deadline: Duration| {
+        let command = build_command(script, &vars);
+        let connection = &connection;
+        async move { connection.run_bounded(&command, cap, deadline).await }
+    };
+
+    let answered = run(
+        "echo \"$host $port $username\"\necho oops >&2\nexit 3",
+        1024,
+        Duration::from_secs(10),
+    )
+    .await
+    .expect("the script runs");
+    assert_eq!(answered.stdout, b"127.0.0.1 2222 deploy\n");
+    assert_eq!(answered.stderr, b"oops\n");
+    assert_eq!(answered.exit_status, Some(3));
+    assert!(!answered.truncated && !answered.timed_out);
+
+    let quoted = run("printf '%s' \"it's $host\"", 1024, Duration::from_secs(10))
+        .await
+        .expect("the script runs");
+    assert_eq!(quoted.stdout, b"it's 127.0.0.1");
+
+    let flooded = run("yes | head -c 200000", 1000, Duration::from_secs(10))
+        .await
+        .expect("the run ends");
+    assert!(flooded.truncated);
+    assert_eq!(flooded.stdout.len(), 1000);
+
+    let started = std::time::Instant::now();
+    let hung = run("sleep 20", 1024, Duration::from_millis(800))
+        .await
+        .expect("the run ends");
+    assert!(hung.timed_out);
+    assert!(started.elapsed() < Duration::from_secs(5));
+
+    /* A cut-off channel must not leave the connection unusable or count
+    against MaxSessions for good: a normal command still runs after. */
+    for _ in 0..12 {
+        let _ = run("sleep 20", 1024, Duration::from_millis(100)).await;
+    }
+    let after = connection
+        .run_command("echo still-here")
+        .await
+        .expect("still usable");
+    assert_eq!(after.stdout, b"still-here\n");
+}

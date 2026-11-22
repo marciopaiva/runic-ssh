@@ -777,13 +777,19 @@ impl Connection {
         deadline: Duration,
     ) -> Result<BoundedOutput, ConnectionError> {
         let mut output = BoundedOutput::default();
+        /* Held out here, not inside the deadline's future: when the deadline
+        passes that future is dropped, and a channel dropped with it would be
+        left open on the server, counting against `MaxSessions` for as long as
+        the remote command lives. It has to still be ours to close. */
+        let mut opened: Option<Channel<client::Msg>> = None;
 
         let finished = tokio::time::timeout(deadline, async {
-            let mut channel = self
-                .handle
-                .channel_open_session()
-                .await
-                .map_err(|_| ConnectionError::Transport)?;
+            let channel = opened.insert(
+                self.handle
+                    .channel_open_session()
+                    .await
+                    .map_err(|_| ConnectionError::Transport)?,
+            );
 
             channel
                 .exec(true, command)
@@ -813,12 +819,25 @@ impl Connection {
                 }
             }
 
-            /* Best effort: the server may already have closed it, and a
-            failure to say so changes nothing about what was read. */
-            let _ = channel.close().await;
             Ok::<(), ConnectionError>(())
         })
         .await;
+
+        /* Best effort, and itself bounded: the server may already have closed
+        it, and a dead connection must not turn the clean-up into the hang the
+        deadline exists to prevent. */
+        if let Some(channel) = opened {
+            /* A command cut off mid-run is asked to stop first. A server keeps
+            a session channel for as long as its command lives, so closing ours
+            alone would leave a hung script holding one of the connection's
+            `MaxSessions` slots until it ended by itself. */
+            if output.truncated || finished.is_err() {
+                let _ =
+                    tokio::time::timeout(Duration::from_secs(2), channel.signal(russh::Sig::TERM))
+                        .await;
+            }
+            let _ = tokio::time::timeout(Duration::from_secs(2), channel.close()).await;
+        }
 
         match finished {
             Ok(result) => result?,
