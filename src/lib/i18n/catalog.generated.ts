@@ -577,6 +577,8 @@ export const SOURCE_CATALOG = {
   "tabs.settings": "Settings",
   "tabs.settings.close": "Close settings",
   "tabs.settings.unsaved": "Settings — unsaved changes",
+  "terminal.connectionLost": "Connection lost.",
+  "terminal.reconnected": "Reconnected.",
   "terminal.ended": "Session ended, exit {status}",
   "terminal.endedUnknown": "Session ended",
   "terminal.group.focused": "FOCUSED",

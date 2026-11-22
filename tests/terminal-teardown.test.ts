@@ -296,4 +296,42 @@ describe('what unmounting a terminal releases', () => {
     expect(probe.terminal.oscDispose).toHaveBeenCalledOnce();
     expect(getTerminalCwd(7)).toBeNull();
   });
+
+  it('keeps the terminal and its history when a reconnect brings a new handle', async () => {
+    const container = document.createElement('div');
+    const rootEl = document.createElement('div');
+    document.body.appendChild(rootEl);
+    const root = createRoot(rootEl);
+    const stops: Array<ReturnType<typeof vi.fn>> = [];
+    ipc.watchTerminal.mockImplementation(async () => {
+      const stop = vi.fn();
+      stops.push(stop);
+      return stop;
+    });
+
+    await act(async () => {
+      root.render(createElement(Probe, { container, handle: 11 }));
+    });
+    await vi.waitFor(() => expect(ipc.openTerminal).toHaveBeenCalledTimes(1));
+    const terminal = xterm.instances.at(-1);
+    if (terminal === undefined) throw new Error('no terminal');
+
+    await act(async () => {
+      root.render(createElement(Probe, { container, handle: 12 }));
+    });
+    await vi.waitFor(() => expect(ipc.openTerminal).toHaveBeenCalledTimes(2));
+
+    expect(xterm.instances).toHaveLength(1);
+    expect(terminal.dispose).not.toHaveBeenCalled();
+    expect(stops[0]).toHaveBeenCalledOnce();
+    expect(ipc.openTerminal).toHaveBeenLastCalledWith(12, 80, 24, 'primary');
+    expect(terminal.write).toHaveBeenCalledWith(expect.stringContaining('terminal.reconnected'));
+
+    await act(async () => {
+      root.unmount();
+    });
+    rootEl.remove();
+    expect(stops[1]).toHaveBeenCalledOnce();
+    expect(terminal.dispose).toHaveBeenCalledOnce();
+  });
 });
