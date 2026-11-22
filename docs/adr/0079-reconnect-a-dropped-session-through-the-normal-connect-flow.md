@@ -81,7 +81,8 @@ Option A, with these fixed points:
    and the connection is gone. An additive field: existing readers ignore it.
 5. **Keepalive makes a silent drop visible.** The connection config sets a
    keepalive of 30 s with a limit of 3 missed replies, so a half-open
-   connection closes after about 90 s and the event above fires.
+   connection closes after about two minutes (120 s measured against a
+   paused sshd) and the event above fires.
 6. **Backoff is 1 s, 2 s, 4 s, then 8 s, 16 s, capped at 30 s, for 8
    attempts.** After the last the banner stays with a manual button. Every
    timer has a cancel path that runs when the tab closes, the person
