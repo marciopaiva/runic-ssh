@@ -37,7 +37,7 @@ export {
   shouldPromptAfterSaved,
   wasCancelled,
 } from './connect';
-export type { ConnectStage, FailureCode, HeldDecision, HostKeyVerdict } from './connect';
+export type { ConnectStage, ConnectStep, FailureCode, HeldDecision, HostKeyVerdict } from './connect';
 export { useConnect } from './use-connect';
 export type { Attempt } from './use-connect';
 export {
