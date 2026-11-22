@@ -88,6 +88,28 @@ pub enum Credential {
 /// would close the terminal they walked away from.
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
 
+/// How often an open connection asks the host whether it is still there, and
+/// how many unanswered asks it takes to give up (ADR-0079).
+///
+/// Without this a cut network leaves a half-open connection that never closes
+/// its channels, so nothing could tell a drop from a quiet shell. Thirty
+/// seconds times three closes one in about ninety. The cost is real traffic:
+/// it keeps alive a session a server would have timed out when idle.
+const KEEPALIVE_INTERVAL: Duration = Duration::from_secs(30);
+const KEEPALIVE_MAX_MISSED: usize = 3;
+
+/// How long the probe after a shell closes may take before the connection is
+/// taken to be gone.
+const LOST_PROBE: Duration = Duration::from_secs(2);
+
+fn client_config() -> client::Config {
+    client::Config {
+        keepalive_interval: Some(KEEPALIVE_INTERVAL),
+        keepalive_max: KEEPALIVE_MAX_MISSED,
+        ..client::Config::default()
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum ConnectionError {
     #[error("the host could not be reached")]
@@ -456,7 +478,7 @@ pub async fn connect_reporting_within(
     known: KnownHosts,
     timeout: Duration,
 ) -> Result<Connection, (ConnectionError, Option<OfferedKey>)> {
-    let config = Arc::new(client::Config::default());
+    let config = Arc::new(client_config());
     let address = (endpoint.host.clone(), endpoint.port);
     let offered = Arc::new(std::sync::Mutex::new(None));
     let remote_forwards: RemoteForwards = Arc::new(AsyncMutex::new(HashMap::new()));
@@ -569,7 +591,7 @@ pub async fn connect_via_within(
         }
     };
 
-    let config = Arc::new(client::Config::default());
+    let config = Arc::new(client_config());
     let offered = Arc::new(std::sync::Mutex::new(None));
     let remote_forwards: RemoteForwards = Arc::new(AsyncMutex::new(HashMap::new()));
 
@@ -1006,6 +1028,21 @@ impl Connection {
     pub fn is_chained(&self) -> bool {
         self.via.is_some()
     }
+}
+
+/// Whether a connection is gone: taken, or silent past [`LOST_PROBE`].
+///
+/// Asked when a shell closes without an exit status, which a typed `exit` and
+/// a dead network both do. A live connection answers the ping at once.
+pub async fn is_lost(shared: &Shared) -> bool {
+    let held = shared.lock().await;
+    let Some(connection) = held.as_ref() else {
+        return true;
+    };
+    !matches!(
+        tokio::time::timeout(LOST_PROBE, connection.round_trip()).await,
+        Ok(Ok(_))
+    )
 }
 
 /// Lets go of a share, closing the connection if it was the last.

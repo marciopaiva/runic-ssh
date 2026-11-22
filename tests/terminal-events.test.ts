@@ -42,8 +42,13 @@ function emitOutput(handle: number, text: string, slot: ShellSlot = 'primary'): 
   listeners.get(OUTPUT_EVENT)?.({ payload: { handle, slot, data: btoa(text) } });
 }
 
-function emitClosed(handle: number, exitStatus: number | null, slot: ShellSlot = 'primary'): void {
-  listeners.get(CLOSED_EVENT)?.({ payload: { handle, slot, exitStatus } });
+function emitClosed(
+  handle: number,
+  exitStatus: number | null,
+  slot: ShellSlot = 'primary',
+  connectionLost = false,
+): void {
+  listeners.get(CLOSED_EVENT)?.({ payload: { handle, slot, exitStatus, connectionLost } });
 }
 
 function decoded(bytes: Uint8Array): string {
@@ -82,7 +87,7 @@ describe('the closed event nobody was listening for yet', () => {
     await watchTerminal(handle, () => {}, onClose);
 
     expect(onClose).toHaveBeenCalledOnce();
-    expect(onClose).toHaveBeenCalledWith(0);
+    expect(onClose).toHaveBeenCalledWith(0, false);
   });
 
   it('carries the real exit status through the buffer', async () => {
@@ -95,7 +100,7 @@ describe('the closed event nobody was listening for yet', () => {
     await watchTerminal(handle, () => {}, onClose);
 
     expect(onClose).toHaveBeenCalledOnce();
-    expect(onClose).toHaveBeenCalledWith(127);
+    expect(onClose).toHaveBeenCalledWith(127, false);
   });
 
   it('does not replay a buffered close for a different handle', async () => {
@@ -120,7 +125,7 @@ describe('the ordinary order, watcher before event', () => {
     emitClosed(handle, 1);
 
     expect(onClose).toHaveBeenCalledOnce();
-    expect(onClose).toHaveBeenCalledWith(1);
+    expect(onClose).toHaveBeenCalledWith(1, false);
   });
 
   it('routes output only to the handle it belongs to', async () => {
@@ -161,5 +166,21 @@ describe('unwatching', () => {
 
     expect(onBatch).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
+describe('a lost connection (ADR-0079)', () => {
+  it('reaches the watcher as a drop, live or from the buffer', async () => {
+    const live = freshHandle();
+    const onLive = vi.fn();
+    await watchTerminal(live, () => {}, onLive);
+    emitClosed(live, null, 'primary', true);
+    expect(onLive).toHaveBeenCalledWith(null, true);
+
+    const early = freshHandle();
+    emitClosed(early, null, 'primary', true);
+    const onEarly = vi.fn();
+    await watchTerminal(early, () => {}, onEarly);
+    expect(onEarly).toHaveBeenCalledWith(null, true);
   });
 });

@@ -3,11 +3,14 @@
 //! The webview holds a handle and sends keystrokes; output comes back as
 //! events keyed by that handle. Nothing else crosses.
 
+use std::sync::Arc;
+
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Runtime, State};
 use tokio::sync::mpsc;
 
 use crate::error::{Error, IpcError};
+use crate::ssh::connection::{is_lost, Shared};
 use crate::ssh::registry::{Registry, SessionHandle, ShellSlot};
 use crate::ssh::stats::Transfer;
 use crate::ssh::terminal::{pump, Input, OutputBatch, Sink};
@@ -48,6 +51,9 @@ struct ClosedEvent {
     handle: SessionHandle,
     slot: ShellSlot,
     exit_status: Option<u32>,
+    /// The shell closed with no exit status and the connection no longer
+    /// answers: a drop, not a typed `exit` (ADR-0079).
+    connection_lost: bool,
 }
 
 /// Sends batches to the webview, keyed by handle and slot.
@@ -55,6 +61,8 @@ struct WebviewSink<R: Runtime> {
     app: AppHandle<R>,
     handle: SessionHandle,
     slot: ShellSlot,
+    /// To ask whether the connection is still there once the shell closes.
+    shared: Shared,
 }
 
 impl<R: Runtime> Sink for WebviewSink<R> {
@@ -72,14 +80,27 @@ impl<R: Runtime> Sink for WebviewSink<R> {
     }
 
     fn closed(&mut self, exit_status: Option<u32>) {
-        let _ = self.app.emit(
-            CLOSED_EVENT,
-            ClosedEvent {
-                handle: self.handle,
-                slot: self.slot,
-                exit_status,
-            },
-        );
+        let app = self.app.clone();
+        let handle = self.handle;
+        let slot = self.slot;
+        let shared = Arc::clone(&self.shared);
+
+        /* A shell that reported an exit status ended on purpose. One that did
+        not is either a typed `exit` or a connection that went away, and only
+        asking the connection tells them apart. The probe is bounded, and runs
+        off the pump so a silent host cannot hold the close back. */
+        tauri::async_runtime::spawn(async move {
+            let connection_lost = exit_status.is_none() && is_lost(&shared).await;
+            let _ = app.emit(
+                CLOSED_EVENT,
+                ClosedEvent {
+                    handle,
+                    slot,
+                    exit_status,
+                    connection_lost,
+                },
+            );
+        });
     }
 }
 
@@ -111,7 +132,12 @@ async fn start_shell<R: Runtime>(
         .await
         .ok_or(Error::UnknownHandle)?;
 
-    let sink = WebviewSink { app, handle, slot };
+    let sink = WebviewSink {
+        app,
+        handle,
+        slot,
+        shared,
+    };
     tauri::async_runtime::spawn(async move {
         pump(channel, sink, receiver, counters).await;
     });
