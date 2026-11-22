@@ -30,6 +30,24 @@ podman run -d --name runic-test-sshd -p 2222:2222 runic-test-sshd
 cargo test --test against_openssh -- --ignored --nocapture
 ```
 
+### Tests that need more than the one container
+
+Most of `against_openssh.rs` needs only the container above. These need a
+little more, and say so in their `#[ignore]` reason:
+
+| Test | What it needs |
+| --- | --- |
+| the four bastion tests | the `runic-test-bastion` and `runic-test-target` pair under "A bastion and a host behind it" below |
+| `a_silent_drop_closes_the_shell_and_is_reported_as_lost` | four containers on 2222 to 2225. It runs `podman pause runic-test-sshd-2223` for about two minutes and unpauses it again, even on failure |
+| `with_the_keepalive_off_a_silent_drop_is_not_noticed` | the same container, paused for 150 seconds |
+| `a_second_connection_reattaches_to_the_same_tmux_session` | tmux in the container on 2225, which the image does not have: `podman exec runic-test-sshd-2225 apk add tmux`. A restart of that container loses it |
+| `a_host_without_tmux_falls_back_to_its_login_shell` | the container on 2222, which has no tmux (do not install it there) |
+| `measure_what_a_fleet_run_costs_on_real_sshd` | all four containers. It prints and asserts nothing; the numbers go in `docs/measurements/fleet-limits.md` |
+
+The pause tests share container 2223, so run them one at a time (`-- --ignored
+--test-threads=1` does it). A test killed half way can leave it paused:
+`podman unpause runic-test-sshd-2223`.
+
 ## Driving the application against it
 
 The same container is the only way to reach a live credential exchange by hand.
