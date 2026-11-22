@@ -94,8 +94,29 @@ export interface Attempt {
   readonly credential: PreCollectedCredential | null;
 }
 
+/** How one silent reconnect attempt ended (ADR-0079). */
+export type QuietOutcome =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly cancelled: true }
+  | {
+      readonly ok: false;
+      readonly cancelled: false;
+      readonly code: FailureCode;
+      /** A host key decision the core was left waiting on, dismissed here. */
+      readonly held: boolean;
+    };
+
 interface ConnectState {
   readonly attempts: ReadonlyMap<string, Attempt>;
+  /**
+   * One reconnect attempt for a session whose connection dropped, with no
+   * screens of its own: the terminal is still on screen and keeps its place.
+   * Same steps as a normal connect (host key first, then the credential
+   * resolved from the keychain again), so nothing about either is bypassed.
+   */
+  readonly reconnectQuietly: (sessionId: string) => Promise<QuietOutcome>;
+  /** Drops the answer of a quiet attempt still in flight, closing what it opened. */
+  readonly cancelQuiet: (sessionId: string) => void;
   readonly connect: (
     sessionId: string,
     intent?: ConnectIntent,
@@ -514,6 +535,62 @@ export function useConnect(wiring: Wiring): ConnectState {
     [attemptConnect],
   );
 
+  const reconnectQuietly = useCallback(
+    async (sessionId: string): Promise<QuietOutcome> => {
+      const mine = (generation.current.get(sessionId) ?? 0) + 1;
+      generation.current.set(sessionId, mine);
+      onConnecting(sessionId);
+
+      let opened: OpenSession;
+      try {
+        opened = await connectSession(sessionId);
+      } catch (rejection) {
+        if (!current(sessionId, mine)) return { ok: false, cancelled: true };
+        const error = asIpcError(rejection) ?? null;
+        const held = error === null ? null : heldDecision(error);
+        if (held !== null) {
+          /* Nobody is looking at this decision. It is dismissed, and the
+             banner's button starts the ordinary flow, which asks again with a
+             screen to answer on. */
+          void dismissHostKey(held.pending).catch(() => undefined);
+          return { ok: false, cancelled: false, code: 'hostKeyRejected', held: true };
+        }
+        return { ok: false, cancelled: false, code: reportedFailure(error).code, held: false };
+      }
+
+      if (!current(sessionId, mine)) {
+        void disconnectSession(opened.handle);
+        return { ok: false, cancelled: true };
+      }
+
+      try {
+        await authenticateWithSaved(opened.handle);
+      } catch (rejection) {
+        void disconnectSession(opened.handle);
+        if (!current(sessionId, mine)) return { ok: false, cancelled: true };
+        return {
+          ok: false,
+          cancelled: false,
+          code: reportedFailure(asIpcError(rejection) ?? null).code,
+          held: false,
+        };
+      }
+
+      if (!current(sessionId, mine)) {
+        void disconnectSession(opened.handle);
+        return { ok: false, cancelled: true };
+      }
+
+      onOpened(sessionId, opened.handle, opened.via ?? null);
+      return { ok: true };
+    },
+    [current, onConnecting, onOpened],
+  );
+
+  const cancelQuiet = useCallback((sessionId: string): void => {
+    generation.current.set(sessionId, (generation.current.get(sessionId) ?? 0) + 1);
+  }, []);
+
   const trust = useCallback(
     async (sessionId: string, confirmation?: string): Promise<void> => {
       const attempt = attempts.get(sessionId);
@@ -585,5 +662,5 @@ export function useConnect(wiring: Wiring): ConnectState {
     [attempts, onAbandoned, clearAttempt],
   );
 
-  return { attempts, connect, trust, abandon };
+  return { attempts, connect, trust, abandon, reconnectQuietly, cancelQuiet };
 }
