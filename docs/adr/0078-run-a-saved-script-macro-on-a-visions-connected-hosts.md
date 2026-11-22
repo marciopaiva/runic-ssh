@@ -135,6 +135,8 @@ are already connected, and fixed output and time limits. The existing
   error, which cannot be told apart from other channel failures.
 * The 64 KiB and 30 second limits are guesses until measured against real use,
   and a script that legitimately runs longer is reported as timed out.
+  First measured against the OpenSSH fixtures on 2026-11-22 and kept, see
+  `docs/measurements/fleet-limits.md`. That measurement is loopback only.
 
 **Follow-up**:
 
