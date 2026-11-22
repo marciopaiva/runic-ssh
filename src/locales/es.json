@@ -571,6 +571,8 @@
   "tabs.settings": "Configuración",
   "tabs.settings.close": "Cerrar la configuración",
   "tabs.settings.unsaved": "Configuración — cambios sin guardar",
+  "terminal.connectionLost": "Conexión perdida.",
+  "terminal.reconnected": "Reconectado.",
   "terminal.ended": "Sesión terminada, salida {status}",
   "terminal.endedUnknown": "Sesión terminada",
   "terminal.group.focused": "ENFOCADO",

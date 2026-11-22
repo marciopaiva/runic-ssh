@@ -53,6 +53,7 @@ export function useLocalShellTerminal(
   const [state, setState] = useState<Omit<TerminalState, 'focus' | 'clipboard'>>({
     closed: false,
     exitStatus: null,
+    connectionLost: false,
     size: null,
   });
 

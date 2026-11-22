@@ -55,6 +55,9 @@ export interface TerminalState {
   /** The remote shell's exit status, once it has one. `null` both before the
       shell closes and after, if it closed without ever reporting one. */
   readonly exitStatus: number | null;
+  /** The shell closed because the connection went away, not because it
+      ended (ADR-0079). Cleared when a new handle opens a shell here. */
+  readonly connectionLost: boolean;
   /**
    * What the pty was last told, or `null` before a terminal is mounted.
    *
@@ -97,6 +100,7 @@ export function useTerminal(
   const [state, setState] = useState<Omit<TerminalState, 'focus' | 'clipboard'>>({
     closed: false,
     exitStatus: null,
+    connectionLost: false,
     size: null,
   });
 
@@ -150,8 +154,19 @@ export function useTerminal(
   const broadcastingRef = useRef(broadcasting);
   broadcastingRef.current = broadcasting;
 
+  /* The xterm outlives the handle (ADR-0079). It is built for a container and
+     lives until that container goes, so a reconnect, which brings a new handle,
+     keeps the scrollback. `bound` rather than `handle` is the dependency: a
+     different number must not rebuild it, only the absence of one. */
+  const bound = handle !== null;
+  const handleRef = useRef(handle);
+  handleRef.current = handle;
+  const slotRef = useRef(slot);
+  slotRef.current = slot;
+  const [terminal, setTerminal] = useState<Terminal | null>(null);
+
   useEffect(() => {
-    if (container === null || handle === null) return;
+    if (container === null || !bound) return;
 
     let disposed = false;
     const teardown: Array<() => void> = [];
@@ -161,7 +176,7 @@ export function useTerminal(
       const { FitAddon } = await import('@xterm/addon-fit');
       if (disposed) return;
 
-      const terminal = new Terminal({
+      const built = new Terminal({
         theme: terminalTheme(),
         fontFamily: "'JetBrains Mono', 'Cascadia Mono', ui-monospace, monospace",
         fontSize: 13,
@@ -178,44 +193,30 @@ export function useTerminal(
       });
 
       const fit = new FitAddon();
-      terminal.loadAddon(fit);
-      terminal.open(container);
+      built.loadAddon(fit);
+      built.open(container);
 
       if (disposed) {
-        terminal.dispose();
+        built.dispose();
         return;
       }
 
       fit.fit();
       setState((current) => ({
         ...current,
-        size: { columns: terminal.cols, rows: terminal.rows },
+        size: { columns: built.cols, rows: built.rows },
       }));
 
-      writeRef.current = (bytes) => terminal.write(bytes);
-      terminalRef.current = terminal;
+      writeRef.current = (bytes) => built.write(bytes);
+      terminalRef.current = built;
 
-      /* The folder the shell says it is in (OSC 7), for the SFTP pane's "the
-         terminal's folder". Registered before output starts, so the first
-         prompt is not missed. Only the primary shell reports: with a second
-         shell on the connection (ADR-0077) there would be two answers to one
-         question, and the first shell is the one the pane is paired with. */
-      const cwdHandler =
-        slot === 'primary'
-          ? terminal.parser.registerOscHandler(7, (data) => {
-              const cwd = parseOsc7(data);
-              if (cwd !== null) reportTerminalCwd(handle, cwd);
-              return true;
-            })
-          : null;
-
-      /* ADR-0051: written before `watchTerminal` starts below, which is what
-         a real remote MOTD would arrive through, so this can never race one.
-         Read once, at connect: a MOTD already on screen keeps whatever
-         language it was printed in, the same way a real server's own banner
-         would not retroactively translate itself after the fact. */
+      /* ADR-0051: written before the shell opens, which is what a real remote
+         MOTD would arrive through, so this can never race one. Read once, at
+         connect: a MOTD already on screen keeps whatever language it was
+         printed in, the same way a real server's own banner would not
+         retroactively translate itself after the fact. */
       if (session !== null) {
-        terminal.write(motdBanner(session, sessions, terminal.cols, i18n));
+        built.write(motdBanner(session, sessions, built.cols, i18n));
       }
 
       /* The palette follows the theme while the session is open. Reading it
@@ -224,7 +225,7 @@ export function useTerminal(
          a theme change, which is precisely what the token system exists to
          avoid. */
       const repaint = (): void => {
-        terminal.options.theme = terminalTheme();
+        built.options.theme = terminalTheme();
       };
 
       const systemTheme = window.matchMedia('(prefers-color-scheme: dark)');
@@ -238,38 +239,21 @@ export function useTerminal(
         attributeFilter: ['data-theme'],
       });
 
-      /* Registered before the shell opens: a shell that closes right after
-         opening must not be able to race this subscription. The SFTP
-         transfer events had the same race; see `watchTerminal`'s own doc
-         comment for the mechanism. */
-      const stopWatching = await watchTerminal(
-        handle,
-        (bytes) => {
-          writeRef.current?.(bytes);
-        },
-        (exitStatus) => {
-          setState((current) => ({ ...current, closed: true, exitStatus }));
-        },
-        slot,
-      );
-
-      await openTerminal(handle, terminal.cols, terminal.rows, slot);
-
       /* Ctrl-C is the keystroke this has to be careful with. Returning `false`
          makes xterm return from its key handler before it calls
          `preventDefault`, so the browser goes on to raise the ordinary `copy`
          or `paste` event and the handlers xterm already registers do the work.
          Nothing here reads the clipboard, which is why none of it needs a
          permission the webview would then hold permanently. */
-      terminal.attachCustomKeyEventHandler((event) => {
-        const intent = keyIntent(event, terminal.hasSelection(), modifierRef.current);
+      built.attachCustomKeyEventHandler((event) => {
+        const intent = keyIntent(event, built.hasSelection(), modifierRef.current);
         return intent === 'send';
       });
 
       /* Drop the selection once it has been copied, so the next Ctrl-C is an
          interrupt again. Registered on the container, which sees the event
          bubble up after xterm's own handler has filled the clipboard. */
-      const copied = (): void => terminal.clearSelection();
+      const copied = (): void => built.clearSelection();
       container.addEventListener('copy', copied);
 
       /* Ask before a multi-line paste the remote shell has not bracketed, since
@@ -281,7 +265,7 @@ export function useTerminal(
         if (
           !pasteNeedsConfirming(
             text,
-            terminal.modes.bracketedPasteMode,
+            built.modes.bracketedPasteMode,
             broadcastingRef.current,
           )
         ) {
@@ -295,30 +279,34 @@ export function useTerminal(
       container.addEventListener('paste', pasting, true);
 
       const encoder = new TextEncoder();
-      const typed = terminal.onData((data) => {
+      const typed = built.onData((data) => {
         /* Typing anything ends the selection, so a selection left on screen
            costs at most one Ctrl-C. Done here rather than in the key handler
            because that one also sees the `keydown` for Ctrl itself, and
            clearing there would erase the selection a moment before the C
            arrived to copy it. */
-        terminal.clearSelection();
+        built.clearSelection();
         inputRef.current(encoder.encode(data));
       });
       /* Paste and anything else that arrives as bytes rather than text. */
-      const binary = terminal.onBinary((data) => {
+      const binary = built.onBinary((data) => {
         const bytes = new Uint8Array(data.length);
         for (let i = 0; i < data.length; i += 1) bytes[i] = data.charCodeAt(i) & 0xff;
         inputRef.current(bytes);
       });
 
       /* The remote pty has to be told, or every program that draws by column
-         count keeps drawing at the old width. */
+         count keeps drawing at the old width. Read through a ref: the handle
+         this answers for is whichever one is current. */
       const observer = new ResizeObserver(() => {
         fit.fit();
-        void resizeTerminal(handle, terminal.cols, terminal.rows, slot);
-        setState((current) => ({
-          ...current,
-          size: { columns: terminal.cols, rows: terminal.rows },
+        const current = handleRef.current;
+        if (current !== null) {
+          void resizeTerminal(current, built.cols, built.rows, slotRef.current);
+        }
+        setState((now) => ({
+          ...now,
+          size: { columns: built.cols, rows: built.rows },
         }));
       });
       observer.observe(container);
@@ -331,13 +319,10 @@ export function useTerminal(
         () => observer.disconnect(),
         () => typed.dispose(),
         () => binary.dispose(),
-        stopWatching,
-        () => {
-          cwdHandler?.dispose();
-          if (slot === 'primary') forgetTerminalCwd(handle);
-        },
-        () => terminal.dispose(),
+        () => built.dispose(),
       );
+
+      setTerminal(built);
     };
 
     void start();
@@ -346,9 +331,76 @@ export function useTerminal(
       disposed = true;
       writeRef.current = null;
       terminalRef.current = null;
+      setTerminal(null);
       for (const stop of teardown.reverse()) stop();
     };
-  }, [container, handle, slot]);
+  }, [container, bound]);
+
+  /* The shell, bound to whichever handle is current (ADR-0079). A new handle
+     closes the old watch and opens a shell on the new connection into the
+     terminal that is already on screen. */
+  const previousHandle = useRef<SessionHandle | null>(null);
+  useEffect(() => {
+    if (terminal === null || handle === null) return;
+
+    let disposed = false;
+    const stops: Array<() => void> = [];
+
+    /* The folder the shell says it is in (OSC 7), for the SFTP pane's "the
+       terminal's folder". Registered before output starts, so the first
+       prompt is not missed. Only the primary shell reports: with a second
+       shell on the connection (ADR-0077) there would be two answers to one
+       question, and the first shell is the one the pane is paired with. */
+    if (slot === 'primary') {
+      const cwdHandler = terminal.parser.registerOscHandler(7, (data) => {
+        const cwd = parseOsc7(data);
+        if (cwd !== null) reportTerminalCwd(handle, cwd);
+        return true;
+      });
+      stops.push(() => {
+        cwdHandler.dispose();
+        forgetTerminalCwd(handle);
+      });
+    }
+
+    const bind = async (): Promise<void> => {
+      /* Registered before the shell opens: a shell that closes right after
+         opening must not be able to race this subscription. The SFTP
+         transfer events had the same race; see `watchTerminal`'s own doc
+         comment for the mechanism. */
+      const stopWatching = await watchTerminal(
+        handle,
+        (bytes) => {
+          writeRef.current?.(bytes);
+        },
+        (exitStatus, connectionLost) => {
+          setState((current) => ({ ...current, closed: true, exitStatus, connectionLost }));
+          if (connectionLost) terminal.write(`\r\n\x1b[2m${i18n.t('terminal.connectionLost')}\x1b[0m\r\n`);
+        },
+        slot,
+      );
+      if (disposed) {
+        stopWatching();
+        return;
+      }
+      stops.push(stopWatching);
+
+      if (previousHandle.current !== null && previousHandle.current !== handle) {
+        setState((current) => ({ ...current, closed: false, exitStatus: null, connectionLost: false }));
+        terminal.write(`\r\n\x1b[2m${i18n.t('terminal.reconnected')}\x1b[0m\r\n`);
+      }
+      previousHandle.current = handle;
+
+      await openTerminal(handle, terminal.cols, terminal.rows, slot);
+    };
+
+    void bind();
+
+    return () => {
+      disposed = true;
+      for (const stop of stops.reverse()) stop();
+    };
+  }, [terminal, handle, slot]);
 
   return { ...state, focus, clipboard };
 }
