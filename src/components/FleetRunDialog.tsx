@@ -6,6 +6,7 @@ import { useTranslator } from '../features/settings';
 import { asIpcError, fleetRun } from '../ipc';
 import type { FleetResult, Macro } from '../ipc';
 import type { SessionHandle } from '../ipc/sessions';
+import type { VisionPreset } from '../features/fleet/visions';
 
 import { Button } from './ui/Button';
 import { Dialog } from './ui/Dialog';
@@ -21,6 +22,8 @@ interface FleetRunDialogProps {
   /** The script macro to run, or `null` while the dialog is closed. */
   readonly macro: Macro | null;
   readonly targets: readonly FleetTarget[];
+  /** Visions that can pre-pick the hosts. Empty when there are none. */
+  readonly visions?: readonly VisionPreset[];
   readonly onClose: () => void;
 }
 
@@ -39,18 +42,29 @@ type Phase =
  * Output is host-supplied, so it is drawn as text with control characters
  * made visible, never as markup.
  */
-export function FleetRunDialog({ macro, targets, onClose }: FleetRunDialogProps): JSX.Element {
+export function FleetRunDialog({ macro, targets, visions = [], onClose }: FleetRunDialogProps): JSX.Element {
   return (
     <Dialog open={macro !== null} onClose={onClose} size="full" title={macro === null ? '' : undefined}>
-      {macro !== null && <FleetRunBody key={macro.id} macro={macro} targets={targets} onClose={onClose} />}
+      {macro !== null && <FleetRunBody key={macro.id} macro={macro} targets={targets} visions={visions} onClose={onClose} />}
     </Dialog>
   );
 }
 
-function FleetRunBody({ macro, targets, onClose }: { macro: Macro; targets: readonly FleetTarget[]; onClose: () => void }): JSX.Element {
+function FleetRunBody({
+  macro,
+  targets,
+  visions,
+  onClose,
+}: {
+  macro: Macro;
+  targets: readonly FleetTarget[];
+  visions: readonly VisionPreset[];
+  onClose: () => void;
+}): JSX.Element {
   const i18n = useTranslator();
   const [ticked, setTicked] = useState<ReadonlySet<SessionHandle>>(() => new Set(targets.map((t) => t.handle)));
   const [phase, setPhase] = useState<Phase>({ kind: 'confirm', error: null });
+  const [picked, setPicked] = useState<VisionPreset | null>(null);
   const nameOf = useMemo(() => new Map(targets.map((t) => [t.handle, t.name])), [targets]);
 
   const toggle = (handle: SessionHandle): void => {
@@ -60,6 +74,14 @@ function FleetRunBody({ macro, targets, onClose }: { macro: Macro; targets: read
       else next.add(handle);
       return next;
     });
+  };
+
+  /* A vision pre-picks its connected members. Only hosts this dialog lists
+     can be ticked, so a stale handle cannot be sent. */
+  const pickVision = (vision: VisionPreset): void => {
+    const reachable = new Set(targets.map((t) => t.handle));
+    setTicked(new Set(vision.handles.filter((handle) => reachable.has(handle))));
+    setPicked(vision);
   };
 
   const run = (): void => {
@@ -92,6 +114,33 @@ function FleetRunBody({ macro, targets, onClose }: { macro: Macro; targets: read
               {visibleText(macro.text)}
             </pre>
           </div>
+          {visions.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <span className="text-ink-faint text-[11px]">{i18n.t('fleet.visions')}</span>
+              <div className="flex flex-wrap gap-1.5">
+                {visions.map((vision) => (
+                  <Button
+                    key={vision.id}
+                    variant={picked?.id === vision.id ? 'secondary' : 'ghost'}
+                    size="sm"
+                    disabled={phase.kind === 'running'}
+                    onClick={() => pickVision(vision)}
+                  >
+                    {i18n.t('fleet.vision', {
+                      name: vision.name,
+                      connected: vision.handles.length,
+                      total: vision.handles.length + vision.skipped.length,
+                    })}
+                  </Button>
+                ))}
+              </div>
+              {picked !== null && picked.skipped.length > 0 && (
+                <p className="text-ink-faint text-[11.5px]">
+                  {i18n.t('fleet.skipped', { hosts: i18n.list(picked.skipped) })}
+                </p>
+              )}
+            </div>
+          )}
           <div className="flex min-h-0 flex-col gap-1">
             <span className="text-ink-faint text-[11px]">{i18n.t('fleet.hosts')}</span>
             {targets.length === 0 ? (

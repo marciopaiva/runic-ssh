@@ -6,6 +6,7 @@ import { MapToolbarControls } from './components/map/MapToolbarControls';
 import type { MapToolbarContent } from './components/map/MapStage';
 import { BroadcastButton } from './components/BroadcastButton';
 import { CommandPalette } from './components/CommandPalette';
+import { visionPresets } from './features/fleet/visions';
 import { ConnectingSurface } from './components/ConnectingSurface';
 import { EmptyPanel } from './components/EmptyPanel';
 import { HostEditorDialog } from './components/HostEditorDialog';
@@ -1026,6 +1027,8 @@ export function App(): JSX.Element {
       ),
     [sessions],
   );
+
+  const fleetVisions = useMemo(() => visionPresets(mapWorkspace, sessions), [mapWorkspace, sessions]);
 
   const runMacro = useCallback(
     (macro: Macro): void => {
@@ -3490,7 +3493,12 @@ export function App(): JSX.Element {
         />
       )}
 
-      <FleetRunDialog macro={fleetMacro} targets={fleetTargets} onClose={() => setFleetMacro(null)} />
+      <FleetRunDialog
+        macro={fleetMacro}
+        targets={fleetTargets}
+        visions={fleetVisions}
+        onClose={() => setFleetMacro(null)}
+      />
 
       <CommandPalette
         open={palette.open}
