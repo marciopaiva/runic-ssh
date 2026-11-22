@@ -355,3 +355,17 @@ export function BroadcastGlyph(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+/** One line splitting into three: a run that reaches several hosts, not the one a keystroke would. */
+export function FanOutIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" {...props}>
+      <path
+        d="M2.5 8h4M6.5 8c2 0 2-4.5 4.5-4.5h2.5M6.5 8h7M6.5 8c2 0 2 4.5 4.5 4.5h2.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}

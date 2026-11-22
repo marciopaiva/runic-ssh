@@ -22,6 +22,7 @@ import { ConnectionFailure } from './components/ConnectionFailure';
 import { HostKeyPrompt } from './components/HostKeyPrompt';
 import { HostKeyRefused } from './components/HostKeyRefused';
 import { MacrosButton } from './components/MacrosButton';
+import { FleetRunDialog } from './components/FleetRunDialog';
 import { MacrosSidebar } from './components/MacrosSidebar';
 import { MapPreviewPrompt } from './components/MapPreviewPrompt';
 import { MapStage } from './components/map/MapStage';
@@ -1009,6 +1010,18 @@ export function App(): JSX.Element {
      the map each arm broadcast on their own state (`sync`/`groups` versus
      `mapReachRef`), so which one is asked follows the workspace the target
      came from, the same split `macroTargetId` itself already makes. */
+  /* ADR-0078: the script macro whose fleet run dialog is open. */
+  const [fleetMacro, setFleetMacro] = useState<Macro | null>(null);
+  const fleetTargets = useMemo(
+    () =>
+      sessions.flatMap((live) =>
+        live.handle === null
+          ? []
+          : [{ handle: live.handle, name: live.session.name, address: `${live.session.user}@${live.session.host}:${live.session.port}` }],
+      ),
+    [sessions],
+  );
+
   const runMacro = useCallback(
     (macro: Macro): void => {
       if (macroTargetId === null) return;
@@ -3044,6 +3057,7 @@ export function App(): JSX.Element {
           <MacrosSidebar
             macros={macros}
             onRun={runMacro}
+            onRunOnHosts={setFleetMacro}
             onSave={saveMacroDraft}
             onDelete={removeMacro}
             onClose={() => setMacrosOpen(false)}
@@ -3312,6 +3326,7 @@ export function App(): JSX.Element {
           <MacrosSidebar
             macros={macros}
             onRun={runMacro}
+            onRunOnHosts={setFleetMacro}
             onSave={saveMacroDraft}
             onDelete={removeMacro}
             onClose={() => setMacrosOpen(false)}
@@ -3364,6 +3379,7 @@ export function App(): JSX.Element {
           <MacrosSidebar
             macros={macros}
             onRun={runMacro}
+            onRunOnHosts={setFleetMacro}
             onSave={saveMacroDraft}
             onDelete={removeMacro}
             onClose={() => setMacrosOpen(false)}
@@ -3430,6 +3446,8 @@ export function App(): JSX.Element {
           onDismiss={() => setGroupMenu(null)}
         />
       )}
+
+      <FleetRunDialog macro={fleetMacro} targets={fleetTargets} onClose={() => setFleetMacro(null)} />
 
       <CommandPalette
         open={palette.open}

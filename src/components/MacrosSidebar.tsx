@@ -5,12 +5,14 @@ import { useTranslator } from '../features/settings';
 import type { Macro, MacroDraft } from '../ipc';
 
 import { MacroEditorDialog } from './MacroEditorDialog';
-import { EditIcon, PlusIcon, SearchIcon, TrashIcon, XIcon } from './ui/icons';
+import { EditIcon, FanOutIcon, PlusIcon, SearchIcon, TrashIcon, XIcon } from './ui/icons';
 
 interface MacrosSidebarProps {
   readonly macros: readonly Macro[];
   /** Sends a macro to whatever a keystroke would currently reach. */
   readonly onRun: (macro: Macro) => void;
+  /** Opens the fleet run dialog for a script macro (ADR-0078). */
+  readonly onRunOnHosts: (macro: Macro) => void;
   readonly onSave: (draft: MacroDraft) => Promise<Macro>;
   readonly onDelete: (id: string) => Promise<void>;
   readonly onClose: () => void;
@@ -33,6 +35,7 @@ type Mode = { readonly kind: 'list' } | { readonly kind: 'form'; readonly editin
 export function MacrosSidebar({
   macros,
   onRun,
+  onRunOnHosts,
   onSave,
   onDelete,
   onClose,
@@ -157,6 +160,17 @@ export function MacrosSidebar({
               >
                 {macro.name}
               </button>
+              {macro.kind === 'script' && (
+                <button
+                  type="button"
+                  onClick={() => onRunOnHosts(macro)}
+                  aria-label={i18n.t('macros.sidebar.runOnHosts', { name: macro.name })}
+                  title={i18n.t('macros.sidebar.runOnHosts', { name: macro.name })}
+                  className="text-ink-faint hover:text-ink shrink-0 rounded p-1.5"
+                >
+                  <FanOutIcon className="h-3 w-3" />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => openForm(macro.id)}
