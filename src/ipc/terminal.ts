@@ -36,6 +36,9 @@ interface ClosedEvent {
   readonly handle: SessionHandle;
   readonly slot: ShellSlot;
   readonly exitStatus: number | null;
+  /** The shell closed with no exit status and the connection no longer
+      answers: a drop, not a typed `exit` (ADR-0079). */
+  readonly connectionLost: boolean;
 }
 
 /** Keys the per-slot maps below, since a shell is addressed by both. */
@@ -178,7 +181,7 @@ export async function resizeTerminal(
 }
 
 type OutputHandler = (bytes: Uint8Array) => void;
-type ClosedHandler = (exitStatus: number | null) => void;
+type ClosedHandler = (exitStatus: number | null, connectionLost: boolean) => void;
 
 const outputWatchers = new Map<string, OutputHandler>();
 const closedWatchers = new Map<string, ClosedHandler>();
@@ -193,7 +196,7 @@ const closedWatchers = new Map<string, ClosedHandler>();
  * finished registering. One entry per handle and slot is enough: a shell
  * closes exactly once.
  */
-const unclaimedClosed = new Map<string, number | null>();
+const unclaimedClosed = new Map<string, { exitStatus: number | null; connectionLost: boolean }>();
 
 /**
  * Subscribed once, unfiltered, the first time anything here needs it, kept
@@ -222,12 +225,14 @@ function ensureSubscribed(): Promise<void> {
     });
     await listen<ClosedEvent>(CLOSED_EVENT, (event) => {
       const { handle, slot, exitStatus } = event.payload;
+      /* Absent from a core that predates ADR-0079; no drop was reported then. */
+      const connectionLost = event.payload.connectionLost === true;
       const key = slotKey(handle, slot);
       const watcher = closedWatchers.get(key);
       if (watcher) {
-        watcher(exitStatus);
+        watcher(exitStatus, connectionLost);
       } else {
-        unclaimedClosed.set(key, exitStatus);
+        unclaimedClosed.set(key, { exitStatus, connectionLost });
       }
     });
   })();
@@ -256,10 +261,10 @@ export async function watchTerminal(
 
   outputWatchers.set(key, onBatch);
 
-  if (unclaimedClosed.has(key)) {
-    const exitStatus = unclaimedClosed.get(key) ?? null;
+  const early = unclaimedClosed.get(key);
+  if (early !== undefined) {
     unclaimedClosed.delete(key);
-    onClose(exitStatus);
+    onClose(early.exitStatus, early.connectionLost);
   } else {
     closedWatchers.set(key, onClose);
   }

@@ -1719,3 +1719,17 @@ async fn a_bounded_run_gives_up_on_a_host_that_never_answers() {
     assert_eq!(output.exit_status, None);
     assert!(started.elapsed() < std::time::Duration::from_secs(3));
 }
+
+#[tokio::test]
+async fn a_live_connection_is_not_lost_and_a_taken_one_is() {
+    use runic_ssh::ssh::connection::{is_lost, share};
+
+    let shared = share(connected_for_bounded_runs().await);
+
+    assert!(!is_lost(&shared).await, "an answering host is not lost");
+
+    let taken = shared.lock().await.take();
+    drop(taken);
+
+    assert!(is_lost(&shared).await, "a connection nobody holds is lost");
+}
