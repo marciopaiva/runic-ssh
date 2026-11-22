@@ -72,6 +72,12 @@ export function hashOf(catalog: Readonly<Record<string, string>>, keys: readonly
  * there.
  */
 export const SECURITY_COPY_KEYS: readonly MessageKey[] = [
+  // What a dropped session's banner says when retrying stopped for a host key
+  // decision or a credential (ADR-0079). The pt-BR and es copy was written by
+  // a model and has not been reviewed.
+  'terminal.reconnect.stopped.credential',
+  'terminal.reconnect.stopped.hostKey',
+  'terminal.reconnect.stopped.rejected',
   // The bastion's own inline credential form (ADR-0033). Every string is
   // either asking for a secret or saying where it is about to go.
   'credential.cancel',

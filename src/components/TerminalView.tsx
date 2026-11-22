@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, JSX, MouseEvent as ReactMouseEvent } from 'react';
 
 import type { Session, SessionHandle, ShellSlot } from '../ipc';
@@ -6,7 +6,10 @@ import { useTerminal } from '../features/terminal/use-terminal';
 import type { ClipboardApi } from '../features/terminal/use-terminal';
 import type { TerminalSize } from '../features/terminal/use-terminal';
 import { useTranslator } from '../features/settings';
+import { MAX_ATTEMPTS } from '../features/sessions/reconnect';
+import type { ReconnectView } from '../features/sessions/reconnect';
 
+import { Button } from './ui/Button';
 import { Card } from './ui/Card';
 
 export interface TerminalViewProps {
@@ -56,6 +59,14 @@ export interface TerminalViewProps {
   /** The right button over the terminal. Absent, the webview draws its own
       menu, which is what Sessions still gets until v0.9.0. */
   readonly onContextMenu?: ((event: ReactMouseEvent) => void) | undefined;
+  /** Raised once when the connection under this terminal is lost (ADR-0079). */
+  readonly onConnectionLost?: (() => void) | undefined;
+  /** Where the retries of a lost connection are, when there are any. */
+  readonly reconnect?: ReconnectView | null | undefined;
+  /** The banner's button: reconnect now. */
+  readonly onReconnect?: (() => void) | undefined;
+  /** The banner's cancel, while the retries are running. */
+  readonly onCancelReconnect?: (() => void) | undefined;
 }
 
 /**
@@ -101,10 +112,14 @@ export function TerminalView({
   broadcasting,
   onClipboardHandle,
   onContextMenu,
+  onConnectionLost,
+  reconnect = null,
+  onReconnect,
+  onCancelReconnect,
 }: TerminalViewProps): JSX.Element {
   const i18n = useTranslator();
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
-  const { closed, exitStatus, size, focus, clipboard } = useTerminal(
+  const { closed, exitStatus, connectionLost, size, focus, clipboard } = useTerminal(
     container,
     handle,
     modifier,
@@ -123,6 +138,14 @@ export function TerminalView({
   useEffect(() => {
     if (focused) onSize(size);
   }, [onSize, size, focused]);
+
+  /* Told once per drop, to whoever owns the retries. Only the primary shell:
+     a second one closing is not the connection going. */
+  const lostRef = useRef(onConnectionLost);
+  lostRef.current = onConnectionLost;
+  useEffect(() => {
+    if (connectionLost && (slot ?? 'primary') === 'primary') lostRef.current?.();
+  }, [connectionLost, slot]);
 
   useEffect(() => {
     onFocusHandle(focus);
@@ -156,7 +179,34 @@ export function TerminalView({
         <div ref={setContainer} className="h-full w-full" />
       </div>
 
-      {closed && (
+      {(connectionLost || reconnect !== null) && (
+        <Card variant="filled" padding="sm" className="border-t border-line-subtle">
+          <div className="border-line-subtle flex items-center gap-2 border-t px-3 py-1.5 text-xs" role="status">
+            <p className="text-ink-muted flex-1 font-mono">
+              {reconnect === null
+                ? i18n.t('terminal.reconnect.lost')
+                : reconnect.phase === 'stopped'
+                  ? i18n.t(`terminal.reconnect.stopped.${reconnect.reason}`, { max: String(MAX_ATTEMPTS) })
+                  : i18n.t('terminal.reconnect.trying', {
+                      attempt: String(reconnect.attempt),
+                      max: String(MAX_ATTEMPTS),
+                    })}
+            </p>
+            {reconnect !== null && reconnect.phase !== 'stopped' && onCancelReconnect !== undefined && (
+              <Button variant="ghost" size="sm" onClick={onCancelReconnect}>
+                {i18n.t('terminal.reconnect.cancel')}
+              </Button>
+            )}
+            {(reconnect === null || reconnect.phase === 'stopped') && onReconnect !== undefined && (
+              <Button variant="ghost" size="sm" onClick={onReconnect}>
+                {i18n.t('terminal.reconnect.now')}
+              </Button>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {closed && !connectionLost && (
         <Card variant="filled" padding="sm" className="border-t border-line-subtle">
           <p className="text-ink-muted border-line-subtle border-t px-3 py-1.5 font-mono text-xs">
             {exitStatus === null

@@ -1,4 +1,5 @@
 export { useSessions } from './use-sessions';
+export { useReconnect } from './use-reconnect';
 export {
   ALL_STATES,
   UNGROUPED_KEY,
