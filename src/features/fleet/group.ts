@@ -83,13 +83,64 @@ export function visibleText(text: string): string {
   });
 }
 
-/** The lines of `text` that differ from the same line of `reference`, by index. */
+/** The most cells the line diff fills before falling back to comparing by index. */
+const MAX_DIFF_CELLS = 4_000_000;
+
+/**
+ * Whether one group's answer is clearly the common one: the only group, or
+ * strictly larger than the next. A tie has no reference to be different from.
+ */
+export function hasReference(groups: readonly FleetGroup[]): boolean {
+  const [first, second] = groups;
+  return first !== undefined && (second === undefined || first.handles.length > second.handles.length);
+}
+
+/**
+ * The lines of `text` that are not part of a longest common subsequence with
+ * `reference`: an inserted line marks itself, not every line after it.
+ *
+ * Output is capped per host, so the tables stay small; past `MAX_DIFF_CELLS`
+ * it falls back to comparing line by index rather than stall the dialog.
+ */
 export function differingLines(text: string, reference: string): ReadonlySet<number> {
   const mine = text.split('\n');
   const theirs = reference.split('\n');
   const differing = new Set<number>();
-  for (let i = 0; i < mine.length; i += 1) {
-    if (mine[i] !== theirs[i]) differing.add(i);
+
+  if (mine.length * theirs.length > MAX_DIFF_CELLS) {
+    for (let i = 0; i < mine.length; i += 1) {
+      if (mine[i] !== theirs[i]) differing.add(i);
+    }
+    return differing;
   }
+
+  /* common[i][j]: the length of the longest common subsequence of
+     mine[i..] and theirs[j..]. */
+  const columns = theirs.length + 1;
+  const common = new Uint32Array((mine.length + 1) * columns);
+  for (let i = mine.length - 1; i >= 0; i -= 1) {
+    for (let j = theirs.length - 1; j >= 0; j -= 1) {
+      common[i * columns + j] =
+        mine[i] === theirs[j]
+          ? (common[(i + 1) * columns + j + 1] ?? 0) + 1
+          : Math.max(common[(i + 1) * columns + j] ?? 0, common[i * columns + j + 1] ?? 0);
+    }
+  }
+
+  let i = 0;
+  let j = 0;
+  while (i < mine.length && j < theirs.length) {
+    if (mine[i] === theirs[j]) {
+      i += 1;
+      j += 1;
+    } else if ((common[(i + 1) * columns + j] ?? 0) >= (common[i * columns + j + 1] ?? 0)) {
+      differing.add(i);
+      i += 1;
+    } else {
+      j += 1;
+    }
+  }
+  for (; i < mine.length; i += 1) differing.add(i);
+
   return differing;
 }

@@ -154,4 +154,21 @@ describe('FleetRunDialog', () => {
     await click(/Run on 1 host/);
     expect(fleetRun).toHaveBeenCalledWith('m1', [1]);
   });
+
+  it('does not call either answer the most common when two hosts disagree', async () => {
+    fleetRun.mockResolvedValue([ran(1, 'a\n'), ran(2, 'b\n')]);
+    await mount();
+
+    await click(/Run on 3 hosts/);
+
+    const text = document.body.textContent ?? '';
+    expect(text).not.toContain('Most common answer');
+    expect(text).toContain('none is the most common');
+  });
+
+  it('puts the heading in the dialog title, once', async () => {
+    await mount();
+
+    expect((document.body.textContent ?? '').split('Run on several hosts').length - 1).toBe(1);
+  });
 });

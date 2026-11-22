@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { differingLines, groupResults, visibleText } from '../src/features/fleet/group';
+import { differingLines, groupResults, hasReference, visibleText } from '../src/features/fleet/group';
 import type { FleetResult } from '../src/ipc/fleet';
 import type { SessionHandle } from '../src/ipc/sessions';
 
@@ -73,5 +73,38 @@ describe('differingLines', () => {
 
   it('marks lines the reference does not have', () => {
     expect([...differingLines('a\nb', 'a')]).toEqual([1]);
+  });
+});
+
+describe('differingLines as a real diff', () => {
+  it('marks an inserted line and not every line after it', () => {
+    expect([...differingLines('a\nNEW\nb\nc', 'a\nb\nc')]).toEqual([1]);
+  });
+
+  it('marks a replaced line once', () => {
+    expect([...differingLines('a\nX\nc', 'a\nb\nc')]).toEqual([1]);
+  });
+
+  it('marks nothing for identical text and every line of an unrelated one', () => {
+    expect([...differingLines('a\nb', 'a\nb')]).toEqual([]);
+    expect([...differingLines('x\ny', 'a\nb')]).toEqual([0, 1]);
+  });
+
+  it('falls back to comparing by index when the tables would be huge', () => {
+    const big = Array.from({ length: 2500 }, (_, i) => `line ${i}`).join('\n');
+
+    expect([...differingLines(`${big}\nextra`, big)]).toEqual([2500]);
+  });
+});
+
+describe('hasReference', () => {
+  const group = (count: number) =>
+    ({ stdout: '', stderr: '', exitStatus: 0, truncated: false, timedOut: false, handles: Array.from({ length: count }, (_, i) => i as never) }) as never;
+
+  it('needs a group strictly larger than the next, or only one', () => {
+    expect(hasReference([group(3), group(1)])).toBe(true);
+    expect(hasReference([group(2)])).toBe(true);
+    expect(hasReference([group(1), group(1)])).toBe(false);
+    expect(hasReference([])).toBe(false);
   });
 });

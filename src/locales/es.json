@@ -205,6 +205,7 @@
   "fleet.back": "Volver",
   "fleet.group": "{count} de {total} hosts",
   "fleet.group.reference": "Respuesta más común",
+  "fleet.group.tie": "Una de las respuestas, ninguna es la más común",
   "fleet.group.differs": "Difiere de la respuesta más común",
   "fleet.exit": "salida {code}",
   "fleet.exit.none": "sin código de salida",

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { JSX } from 'react';
 
-import { differingLines, groupResults, visibleText } from '../features/fleet/group';
+import { differingLines, groupResults, hasReference, visibleText } from '../features/fleet/group';
 import { useTranslator } from '../features/settings';
 import { asIpcError, fleetRun } from '../ipc';
 import type { FleetResult, Macro } from '../ipc';
@@ -43,8 +43,14 @@ type Phase =
  * made visible, never as markup.
  */
 export function FleetRunDialog({ macro, targets, visions = [], onClose }: FleetRunDialogProps): JSX.Element {
+  const i18n = useTranslator();
   return (
-    <Dialog open={macro !== null} onClose={onClose} size="full" title={macro === null ? '' : undefined}>
+    <Dialog
+      open={macro !== null}
+      onClose={onClose}
+      size="full"
+      title={macro === null ? '' : `${i18n.t('fleet.title')}: ${macro.name}`}
+    >
       {macro !== null && <FleetRunBody key={macro.id} macro={macro} targets={targets} visions={visions} onClose={onClose} />}
     </Dialog>
   );
@@ -101,10 +107,6 @@ function FleetRunBody({
 
   return (
     <div className="flex max-h-[min(78vh,720px)] min-h-0 flex-col gap-3">
-      <h2 className="text-ink text-[14px] font-semibold">
-        {i18n.t('fleet.title')}: {macro.name}
-      </h2>
-
       {phase.kind !== 'done' && (
         <>
           <p className="text-ink-faint text-[11.5px]">{i18n.t('fleet.note')}</p>
@@ -205,22 +207,28 @@ function FleetResults({
   const { groups, failed } = groupResults(results);
   const total = results.length;
   const reference = groups[0];
+  /* A tie has no common answer to differ from, so nothing is titled or marked
+     against one. */
+  const referenced = hasReference(groups);
   const names = (handles: readonly SessionHandle[]): string => handles.map((h) => nameOf.get(h) ?? String(h)).join(', ');
 
   return (
     <>
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
         {groups.map((group, index) => {
-          const differing = index === 0 || reference === undefined ? new Set<number>() : differingLines(group.stdout, reference.stdout);
+          const differing =
+            !referenced || index === 0 || reference === undefined
+              ? new Set<number>()
+              : differingLines(group.stdout, reference.stdout);
           const lines = visibleText(group.stdout).split('\n');
           return (
             <section
               key={`${index}-${group.handles.join(',')}`}
-              className={`bg-surface-panel rounded border p-2.5 ${index === 0 ? 'border-line-subtle' : 'border-warn'}`}
+              className={`bg-surface-panel rounded border p-2.5 ${referenced && index === 0 ? 'border-line-subtle' : 'border-warn'}`}
             >
               <header className="flex flex-wrap items-baseline justify-between gap-2">
                 <span className="text-ink text-[12.5px] font-semibold">
-                  {i18n.t(index === 0 ? 'fleet.group.reference' : 'fleet.group.differs')}
+                  {i18n.t(!referenced ? 'fleet.group.tie' : index === 0 ? 'fleet.group.reference' : 'fleet.group.differs')}
                 </span>
                 <span className="text-ink-faint text-[11px]">
                   {i18n.t('fleet.group', { count: group.handles.length, total })} ·{' '}
