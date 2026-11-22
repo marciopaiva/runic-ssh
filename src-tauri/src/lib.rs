@@ -86,6 +86,7 @@ pub fn run() -> tauri::Result<()> {
             commands::sessions::list_sessions,
             commands::sessions::save_session,
             commands::sessions::delete_session,
+            commands::fleet::fleet_run,
             commands::macros::list_macros,
             commands::macros::save_macro,
             commands::macros::delete_macro,

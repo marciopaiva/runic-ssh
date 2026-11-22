@@ -6,6 +6,7 @@
 pub mod candidate_logs;
 pub mod connection;
 pub mod credentials;
+pub mod fleet;
 pub mod forward;
 pub mod journal;
 pub mod known_hosts;
