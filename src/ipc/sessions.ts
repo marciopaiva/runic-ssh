@@ -6,6 +6,8 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+import type { UnlistenFn } from '@tauri-apps/api/event';
 
 import type { Hop } from './errors';
 
@@ -362,4 +364,25 @@ export interface HostKeyDecisionView {
  */
 export async function hostKeyDecision(pendingId: number): Promise<HostKeyDecisionView> {
   return invoke<HostKeyDecisionView>('host_key_decision', { pendingId });
+}
+
+/** The event `connect_session` emits while it opens a chain. */
+const CONNECT_STAGE_EVENT = 'session://connect-stage';
+
+interface ConnectStageEvent {
+  readonly sessionId: string;
+  readonly stage: 'bastionReady';
+}
+
+/**
+ * Subscribes to the stages of opening a session behind a jump host.
+ *
+ * Only `bastionReady` exists: the jump host is open and authenticated and the
+ * far host is about to be reached through it. Every other step the interface
+ * can tell from the calls it makes itself.
+ */
+export async function onConnectStage(
+  onStage: (event: ConnectStageEvent) => void,
+): Promise<UnlistenFn> {
+  return listen<ConnectStageEvent>(CONNECT_STAGE_EVENT, (event) => onStage(event.payload));
 }

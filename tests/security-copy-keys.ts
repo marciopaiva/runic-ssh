@@ -76,6 +76,8 @@ export const SECURITY_COPY_KEYS: readonly MessageKey[] = [
   // before anything else, and the second that the saved credential is used.
   // The pt-BR and es copy was written by a model and has not been reviewed.
   'connecting.step.reaching',
+  'connecting.step.reachingBastion',
+  'connecting.step.throughBastion',
   'connecting.step.authenticating',
   // What a dropped session's banner says when retrying stopped for a host key
   // decision or a credential (ADR-0079). The pt-BR and es copy was written by

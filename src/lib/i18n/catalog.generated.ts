@@ -25,6 +25,8 @@ export const SOURCE_CATALOG = {
   "connecting.cancel": "Cancel",
   "connecting.host": "{user}@{host} on port {port}",
   "connecting.steps": "Steps of connecting",
+  "connecting.step.reachingBastion": "Reaching the jump host and checking its key",
+  "connecting.step.throughBastion": "Reaching the host through it and checking its key",
   "connecting.step.reaching": "Reaching the host and checking its key",
   "connecting.step.authenticating": "Signing in with the saved credential",
   "connecting.title": "Reaching {host}…",

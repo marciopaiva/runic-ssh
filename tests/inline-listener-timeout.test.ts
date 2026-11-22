@@ -41,6 +41,7 @@ const ipc = vi.hoisted(() => ({
   /* Never resolves on its own: this is the registration the fix has to put
      a bound around, not the thing under test. */
   onInlineCredentialRequest: vi.fn(() => new Promise<() => void>(() => {})),
+  onConnectStage: vi.fn(async () => () => {}),
   rememberCredential: vi.fn(async () => {}),
   trustHostKey: vi.fn(async () => {}),
 }));

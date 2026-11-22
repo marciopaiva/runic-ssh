@@ -34,13 +34,15 @@ export type ConnectIntent = 'open' | 'inline';
 /**
  * Which part of connecting is under way, or was when it stopped.
  *
- * Only the two the interface can tell apart for certain. `reaching` is the one
+ * Only the ones the interface can tell apart for certain. `reaching` is the one
  * call that reaches the host, exchanges keys and checks the host key, and it
  * resolves only once that key is accepted, so it ending is what "the key was
  * checked" means. `authenticating` is the saved credential being tried.
+ * `throughBastion` exists only behind a jump host: the core says the jump host
+ * is ready (`session://connect-stage`) and the far host is reached through it.
  * Opening the shell is not a step here: the terminal appears when it is done.
  */
-export type ConnectStep = 'reaching' | 'authenticating';
+export type ConnectStep = 'reaching' | 'throughBastion' | 'authenticating';
 
 /** Where a connection attempt is. */
 export type ConnectStage =

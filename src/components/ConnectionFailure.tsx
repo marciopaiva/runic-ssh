@@ -98,7 +98,7 @@ export function ConnectionFailure({
         </>
       }
     >
-      <ConnectSteps step={step} failed sigilId={session.id} />
+      <ConnectSteps step={step} failed sigilId={session.id} chained={session.proxyJump != null} />
       {/* Only where there is nothing better to say. Everywhere else the
           message names the cause, and a code beside it is noise. */}
       {failure.title === 'failure.unexpected.title' && (
