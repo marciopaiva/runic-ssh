@@ -10,7 +10,7 @@
  * because the core is what writes the file; a test pins the limits against it.
  */
 
-import type { Forward, ForwardKind, HostKind } from '../../ipc';
+import type { Forward, ForwardKind, HostKind, Multiplexer } from '../../ipc';
 import type { ParameterlessKey } from '../../lib/i18n';
 
 /** A forward's kind, labelled. Shared between `ForwardsFields`' own picker
@@ -86,6 +86,14 @@ export interface DraftValues {
   /** ADR-0054. Started when the session connects; no separate "arm this
    * forward" gesture, the same weight `proxyJump` or `kind` already carry. */
   readonly forwards: readonly ForwardDraft[];
+  /** ADR-0079. `''` for a plain shell, otherwise a `Multiplexer`. Never wrong
+   * on its own: the picker only offers values the core accepts. */
+  readonly multiplexer: string;
+}
+
+/** The multiplexer a form value names, or `null` for a plain shell. */
+export function toMultiplexer(value: string): Multiplexer | null {
+  return value === 'tmux' || value === 'screen' ? value : null;
 }
 
 export const EMPTY_DRAFT: DraftValues = {
@@ -99,6 +107,7 @@ export const EMPTY_DRAFT: DraftValues = {
   proxyJump: '',
   kind: 'direct',
   forwards: [],
+  multiplexer: '',
 };
 
 /**

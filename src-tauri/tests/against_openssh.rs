@@ -841,3 +841,137 @@ async fn a_silent_drop_closes_the_shell_and_is_reported_as_lost() {
     );
     assert!(is_lost(&shared).await, "the probe calls it lost");
 }
+
+/// Connects to the container on `port` and authenticates, trusting what it offers.
+async fn connected_on(port: u16) -> runic_ssh::ssh::connection::Connection {
+    let endpoint = Endpoint {
+        host: HOST.to_owned(),
+        port,
+    };
+    let (_, offered) = connect_reporting(endpoint.clone(), KnownHosts::default())
+        .await
+        .err()
+        .expect("an empty known_hosts must refuse");
+    let key = offered.expect("a key was offered").key;
+    let mut known = KnownHosts::default();
+    known.add(KnownHosts::entry_for(HOST, port, "ssh-ed25519", key));
+
+    let mut connection = connect(endpoint, known).await.expect("connects");
+    connection
+        .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
+        .await
+        .expect("authenticates");
+    connection
+}
+
+/// Reads a channel until `needle` shows up or `limit` passes, returning what it saw.
+async fn read_until(
+    channel: &mut russh::Channel<russh::client::Msg>,
+    needle: &str,
+    limit: std::time::Duration,
+) -> String {
+    let mut seen = Vec::new();
+    let _ = tokio::time::timeout(limit, async {
+        while let Some(message) = channel.wait().await {
+            match message {
+                russh::ChannelMsg::Data { data } => {
+                    seen.extend_from_slice(&data);
+                    if String::from_utf8_lossy(&seen).contains(needle) {
+                        break;
+                    }
+                }
+                russh::ChannelMsg::Eof | russh::ChannelMsg::Close => break,
+                _ => {}
+            }
+        }
+    })
+    .await;
+    String::from_utf8_lossy(&seen).into_owned()
+}
+
+/// ADR-0079: a host without tmux still gets a working login shell.
+#[tokio::test]
+#[ignore = "needs the sshd container on 2222, which has no tmux"]
+async fn a_host_without_tmux_falls_back_to_its_login_shell() {
+    use runic_ssh::config::sessions::Multiplexer;
+    use runic_ssh::ssh::multiplexer::shell_command;
+
+    let connection = connected_on(PORT).await;
+    let command = shell_command(Some(Multiplexer::Tmux), "fallback1").expect("a command");
+
+    let mut channel = connection
+        .open_shell_running(120, 40, Some(&command))
+        .await
+        .expect("a shell opens");
+    channel
+        .data(&b"echo fell-back-ok\n"[..])
+        .await
+        .expect("sends");
+
+    let text = read_until(
+        &mut channel,
+        "fell-back-ok",
+        std::time::Duration::from_secs(10),
+    )
+    .await;
+    assert!(text.contains("fell-back-ok"), "the shell said: {text}");
+}
+
+/// ADR-0079: the second connection lands in the first one's tmux session.
+///
+/// The container on 2225 needs tmux (`podman exec runic-test-sshd-2225 apk add
+/// tmux`); the others do not have it, and a restart loses it.
+#[tokio::test]
+#[ignore = "needs tmux installed in the sshd container on 2225"]
+async fn a_second_connection_reattaches_to_the_same_tmux_session() {
+    use runic_ssh::config::sessions::Multiplexer;
+    use runic_ssh::ssh::multiplexer::shell_command;
+
+    let command = shell_command(Some(Multiplexer::Tmux), "reattach1").expect("a command");
+
+    let first = connected_on(2225).await;
+    let mut channel = first
+        .open_shell_running(120, 40, Some(&command))
+        .await
+        .expect("a shell opens");
+    /* Typed before tmux has taken the terminal, the keys are flushed away, so
+    wait for its prompt first. */
+    let up = read_until(&mut channel, ":~$", std::time::Duration::from_secs(10)).await;
+    assert!(up.contains(":~$"), "tmux never drew a prompt: {up}");
+    channel
+        .data(&b"echo remembered-from-before\n"[..])
+        .await
+        .expect("sends");
+    let seen = read_until(
+        &mut channel,
+        "remembered-from-before",
+        std::time::Duration::from_secs(10),
+    )
+    .await;
+    assert!(seen.contains("remembered-from-before"), "tmux said: {seen}");
+
+    /* The connection goes away without the shell ending, as a drop does. */
+    drop(channel);
+    first.disconnect().await.expect("disconnects");
+
+    let second = connected_on(2225).await;
+    let mut channel = second
+        .open_shell_running(120, 40, Some(&command))
+        .await
+        .expect("a shell opens again");
+    let text = read_until(
+        &mut channel,
+        "remembered-from-before",
+        std::time::Duration::from_secs(10),
+    )
+    .await;
+    assert!(
+        text.contains("remembered-from-before"),
+        "the new connection did not see the old screen: {text}"
+    );
+
+    channel
+        .data(&b"tmux kill-session\n"[..])
+        .await
+        .expect("cleans up");
+}

@@ -681,6 +681,18 @@ impl Connection {
         columns: u16,
         rows: u16,
     ) -> Result<russh::Channel<russh::client::Msg>, ConnectionError> {
+        self.open_shell_running(columns, rows, None).await
+    }
+
+    /// [`open_shell`](Self::open_shell), optionally running `command` in the
+    /// pty in place of the login shell (ADR-0079: a multiplexer session). The
+    /// command is one the core built, never one the webview sent.
+    pub async fn open_shell_running(
+        &self,
+        columns: u16,
+        rows: u16,
+        command: Option<&str>,
+    ) -> Result<russh::Channel<russh::client::Msg>, ConnectionError> {
         let channel = self
             .handle
             .channel_open_session()
@@ -700,10 +712,11 @@ impl Connection {
             .await
             .map_err(|_| ConnectionError::Transport)?;
 
-        channel
-            .request_shell(true)
-            .await
-            .map_err(|_| ConnectionError::Transport)?;
+        match command {
+            Some(command) => channel.exec(true, command).await,
+            None => channel.request_shell(true).await,
+        }
+        .map_err(|_| ConnectionError::Transport)?;
 
         Ok(channel)
     }

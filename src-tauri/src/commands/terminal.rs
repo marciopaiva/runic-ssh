@@ -11,6 +11,7 @@ use tokio::sync::mpsc;
 
 use crate::error::{Error, IpcError};
 use crate::ssh::connection::{is_lost, Shared};
+use crate::ssh::multiplexer::shell_command;
 use crate::ssh::registry::{Registry, SessionHandle, ShellSlot};
 use crate::ssh::stats::Transfer;
 use crate::ssh::terminal::{pump, Input, OutputBatch, Sink};
@@ -116,10 +117,28 @@ async fn start_shell<R: Runtime>(
     rows: u16,
 ) -> Result<(), IpcError> {
     let shared = registry.shared(handle).await.ok_or(Error::UnknownHandle)?;
+
+    /* Only the primary shell lives in the host's multiplexer (ADR-0079). A
+    second shell is a plain one: attached to the same session it would mirror
+    the first rather than be a second terminal. A session that cannot be read
+    opens a plain shell rather than none. */
+    let command = match (slot, registry.session_of(handle).await) {
+        (ShellSlot::Primary, Some(session_id)) => {
+            crate::commands::sessions::saved_session(&app, &session_id)
+                .ok()
+                .and_then(|session| shell_command(session.multiplexer, &session.id))
+        }
+        _ => None,
+    };
+
     let channel = {
         let held = shared.lock().await;
         let connection = held.as_ref().ok_or(Error::UnknownHandle)?;
-        Some(connection.open_shell(columns, rows).await)
+        Some(
+            connection
+                .open_shell_running(columns, rows, command.as_deref())
+                .await,
+        )
     }
     .ok_or(Error::UnknownHandle)?
     .map_err(Box::new)?;

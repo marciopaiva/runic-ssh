@@ -120,6 +120,19 @@ pub struct Session {
     /// connects. ADR-0054.
     #[serde(default)]
     pub forwards: Vec<Forward>,
+    /// A terminal multiplexer to open this host's shell inside, so a dropped
+    /// connection comes back to the same session. Absent means a plain shell.
+    /// ADR-0079.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub multiplexer: Option<Multiplexer>,
+}
+
+/// Which multiplexer a host's shell runs inside (ADR-0079).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Multiplexer {
+    Tmux,
+    Screen,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -163,6 +176,8 @@ pub struct SessionDraft {
     pub kind: HostKind,
     #[serde(default)]
     pub forwards: Vec<Forward>,
+    #[serde(default)]
+    pub multiplexer: Option<Multiplexer>,
 }
 
 /// Why a jump host reference cannot be used.
@@ -492,6 +507,7 @@ pub fn save_session(store: &SessionStore, draft: SessionDraft) -> Result<Session
                 proxy_jump,
                 kind: draft.kind,
                 forwards: draft.forwards,
+                multiplexer: draft.multiplexer,
             };
             sessions.items[index] = session.clone();
             session
@@ -508,6 +524,7 @@ pub fn save_session(store: &SessionStore, draft: SessionDraft) -> Result<Session
                 proxy_jump,
                 kind: draft.kind,
                 forwards: draft.forwards,
+                multiplexer: draft.multiplexer,
             };
             sessions.items.push(session.clone());
             session
@@ -550,6 +567,7 @@ mod tests {
             proxy_jump: None,
             kind: HostKind::Direct,
             forwards: Vec::new(),
+            multiplexer: None,
         }
     }
 
@@ -1130,6 +1148,7 @@ mod tests {
             proxy_jump: None,
             kind: HostKind::Direct,
             forwards: Vec::new(),
+            multiplexer: None,
         }
     }
 
@@ -1334,5 +1353,29 @@ mod tests {
 
         assert_eq!(sessions.find("b").map(|s| s.id.as_str()), Some("b"));
         assert!(sessions.find("missing").is_none());
+    }
+
+    #[test]
+    fn a_file_written_before_multiplexers_loads_as_a_plain_shell() {
+        let old = r#"[{"id":"a","name":"web","host":"h","port":22,"user":"u","kind":"direct","forwards":[]}]"#;
+
+        let sessions: Sessions = serde_json::from_str(old).expect("an old file still loads");
+
+        assert_eq!(sessions.items[0].multiplexer, None);
+    }
+
+    #[test]
+    fn a_multiplexer_is_stored_by_name_and_a_plain_shell_adds_nothing() {
+        let mut stored = session("a");
+        assert!(!serde_json::to_string(&stored)
+            .expect("serialises")
+            .contains("multiplexer"));
+
+        stored.multiplexer = Some(Multiplexer::Tmux);
+        let text = serde_json::to_string(&stored).expect("serialises");
+
+        assert!(text.contains(r#""multiplexer":"tmux""#));
+        let back: Session = serde_json::from_str(&text).expect("reads back");
+        assert_eq!(back.multiplexer, Some(Multiplexer::Tmux));
     }
 }

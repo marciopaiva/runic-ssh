@@ -66,6 +66,7 @@ export type {
   ForwardKind,
   HostKeyDecisionView,
   HostKind,
+  Multiplexer,
   OpenSession,
   Secret,
   Session,

@@ -521,6 +521,14 @@ means the client logs in again while nobody is watching. What bounds that:
   makes a silent drop visible, and it also keeps an idle session alive that a
   server's own idle timeout would have closed.
 
+**The multiplexer command is built in the core.** A host's choice of tmux or
+screen is a saved setting, and the command that opens the shell inside it is
+assembled in `ssh/multiplexer.rs` from that choice and the saved session id.
+The webview sends neither. The id is reduced to `[A-Za-z0-9_-]` first and
+travels as an argument to `sh -c`, never spliced into the quoted text, so it
+cannot add shell syntax. If the host has no such program the command falls
+back to the login shell instead of closing the session.
+
 What it does not do: replay a typed password, accept a host key, open a
 connection the person never opened, or rebind SFTP panes, Monitor or ad hoc
 tunnels that rode the old handle.

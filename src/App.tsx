@@ -84,6 +84,7 @@ import {
   suggestName,
   targetSession,
   toForwards,
+  toMultiplexer,
   typedInto,
   updateEditor,
   useConnect,
@@ -1745,6 +1746,7 @@ export function App(): JSX.Element {
         proxyJump: filled.proxyJump === '' ? null : filled.proxyJump,
         kind: filled.kind,
         forwards: toForwards(filled.forwards),
+        multiplexer: toMultiplexer(filled.multiplexer),
       }).then((stored) => {
         /* Re-aimed at what was stored before `after` runs, for a host that did
            not exist a moment ago as much as for one that did: `settled` is
