@@ -45,6 +45,7 @@ const ipc = vi.hoisted(() => ({
   hostKeyDecision: vi.fn(async () => ({})),
   keepCredentialForRun: vi.fn(async () => {}),
   onInlineCredentialRequest: vi.fn(async () => () => {}),
+  onConnectStage: vi.fn(async () => () => {}),
   rememberCredential: vi.fn(async () => {}),
   trustHostKey: vi.fn(async () => {}),
 }));

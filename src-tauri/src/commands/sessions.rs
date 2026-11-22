@@ -7,7 +7,7 @@
 use std::sync::Arc;
 
 use serde::Serialize;
-use tauri::{AppHandle, Manager, Runtime, State};
+use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 
 use crate::commands::credential::ask_inline;
 use crate::config::sessions::{
@@ -62,6 +62,19 @@ pub struct OpenSession {
     /// `credentialId` and `proxyJump` have both sprung, and a bool has no
     /// reason to pay for it.
     pub keep_refused: bool,
+}
+
+/// Emitted once the jump host of a chain is open and authenticated and the far
+/// host is about to be reached through it, so the connecting screen can show
+/// the two hops apart. Carries the session being opened, nothing else.
+pub const CONNECT_STAGE_EVENT: &str = "session://connect-stage";
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ConnectStageEvent {
+    /// The saved session whose connection this is part of.
+    session_id: String,
+    stage: &'static str,
 }
 
 fn config_dir<R: Runtime>(app: &AppHandle<R>) -> Result<std::path::PathBuf, Error> {
@@ -775,6 +788,16 @@ async fn open_through<R: Runtime>(
         typed,
         keep_refused,
     } = crossed;
+
+    /* The jump host is ready, and nothing past it has been tried. Best effort:
+    a window that is gone has nobody to tell. */
+    let _ = chain.app.emit(
+        CONNECT_STAGE_EVENT,
+        ConnectStageEvent {
+            session_id: target.id.clone(),
+            stage: "bastionReady",
+        },
+    );
 
     match connect_via(Arc::clone(&carrier), endpoint_of(target), known).await {
         Ok(connection) => Ok((connection, keep_refused)),

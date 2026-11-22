@@ -19,6 +19,8 @@
   "connecting.cancel": "Cancelar",
   "connecting.host": "{user}@{host} na porta {port}",
   "connecting.steps": "Etapas da conexão",
+  "connecting.step.reachingBastion": "Alcançando o jump host e verificando a chave dele",
+  "connecting.step.throughBastion": "Alcançando o host por ele e verificando a chave dele",
   "connecting.step.reaching": "Alcançando o host e verificando a chave dele",
   "connecting.step.authenticating": "Entrando com a credencial salva",
   "connecting.title": "Alcançando {host}…",

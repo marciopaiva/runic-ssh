@@ -15,6 +15,7 @@ import { useCallback, useRef, useState } from 'react';
 
 import {
   asIpcError,
+  onConnectStage,
   authenticateSession,
   authenticateWithSaved,
   connectSession,
@@ -407,7 +408,7 @@ export function useConnect(wiring: Wiring): ConnectState {
 
       setAttempt(sessionId, {
         sessionId,
-        stage: { stage: 'connecting' },
+        stage: { stage: 'connecting', step: 'reaching' },
         intent,
         decision: null,
         method: method ?? null,
@@ -470,6 +471,21 @@ export function useConnect(wiring: Wiring): ConnectState {
         unlisten = outcome;
       }
 
+      /* Behind a jump host the core says when the jump host is ready, which is
+         what moves this attempt on to its second hop. Registered before the
+         call it listens across, so the event cannot be missed. */
+      const stopStages = await onConnectStage((event) => {
+        if (event.sessionId !== sessionId || !current(sessionId, mine)) return;
+        setAttempt(sessionId, {
+          sessionId,
+          stage: { stage: 'connecting', step: 'throughBastion' },
+          intent,
+          decision: null,
+          method: method ?? null,
+          credential: credential ?? null,
+        });
+      });
+
       let opened;
       try {
         opened = await connectSession(sessionId, continuing, intent === 'inline');
@@ -493,7 +509,7 @@ export function useConnect(wiring: Wiring): ConnectState {
             return;
           }
 
-          fail(sessionId, reported, mine, intent, method);
+          fail(sessionId, reported, mine, intent, method, reported.hop === 'target' ? 'throughBastion' : 'reaching');
           return;
         }
 
@@ -517,6 +533,7 @@ export function useConnect(wiring: Wiring): ConnectState {
         return;
       } finally {
         unlisten?.();
+        stopStages();
       }
 
       await authenticate(sessionId, opened, mine, intent, method, credential);

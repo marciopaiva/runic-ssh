@@ -55,6 +55,7 @@ export {
   dismissHostKey,
   keepCredentialForRun,
   listSessions,
+  onConnectStage,
   saveSession,
   sessionCredentialKept,
   trustHostKey,

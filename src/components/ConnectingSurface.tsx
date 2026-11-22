@@ -71,7 +71,7 @@ export function ConnectingSurface({ session, onCancel, step = 'reaching' }: Conn
         </SurfaceAction>
       }
     >
-      <ConnectSteps step={step} sigilId={session.id} />
+      <ConnectSteps step={step} sigilId={session.id} chained={session.proxyJump != null} />
     </SessionSurface>
   );
 }
