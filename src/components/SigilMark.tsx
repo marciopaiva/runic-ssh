@@ -75,3 +75,36 @@ export function SigilMark({ id, lit, failed = false, className = 'h-[72px] w-[72
     </svg>
   );
 }
+
+interface SigilBadgeProps {
+  /** The saved host's id. Never the host key. */
+  readonly id: string;
+  /** Lit only for a connection that is up: the light belongs to what is alive. */
+  readonly live: boolean;
+  readonly className?: string;
+}
+
+/**
+ * The whole sigil at tab size: every stroke cut and bright for a live
+ * connection, only the faint stone otherwise. It names the host the way its
+ * name does and never vouches for it (see `features/sigil/sigil.ts`).
+ */
+export function SigilBadge({ id, live, className = 'h-4 w-4' }: SigilBadgeProps): JSX.Element {
+  const sigil = sigilOf(id);
+  const strokes = [sigil.stem, ...sigil.levels.flatMap((level) => level.strokes)];
+
+  return (
+    <svg viewBox="0 0 24 24" className={`shrink-0 ${className}`} fill="none" aria-hidden="true" data-live={live}>
+      {strokes.map((shape, index) => (
+        <path
+          key={index}
+          d={shape.d}
+          className={live ? TONE[shape.side] : 'stroke-ink-disabled'}
+          strokeWidth={2}
+          strokeLinecap="round"
+          opacity={live ? 1 : 0.5}
+        />
+      ))}
+    </svg>
+  );
+}
