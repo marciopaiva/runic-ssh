@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean;
@@ -44,10 +44,13 @@ function ran(handle: number, stdout: string) {
   return { handle, state: 'ran', stdout, stderr: '', exitStatus: 0, truncated: false, timedOut: false };
 }
 
+const roots: Array<ReturnType<typeof createRoot>> = [];
+
 async function mount() {
   const host = document.createElement('div');
   document.body.appendChild(host);
   const root = createRoot(host);
+  roots.push(root);
   await act(async () => {
     root.render(createElement(FleetRunDialog, { macro, targets, onClose: () => {} }));
   });
@@ -61,6 +64,14 @@ const click = async (label: RegExp): Promise<void> => {
     button.click();
   });
 };
+
+afterEach(async () => {
+  /* Unmounted inside `act`, so React has no work left to schedule once the
+     jsdom window is gone (an intermittent `window is not defined`). */
+  await act(async () => {
+    for (const root of roots.splice(0)) root.unmount();
+  });
+});
 
 beforeEach(() => {
   fleetRun.mockReset();
