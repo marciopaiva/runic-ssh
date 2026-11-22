@@ -975,3 +975,104 @@ async fn a_second_connection_reattaches_to_the_same_tmux_session() {
         .await
         .expect("cleans up");
 }
+
+/// Numbers for the fleet limits (ADR-0078, #470). Prints, asserts nothing:
+/// the output goes into `docs/measurements/fleet-limits.md`.
+#[tokio::test]
+#[ignore = "needs the four sshd containers; prints measurements"]
+async fn measure_what_a_fleet_run_costs_on_real_sshd() {
+    use std::time::{Duration, Instant};
+
+    let long = Duration::from_secs(60);
+    let connection = connected_on(PORT).await;
+
+    // Latency of a trivial exec on a warm connection.
+    let mut samples = Vec::new();
+    for _ in 0..30 {
+        let started = Instant::now();
+        connection
+            .run_bounded("true", 1024, long)
+            .await
+            .expect("runs");
+        samples.push(started.elapsed());
+    }
+    samples.sort();
+    println!(
+        "exec latency, 30 runs: min {:?} median {:?} max {:?}",
+        samples[0],
+        samples[samples.len() / 2],
+        samples[samples.len() - 1]
+    );
+
+    // Time to take N bytes of output, uncapped.
+    for bytes in [
+        16 * 1024_usize,
+        64 * 1024,
+        256 * 1024,
+        1024 * 1024,
+        4 * 1024 * 1024,
+    ] {
+        let command = format!("head -c {bytes} /dev/zero | tr '\\0' 'a'");
+        let started = Instant::now();
+        let output = connection
+            .run_bounded(&command, 8 * 1024 * 1024, long)
+            .await
+            .expect("runs");
+        println!(
+            "{bytes} bytes: got {} in {:?}, truncated {}",
+            output.stdout.len(),
+            started.elapsed(),
+            output.truncated
+        );
+    }
+
+    // What ordinary commands print on this host. A minimal Alpine, so a floor.
+    for command in [
+        "ps aux",
+        "df -h",
+        "env",
+        "ls -lR /etc",
+        "ls -lR /usr",
+        "cat /proc/cpuinfo",
+        "dmesg 2>&1",
+    ] {
+        let output = connection
+            .run_bounded(command, 8 * 1024 * 1024, long)
+            .await
+            .expect("runs");
+        println!(
+            "`{command}`: {} bytes",
+            output.stdout.len() + output.stderr.len()
+        );
+    }
+
+    // The same trivial command on four hosts at once, as a run would.
+    let mut connections = Vec::new();
+    for port in [2222_u16, 2223, 2224, 2225] {
+        connections.push(connected_on(port).await);
+    }
+    let started = Instant::now();
+    for connection in &connections {
+        connection
+            .run_bounded("true", 1024, long)
+            .await
+            .expect("runs");
+    }
+    println!(
+        "four hosts, one trivial command each, one after another: {:?}",
+        started.elapsed()
+    );
+
+    let started = Instant::now();
+    let (a, b, c, d) = tokio::join!(
+        connections[0].run_bounded("true", 1024, long),
+        connections[1].run_bounded("true", 1024, long),
+        connections[2].run_bounded("true", 1024, long),
+        connections[3].run_bounded("true", 1024, long),
+    );
+    a.expect("runs");
+    b.expect("runs");
+    c.expect("runs");
+    d.expect("runs");
+    println!("four hosts at once: {:?}", started.elapsed());
+}
