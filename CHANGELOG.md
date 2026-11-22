@@ -11,6 +11,10 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 
 ## [Unreleased]
 
+### Added
+
+- Run a saved script macro on several connected hosts and compare what they answered (ADR-0078, #467). Answers are grouped by identical output, the largest group first, and lines that differ from it are marked. Always asks first, showing the script and every host. Only script macros, only sessions that are already connected, stdout and stderr capped at 64 KiB per host with a 30 second deadline.
+
 ## [0.9.0] — 2026-09-24
 
 Cuts the Sessions, SFTP and Monitor workspaces as v0.8.0 already warned they
