@@ -20,6 +20,7 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 - The connecting screen lists the steps and marks the one under way, and a failure marks the step it stopped in. The two steps are the ones the interface can tell apart for certain: reaching the host (which includes checking its key, since the call only succeeds once the key is accepted) and signing in with the saved credential. Nothing new crosses IPC.
 - Each saved host has a sigil, a stem and four levels of branches drawn from its id, and the connecting screen cuts it as the steps really finish: the stem while reaching the host, the lower half once signing in starts, and on a failure the next stroke in red where it stopped. It comes from the local id, never from the host key, so it identifies nothing and is not a check. Still without motion under reduced-motion settings.
 - The tab of a session also carries its sigil, faint while the host is not connected and bright once it is, so the light belongs to what is alive.
+- The sigil also leads each host in the command palette and in both host lists (Home and the hosts manager), with the same rule: faint until connected.
 
 ## [0.9.0] — 2026-09-24
 
