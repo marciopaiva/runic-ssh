@@ -48,6 +48,14 @@ const xterm = vi.hoisted(() => {
     attachCustomKeyEventHandler = vi.fn();
     onData = vi.fn(() => ({ dispose: vi.fn() }));
     onBinary = vi.fn(() => ({ dispose: vi.fn() }));
+    oscHandlers = new Map<number, (data: string) => boolean>();
+    oscDispose = vi.fn();
+    parser = {
+      registerOscHandler: vi.fn((code: number, handler: (data: string) => boolean) => {
+        this.oscHandlers.set(code, handler);
+        return { dispose: this.oscDispose };
+      }),
+    };
 
     constructor() {
       xterm.instances.push(this);
@@ -271,5 +279,21 @@ describe('what unmounting a terminal releases', () => {
     await probe.unmount();
 
     expect(stopWatching).toHaveBeenCalledOnce();
+  });
+
+  it('stops listening for the shell\'s folder and forgets it', async () => {
+    const { getTerminalCwd } = await import('../src/features/terminal/cwd');
+    const container = document.createElement('div');
+    const probe = await mountProbe(container, 7);
+
+    const handler = probe.terminal.oscHandlers.get(7);
+    if (handler === undefined) throw new Error('no OSC 7 handler was registered');
+    expect(handler('file://web-01/var/www')).toBe(true);
+    expect(getTerminalCwd(7)).toBe('/var/www');
+
+    await probe.unmount();
+
+    expect(probe.terminal.oscDispose).toHaveBeenCalledOnce();
+    expect(getTerminalCwd(7)).toBeNull();
   });
 });

@@ -14,6 +14,7 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 ### Added
 
 - Run a saved script macro on several connected hosts and compare what they answered (ADR-0078, #467). Answers are grouped by identical output, the largest group first, and lines that differ from it are marked. Always asks first, showing the script and every host. Only script macros, only sessions that are already connected, stdout and stderr capped at 64 KiB per host with a 30 second deadline.
+- The SFTP pane of a connected host can jump to the folder its terminal is in (#474). It reads the OSC 7 sequence the shell prints at each prompt, so nothing is run on the host; a shell that does not print it gets a two line snippet for `~/.bashrc` or `~/.zshrc` instead.
 
 ## [0.9.0] — 2026-09-24
 

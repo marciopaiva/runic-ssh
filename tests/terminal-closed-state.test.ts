@@ -48,6 +48,7 @@ const xterm = vi.hoisted(() => {
     attachCustomKeyEventHandler = vi.fn();
     onData = vi.fn(() => ({ dispose: vi.fn() }));
     onBinary = vi.fn(() => ({ dispose: vi.fn() }));
+    parser = { registerOscHandler: vi.fn(() => ({ dispose: vi.fn() })) };
   }
 
   class FakeFitAddon {

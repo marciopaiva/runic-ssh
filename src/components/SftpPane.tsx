@@ -6,6 +6,7 @@ import { describeSftpFailure } from '../features/sftp/failure';
 import { usePane } from '../features/sftp/use-pane';
 import type { Endpoint, PaneEntry } from '../features/sftp/endpoint';
 import { useTranslator } from '../features/settings';
+import { useTerminalCwd } from '../features/terminal';
 import type { Translator } from '../lib/i18n';
 
 import { Button } from './ui/Button';
@@ -23,6 +24,7 @@ import {
   SendIcon,
   FolderIcon,
   FileIcon,
+  TerminalIcon,
 } from './ui/icons';
 import { GroupMenu } from './GroupMenu';
 import type { GroupMenuItem } from './GroupMenu';
@@ -228,6 +230,14 @@ interface NavBarProps {
   readonly selectedCount: number;
   readonly onRename: () => void;
   readonly onDelete: () => void;
+  /** Present on a remote pane: the terminal's folder button. `known` is
+      whether the shell has ever reported one, `here` whether the pane is
+      already in it. */
+  readonly terminalFolder?: {
+    readonly known: boolean;
+    readonly here: boolean;
+    readonly onPress: () => void;
+  } | undefined;
 }
 
 function NavBar({
@@ -243,6 +253,7 @@ function NavBar({
   selectedCount,
   onRename,
   onDelete,
+  terminalFolder,
 }: NavBarProps): JSX.Element {
   const segments = pathSegments(path ?? '');
 
@@ -296,6 +307,23 @@ function NavBar({
         )}
       </div>
 
+      {terminalFolder !== undefined && (
+        <Tooltip
+          content={i18n.t(terminalFolder.known ? 'sftp.nav.terminalFolder' : 'sftp.nav.terminalFolder.unknown')}
+          side="bottom"
+        >
+          <Button
+            variant="ghost"
+            size="icon"
+            disabled={terminalFolder.known && terminalFolder.here}
+            onClick={terminalFolder.onPress}
+            aria-label={i18n.t('sftp.nav.terminalFolder')}
+            className={cn('h-5 w-5', !terminalFolder.known && 'text-ink-disabled')}
+          >
+            <TerminalIcon className="h-3.5 w-3.5" />
+          </Button>
+        </Tooltip>
+      )}
       <Tooltip content={i18n.t('sftp.nav.newFolder')} side="bottom">
         <Button variant="ghost" size="icon" onClick={onNewFolder} aria-label={i18n.t('sftp.nav.newFolder')} className="h-5 w-5">
           <PlusIcon className="h-3.5 w-3.5" />
@@ -388,6 +416,8 @@ export function SftpPane({
 }: SftpPaneProps): JSX.Element {
   const i18n = useTranslator();
   const pane = usePane(endpoint);
+  const terminalCwd = useTerminalCwd(endpoint.kind === 'remote' ? endpoint.handle : null);
+  const [showCwdHint, setShowCwdHint] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [selectAnchor, setSelectAnchor] = useState<string | null>(null);
@@ -586,7 +616,34 @@ export function SftpPane({
         selectedCount={selected.size}
         onRename={renameSoleSelected}
         onDelete={() => requestDelete(selectedEntries())}
+        terminalFolder={
+          endpoint.kind === 'remote'
+            ? {
+                known: terminalCwd !== null,
+                here: terminalCwd !== null && terminalCwd === pane.path,
+                onPress: () => {
+                  if (terminalCwd !== null) pane.enter(terminalCwd);
+                  else setShowCwdHint((shown) => !shown);
+                },
+              }
+            : undefined
+        }
       />
+
+      {showCwdHint && terminalCwd === null && (
+        <Card variant="filled" className="border-b border-line-subtle">
+          <div className="space-y-1 px-2.5 py-1.5 text-[11.5px]">
+            <p className="text-ink-muted">{i18n.t('sftp.cwdHint.body')}</p>
+            <code className="text-ink block font-mono text-[11px] select-all">
+              {'PROMPT_COMMAND=\'printf "\\e]7;file://%s%s\\a" "$HOSTNAME" "$PWD"\'"${PROMPT_COMMAND:+;$PROMPT_COMMAND}"'}
+            </code>
+            <code className="text-ink block font-mono text-[11px] select-all">
+              {'precmd_functions+=(_cwd7); _cwd7() { printf \'\\e]7;file://%s%s\\a\' "$HOST" "$PWD" }'}
+            </code>
+            <p className="text-ink-muted">{i18n.t('sftp.cwdHint.where')}</p>
+          </div>
+        </Card>
+      )}
 
       {pane.actionError !== null && (
         <Card variant="filled" className="border-b border-line-subtle">
