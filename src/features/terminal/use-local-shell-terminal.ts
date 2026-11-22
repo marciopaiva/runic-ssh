@@ -30,6 +30,7 @@ import {
 import type { LocalShellKind, LocalShellSessionId } from '../../ipc';
 
 import { keyIntent, pasteNeedsConfirming } from './clipboard';
+import { forgetLocalCwd, parseOsc7, reportLocalCwd } from './cwd';
 import { terminalTheme } from './theme';
 import type { ClipboardApi, TerminalState } from './use-terminal';
 
@@ -162,6 +163,14 @@ export function useLocalShellTerminal(
 
       onOpenedRef.current(id);
 
+      /* The folder the shell says it is in (OSC 7), for the local SFTP pane's
+         "the terminal's folder". Read, never asked for. */
+      const cwdHandler = terminal.parser.registerOscHandler(7, (data) => {
+        const cwd = parseOsc7(data);
+        if (cwd !== null) reportLocalCwd(String(id), cwd);
+        return true;
+      });
+
       const stopWatching = await watchLocalShell(
         id,
         (bytes) => {
@@ -236,6 +245,10 @@ export function useLocalShellTerminal(
         () => typed.dispose(),
         () => binary.dispose(),
         stopWatching,
+        () => {
+          cwdHandler.dispose();
+          forgetLocalCwd(String(id));
+        },
         () => terminal.dispose(),
       );
     };

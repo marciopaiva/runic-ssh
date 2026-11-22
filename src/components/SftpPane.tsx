@@ -6,7 +6,7 @@ import { describeSftpFailure } from '../features/sftp/failure';
 import { usePane } from '../features/sftp/use-pane';
 import type { Endpoint, PaneEntry } from '../features/sftp/endpoint';
 import { useTranslator } from '../features/settings';
-import { useTerminalCwd } from '../features/terminal';
+import { useLocalTerminalCwd, useTerminalCwd } from '../features/terminal';
 import type { Translator } from '../lib/i18n';
 
 import { Button } from './ui/Button';
@@ -416,7 +416,11 @@ export function SftpPane({
 }: SftpPaneProps): JSX.Element {
   const i18n = useTranslator();
   const pane = usePane(endpoint);
-  const terminalCwd = useTerminalCwd(endpoint.kind === 'remote' ? endpoint.handle : null);
+  const remoteCwd = useTerminalCwd(endpoint.kind === 'remote' ? endpoint.handle : null);
+  const localCwd = useLocalTerminalCwd();
+  /* A remote pane follows its own connection's shell, the local pane the local
+     shell that reported last. */
+  const terminalCwd = endpoint.kind === 'remote' ? remoteCwd : localCwd;
   const [showCwdHint, setShowCwdHint] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
@@ -616,18 +620,14 @@ export function SftpPane({
         selectedCount={selected.size}
         onRename={renameSoleSelected}
         onDelete={() => requestDelete(selectedEntries())}
-        terminalFolder={
-          endpoint.kind === 'remote'
-            ? {
-                known: terminalCwd !== null,
-                here: terminalCwd !== null && terminalCwd === pane.path,
-                onPress: () => {
-                  if (terminalCwd !== null) pane.enter(terminalCwd);
-                  else setShowCwdHint((shown) => !shown);
-                },
-              }
-            : undefined
-        }
+        terminalFolder={{
+          known: terminalCwd !== null,
+          here: terminalCwd !== null && terminalCwd === pane.path,
+          onPress: () => {
+            if (terminalCwd !== null) pane.enter(terminalCwd);
+            else setShowCwdHint((shown) => !shown);
+          },
+        }}
       />
 
       {showCwdHint && terminalCwd === null && (

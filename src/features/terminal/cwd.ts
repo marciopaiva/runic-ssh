@@ -91,3 +91,35 @@ function subscribe(listener: () => void): () => void {
 export function useTerminalCwd(handle: SessionHandle | null): string | null {
   return useSyncExternalStore(subscribe, () => (handle === null ? null : getTerminalCwd(handle)));
 }
+
+/* This machine's own shells. There can be several, and the local SFTP pane is
+   one pane, so it follows the one that reported most recently: the shell the
+   person was last using. Most recent last. */
+const localCwds: Array<{ readonly shell: string; readonly path: string }> = [];
+
+/** Records where a local shell says it is now, making it the one followed. */
+export function reportLocalCwd(shell: string, path: string): void {
+  const last = localCwds.at(-1);
+  if (last?.shell === shell && last.path === path) return;
+  const at = localCwds.findIndex((entry) => entry.shell === shell);
+  if (at !== -1) localCwds.splice(at, 1);
+  localCwds.push({ shell, path });
+  emit();
+}
+
+/** Drops a local shell that went away, so the pane falls back to the next. */
+export function forgetLocalCwd(shell: string): void {
+  const at = localCwds.findIndex((entry) => entry.shell === shell);
+  if (at === -1) return;
+  localCwds.splice(at, 1);
+  emit();
+}
+
+/** The folder of the local shell that reported last, or `null` if none has. */
+export function getLocalCwd(): string | null {
+  return localCwds.at(-1)?.path ?? null;
+}
+
+export function useLocalTerminalCwd(): string | null {
+  return useSyncExternalStore(subscribe, getLocalCwd);
+}
