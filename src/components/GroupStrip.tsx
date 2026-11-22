@@ -9,6 +9,7 @@ import type { Translator } from '../lib/i18n';
 import { useTranslator } from '../features/settings';
 
 import { SessionMarker } from './SessionMarker';
+import { SigilBadge } from './SigilMark';
 import { SyncToggle } from './SyncToggle';
 import type { SyncState } from './SyncToggle';
 import { Button } from './ui/Button';
@@ -203,6 +204,7 @@ export function GroupStrip({
           className="flex min-w-0 flex-1 items-center gap-2"
         >
           <SessionMarker kind={soloTab.kind} />
+          <SigilBadge id={soloTab.sessionId} live={soloTab.kind === 'connected'} />
           <span className="text-ink truncate text-[11.5px] font-semibold">{title}</span>
           {where !== null && (
             <span className="text-ink-faint truncate font-mono text-[10.5px]">{where}</span>
@@ -316,7 +318,12 @@ export function GroupStrip({
                 showing ? 'text-ink font-semibold' : 'text-ink-muted'
               }`}
             >
-              {entry.kind === 'session' && tab !== null && <SessionMarker kind={tab.kind} />}
+              {entry.kind === 'session' && tab !== null && (
+                <>
+                  <SessionMarker kind={tab.kind} />
+                  <SigilBadge id={tab.sessionId} live={tab.kind === 'connected'} />
+                </>
+              )}
 
               {entry.kind === 'local' && <TerminalIcon className="h-3 w-3 shrink-0" />}
 
