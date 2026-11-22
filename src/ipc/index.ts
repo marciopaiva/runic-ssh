@@ -1,6 +1,8 @@
 export { asIpcError } from './errors';
 export { appVersion } from './app';
 export { sessionCandidateLogs } from './candidate-logs';
+export { fleetRun } from './fleet';
+export type { FleetResult } from './fleet';
 export { deleteMacro, listMacros, saveMacro } from './macros';
 export type { Macro, MacroDraft, MacroKind } from './macros';
 export { EMPTY_WORKSPACE, loadWorkspace, saveWorkspace } from './workspace';
