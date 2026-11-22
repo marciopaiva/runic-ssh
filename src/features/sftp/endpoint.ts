@@ -26,6 +26,17 @@ export function sameEndpoint(a: Endpoint, b: Endpoint): boolean {
 }
 
 /**
+ * `endpoint` pointed at `handle`, when it is a remote one on `sessionId` with
+ * a different handle; otherwise as it was. Used after a reconnect (ADR-0079),
+ * where the same saved host comes back on a new connection.
+ */
+export function rebound(endpoint: Endpoint | null, sessionId: string, handle: SessionHandle): Endpoint | null {
+  if (endpoint === null || endpoint.kind !== 'remote') return endpoint;
+  if (endpoint.sessionId !== sessionId || endpoint.handle === handle) return endpoint;
+  return { ...endpoint, handle };
+}
+
+/**
  * What the sidebar is dragging, before a connection resolves it into an
  * `Endpoint`. `localhost` needs no connection and is already the real
  * thing; a saved host is named by its session id alone until `App.tsx`'s

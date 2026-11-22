@@ -27,13 +27,13 @@ import {
   sftpTransfer,
   sftpUpload,
 } from '../../ipc';
-import type { TransferHandle, TransferOutcome, TransferProgress } from '../../ipc';
+import type { SessionHandle, TransferHandle, TransferOutcome, TransferProgress } from '../../ipc';
 import type { LiveSession } from '../sessions/state';
 import { groupLabel } from '../terminal';
 import { useTranslator } from '../settings';
 import { reduceFolderCopies, reduceTransfers, toggleReceiving } from './browser';
 import type { FolderCopyState, TransferDirection, TransferState } from './browser';
-import { fromLocalEntry, fromRemoteEntry } from './endpoint';
+import { fromLocalEntry, fromRemoteEntry, rebound } from './endpoint';
 import type { Endpoint, PaneEntry } from './endpoint';
 
 /**
@@ -169,6 +169,10 @@ export interface FanoutActions {
    * this feature, not Sessions' own "the old one becomes a hidden tab"
    * drop behaviour, which does not fit a destination. */
   readonly replaceDestination: (slot: number, endpoint: Endpoint) => void;
+  /** Points every pane showing `sessionId` at a new connection handle, after
+   * a reconnect (ADR-0079). The endpoint keeps its identity, so the pane is
+   * not remounted and keeps its place; it reloads the folder it was in. */
+  readonly rebindSession: (sessionId: string, handle: SessionHandle) => void;
   readonly clearDestination: (slot: number) => void;
   readonly toggleDestinationReceiving: (slot: number) => void;
   /** Includes every occupied destination again: the toolbar's own
@@ -326,6 +330,13 @@ export function useFanout(sessions: readonly LiveSession[]): FanoutState & Fanou
     },
     [include],
   );
+
+  const rebindSession = useCallback((sessionId: string, handle: SessionHandle) => {
+    const moved = (endpoint: Endpoint | null): Endpoint | null => rebound(endpoint, sessionId, handle);
+
+    setSource((current) => moved(current));
+    setDestinations((current) => current.map(moved));
+  }, []);
 
   const clearSource = useCallback(() => {
     setSource(null);
@@ -588,6 +599,7 @@ export function useFanout(sessions: readonly LiveSession[]): FanoutState & Fanou
     addDestination,
     replaceDestination,
     clearDestination,
+    rebindSession,
     toggleDestinationReceiving,
     includeEveryDestination,
     reportPane,

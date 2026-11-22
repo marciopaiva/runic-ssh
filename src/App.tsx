@@ -627,6 +627,9 @@ export function App(): JSX.Element {
     onConnecting: (sessionId) => setState(sessionId, 'connecting'),
     onOpened: (sessionId, handle, via) => {
       attach(sessionId, handle);
+      /* A reconnect gives a session a new handle (ADR-0079): any SFTP pane on
+         it moves along. A first connection has none, so this does nothing. */
+      fanout.rebindSession(sessionId, handle);
       setState(sessionId, 'connected');
       /* ADR-0054: every saved forward starts here, the same instant the
          session itself does, with no separate "arm this forward" gesture.
