@@ -23,6 +23,7 @@ const catalog = JSON.parse(
 
 vi.mock('../src/features/settings', () => ({
   useTranslator: () => ({
+    list: (items: readonly string[]) => items.join(', '),
     t: (key: string, params: Record<string, string | number> = {}) =>
       (catalog[key] ?? key).replace(/\{(\w+)\}/g, (_, name: string) => String(params[name])),
   }),
@@ -46,13 +47,13 @@ function ran(handle: number, stdout: string) {
 
 const roots: Array<ReturnType<typeof createRoot>> = [];
 
-async function mount() {
+async function mount(visions: readonly unknown[] = []) {
   const host = document.createElement('div');
   document.body.appendChild(host);
   const root = createRoot(host);
   roots.push(root);
   await act(async () => {
-    root.render(createElement(FleetRunDialog, { macro, targets, onClose: () => {} }));
+    root.render(createElement(FleetRunDialog, { macro, targets, visions: visions as never, onClose: () => {} }));
   });
   return () => document.body;
 }
@@ -141,5 +142,16 @@ describe('FleetRunDialog', () => {
 
     expect(document.body.textContent).toContain('Only a script macro can run on several hosts.');
     expect(document.body.textContent).toContain('uname -r');
+  });
+
+  it('ticks only a vision\'s connected hosts and says which it leaves out', async () => {
+    fleetRun.mockResolvedValue([ran(1, 'a\n')]);
+    const body = await mount([{ id: 'v1', name: 'prod', handles: [1], skipped: ['web-09'] }]);
+
+    await click(/prod \(1 of 2 connected\)/);
+
+    expect(body().textContent).toContain('Not connected, left out: web-09');
+    await click(/Run on 1 host/);
+    expect(fleetRun).toHaveBeenCalledWith('m1', [1]);
   });
 });
