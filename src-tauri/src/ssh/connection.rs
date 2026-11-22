@@ -151,6 +151,31 @@ pub struct OfferedKey {
     pub hop: Hop,
 }
 
+/// What a bounded run produced (ADR-0078). See [`Connection::run_bounded`].
+#[derive(Debug, Clone, Default)]
+pub struct BoundedOutput {
+    pub stdout: Vec<u8>,
+    pub stderr: Vec<u8>,
+    /// `None` when the command was cut off or never reported one.
+    pub exit_status: Option<u32>,
+    /// A stream passed its cap and the run was ended there.
+    pub truncated: bool,
+    /// The deadline passed before the channel closed.
+    pub timed_out: bool,
+}
+
+/// Appends `incoming` to `buffer` without letting it pass `cap`. Returns
+/// `false` when something had to be dropped.
+fn append_capped(buffer: &mut Vec<u8>, incoming: &[u8], cap: usize) -> bool {
+    let room = cap.saturating_sub(buffer.len());
+    if incoming.len() <= room {
+        buffer.extend_from_slice(incoming);
+        return true;
+    }
+    buffer.extend_from_slice(&incoming[..room]);
+    false
+}
+
 /// What running one command over the connection produced. See
 /// [`Connection::run_command`].
 #[derive(Debug, Clone, Default)]
@@ -729,6 +754,85 @@ impl Connection {
             stdout,
             exit_status,
         })
+    }
+
+    /// Runs one command like [`run_command`](Self::run_command), under the
+    /// limits a fleet run needs (ADR-0078).
+    ///
+    /// Differs in three ways, each of which is the point. Stderr is kept, apart
+    /// from stdout, because "command not found" is often the difference worth
+    /// seeing. Each stream stops at `max_stream` bytes: a host is adversary 1
+    /// and must not be able to exhaust memory by what it sends. And the whole
+    /// call, channel open included, ends at `deadline`, so one hung host cannot
+    /// hold a run back.
+    ///
+    /// When either limit is hit the channel is closed rather than abandoned, for
+    /// ADR-0014's reason: a channel nobody reads still counts against the
+    /// server's `MaxSessions`. A closed-early run reports no exit status, since
+    /// the command was cut off and had none to give.
+    pub async fn run_bounded(
+        &self,
+        command: &str,
+        max_stream: usize,
+        deadline: Duration,
+    ) -> Result<BoundedOutput, ConnectionError> {
+        let mut output = BoundedOutput::default();
+
+        let finished = tokio::time::timeout(deadline, async {
+            let mut channel = self
+                .handle
+                .channel_open_session()
+                .await
+                .map_err(|_| ConnectionError::Transport)?;
+
+            channel
+                .exec(true, command)
+                .await
+                .map_err(|_| ConnectionError::Transport)?;
+
+            while let Some(message) = channel.wait().await {
+                /* `false` means a stream passed its cap and the rest of the
+                run is not worth reading. */
+                let kept = match message {
+                    ChannelMsg::Data { data } => {
+                        append_capped(&mut output.stdout, &data, max_stream)
+                    }
+                    ChannelMsg::ExtendedData { data, ext: 1 } => {
+                        append_capped(&mut output.stderr, &data, max_stream)
+                    }
+                    ChannelMsg::ExitStatus { exit_status } => {
+                        output.exit_status = Some(exit_status);
+                        true
+                    }
+                    ChannelMsg::Close => break,
+                    _ => true,
+                };
+                if !kept {
+                    output.truncated = true;
+                    break;
+                }
+            }
+
+            /* Best effort: the server may already have closed it, and a
+            failure to say so changes nothing about what was read. */
+            let _ = channel.close().await;
+            Ok::<(), ConnectionError>(())
+        })
+        .await;
+
+        match finished {
+            Ok(result) => result?,
+            Err(_elapsed) => {
+                output.timed_out = true;
+                output.exit_status = None;
+            }
+        }
+
+        if output.truncated {
+            output.exit_status = None;
+        }
+
+        Ok(output)
     }
 
     /// Opens a forwarded connection to `endpoint`, from this host.

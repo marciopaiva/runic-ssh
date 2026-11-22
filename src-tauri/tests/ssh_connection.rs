@@ -188,10 +188,29 @@ impl ServerHandler for TestServer {
     async fn exec_request(
         &mut self,
         channel: ChannelId,
-        _data: &[u8],
+        data: &[u8],
         session: &mut Session,
     ) -> Result<(), Self::Error> {
         session.channel_success(channel)?;
+
+        /* Three commands the bounded runner is held to (ADR-0078); anything
+        else gets the canned answer every other test relies on. */
+        if data == b"fleet-flood" {
+            session.data(channel, vec![b'x'; 200_000])?;
+            return Ok(());
+        }
+        if data == b"fleet-hang" {
+            return Ok(());
+        }
+        if data == b"fleet-stderr" {
+            session.data(channel, b"out\n".to_vec())?;
+            session.extended_data(channel, 1, b"err\n".to_vec())?;
+            session.exit_status_request(channel, 3)?;
+            session.eof(channel)?;
+            session.close(channel)?;
+            return Ok(());
+        }
+
         session.data(channel, b"runic-exec-ok\n".to_vec())?;
         session.exit_status_request(channel, 0)?;
         session.eof(channel)?;
@@ -1641,4 +1660,62 @@ async fn stopping_a_remote_forward_closes_a_connection_already_riding_it() {
     );
 
     connection.disconnect().await.expect("it closes");
+}
+
+async fn connected_for_bounded_runs() -> runic_ssh::ssh::connection::Connection {
+    let key = PrivateKey::random(&mut rng(), russh::keys::Algorithm::Ed25519).expect("a key");
+    let (port, host_public) = start_server(key.public_key().clone()).await;
+
+    let mut connection = connect(endpoint(port), trusting(port, &host_public))
+        .await
+        .expect("connects");
+    connection
+        .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
+        .await
+        .expect("authenticates");
+    connection
+}
+
+#[tokio::test]
+async fn a_bounded_run_keeps_stderr_apart_from_stdout_and_reports_the_exit_status() {
+    let connection = connected_for_bounded_runs().await;
+
+    let output = connection
+        .run_bounded("fleet-stderr", 1024, std::time::Duration::from_secs(5))
+        .await
+        .expect("the command runs");
+
+    assert_eq!(output.stdout, b"out\n");
+    assert_eq!(output.stderr, b"err\n");
+    assert_eq!(output.exit_status, Some(3));
+    assert!(!output.truncated && !output.timed_out);
+}
+
+#[tokio::test]
+async fn a_bounded_run_stops_a_host_that_answers_with_more_than_the_cap() {
+    let connection = connected_for_bounded_runs().await;
+
+    let output = connection
+        .run_bounded("fleet-flood", 1000, std::time::Duration::from_secs(5))
+        .await
+        .expect("the run ends");
+
+    assert!(output.truncated);
+    assert_eq!(output.stdout.len(), 1000);
+    assert_eq!(output.exit_status, None);
+}
+
+#[tokio::test]
+async fn a_bounded_run_gives_up_on_a_host_that_never_answers() {
+    let connection = connected_for_bounded_runs().await;
+
+    let started = std::time::Instant::now();
+    let output = connection
+        .run_bounded("fleet-hang", 1024, std::time::Duration::from_millis(300))
+        .await
+        .expect("the run ends");
+
+    assert!(output.timed_out);
+    assert_eq!(output.exit_status, None);
+    assert!(started.elapsed() < std::time::Duration::from_secs(3));
 }

@@ -126,6 +126,10 @@ pub enum Error {
     #[error("the macro is missing or malformed")]
     InvalidMacro { field: String },
 
+    /// ADR-0078. Only a script macro can run on several hosts at once.
+    #[error("only a script macro can run on several hosts")]
+    MacroNotScript { id: String },
+
     #[error("the map is missing or malformed")]
     InvalidWorkspace { field: String },
 
@@ -334,6 +338,11 @@ pub enum IpcError {
     InvalidMacro {
         field: String,
     },
+    /// ADR-0078. The macro is not a script macro, so it cannot be run on
+    /// several hosts.
+    MacroNotScript {
+        id: String,
+    },
     /// The map was rejected before being written; `field` names which part.
     /// ADR-0064.
     InvalidWorkspace {
@@ -443,6 +452,7 @@ impl From<Error> for IpcError {
             Error::InvalidSession { field } => Self::InvalidSession { field },
             Error::UnknownMacro { id } => Self::UnknownMacro { id },
             Error::InvalidMacro { field } => Self::InvalidMacro { field },
+            Error::MacroNotScript { id } => Self::MacroNotScript { id },
             Error::InvalidWorkspace { field } => Self::InvalidWorkspace { field },
             Error::UnknownDecision => Self::UnknownDecision,
             Error::NotAwaitingDecision => Self::NotAwaitingDecision,

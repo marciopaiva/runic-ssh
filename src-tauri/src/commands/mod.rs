@@ -9,6 +9,7 @@ pub mod app;
 pub mod candidate_logs;
 pub mod chrome;
 pub mod credential;
+pub mod fleet;
 pub mod forward;
 pub mod journal;
 pub mod local_shell;
