@@ -41,7 +41,16 @@ describe('what the form starts with', () => {
       proxyJump: '',
       kind: 'direct',
       forwards: [],
+      multiplexer: '',
     });
+  });
+
+  it('shows a saved multiplexer, and a change to it makes the form dirty', () => {
+    const saved = session({ multiplexer: 'tmux' });
+
+    expect(editorValues(saved).multiplexer).toBe('tmux');
+    expect(isDirty({ ...editorValues(saved), multiplexer: '' }, saved)).toBe(true);
+    expect(isDirty(editorValues(saved), saved)).toBe(false);
   });
 
   it('shows a blank form for a session that does not exist yet', () => {

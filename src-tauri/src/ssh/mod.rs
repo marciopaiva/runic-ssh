@@ -11,6 +11,7 @@ pub mod forward;
 pub mod journal;
 pub mod known_hosts;
 pub mod monitor;
+pub mod multiplexer;
 pub mod pending;
 pub mod ports;
 pub mod processes;

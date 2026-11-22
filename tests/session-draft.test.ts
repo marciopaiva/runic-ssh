@@ -22,6 +22,7 @@ import {
   parsePort,
   suggestName,
   toForwards,
+  toMultiplexer,
 } from '../src/features/sessions/draft';
 import type { DraftValues, ForwardDraft } from '../src/features/sessions/draft';
 
@@ -34,6 +35,7 @@ const valid: DraftValues = {
   proxyJump: '',
   kind: 'direct',
   forwards: [],
+  multiplexer: '',
 };
 
 const withValue = (field: keyof DraftValues, value: string): DraftValues => ({
@@ -66,6 +68,7 @@ describe('a session draft', () => {
           proxyJump: '',
           kind: 'direct',
           forwards: [],
+          multiplexer: '',
         }),
       ].sort(),
     ).toEqual(['host', 'name', 'port', 'user'].sort());
@@ -204,5 +207,14 @@ describe('the limits', () => {
     expect(rust).toContain(`field("host", &draft.host, ${LIMITS.host})`);
     expect(rust).toContain(`field("user", &draft.user, ${LIMITS.user})`);
     expect(rust).toContain(`field("group", group, ${LIMITS.group})`);
+  });
+});
+
+describe('the multiplexer choice (ADR-0079)', () => {
+  it('names a multiplexer only for the two the core accepts', () => {
+    expect(toMultiplexer('tmux')).toBe('tmux');
+    expect(toMultiplexer('screen')).toBe('screen');
+    expect(toMultiplexer('')).toBeNull();
+    expect(toMultiplexer('zellij; reboot')).toBeNull();
   });
 });

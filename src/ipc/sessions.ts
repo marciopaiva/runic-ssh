@@ -61,6 +61,9 @@ export interface Forward {
   readonly name: string | null;
 }
 
+/** A terminal multiplexer a host's shell runs inside (ADR-0079). */
+export type Multiplexer = 'tmux' | 'screen';
+
 /** A saved session. Names a host; never holds a secret. */
 export interface Session {
   readonly id: string;
@@ -85,6 +88,8 @@ export interface Session {
   readonly proxyJump: string | null;
   readonly kind: HostKind;
   readonly forwards: readonly Forward[];
+  /** Absent means a plain shell. */
+  readonly multiplexer?: Multiplexer | undefined;
 }
 
 /**
@@ -105,6 +110,7 @@ export interface SessionDraft {
   readonly proxyJump?: string | null;
   readonly kind: HostKind;
   readonly forwards: readonly Forward[];
+  readonly multiplexer?: Multiplexer | null;
 }
 
 export async function listSessions(): Promise<readonly Session[]> {

@@ -44,6 +44,7 @@ export function editorValues(session: Session | null): DraftValues {
     proxyJump: session.proxyJump ?? '',
     kind: session.kind,
     forwards: session.forwards.map(forwardDraft),
+    multiplexer: session.multiplexer ?? '',
   };
 }
 
@@ -68,6 +69,7 @@ export function differs(values: DraftValues, baseline: DraftValues): boolean {
     values.group !== baseline.group ||
     values.proxyJump !== baseline.proxyJump ||
     values.kind !== baseline.kind ||
+    values.multiplexer !== baseline.multiplexer ||
     forwardsDiffer(values.forwards, baseline.forwards)
   );
 }

@@ -100,6 +100,10 @@ Option A, with these fixed points:
 10. **tmux and screen reattach is a second change.** It needs a per-host
     setting on disk (a new optional field on `Session`) and a core-owned
     command, so it gets its own pull request and is not part of this one.
+    Done in #477's follow-up: `Session.multiplexer`, absent by default and
+    additive on disk. The shell runs `tmux new-session -A -s runic-<id>` (or
+    `screen -xRR -S`) through an exec request on the pty, with a fallback to
+    the login shell when the program is missing. Only the primary shell.
 
 The tradeoff accepted: unattended retries mean the client keeps trying to log
 in to a host while the person is away, and the keepalive keeps an idle session
