@@ -87,6 +87,7 @@ import {
   typedInto,
   updateEditor,
   useConnect,
+  useReconnect,
   useSessions,
   withEditor,
   withoutEditor,
@@ -621,7 +622,7 @@ export function App(): JSX.Element {
     new Map(),
   );
 
-  const { attempts, connect, trust, abandon } = useConnect({
+  const { attempts, connect, trust, abandon, reconnectQuietly, cancelQuiet } = useConnect({
     onConnecting: (sessionId) => setState(sessionId, 'connecting'),
     onOpened: (sessionId, handle, via) => {
       attach(sessionId, handle);
@@ -1092,8 +1093,16 @@ export function App(): JSX.Element {
      destinations, the tab and `terminalWanted` go away but the connection
      itself does not, since closing a Sessions tab must not take an SFTP
      browse session down with it. */
+  /* ADR-0079: the retries of a session whose connection dropped. Stopped by
+     whoever closes the session as well as by the person pressing Cancel, so a
+     closed tab never goes on logging in. */
+  const reconnects = useReconnect({ reconnectQuietly, cancelQuiet }, (sessionId, _reason, code) => {
+    setState(sessionId, stateAfterFailure(code ?? 'sshTransport'));
+  });
+
   const disconnect = useCallback(
     (sessionId: string): void => {
+      reconnects.cancel(sessionId);
       const live = sessions.find((entry) => entry.session.id === sessionId);
       if (live?.handle == null) return;
 
@@ -1139,7 +1148,7 @@ export function App(): JSX.Element {
         setState(sessionId, 'saved');
       });
     },
-    [sessions, attach, setState, unwantTerminal, fanout, forwardStatuses, adHocForwards],
+    [sessions, attach, setState, unwantTerminal, fanout, forwardStatuses, adHocForwards, reconnects.cancel],
   );
 
   /* Opened from the Tunnels facet, on an already-connected session: no
@@ -2887,6 +2896,28 @@ export function App(): JSX.Element {
                 onAddAdHocForward={(forward) => addAdHocForward(terminal.sessionId, terminal.handle, forward)}
                 onRemoveAdHocForward={(index) => removeAdHocForward(terminal.sessionId, index)}
                 onEditHost={() => openEditor({ kind: 'existing', sessionId: terminal.sessionId })}
+                onConnectionLost={() => {
+                  /* The dead connection is closed so the registry does not keep
+                     it, then the retries start (ADR-0079). */
+                  void disconnectSession(terminal.handle).catch(() => undefined);
+                  reconnects.begin(terminal.sessionId);
+                }}
+                reconnect={reconnects.views.get(terminal.sessionId) ?? null}
+                onReconnect={() => {
+                  const view = reconnects.views.get(terminal.sessionId);
+                  /* A stop that retrying cannot fix goes to the ordinary flow,
+                     which asks for what is missing on a screen made for it. */
+                  if (view?.phase === 'stopped' && view.reason !== 'exhausted') {
+                    reconnects.cancel(terminal.sessionId);
+                    void connect(terminal.sessionId, 'open');
+                  } else {
+                    reconnects.retry(terminal.sessionId);
+                  }
+                }}
+                onCancelReconnect={() => {
+                  reconnects.cancel(terminal.sessionId);
+                  setState(terminal.sessionId, 'unreachable');
+                }}
               />
             );
           })}

@@ -496,6 +496,35 @@ typed into a pty, and the two must stay equivalent. The `export` lines inside
 the heredoc are shell syntax, so an interpreter that is not a shell reads them
 as its own source; this is the behaviour ADR-0070 already has.
 
+## What a reconnect does
+
+ADR-0079. When a connection drops the frontend reconnects by itself, which
+means the client logs in again while nobody is watching. What bounds that:
+
+* **The credential is resolved again, not kept.** Each attempt is a normal
+  connect followed by `authenticate_with_saved`, which reads the keychain on
+  that call. Nothing about the secret lives between a drop and a retry, and
+  a host whose credential was typed for the run, never saved, does not
+  reconnect on its own.
+* **The host key is decided first, every time.** An unknown or changed key
+  stops the retries. The held decision is dismissed in the core and the
+  Reconnect button starts the ordinary flow, which asks on a screen made for
+  it. Backoff never turns a key mismatch into something retried.
+* **Only a failure to reach the host is retried.** A refused credential stops
+  at once, so a changed password is tried once and not eight times against an
+  account that may lock.
+* **Eight attempts, a 30 second ceiling.** Then it waits for the person.
+* **Teardown.** Every timer is cleared when the session is closed, when the
+  person cancels, and when the window unmounts. A quiet attempt that finishes
+  after being cancelled closes the connection it opened.
+* **Keepalive is traffic.** A ping every 30 s, three misses to give up. It
+  makes a silent drop visible, and it also keeps an idle session alive that a
+  server's own idle timeout would have closed.
+
+What it does not do: replay a typed password, accept a host key, open a
+connection the person never opened, or rebind SFTP panes, Monitor or ad hoc
+tunnels that rode the old handle.
+
 ## Reviewing a change
 
 Any change touching `vault/`, host key verification, logging, local process
