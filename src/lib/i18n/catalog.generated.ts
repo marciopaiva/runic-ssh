@@ -211,6 +211,7 @@ export const SOURCE_CATALOG = {
   "fleet.back": "Back",
   "fleet.group": "{count} of {total} hosts",
   "fleet.group.reference": "Most common answer",
+  "fleet.group.tie": "One of the answers, none is the most common",
   "fleet.group.differs": "Differs from the most common answer",
   "fleet.exit": "exit {code}",
   "fleet.exit.none": "no exit status",
