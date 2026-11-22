@@ -40,7 +40,7 @@ import type {
 } from '../../ipc';
 
 import { heldDecision, reportedFailure, shouldPromptAfterSaved } from './connect';
-import type { ConnectIntent, ConnectStage, FailureCode, ReportedFailure } from './connect';
+import type { ConnectIntent, ConnectStage, ConnectStep, FailureCode, ReportedFailure } from './connect';
 
 /** How long registering to hear a bastion's own inline credential request
     (`onInlineCredentialRequest`) may take before an `'inline'` attempt gives
@@ -243,13 +243,14 @@ export function useConnect(wiring: Wiring): ConnectState {
       mine: number,
       intent: ConnectIntent,
       method?: SuggestedMethod,
+      step: ConnectStep = 'reaching',
     ): void => {
       if (!current(sessionId, mine)) return;
 
       const { code, hop } = reported;
       setAttempt(sessionId, {
         sessionId,
-        stage: { stage: 'failed', code, hop },
+        stage: { stage: 'failed', code, hop, step },
         intent,
         decision: null,
         method: method ?? null,
@@ -280,7 +281,7 @@ export function useConnect(wiring: Wiring): ConnectState {
 
       setAttempt(sessionId, {
         sessionId,
-        stage: { stage: 'connecting' },
+        stage: { stage: 'connecting', step: 'authenticating' },
         intent,
         decision: null,
         method: method ?? null,
@@ -299,7 +300,7 @@ export function useConnect(wiring: Wiring): ConnectState {
         } catch (rejection) {
           if (!current(sessionId, mine)) return;
           void disconnectSession(handle);
-          fail(sessionId, reportedFailure(asIpcError(rejection) ?? null), mine, intent, method);
+          fail(sessionId, reportedFailure(asIpcError(rejection) ?? null), mine, intent, method, 'authenticating');
           return;
         }
 
@@ -373,7 +374,7 @@ export function useConnect(wiring: Wiring): ConnectState {
           return;
         }
 
-        fail(sessionId, reported, mine, intent, method);
+        fail(sessionId, reported, mine, intent, method, 'authenticating');
       }
     },
     [

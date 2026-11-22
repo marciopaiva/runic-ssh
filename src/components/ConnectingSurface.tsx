@@ -3,11 +3,16 @@ import type { JSX } from 'react';
 import { useTranslator } from '../features/settings';
 import type { Session } from '../ipc';
 
+import type { ConnectStep } from '../features/sessions/connect';
+
+import { ConnectSteps } from './ConnectSteps';
 import { SessionSurface, SurfaceAction } from './SessionSurface';
 
 interface ConnectingSurfaceProps {
   readonly session: Session;
   readonly onCancel: () => void;
+  /** Which step is under way. Absent reads as the first. */
+  readonly step?: ConnectStep | undefined;
 }
 
 /**
@@ -32,7 +37,7 @@ interface ConnectingSurfaceProps {
  * step after it failing was a window opening. It no longer is one, so there
  * is nothing left on screen for the two halves to disagree about.
  */
-export function ConnectingSurface({ session, onCancel }: ConnectingSurfaceProps): JSX.Element {
+export function ConnectingSurface({ session, onCancel, step = 'reaching' }: ConnectingSurfaceProps): JSX.Element {
   const i18n = useTranslator();
 
   return (
@@ -65,6 +70,8 @@ export function ConnectingSurface({ session, onCancel }: ConnectingSurfaceProps)
           {i18n.t('connecting.cancel')}
         </SurfaceAction>
       }
-    />
+    >
+      <ConnectSteps step={step} />
+    </SessionSurface>
   );
 }

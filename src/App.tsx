@@ -1538,7 +1538,13 @@ export function App(): JSX.Element {
         const live = sessions.find((entry) => entry.session.id === attempt.sessionId);
         if (live === undefined) return null;
 
-        return <ConnectingSurface session={live.session} onCancel={() => abandon(attempt.sessionId)} />;
+        return (
+          <ConnectingSurface
+            session={live.session}
+            step={attempt.stage.stage === 'connecting' ? attempt.stage.step : undefined}
+            onCancel={() => abandon(attempt.sessionId)}
+          />
+        );
       }
 
       /* `'settled'` is a completed wizard test. The wizard closes itself the
@@ -1565,6 +1571,7 @@ export function App(): JSX.Element {
             session={session}
             code={attempt.stage.code}
             hop={attempt.stage.hop}
+            step={attempt.stage.step}
             onRetry={() => activate(session.id)}
             onDismiss={() => abandon(attempt.sessionId)}
           />

@@ -5,6 +5,9 @@ import type { FailureCode } from '../features/sessions';
 import { useTranslator } from '../features/settings';
 import type { Hop, Session } from '../ipc';
 
+import type { ConnectStep } from '../features/sessions/connect';
+
+import { ConnectSteps } from './ConnectSteps';
 import { SessionSurface, SurfaceAction } from './SessionSurface';
 
 interface ConnectionFailureProps {
@@ -15,6 +18,8 @@ interface ConnectionFailureProps {
    * is not behind one.
    */
   readonly hop: Hop | null;
+  /** The step it stopped in. Absent reads as the first. */
+  readonly step?: ConnectStep | undefined;
   readonly onRetry: () => void;
   readonly onDismiss: () => void;
 }
@@ -38,6 +43,7 @@ export function ConnectionFailure({
   session,
   code,
   hop,
+  step = 'reaching',
   onRetry,
   onDismiss,
 }: ConnectionFailureProps): JSX.Element {
@@ -92,6 +98,7 @@ export function ConnectionFailure({
         </>
       }
     >
+      <ConnectSteps step={step} failed />
       {/* Only where there is nothing better to say. Everywhere else the
           message names the cause, and a code beside it is noise. */}
       {failure.title === 'failure.unexpected.title' && (

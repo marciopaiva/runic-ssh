@@ -72,6 +72,11 @@ export function hashOf(catalog: Readonly<Record<string, string>>, keys: readonly
  * there.
  */
 export const SECURITY_COPY_KEYS: readonly MessageKey[] = [
+  // The connecting screen's steps. The first says the host key is checked
+  // before anything else, and the second that the saved credential is used.
+  // The pt-BR and es copy was written by a model and has not been reviewed.
+  'connecting.step.reaching',
+  'connecting.step.authenticating',
   // What a dropped session's banner says when retrying stopped for a host key
   // decision or a credential (ADR-0079). The pt-BR and es copy was written by
   // a model and has not been reviewed.

@@ -31,6 +31,17 @@ import type { CredentialPrompt, Hop, IpcError, IpcErrorCode, Keeping, Session } 
  */
 export type ConnectIntent = 'open' | 'inline';
 
+/**
+ * Which part of connecting is under way, or was when it stopped.
+ *
+ * Only the two the interface can tell apart for certain. `reaching` is the one
+ * call that reaches the host, exchanges keys and checks the host key, and it
+ * resolves only once that key is accepted, so it ending is what "the key was
+ * checked" means. `authenticating` is the saved credential being tried.
+ * Opening the shell is not a step here: the terminal appears when it is done.
+ */
+export type ConnectStep = 'reaching' | 'authenticating';
+
 /** Where a connection attempt is. */
 export type ConnectStage =
   | { readonly stage: 'idle' }
@@ -42,7 +53,7 @@ export type ConnectStage =
    * span from opening the socket to a saved credential either working or
    * not is one continuous wait as far as the screen is concerned.
    */
-  | { readonly stage: 'connecting' }
+  | { readonly stage: 'connecting'; readonly step?: ConnectStep | undefined }
   /** Waiting on the user to decide about a host key. */
   | { readonly stage: 'deciding'; readonly decision: HeldDecision }
   /**
@@ -71,6 +82,8 @@ export type ConnectStage =
       readonly code: FailureCode;
       /** Which host it failed at, or `null` when there was no chain. */
       readonly hop: Hop | null;
+      /** The step it stopped in. Absent reads as `reaching`. */
+      readonly step?: ConnectStep | undefined;
     };
 
 /**
