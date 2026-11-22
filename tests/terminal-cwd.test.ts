@@ -41,3 +41,24 @@ describe('parseOsc7', () => {
     }
   });
 });
+
+describe('the local shells\' folders', () => {
+  it('follows the shell that reported last and falls back when it goes away', async () => {
+    const { reportLocalCwd, forgetLocalCwd, getLocalCwd } = await import('../src/features/terminal/cwd');
+
+    expect(getLocalCwd()).toBeNull();
+
+    reportLocalCwd('1', '/home/me');
+    reportLocalCwd('2', '/srv/app');
+    expect(getLocalCwd()).toBe('/srv/app');
+
+    reportLocalCwd('1', '/home/me/src');
+    expect(getLocalCwd()).toBe('/home/me/src');
+
+    forgetLocalCwd('1');
+    expect(getLocalCwd()).toBe('/srv/app');
+
+    forgetLocalCwd('2');
+    expect(getLocalCwd()).toBeNull();
+  });
+});

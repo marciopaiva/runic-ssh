@@ -24,17 +24,19 @@ vi.mock('../src/features/settings', () => ({
 }));
 
 const sftpList = vi.fn(async (..._args: unknown[]) => []);
+const localList = vi.fn(async (path: string | null) => ({ path: path ?? '/home/me', parent: null, entries: [] }));
 vi.mock('../src/ipc', () => ({
   sftpList: (...args: unknown[]) => sftpList(...args),
+  localListDirectory: (path: string | null) => localList(path),
   asIpcError: () => undefined,
 }));
 
 const { SftpPane } = await import('../src/components/SftpPane');
-const { reportTerminalCwd, forgetTerminalCwd } = await import('../src/features/terminal/cwd');
+const { reportTerminalCwd, forgetTerminalCwd, reportLocalCwd, forgetLocalCwd } = await import('../src/features/terminal/cwd');
 
 const roots: Array<ReturnType<typeof createRoot>> = [];
 
-async function mount() {
+async function mount(endpoint: unknown = { kind: 'remote', sessionId: 's1', handle: 9 as never }) {
   const host = document.createElement('div');
   document.body.appendChild(host);
   const root = createRoot(host);
@@ -42,7 +44,7 @@ async function mount() {
   await act(async () => {
     root.render(
       createElement(SftpPane, {
-        endpoint: { kind: 'remote', sessionId: 's1', handle: 9 as never },
+        endpoint: endpoint as never,
         paneId: 'p',
         label: 'Source',
         identity: 'web-01',
@@ -73,6 +75,7 @@ afterEach(async () => {
     for (const root of roots.splice(0)) root.unmount();
   });
   forgetTerminalCwd(9);
+  forgetLocalCwd('a');
 });
 
 describe('the terminal folder button', () => {
@@ -99,5 +102,30 @@ describe('the terminal folder button', () => {
 
     expect(sftpList).toHaveBeenLastCalledWith(9, '/var/www');
     expect(document.body.textContent).not.toContain('~/.bashrc');
+  });
+});
+
+describe('the local pane', () => {
+  it('goes to the folder of the local shell that reported one', async () => {
+    await mount({ kind: 'local' });
+    await act(async () => {
+      reportLocalCwd('a', '/srv/app');
+    });
+
+    await act(async () => {
+      folderButton()?.click();
+    });
+
+    expect(localList).toHaveBeenLastCalledWith('/srv/app');
+  });
+
+  it('explains how to get one when no local shell has reported', async () => {
+    await mount({ kind: 'local' });
+
+    await act(async () => {
+      folderButton()?.click();
+    });
+
+    expect(document.body.textContent).toContain('~/.bashrc');
   });
 });

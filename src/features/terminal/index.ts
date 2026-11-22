@@ -26,4 +26,12 @@ export {
 export type { Box, Grid, Group, GroupLabel, HeldGroup } from './groups';
 export { SHAPE_LABEL, dimensions } from './shapes';
 export type { ShapeLabel } from './shapes';
-export { forgetTerminalCwd, parseOsc7, reportTerminalCwd, useTerminalCwd } from './cwd';
+export {
+  forgetLocalCwd,
+  forgetTerminalCwd,
+  parseOsc7,
+  reportLocalCwd,
+  reportTerminalCwd,
+  useLocalTerminalCwd,
+  useTerminalCwd,
+} from './cwd';
