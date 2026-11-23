@@ -141,6 +141,21 @@ body {
   animation: map-bloom 160ms var(--rs-easing-decelerated) both;
   transform-origin: center;
 }
+/* The sigil is cut once when a connection comes up (#481): each stroke is
+   drawn from nothing, a little after the one before. Cut to nothing by the
+   reduced-motion block above. */
+@keyframes sigil-cut {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.sigil-cut {
+  stroke-dasharray: 1;
+  animation: sigil-cut 380ms var(--rs-easing-decelerated) both;
+}
 .group:hover .map-glyph-edge {
   stroke: var(--rs-glass-edge-hot);
 }

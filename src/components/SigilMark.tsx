@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import type { JSX } from 'react';
 
 import { sigilOf } from '../features/sigil/sigil';
@@ -93,13 +94,22 @@ export function SigilBadge({ id, live, className = 'h-4 w-4' }: SigilBadgeProps)
   const sigil = sigilOf(id);
   const strokes = [sigil.stem, ...sigil.levels.flatMap((level) => level.strokes)];
 
+  /* Cut once, when the connection comes up while this badge is already on
+     screen. A badge that first renders for a host that is already live (the
+     palette opening, a list scrolling in) is simply lit: it would otherwise
+     play the flourish for something that did not just happen. */
+  const startedLive = useRef(live);
+  const cut = live && !startedLive.current;
+
   return (
     <svg viewBox="0 0 24 24" className={`shrink-0 ${className}`} fill="none" aria-hidden="true" data-live={live}>
       {strokes.map((shape, index) => (
         <path
           key={index}
           d={shape.d}
-          className={live ? TONE[shape.side] : 'stroke-ink-disabled'}
+          pathLength={1}
+          className={`${live ? TONE[shape.side] : 'stroke-ink-disabled'}${cut ? ' sigil-cut' : ''}`}
+          style={cut ? { animationDelay: `${index * 55}ms` } : undefined}
           strokeWidth={2}
           strokeLinecap="round"
           opacity={live ? 1 : 0.5}
