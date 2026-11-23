@@ -1,11 +1,12 @@
 import { useEffect } from 'react';
 import type { JSX } from 'react';
 
-import { isLinux, terminalMenu } from '../features/map';
+import { terminalMenu } from '../features/terminal/menu';
+import { isLinux } from '../lib/platform';
 import { useTranslator } from '../features/settings';
 import type { ClipboardApi } from '../features/terminal/use-terminal';
 
-import { MapMenu } from './map/MapMenu';
+import { ContextMenu } from './ContextMenu';
 
 interface PaneContextMenuProps {
   /** Where the pointer was, in window coordinates. */
@@ -57,7 +58,7 @@ export function PaneContextMenu({ at, clipboard, modifier, onClose }: PaneContex
     /* The menu positions itself absolutely; this gives it the whole window as
        its frame and lets everything outside it through. */
     <div className="pointer-events-none fixed inset-0 z-[320] [&>*]:pointer-events-auto">
-      <MapMenu
+      <ContextMenu
         at={at}
         title={i18n.t('terminal.menu.title')}
         items={items}

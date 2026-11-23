@@ -31,6 +31,7 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 
 ### Changed
 
+- The fleet run starts from host groups instead of map visions (ADR-0080). Each group button ticks the group's connected hosts and names the ones it leaves out, as the vision buttons did. The group is the one set on a host in its editor.
 - Upgrade `russh` from 0.63 to 0.65 (#473). The client now enforces the negotiated host key algorithm against the key and signature the server sends, calls `kex_done` only after the host key is verified, and bounds several allocations a hostile server could grow. Host key verification in this application is unchanged. The one breaking change is on the server side of the library, which only the test server uses. The RUSTSEC-2026-0495 ignore is removed from `audit.toml`.
 
 ## [0.9.0] — 2026-09-24

@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { terminalMenu } from '../src/features/map';
+import { terminalMenu } from '../src/features/terminal/menu';
 
 const ids = (state: Parameters<typeof terminalMenu>[0]): readonly string[] =>
   terminalMenu(state).map((entry) => `${entry.id}${entry.disabled ? '!' : ''}`);
