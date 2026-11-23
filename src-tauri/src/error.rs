@@ -130,9 +130,6 @@ pub enum Error {
     #[error("only a script macro can run on several hosts")]
     MacroNotScript { id: String },
 
-    #[error("the map is missing or malformed")]
-    InvalidWorkspace { field: String },
-
     #[error("that decision is not waiting on an answer")]
     UnknownDecision,
 
@@ -343,11 +340,6 @@ pub enum IpcError {
     MacroNotScript {
         id: String,
     },
-    /// The map was rejected before being written; `field` names which part.
-    /// ADR-0064.
-    InvalidWorkspace {
-        field: String,
-    },
     /// The SFTP channel or subsystem could not be opened.
     SftpNotConnected,
     /// A remote name failed `sftp::path::check_name` before it was let
@@ -453,7 +445,6 @@ impl From<Error> for IpcError {
             Error::UnknownMacro { id } => Self::UnknownMacro { id },
             Error::InvalidMacro { field } => Self::InvalidMacro { field },
             Error::MacroNotScript { id } => Self::MacroNotScript { id },
-            Error::InvalidWorkspace { field } => Self::InvalidWorkspace { field },
             Error::UnknownDecision => Self::UnknownDecision,
             Error::NotAwaitingDecision => Self::NotAwaitingDecision,
             Error::HostKeyRevoked => Self::HostKeyRevoked,

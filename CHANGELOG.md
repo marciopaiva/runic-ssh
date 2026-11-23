@@ -36,7 +36,7 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 
 ### Removed
 
-- The map workspace (ADR-0080). The "Map" pill, the preview opt-in and its prompt, and the map's windows, lines, visions and layers are gone from the interface. The toolbar now switches between Home, SSH and SFTP. Your `workspace.json` stays on disk and is no longer read, so the visions and layouts you built there are not shown anywhere. Host groups are the closest replacement, and the fleet run already starts from them. The `previewFeatures` setting is kept for one release and does nothing.
+- The map workspace (ADR-0080). The "Map" pill, the preview opt-in and its prompt, and the map's windows, lines, visions and layers are gone from the interface. The toolbar now switches between Home, SSH and SFTP. Your `workspace.json` stays on disk and is no longer read, so the visions and layouts you built there are not shown anywhere. Host groups are the closest replacement, and the fleet run already starts from them. The `previewFeatures` setting is kept for one release and does nothing. The `load_workspace` and `save_workspace` commands and the `invalidWorkspace` error are gone from the core.
 
 ## [0.9.0] — 2026-09-24
 
