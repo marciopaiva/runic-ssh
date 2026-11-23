@@ -9,6 +9,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Manager, Runtime, State};
 use tokio::task::JoinSet;
 
+use crate::config::logbook::{record, Kind, LogbookStore, Outcome};
 use crate::config::macros::{MacroKind, MacroStore};
 use crate::config::sessions::SessionStore;
 use crate::error::{Error, IpcError};
@@ -156,9 +157,51 @@ pub async fn fleet_run<R: Runtime>(
 ) -> Result<Vec<FleetResult>, IpcError> {
     let directory = directory(&app)?;
     let macros = MacroStore::new(directory.clone());
-    let sessions = SessionStore::new(directory);
+    let sessions = SessionStore::new(directory.clone());
 
-    Ok(run_fleet(&registry, &macros, &sessions, &macro_id, handles).await?)
+    /* Which host each handle is, asked before the run: a session that closes
+    during it is still the host the run was started on. */
+    let mut hosts = std::collections::HashMap::new();
+    for handle in &handles {
+        if let Some(id) = registry.session_of(*handle).await {
+            hosts.insert(*handle, id);
+        }
+    }
+
+    let results = run_fleet(&registry, &macros, &sessions, &macro_id, handles).await?;
+
+    /* One line in each host's Logbook. The macro's name and how it ended, never
+    what it printed. Best effort: see `config::logbook`. */
+    if let Some(name) = macros
+        .load()
+        .ok()
+        .and_then(|all| all.find(&macro_id).map(|m| m.name.clone()))
+    {
+        let logbook = LogbookStore::new(directory);
+        for result in &results {
+            let Some(id) = hosts.get(&result.handle) else {
+                continue;
+            };
+            let (outcome, exit_status) = match &result.status {
+                FleetStatus::Ran {
+                    timed_out: true, ..
+                } => (Outcome::TimedOut, None),
+                FleetStatus::Ran { exit_status, .. } => (Outcome::Ran, *exit_status),
+                FleetStatus::Failed => (Outcome::Failed, None),
+            };
+            record(
+                &logbook,
+                id,
+                Kind::MacroRun {
+                    name: name.clone(),
+                    outcome,
+                    exit_status,
+                },
+            );
+        }
+    }
+
+    Ok(results)
 }
 
 #[cfg(test)]

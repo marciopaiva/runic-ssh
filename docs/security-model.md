@@ -505,6 +505,46 @@ What it does not do: replay a typed password, accept a host key, open a
 connection the person never opened, or rebind SFTP panes, Monitor or ad hoc
 tunnels that rode the old handle.
 
+## What the Logbook records
+
+The Logbook (ADR-0081) keeps, for each saved host, what happened to it: a
+connection made, lost, retried and restored, a server key trusted or replaced,
+and a saved script macro run through a fleet run with how it ended. It is local
+to this machine, written under `logbook/` in the configuration directory, one
+file per host, with no network call and no telemetry.
+
+What it holds is a time and one of a closed set of kinds, and nothing a person
+typed. Every event is a variant of `Kind` in `config/logbook.rs`, and the fields
+of each variant are the whole of what can be written: there is no free text
+field. `the_fields_are_pinned` serialises every variant and fails when one gains
+a key, so widening what is recorded is a change a reviewer has to read. The
+macro's name is recorded and its text is not; the fingerprint of a key is
+recorded and the key is not; the output of a macro is never recorded.
+
+What it never holds: keystrokes, host output, passwords, passphrases, key
+material, a host's address, or the content of a file moved over SFTP.
+
+Who can write it. The core writes `connected`, `hostKeyTrusted` and `macroRun`
+itself, where it already knows them. The interface reports the two things only
+it sees, a drop and a reconnect attempt, through a command that takes a kind
+and an attempt number and refuses anything else, including the kinds the core
+writes, so the webview cannot record a line that says a key was trusted. A host
+id from the webview is checked against the saved hosts before it names a file,
+and against a character set that cannot leave the directory.
+
+Bounds. 500 events and 64 KiB per host, oldest dropped first. A corrupt file
+costs that host its history, not its future: the next event starts a new file.
+Recording is best effort and never fails the connection, transfer or macro it
+describes.
+
+What a person can do. Read a host's Logbook from the Hall, and clear it. There
+is no export and no sharing. Deleting a host does not delete its file today;
+that is a known gap, tracked below.
+
+Known gaps. File transfers are not recorded yet. The Logbook is not removed with
+its host. The pt-BR and es wording of the promise on its screen is security copy
+and has not been reviewed by a native speaker.
+
 ## Reviewing a change
 
 Any change touching `vault/`, host key verification, logging, local process

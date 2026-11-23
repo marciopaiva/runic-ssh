@@ -72,6 +72,12 @@ export function hashOf(catalog: Readonly<Record<string, string>>, keys: readonly
  * there.
  */
 export const SECURITY_COPY_KEYS: readonly MessageKey[] = [
+  // The Logbook's promise about what it never holds, including a password.
+  // A claim about what is stored is security copy: it is only worth showing
+  // while it is true, and a mistranslation could promise more than the core
+  // keeps. The pt-BR and es copy was written by a model and has not been
+  // reviewed, so it is listed here and left out of REVIEWS.
+  'logbook.never',
   // The connecting screen's steps. The first says the host key is checked
   // before anything else, and the second that the saved credential is used.
   // The pt-BR and es copy was written by a model and has not been reviewed.

@@ -12,6 +12,8 @@ interface HallProps {
   readonly hosts: readonly LiveSession[];
   readonly onOpen: (sessionId: string) => void;
   readonly onFiles: (sessionId: string) => void;
+  /** Opens one host's Logbook. */
+  readonly onLogbook: (sessionId: string) => void;
   readonly onNew: () => void;
   /** `null` when this platform offers no native shell. */
   readonly onLocalShell: (() => void) | null;
@@ -27,7 +29,7 @@ interface HallProps {
  *
  * No entrance animation: it is the screen the application opens on.
  */
-export function Hall({ hosts, onOpen, onFiles, onNew, onLocalShell }: HallProps): JSX.Element {
+export function Hall({ hosts, onOpen, onFiles, onLogbook, onNew, onLocalShell }: HallProps): JSX.Element {
   const i18n = useTranslator();
   const [cursor, setCursor] = useState(0);
   const plates = useRef<(HTMLButtonElement | null)[]>([]);
@@ -81,6 +83,11 @@ export function Hall({ hosts, onOpen, onFiles, onNew, onLocalShell }: HallProps)
         event.preventDefault();
         onFiles(sessionId);
         return;
+      case 'l':
+      case 'L':
+        event.preventDefault();
+        onLogbook(sessionId);
+        return;
       default:
     }
   };
@@ -95,7 +102,7 @@ export function Hall({ hosts, onOpen, onFiles, onNew, onLocalShell }: HallProps)
         const { session } = live;
         const state = describeState(live.kind);
         return (
-          <li key={session.id}>
+          <li key={session.id} className="relative">
             <button
               ref={(element) => {
                 plates.current[index] = element;
@@ -115,6 +122,14 @@ export function Hall({ hosts, onOpen, onFiles, onNew, onLocalShell }: HallProps)
                 </span>
                 <span className={`${state.tone} text-[11px]`}>{i18n.t(state.label)}</span>
               </span>
+            </button>
+            <button
+              type="button"
+              tabIndex={-1}
+              onClick={() => onLogbook(session.id)}
+              className="text-ink-faint hover:text-ink absolute top-2 right-2 text-[10.5px]"
+            >
+              {i18n.t('logbook.open')}
             </button>
           </li>
         );

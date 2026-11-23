@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::Error;
 
+pub mod logbook;
 pub mod macros;
 pub mod sessions;
 pub mod spaces;

@@ -10,6 +10,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 
 use crate::commands::credential::ask_inline;
+use crate::config::logbook::{record, Kind, LogbookStore};
 use crate::config::sessions::{
     check_proxy_jump, delete_session as remove_session, save_session as store_session, Session,
     SessionDraft, SessionStore,
@@ -248,6 +249,31 @@ pub async fn trust_host_key<R: Runtime>(
     ));
 
     write_known_hosts(&path, &known.to_file())?;
+
+    /* The key a person decided to trust is the thing a Logbook is for, above
+    all when it replaced another. Filed under every saved host at that address:
+    the decision names a host and a port, not a saved session. */
+    if let Ok(directory) = config_dir(&app) {
+        let replaced = matches!(offered.verdict, Trust::Changed { .. });
+        let fingerprint = crate::ssh::known_hosts::fingerprint(&offered.key);
+        let logbook = LogbookStore::new(directory.clone());
+        if let Ok(saved) = SessionStore::new(directory).load() {
+            for session in saved
+                .items
+                .iter()
+                .filter(|s| s.host == offered.host && s.port == offered.port)
+            {
+                record(
+                    &logbook,
+                    &session.id,
+                    Kind::HostKeyTrusted {
+                        fingerprint: fingerprint.clone(),
+                        replaced,
+                    },
+                );
+            }
+        }
+    }
     Ok(())
 }
 
@@ -1152,7 +1178,8 @@ pub async fn connect_session<R: Runtime>(
 /// The secret arrives, is used, and is dropped inside this call. It is never
 /// stored, never echoed back, and never reaches a log.
 #[tauri::command]
-pub async fn authenticate_session(
+pub async fn authenticate_session<R: Runtime>(
+    app: AppHandle<R>,
     registry: State<'_, Registry>,
     handle: SessionHandle,
     password: Option<Secret>,
@@ -1173,6 +1200,12 @@ pub async fn authenticate_session(
         .ok_or(Error::UnknownHandle)?;
 
     outcome.map_err(Box::new)?;
+
+    /* The host accepted the login, which is what "connected" means in the
+    Logbook. Recorded here and not at connect, so a refused login is not one. */
+    if let (Some(id), Ok(directory)) = (registry.session_of(handle).await, config_dir(&app)) {
+        record(&LogbookStore::new(directory), &id, Kind::Connected);
+    }
     Ok(())
 }
 

@@ -13,6 +13,7 @@ pub mod fleet;
 pub mod forward;
 pub mod journal;
 pub mod local_shell;
+pub mod logbook;
 pub mod macros;
 pub mod monitor;
 pub mod ports;
