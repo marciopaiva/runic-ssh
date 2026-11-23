@@ -1,7 +1,8 @@
 # ADR-0072: Fold Home, Sessions and SFTP into an SSH/SFTP toolbar switch
 
 * **Status**: Accepted; Home's fold into the "+" palette confirmed directly
-  by the maintainer on 2026-09-19
+  by the maintainer on 2026-09-19. The palette it names became the Bar
+  (ADR-0081, slice 1), which keeps the "+" as one way in
 * **Date**: 2026-09-19
 
 ## Context

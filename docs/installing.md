@@ -8,10 +8,12 @@ tells people to "just click through the warning" is teaching a habit that the
 rest of its security model depends on them not having.
 
 Signing costs money and an identity: an Apple Developer ID for macOS, an
-Authenticode certificate for Windows. Neither has been bought. Until they are,
-every build here is an unsigned binary from the internet, and the honest
+Authenticode certificate for Windows. The maintainer decided on 2026-11-23 not
+to buy either, and to distribute from GitHub Releases as they are. That makes
+every build here an unsigned binary from the internet, and the honest
 instruction is that you should only run one you built yourself or one whose
-checksum you have compared against the workflow run that produced it.
+checksum you have compared against the workflow run that produced it. The
+1.0 release is no different in this: it is not signed either.
 
 ## Where the builds come from
 

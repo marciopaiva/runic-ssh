@@ -14,6 +14,9 @@ we are protecting, from whom, and the rules that follow.
 | Session inventory | Names and addresses of infrastructure; useful to an attacker even without credentials |
 | Terminal contents | Frequently contains tokens, dumps, and customer data in transit |
 | A live session on a bastion | An authenticated foothold in front of everything behind it, held open by us and not asked for directly by anybody |
+| The Logbook | When each host was reached, lost, restored, and which macros ran on it: a timeline of your work on infrastructure, local to this machine ([What the Logbook records](#what-the-logbook-records)) |
+| Spaces | Which hosts you treat as production. Not secret, and only a guard against a slip ([ADR-0081](adr/0081-organize-the-interface-around-spaces-a-stage-and-a-bar.md)) |
+| The internal vault file | Credentials sealed under a password, for a machine with no keychain. Its only defence against being copied is the password, which is why its mode matters ([Who can read what the application keeps](#who-can-read-what-the-application-keeps)) |
 | Saved macros | Commands a person runs often enough to save; whatever they pasted into one, a token included, sits in plain JSON beside the session inventory |
 
 ## Adversaries we design against
@@ -367,7 +370,7 @@ again guards the premise as written.
 ## What a local shell runs
 
 ADR-0074 adds a shell on this machine as a fourth kind of session, beside
-SSH, SFTP and the map's own file browser. It answers none of the four
+SSH and the SFTP workspace. It answers none of the four
 adversaries above: the process runs under the user's own account, with the
 user's own privileges, and nothing about it crosses a network. A person who
 wants a local shell already has one, in a terminal application this one did

@@ -1,7 +1,8 @@
 # ADR-0071: Collapse the chrome by default and summon it as an overlay
 
-* **Status**: Accepted and implemented; ADR-0072 (Proposed) would make
-  `SidebarOverlay` and all four of its call sites unused if accepted
+* **Status**: Accepted and implemented; ADR-0072 (Accepted) retired the
+  overlay from Sessions and SFTP, and Home's own host list is the call site
+  that remains
 * **Date**: 2026-09-18
 
 ## Context

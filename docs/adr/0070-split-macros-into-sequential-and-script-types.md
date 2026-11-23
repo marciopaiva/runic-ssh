@@ -1,6 +1,6 @@
 # ADR-0070: Split macros into sequential and script types
 
-* **Status**: Proposed
+* **Status**: Accepted and implemented (v0.8.0)
 * **Date**: 2026-09-13
 
 ## Context

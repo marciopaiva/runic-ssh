@@ -65,12 +65,17 @@ Each line is a feature that ships; the record behind it is one click away.
 - **Monitor**: CPU, memory, disk, network, processes and logs, read over the connection already open. No agent installed.
 - **Macros**: sequential, typed straight into the shell, or a script that runs isolated with `$host`/`$port`/`$username` as real variables ([ADR-0070](docs/adr/0070-split-macros-into-sequential-and-script-types.md)).
 - **SFTP beside the terminal**: one source, up to four destinations, folders copied recursively ([ADR-0041](docs/adr/0041-use-russh-sftp-instead-of-writing-the-protocol.md)).
-- **One "+" to open a saved host into a session or a fan-out slot**, searched and grouped by topology, replacing the separate command palette that used to do this ([ADR-0072](docs/adr/0072-fold-home-sessions-and-sftp-into-an-ssh-sftp-toolbar-switch.md)); Home keeps its own toolbar pill rather than folding into that "+"; hosts and macros each get their own docked manager sidebar ([ADR-0076](docs/adr/0076-give-hosts-a-manager-sidebar-like-macros.md)).
-- **A local shell**, a PTY with no SSH connection behind it, opened from the same palette as a saved host and living beside it in Sessions ([ADR-0074](docs/adr/0074-add-local-shell-sessions-over-a-native-pty.md)).
+- **The Bar**: `Ctrl+Shift+P` (`Cmd+K` on a Mac), or the "+" in the toolbar. One field for hosts, actions and saved macros. `@` puts hosts in a scope shown as chips, `>` picks a saved macro, `/` opens a host's files ([ADR-0081](docs/adr/0081-organize-the-interface-around-spaces-a-stage-and-a-bar.md)). Hosts and macros each also get a docked manager sidebar ([ADR-0076](docs/adr/0076-give-hosts-a-manager-sidebar-like-macros.md)).
+- **A local shell**, a PTY with no SSH connection behind it, opened from the Bar like a saved host and living beside it in Sessions ([ADR-0074](docs/adr/0074-add-local-shell-sessions-over-a-native-pty.md)).
 - **A second shell on a connection already open**, multiplexed over the same transport, capped at exactly two ([ADR-0077](docs/adr/0077-allow-one-extra-shell-per-connected-session.md)).
+- **Spaces**: an environment (Production, Staging, Lab) holds hosts. `Ctrl+1` to `9` switch between them, and the Home screen is a Hall with a plate per host. A production Space shows a band, and a command that reaches two or more hosts with any in production has to be held for about 800ms to confirm. It stops a slip, it is not a security control ([ADR-0081](docs/adr/0081-organize-the-interface-around-spaces-a-stage-and-a-bar.md)).
+- **A Logbook per host**, on this machine only: connections made, lost and restored, a server key trusted or replaced, and macro runs. Never keystrokes, host output or passwords, and bounded in size ([security model](docs/security-model.md#what-the-logbook-records)).
+- **A saved script macro on several hosts at once**, with the target list shown first and the answers grouped by identical output ([ADR-0078](docs/adr/0078-run-a-saved-script-macro-on-a-visions-connected-hosts.md)).
+- **A dropped connection reconnects by itself**, the terminal keeping its history, and a host can open its shell inside tmux or screen so the session survives ([ADR-0079](docs/adr/0079-reconnect-a-dropped-session-through-the-normal-connect-flow.md)).
 - **Light and dark** everywhere; **English, Brazilian Portuguese and Spanish**, security copy reviewed before a language ships ([ADR-0007](docs/adr/0007-localize-in-the-frontend-from-typed-error-codes.md)).
 
-Not yet: a signed installer of any kind. That is the roadmap, not this list.
+Installers are not code-signed: they are attached to each GitHub release with a `SHA256SUMS` file, and
+[`docs/installing.md`](docs/installing.md) says what each platform will warn about.
 Session import from OpenSSH and PuTTY was considered and dropped ([#128](https://github.com/marciopaiva/runic-ssh/issues/128)):
 it will not be implemented. What each release still does not do is in
 [`CHANGELOG.md`](CHANGELOG.md), under *Known limitations*, on purpose.
@@ -114,7 +119,7 @@ sha256sum -c SHA256SUMS --ignore-missing   # before installing anything
 - [x] **v0.9.0**: the chrome collapses to a toolbar, opening a saved host becomes a "+" palette search instead of a panel toggle, the map becomes a fixed workspace pill instead of a separate shell, local shell sessions, a second shell per connection. *2026-09-24*
 - [x] **After v0.9.0**: the map was removed; it never reached parity with the workspaces it was meant to replace ([ADR-0080](docs/adr/0080-remove-the-map.md)).
 - [ ] **Next**: the interface is reorganized around Spaces, a Stage and a Bar, in slices that each ship on their own ([ADR-0081](docs/adr/0081-organize-the-interface-around-spaces-a-stage-and-a-bar.md)).
-- [ ] **v1.0.0**: production grade stability, and a signed installer on every platform.
+- [ ] **v1.0.0**: production grade stability. Installers are distributed from GitHub Releases with checksums and stay unsigned: the maintainer decided on 2026-11-23 not to buy a Windows or Apple signing identity, so the earlier "signed installer on every platform" is no longer the bar. What is ([`docs/plans/release-1.0.md`](docs/plans/release-1.0.md)).
 
 A direction, not a promise. What a tool like this should do next is better
 decided by the people running it fifty times a day than by whoever wrote the

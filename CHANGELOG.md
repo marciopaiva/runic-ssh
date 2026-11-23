@@ -15,10 +15,10 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 
 - The Logbook (ADR-0081, slice 4): each host keeps a local record of what happened to it, opened from its plate in the Hall. It holds a connection made, lost, retried and restored, a server key trusted or replaced, and a script macro run on several hosts with how it ended. Never keystrokes, host output, passwords or addresses. 500 events and 64 KiB per host, oldest dropped first, and a Clear button. File transfers are not recorded yet.
 - Spaces (ADR-0081, slice 2): a Space is an environment with a name and a weight. Switch with the toolbar or `Ctrl+1` to `9`; the Bar and the hosts panel list the hosts of the Space in front. A production Space shows a band, and a command that reaches two or more hosts with any in production has to be held to confirm for about 800ms. It is a guard against a slip, not a security control. The Home screen is a Hall with a plate per host. The groups can be offered as Spaces once, behind a preview.
-- The Bar (ADR-0081, slice 1): `Ctrl+Shift+P` (`Cmd+K` on a Mac) opens one field for hosts, actions and saved macros, with the command palette's ranking. `@` puts hosts in the scope as chips, `>` chooses a saved macro (with hosts in the scope only script macros are listed, and the fleet run dialog shows the targets before anything is sent), `/` opens a host's files. Recents come first while the field is empty, kept in memory only. Plain `Ctrl+K` is left to the terminal.
+- The Bar (ADR-0081, slice 1): `Ctrl+Shift+P` (`Cmd+K` on a Mac) opens one field for hosts, actions and saved macros, with the ranking the command palette had. `@` puts hosts in the scope as chips, `>` chooses a saved macro (with hosts in the scope only script macros are listed, and the fleet run dialog shows the targets before anything is sent), `/` opens a host's files. Recents come first while the field is empty, kept in memory only. Plain `Ctrl+K` is left to the terminal.
 - Right-click a terminal pane in Sessions for Copy and Paste, each with its shortcut, in place of the webview's own menu (#460). Paste stays greyed on Linux, where a scripted paste does not work (`docs/measurements/terminal-menu-clipboard.md`), and the shortcut is the way in.
 - Run a saved script macro on several connected hosts and compare what they answered (ADR-0078, #467). Answers are grouped by identical output, the largest group first, and lines that differ from it are marked. Always asks first, showing the script and every host. Only script macros, only sessions that are already connected, stdout and stderr capped at 64 KiB per host with a 30 second deadline.
-- A fleet run can start from a vision (#469): the dialog offers each map vision as a preset that ticks its connected hosts and names the members that are not connected and so are left out.
+- A fleet run can start from a group of hosts (#469, and ADR-0080): the dialog offers each group as a preset that ticks its connected hosts and names the members that are not connected and so are left out. It began as a preset per map vision, and the visions went with the map.
 - Fleet run results: a tie no longer calls one answer the most common, the differing-line marker is a real line diff so one inserted line marks itself and not every line after it, and the dialog no longer draws an empty header strip above its heading (#471).
 - Connections set `TCP_NODELAY`. A small request no longer waits on the kernel's delayed acknowledgement: an exec on loopback went from a 44 ms median to 1.6 ms, and the same wait was added to every keystroke (#470).
 - A host can turn its keepalive off (ADR-0079, #477): a checkbox in the host editor, on by default and stored per host, absent from the file while on. With it off the host is left to time out when idle, and a silent drop is not noticed (a closed connection still is).
@@ -30,7 +30,7 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 - Each saved host has a sigil, a stem and four levels of branches drawn from its id, and the connecting screen cuts it as the steps really finish: the stem while reaching the host, the lower half once signing in starts, and on a failure the next stroke in red where it stopped. It comes from the local id, never from the host key, so it identifies nothing and is not a check. Still without motion under reduced-motion settings.
 - Behind a jump host the connecting screen shows a step for each hop (#481). The core emits `session://connect-stage` (`bastionReady`) once the jump host is open and authenticated, and a failure marks the hop it stopped at. Direct hosts are unchanged.
 - The tab of a session also carries its sigil, faint while the host is not connected and bright once it is, so the light belongs to what is alive.
-- The sigil also leads each host in the command palette and in both host lists (Home and the hosts manager), with the same rule: faint until connected.
+- The sigil also leads each host in the Bar and in both host lists (Home and the hosts manager), with the same rule: faint until connected.
 
 ### Changed
 
@@ -40,6 +40,18 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 ### Removed
 
 - The map workspace (ADR-0080). The "Map" pill, the preview opt-in and its prompt, and the map's windows, lines, visions and layers are gone from the interface. The toolbar now switches between Home, SSH and SFTP. Your `workspace.json` stays on disk and is no longer read, so the visions and layouts you built there are not shown anywhere. Host groups are the closest replacement, and the fleet run already starts from them. The `previewFeatures` setting is kept for one release and does nothing. The `load_workspace` and `save_workspace` commands and the `invalidWorkspace` error are gone from the core.
+
+### Known limitations
+
+- **The installers are not code-signed.** Windows shows SmartScreen and macOS refuses an unsigned application until it is allowed by hand. Each release carries a `SHA256SUMS` file, and `docs/installing.md` says what to expect on each platform. This is a decision, not an oversight: no Windows or Apple signing identity is being bought.
+- **macOS has never been opened by anyone**, so the Keychain-backed vault, the Cmd clipboard shortcuts and the window chrome there are unexercised. Only Apple Silicon is built.
+- **A Space is a guard, not a boundary.** Holding the button for about 800ms before a command reaches two or more hosts in a production Space stops a slip. It does not stop anyone who wants to send the command, and the core enforces nothing with it.
+- **A host is in one Space.** There is no way yet to reorder Spaces or to move several hosts at once from the interface, and the Space chip does not show how many hosts it holds.
+- **The Logbook does not record file transfers**, has no filters or search, and is read when it opens, not kept current. It keeps 500 events and 64 KiB per host, oldest dropped first. A host that is deleted takes its Logbook with it.
+- **The Bar is a window over the application, not a field in the title row**, and what it remembers as recent lasts until the window closes.
+- **The Hall shows state, not output.** A host's last line is not shown on its plate: that is host output outside a terminal, and ADR-0032 needs its own review first.
+- **`workspace.json` from a version with the map stays on disk**, unread and never deleted. The `previewFeatures` setting is still written and does nothing.
+- **The Spanish copy of the strings added since v0.2.1 has not been reviewed by a native speaker.** English is normative where they disagree.
 
 ## [0.9.0] — 2026-09-24
 
