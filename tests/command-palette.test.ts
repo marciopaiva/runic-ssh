@@ -49,6 +49,11 @@ function actions(): CommandActions & { readonly calls: string[] } {
     openHostInto: (id) => calls.push(`hostbook:${id}`),
     openLocalInto: () => calls.push('hostbook:local'),
     openLocalShellInto: (kind) => calls.push(`local:${kind.kind}`),
+    goTo: (workspace) => calls.push(`go:${workspace}`),
+    toggleMacros: () => calls.push('macros'),
+    toggleHosts: () => calls.push('hosts'),
+    openFilesOf: (id) => calls.push(`files:${id}`),
+    runMacro: (macro, scope) => calls.push(`macro:${macro.id}:${scope.join(',')}`),
   };
 }
 
@@ -57,6 +62,10 @@ function context(overrides: Partial<CommandContext> = {}): CommandContext {
     i18n: createTranslator('en'),
     sessions: [],
     workspace: 'sessions',
+    macros: [],
+    hasTarget: true,
+    macrosOpen: false,
+    hostsOpen: false,
     localShellKinds: [],
     actions: actions(),
     ...overrides,

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, DragEvent, JSX, MouseEvent as ReactMouseEvent } from 'react';
 
 import { BroadcastButton } from './components/BroadcastButton';
-import { CommandPalette } from './components/CommandPalette';
+import { Bar } from './components/Bar';
 import { groupPresets } from './features/fleet/groups';
 import { ConnectingSurface } from './components/ConnectingSurface';
 import { EmptyPanel } from './components/EmptyPanel';
@@ -40,7 +40,14 @@ import { Toolbar } from './components/Toolbar';
 import { TransfersBar } from './components/TransfersBar';
 import { WorkspacePills } from './components/WorkspacePills';
 import type { Workspace } from './components/WorkspacePills';
-import { hostBookCommands, localShellCommands, usePalette } from './features/commands';
+import {
+  actionCommands,
+  fileCommands,
+  hostBookCommands,
+  localShellCommands,
+  macroCommands,
+  useBar,
+} from './features/commands';
 import type { CommandContext } from './features/commands';
 import { applyVariables, ensureTrailingNewline, useMacros, wrapScript } from './features/macros';
 import {
@@ -882,6 +889,8 @@ export function App(): JSX.Element {
      the same way running any other saved command is. */
   /* ADR-0078: the script macro whose fleet run dialog is open. */
   const [fleetMacro, setFleetMacro] = useState<Macro | null>(null);
+  /* The handles the Bar's scope reached, ticked when the dialog opens. */
+  const [fleetInitial, setFleetInitial] = useState<readonly SessionHandle[] | undefined>(undefined);
   const fleetTargets = useMemo(
     () =>
       sessions.flatMap((live) =>
@@ -1822,15 +1831,55 @@ export function App(): JSX.Element {
          window does. `hostBookCommands` reads this only to decide whether
          "this machine" belongs in the list, which needs `sftp` told apart
          from everything else. */
-      workspace: workspace === 'sftp' ? 'sftp' : 'sessions',
+      workspace,
       localShellKinds,
+      macros,
+      hasTarget: macroTargetId !== null,
+      macrosOpen,
+      hostsOpen: hostsManagerOpen,
       actions: {
         openHostInto,
         openLocalInto,
         openLocalShellInto,
+        goTo: setWorkspace,
+        toggleMacros: () => setMacrosOpen((open) => !open),
+        toggleHosts: () => setHostsManagerOpen((open) => !open),
+        openFilesOf: (sessionId: string) => {
+          assignSftpEndpoint({ kind: 'host', sessionId }, lastFocusedFanoutSlot);
+          setWorkspace('sftp');
+        },
+        runMacro: (macro: Macro, scope: readonly string[]) => {
+          if (scope.length === 0) {
+            runMacro(macro);
+            return;
+          }
+          /* Only the scoped hosts that are connected can be reached; the
+             dialog lists them before anything is sent. */
+          setFleetInitial(
+            sessions.flatMap((live) =>
+              scope.includes(live.session.id) && live.handle !== null ? [live.handle] : [],
+            ),
+          );
+          setFleetMacro(macro);
+        },
       },
     }),
-    [i18n, sessions, workspace, openHostInto, openLocalInto, localShellKinds, openLocalShellInto],
+    [
+      i18n,
+      sessions,
+      workspace,
+      openHostInto,
+      openLocalInto,
+      localShellKinds,
+      openLocalShellInto,
+      macros,
+      macroTargetId,
+      macrosOpen,
+      hostsManagerOpen,
+      assignSftpEndpoint,
+      lastFocusedFanoutSlot,
+      runMacro,
+    ],
   );
 
   /* One palette for the whole app: the "+" beside the ADR-0072 pills is the
@@ -1839,10 +1888,24 @@ export function App(): JSX.Element {
      still has a terminal, so this belongs above the saved hosts rather than
      waiting at the bottom for a list that might be empty. */
   const sources = useMemo(
-    () => [() => localShellCommands(context), () => hostBookCommands(context)],
+    () => [
+      () => localShellCommands(context),
+      () => hostBookCommands(context),
+      () => actionCommands(context),
+      (scope: readonly string[]) => macroCommands(context, scope),
+      (scope: readonly string[]) => fileCommands(context, scope),
+    ],
     [context],
   );
-  const palette = usePalette(sources);
+  const palette = useBar(sources, i18n.t('bar.recent'));
+  const scopeChips = useMemo(
+    () =>
+      palette.scope.flatMap((id) => {
+        const name = sessions.find((live) => live.session.id === id)?.session.name;
+        return name === undefined ? [] : [{ id, name }];
+      }),
+    [palette.scope, sessions],
+  );
 
   /* The sole way anything opens the "+" palette: `OpenHostButton`, Sessions'
      and SFTP's empty-panel prompts. */
@@ -2996,18 +3059,26 @@ export function App(): JSX.Element {
         macro={fleetMacro}
         targets={fleetTargets}
         groups={fleetGroups}
-        onClose={() => setFleetMacro(null)}
+        initial={fleetInitial}
+        onClose={() => {
+          setFleetMacro(null);
+          setFleetInitial(undefined);
+        }}
       />
 
-      <CommandPalette
+      <Bar
         open={palette.open}
         query={palette.query}
+        mode={palette.mode}
+        scope={scopeChips}
         matches={palette.matches}
         selected={palette.selected}
         onQuery={palette.setQuery}
         onMove={palette.move}
         onSelect={palette.select}
         onRun={palette.run}
+        onRemoveScope={palette.removeScope}
+        onPopScope={palette.popScope}
         onDismiss={palette.dismiss}
       />
 

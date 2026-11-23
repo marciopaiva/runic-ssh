@@ -24,6 +24,9 @@ interface FleetRunDialogProps {
   readonly targets: readonly FleetTarget[];
   /** Host groups that can pre-pick the hosts. Empty when there are none. */
   readonly groups?: readonly GroupPreset[];
+  /** Handles to tick when the dialog opens, from the Bar's scope. Absent means
+   * every target, as before. */
+  readonly initial?: readonly SessionHandle[] | undefined;
   readonly onClose: () => void;
 }
 

@@ -13,6 +13,7 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 
 ### Added
 
+- The Bar (ADR-0081, slice 1): `Ctrl+Shift+P` (`Cmd+K` on a Mac) opens one field for hosts, actions and saved macros, with the command palette's ranking. `@` puts hosts in the scope as chips, `>` chooses a saved macro (with hosts in the scope only script macros are listed, and the fleet run dialog shows the targets before anything is sent), `/` opens a host's files. Recents come first while the field is empty, kept in memory only. Plain `Ctrl+K` is left to the terminal.
 - Right-click a terminal pane in Sessions for Copy and Paste, each with its shortcut, in place of the webview's own menu (#460). Paste stays greyed on Linux, where a scripted paste does not work (`docs/measurements/terminal-menu-clipboard.md`), and the shortcut is the way in.
 - Run a saved script macro on several connected hosts and compare what they answered (ADR-0078, #467). Answers are grouped by identical output, the largest group first, and lines that differ from it are marked. Always asks first, showing the script and every host. Only script macros, only sessions that are already connected, stdout and stderr capped at 64 KiB per host with a 30 second deadline.
 - A fleet run can start from a vision (#469): the dialog offers each map vision as a preset that ticks its connected hosts and names the members that are not connected and so are left out.

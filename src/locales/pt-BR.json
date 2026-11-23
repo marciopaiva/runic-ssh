@@ -246,7 +246,7 @@
   "monitor.unavailable": "Não disponível neste host",
   "palette.close": "Fechar a paleta de comandos",
   "palette.empty": "Nada corresponde a {query}",
-  "palette.placeholder": "Digite um comando ou um host",
+  "palette.placeholder": "Digite um comando ou um host. @ hosts, > macros, / arquivos",
   "palette.section.actions": "Ações",
   "palette.section.sessions": "Sessões",
   "palette.section.snippets": "Trechos",
@@ -517,5 +517,18 @@
   "window.maximize": "Maximizar",
   "window.minimize": "Minimizar",
   "window.restore": "Restaurar",
-  "wizard.phase.proving": "Testando"
+  "wizard.phase.proving": "Testando",
+  "bar.action.go": "Ir para {name}",
+  "bar.empty.macros": "Nenhum macro salvo para executar aqui. Adicione um no painel de macros.",
+  "bar.hint.login.saved": "login salvo",
+  "bar.hint.login.none": "sem login salvo",
+  "bar.hint.jump": "via {jump}",
+  "bar.macro.script": "script",
+  "bar.macro.sequential": "sequência",
+  "bar.note.scoped": "Hosts no escopo: só macros de script. Os alvos aparecem antes de enviar.",
+  "bar.recent": "Recentes",
+  "bar.scope.label": "Escopo",
+  "bar.scope.remove": "Remover {name} do escopo",
+  "bar.tokens": "@ hosts   > macros   / arquivos",
+  "bar.empty.hosts": "Nenhum host salvo ainda. Adicione um na Home."
 }

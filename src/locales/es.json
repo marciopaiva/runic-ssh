@@ -246,7 +246,7 @@
   "monitor.unavailable": "No disponible en este host",
   "palette.close": "Cerrar la paleta de comandos",
   "palette.empty": "Nada coincide con {query}",
-  "palette.placeholder": "Escriba un comando o un host",
+  "palette.placeholder": "Escriba un comando o un host. @ hosts, > macros, / archivos",
   "palette.section.actions": "Acciones",
   "palette.section.sessions": "Sesiones",
   "palette.section.snippets": "Fragmentos",
@@ -517,5 +517,18 @@
   "window.maximize": "Maximizar",
   "window.minimize": "Minimizar",
   "window.restore": "Restaurar",
-  "wizard.phase.proving": "Probando"
+  "wizard.phase.proving": "Probando",
+  "bar.action.go": "Ir a {name}",
+  "bar.empty.macros": "No hay macros guardadas para ejecutar aquí. Añada una en el panel de macros.",
+  "bar.hint.login.saved": "acceso guardado",
+  "bar.hint.login.none": "sin acceso guardado",
+  "bar.hint.jump": "vía {jump}",
+  "bar.macro.script": "script",
+  "bar.macro.sequential": "secuencia",
+  "bar.note.scoped": "Hosts en el alcance: solo macros de script. Los destinos se listan antes de enviar.",
+  "bar.recent": "Recientes",
+  "bar.scope.label": "Alcance",
+  "bar.scope.remove": "Quitar {name} del alcance",
+  "bar.tokens": "@ hosts   > macros   / archivos",
+  "bar.empty.hosts": "Aún no hay hosts guardados. Añada uno en Inicio."
 }

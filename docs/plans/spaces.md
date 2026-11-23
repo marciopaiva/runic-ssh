@@ -152,6 +152,23 @@ pull request, and the quality bar from `ui-review.md`. The fallback if slice 3
 proves too costly is slices 1, 2 and 4 on the existing shell, which are worth
 shipping on their own.
 
+## Slice 1, as built
+
+Decided with the maintainer on 2026-11-23, after reading the palette:
+
+* The palette was only the host picker behind the "+" button, with no global
+  shortcut and no actions. Slice 1 therefore adds the action, macro and files
+  sources, not only the grammar.
+* **Shortcut:** `Ctrl+Shift+P`, and `Cmd+K` on a Mac. Plain `Ctrl+K` is left
+  alone: it is kill-line in readline and a command in nano and emacs.
+* **Recents** live in memory for the window's life. Nothing is written to disk.
+* **Scope** lives only while the Bar is open, so a chip is never left standing
+  where it is not on screen.
+* The Bar stays a modal. Moving it into the title row is part of slice 3.
+* The footer shows what is saved about the highlighted host (address, whether a
+  login is saved, a jump host). The last Logbook event waits for slice 4, and
+  the per-row shortcut for the shortcuts that exist.
+
 ## Risks
 
 * **The Stage replaces what the group strip does.** Splits, broadcast per group
