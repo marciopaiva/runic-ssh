@@ -131,14 +131,6 @@ export interface PaneReport {
   readonly reload: () => void;
 }
 
-/** One end of a map line a send lands on: the endpoint, the directory its
- * pane is showing, and the pane's own reload (ADR-0065). */
-export interface MapDestination {
-  readonly endpoint: Endpoint;
-  readonly dir: string;
-  readonly reload: () => void;
-}
-
 export interface FanoutState {
   readonly source: Endpoint | null;
   readonly destinations: readonly (Endpoint | null)[];
@@ -184,15 +176,6 @@ export interface FanoutActions {
    * reaches only that slot, whether or not its own receive toggle spares
    * it from a broadcast `sendToDestinations` run. */
   readonly sendEntriesToDestination: (entries: readonly PaneEntry[], slot: number) => void;
-  /** Entries from any source to any destinations, each named with the
-   * directory it lands in and how to refresh it afterwards: the map's lines
-   * (ADR-0065), which have no slots. Tracked the same way the grid's sends
-   * are, so the transfers bar shows them. */
-  readonly sendEntriesBetween: (
-    source: Endpoint,
-    entries: readonly PaneEntry[],
-    destinations: readonly MapDestination[],
-  ) => void;
   readonly cancelTransfer: (transfer: TransferHandle) => void;
   readonly dismissTransfer: (transfer: TransferHandle) => void;
   /** Stops a folder copy after whichever file is currently in flight
@@ -562,13 +545,6 @@ export function useFanout(sessions: readonly LiveSession[]): FanoutState & Fanou
     [source, destinations, dispatchEntries],
   );
 
-  const sendEntriesBetween = useCallback(
-    (from: Endpoint, entries: readonly PaneEntry[], targets: readonly MapDestination[]) => {
-      for (const target of targets) dispatchEntries(from, entries, target.endpoint, target.dir, target.reload);
-    },
-    [dispatchEntries],
-  );
-
   const cancelTransfer = useCallback((transfer: TransferHandle) => {
     void sftpCancel(transfer);
   }, []);
@@ -605,7 +581,6 @@ export function useFanout(sessions: readonly LiveSession[]): FanoutState & Fanou
     reportPane,
     sendToDestinations,
     sendEntriesToDestination,
-    sendEntriesBetween,
     cancelTransfer,
     dismissTransfer,
     cancelFolderCopy,

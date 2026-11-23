@@ -23,7 +23,7 @@ export interface SettingsView {
   readonly nativeDecorations: boolean;
   /** The palette the user chose, or `'system'` to follow the desktop. */
   readonly theme: Theme;
-  /** Whether the preview features are revealed, the map among them (ADR-0066). */
+  /** Inert since the map was removed (ADR-0080), kept for one release so older settings load. */
   readonly previewFeatures: boolean;
 }
 
@@ -41,7 +41,7 @@ export async function setTheme(theme: Theme): Promise<SettingsView> {
   return invoke<SettingsView>('set_theme', { theme });
 }
 
-/** Reveals or hides the preview features, the map among them (ADR-0066). */
+/** Stores the preview flag, which nothing reads since the map was removed (ADR-0080). */
 export async function setPreviewFeatures(on: boolean): Promise<SettingsView> {
   return invoke<SettingsView>('set_preview_features', { on });
 }

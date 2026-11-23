@@ -43,14 +43,6 @@ interface SftpPaneProps {
   readonly onToggleReceiving: (() => void) | null;
   readonly onDragEntriesStart: ((entries: readonly PaneEntry[]) => void) | null;
   readonly onDragEntriesEnd: (() => void) | null;
-  /** What is selected, reported as it changes, for a sender outside the
-      pane: the button on a map line sends the origin's selection
-      (ADR-0065). Absent, the selection stays the pane's own business. */
-  readonly onSelectionChange?: ((entries: readonly PaneEntry[]) => void) | undefined;
-  /** True inside a map window, whose own strip already carries the name,
-      identity and a close button: the pane's header would only restate
-      them a second time (#381). The nav bar and crumb below it stay. */
-  readonly embedded?: boolean | undefined;
 }
 
 export function formatSize(bytes: number): string {
@@ -411,8 +403,6 @@ export function SftpPane({
   onToggleReceiving,
   onDragEntriesStart,
   onDragEntriesEnd,
-  onSelectionChange,
-  embedded = false,
 }: SftpPaneProps): JSX.Element {
   const i18n = useTranslator();
   const pane = usePane(endpoint);
@@ -425,12 +415,6 @@ export function SftpPane({
   const listRef = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [selectAnchor, setSelectAnchor] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (onSelectionChange === undefined) return;
-    onSelectionChange(pane.entries.filter((entry) => selected.has(entry.path)));
-  }, [onSelectionChange, pane.entries, selected]);
-  useEffect(() => () => onSelectionChange?.([]), [onSelectionChange]);
 
   useEffect(() => {
     onReport(paneId, { path: pane.path, reload: () => pane.enter(pane.path) });
@@ -577,35 +561,33 @@ export function SftpPane({
 
   return (
     <Card variant="outlined" className="relative flex h-full flex-col overflow-hidden">
-      {!embedded && (
-        <div className="border-line-subtle bg-surface-chrome flex h-8 shrink-0 items-center gap-2.5 border-b px-2.5">
-          <span className="text-ink-faint text-[9.5px] font-bold tracking-[0.1em]">{label}</span>
-          <span className="text-ink-muted truncate font-mono text-[11px]">{identity}</span>
-          <span className="text-ink-disabled truncate font-mono text-[10.5px]">{pane.path ?? ''}</span>
-          <div className="flex-1" />
-          {receiving !== null && onToggleReceiving !== null && (
-            <Tooltip content={i18n.t(receiving ? 'sftp.receiving.on' : 'sftp.receiving.off')} side="bottom">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={onToggleReceiving}
-                aria-label={i18n.t(receiving ? 'sftp.receiving.on' : 'sftp.receiving.off')}
-                className={cn(
-                  'flex h-4 w-4 shrink-0 items-center justify-center',
-                  receiving ? 'text-warn' : 'text-ink-faint hover:text-ink-muted',
-                )}
-              >
-                <BroadcastGlyph className="h-3.5 w-3.5" />
-              </Button>
-            </Tooltip>
-          )}
-          <Tooltip content={i18n.t('sftp.clearSlot')} side="bottom">
-            <Button variant="ghost" size="icon" onClick={onClear} aria-label={i18n.t('sftp.clearSlot')} className="h-4 w-4">
-              <XIcon className="h-3.5 w-3.5" />
+      <div className="border-line-subtle bg-surface-chrome flex h-8 shrink-0 items-center gap-2.5 border-b px-2.5">
+        <span className="text-ink-faint text-[9.5px] font-bold tracking-[0.1em]">{label}</span>
+        <span className="text-ink-muted truncate font-mono text-[11px]">{identity}</span>
+        <span className="text-ink-disabled truncate font-mono text-[10.5px]">{pane.path ?? ''}</span>
+        <div className="flex-1" />
+        {receiving !== null && onToggleReceiving !== null && (
+          <Tooltip content={i18n.t(receiving ? 'sftp.receiving.on' : 'sftp.receiving.off')} side="bottom">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onToggleReceiving}
+              aria-label={i18n.t(receiving ? 'sftp.receiving.on' : 'sftp.receiving.off')}
+              className={cn(
+                'flex h-4 w-4 shrink-0 items-center justify-center',
+                receiving ? 'text-warn' : 'text-ink-faint hover:text-ink-muted',
+              )}
+            >
+              <BroadcastGlyph className="h-3.5 w-3.5" />
             </Button>
           </Tooltip>
-        </div>
-      )}
+        )}
+        <Tooltip content={i18n.t('sftp.clearSlot')} side="bottom">
+          <Button variant="ghost" size="icon" onClick={onClear} aria-label={i18n.t('sftp.clearSlot')} className="h-4 w-4">
+            <XIcon className="h-3.5 w-3.5" />
+          </Button>
+        </Tooltip>
+      </div>
 
       <NavBar
         i18n={i18n}

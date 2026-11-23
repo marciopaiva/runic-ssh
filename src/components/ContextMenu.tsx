@@ -22,17 +22,15 @@ interface ContextMenuProps {
 }
 
 /**
- * The same actions the radial offers, as a list at the pointer, for the
- * right button and the keyboard. The radial alone is a gesture nobody
- * discovers and nothing a screen reader can drive; this is the path that
- * is always there.
+ * A list of actions at the pointer, for the right button and the keyboard.
+ * It started as the map's menu and moved out of the map (ADR-0080) so the pane
+ * menu could use it. Arrow keys, Home and End move among the enabled items.
  */
 export function ContextMenu({ at, title, items, onPick, onClose }: ContextMenuProps): JSX.Element {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
 
-  /* Escape is the stage's own router now (ADR-0068, #387): the menu is one
-     of several things it could undo, ranked against the others, rather
-     than closing itself on a listener that knew nothing about them. */
+  /* Escape is the caller's to route: the menu does not close itself on a
+     listener that knows nothing about whatever else Escape could undo. */
   useEffect(() => {
     const openable = items.findIndex((item) => item.disabled !== true);
     refs.current[openable === -1 ? 0 : openable]?.focus();

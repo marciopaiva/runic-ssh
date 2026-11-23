@@ -6,9 +6,8 @@ interface KbdProps {
   readonly children: ReactNode;
   readonly className?: string;
   /** Present only where the key is also a shortcut this renders as a button
-      for: the map's own "press Escape" banner doubles as a cancel control,
-      so it is a `<button>` there and a plain `<kbd>` everywhere else that
-      only reports what the key is. */
+      for: a banner whose key doubles as a cancel control is a `<button>`,
+      and a plain `<kbd>` everywhere else that only reports what the key is. */
   readonly onClick?: () => void;
   readonly 'aria-label'?: string;
   readonly title?: string;

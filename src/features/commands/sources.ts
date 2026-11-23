@@ -13,7 +13,7 @@
  */
 
 import type { Translator } from '../../lib/i18n';
-import type { ComponentKind, LocalShellKind } from '../../ipc';
+import type { LocalShellKind } from '../../ipc';
 import { groupSessions, hostRows } from '../sessions';
 import type { LiveSession } from '../sessions';
 import { localShellKindId, localShellLabel } from '../terminal';
@@ -31,16 +31,6 @@ export interface CommandActions {
   readonly openLocalInto: () => void;
   /** Opens a native shell of the given kind into the same slot (ADR-0074). */
   readonly openLocalShellInto: (kind: LocalShellKind) => void;
-  /**
-   * Puts a saved host on the map instead: the new component `mapPlacement`
-   * named, or the existing one's host pointed elsewhere (`HostPicker`'s old
-   * job, now this palette's).
-   */
-  readonly placeHostOnMap: (sessionId: string) => void;
-  /** The map's own "new host": opens the editor over the map with
-      `mapPlacement`'s kind and target carried through, instead of Home's
-      plain new-session editor. */
-  readonly newHostForMap: () => void;
 }
 
 export interface CommandContext {
@@ -51,24 +41,9 @@ export interface CommandContext {
    * Which workspace pill is showing, for `hostBookCommands`: it decides
    * whether "this machine" belongs in the list at all.
    */
-  readonly workspace: 'sessions' | 'sftp' | 'map';
+  readonly workspace: 'sessions' | 'sftp';
   /** The shells this platform offers, detected once at startup (ADR-0074). */
   readonly localShellKinds: readonly LocalShellKind[];
-  /**
-   * Set only while this "+" is open to answer a request the map's own radial
-   * menu made (creating a component of `kind`, or re-pointing `changing`'s
-   * host): `null` everywhere else, Sessions and SFTP included, since nothing
-   * outside that gesture ever sets it. `hostBookCommands` reads it to hide a
-   * host already carrying a component of that kind (`HostPicker`'s old
-   * `duplicate` refusal, now avoided by not offering the row) and to send a
-   * pick into the map instead of a pane.
-   */
-  readonly mapPlacement: {
-    readonly kind: ComponentKind;
-    readonly changing: string | null;
-    readonly layer: string | null;
-    readonly blockedHostIds: ReadonlySet<string>;
-  } | null;
 }
 
 /**
@@ -90,21 +65,15 @@ export interface CommandContext {
  * Creating a host is not offered here: this "+" places an existing one, and
  * Home's own row and the hosts-manager sidebar's "+" are already where that
  * starts (ADR-0076; the general keyboard palette stopped offering its own
- * `session:new` for the same reason). The one exception is `mapPlacement`:
- * the map's radial menu has already asked for a `kind`, and with nothing
- * else to place a new host it opens the editor from here too (below), so the
- * palette this gesture is already looking at can also start that host
- * instead of routing to the general keyboard palette.
+ * `session:new` for the same reason).
  */
 export function hostBookCommands(context: CommandContext): readonly Command[] {
-  const { i18n, sessions, workspace, mapPlacement, actions } = context;
+  const { i18n, sessions, workspace, actions } = context;
 
   const commands: Command[] = groupSessions(sessions).flatMap((group) => {
     const heading = group.name ?? i18n.t('sessions.ungrouped');
 
-    return hostRows(group.sessions)
-      .filter(({ live }) => mapPlacement === null || !mapPlacement.blockedHostIds.has(live.session.id))
-      .map(({ live }) => {
+    return hostRows(group.sessions).map(({ live }) => {
         const { session } = live;
         return {
           id: `hostbook:${session.id}`,
@@ -114,7 +83,7 @@ export function hostBookCommands(context: CommandContext): readonly Command[] {
           sigil: { id: session.id, live: live.kind === 'connected' },
           keywords: [session.host, session.user, session.group ?? ''].filter((word) => word !== ''),
           group: heading,
-          run: () => (mapPlacement === null ? actions.openHostInto(session.id) : actions.placeHostOnMap(session.id)),
+          run: () => actions.openHostInto(session.id),
         };
       });
   });
@@ -133,16 +102,6 @@ export function hostBookCommands(context: CommandContext): readonly Command[] {
     });
   }
 
-  if (workspace === 'map' && mapPlacement !== null) {
-    commands.push({
-      id: 'hostbook:new',
-      section: 'sessions',
-      title: i18n.t('command.session.newForMap'),
-      keywords: ['new', 'add', 'novo', 'adicionar', 'nueva', 'host'],
-      run: actions.newHostForMap,
-    });
-  }
-
   return commands;
 }
 
@@ -152,7 +111,7 @@ export function hostBookCommands(context: CommandContext): readonly Command[] {
  *
  * Gated the same way `hostBookCommands`'s own `hostbook:local` row is:
  * a local shell is a terminal session like any other, so it belongs beside
- * the saved hosts in Sessions and Map, not in SFTP, whose "+" places file
+ * the saved hosts in Sessions, not in SFTP, whose "+" places file
  * endpoints rather than sessions.
  *
  * Titled `sftp.localhost` rather than "Open <kind>": every other row in this
@@ -169,17 +128,10 @@ export function hostBookCommands(context: CommandContext): readonly Command[] {
  * Placed ahead of `hostBookCommands` in `App.tsx`'s own source list, so this
  * always opens at the top: a local shell needs nothing saved to exist,
  * unlike every row below it.
- *
- * Hidden while `mapPlacement` is set: the map's radial menu only ever asks
- * for `'ssh'`, `'sftp'` or `'monitor'` this way, since `'local'` places
- * itself straight from `create:local` with no palette involved (ADR-0065).
- * A local shell answers none of those, so offering one here while the map is
- * asking would run `openLocalShellInto` into a Sessions tab-strip slot the
- * user is not even looking at.
  */
 export function localShellCommands(context: CommandContext): readonly Command[] {
-  const { i18n, workspace, localShellKinds, mapPlacement, actions } = context;
-  if (workspace === 'sftp' || mapPlacement !== null) return [];
+  const { i18n, workspace, localShellKinds, actions } = context;
+  if (workspace === 'sftp') return [];
 
   const grouped = localShellKinds.length > 1;
 

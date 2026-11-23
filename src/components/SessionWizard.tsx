@@ -38,8 +38,6 @@ interface SessionWizardProps {
   /** Every group name already saved, for `HostGeneralFields`' own suggestion
    * list (#221). */
   readonly groupNames: readonly string[];
-  /** `false` on the map, which groups by layer and vision instead. */
-  readonly showGroup?: boolean;
   /**
    * Whether this editor opened because Sessions sent someone here, rather
    * than because they opened it themselves. ADR-0039: the only thing left
@@ -203,7 +201,6 @@ export function SessionWizard({
   carried,
   duplicate,
   groupNames,
-  showGroup = true,
   missingCredential,
   onDismissMissingCredential,
   storedCredential,
@@ -533,7 +530,6 @@ export function SessionWizard({
               onChange={onChange}
               duplicate={duplicate}
               groupNames={groupNames}
-              showGroup={showGroup}
               firstRef={first}
             />
           </FormSection>
