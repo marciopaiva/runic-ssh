@@ -551,5 +551,14 @@
   "spaces.editor.error.generic": "No se pudo guardar el Space.",
   "spaces.host.label": "Space",
   "spaces.host.hint": "Dónde aparece este host. Cambiarlo no mueve nada de lo que está abierto.",
-  "spaces.title": "Space"
+  "spaces.title": "Space",
+  "hall.label": "Hosts de este Space",
+  "hall.empty.title": "Aún no hay hosts en este Space",
+  "hall.empty.add": "Añada su primer host",
+  "hall.empty.local": "Abrir un shell local",
+  "spaces.guard.title": "¿Enviar a producción?",
+  "spaces.guard.body": "Esto alcanza {count} hosts, {production} de ellos en producción. Revise la lista y mantenga pulsado el botón.",
+  "spaces.guard.cancel": "Cancelar",
+  "spaces.guard.hold": "Mantenga pulsado para enviar a {count} hosts",
+  "spaces.guard.hint": "Esto evita un descuido. No es un control de seguridad."
 }
