@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react';
 import type { JSX } from 'react';
 
-import type { Point } from '../../ipc';
+import type { Point } from '../ipc';
 
-export interface MapMenuItem {
+export interface ContextMenuItem {
   readonly id: string;
   readonly label: string;
   readonly detail?: string;
@@ -13,10 +13,10 @@ export interface MapMenuItem {
   readonly disabled?: boolean;
 }
 
-interface MapMenuProps {
+interface ContextMenuProps {
   readonly at: Point;
   readonly title: string;
-  readonly items: readonly MapMenuItem[];
+  readonly items: readonly ContextMenuItem[];
   readonly onPick: (id: string) => void;
   readonly onClose: () => void;
 }
@@ -27,7 +27,7 @@ interface MapMenuProps {
  * discovers and nothing a screen reader can drive; this is the path that
  * is always there.
  */
-export function MapMenu({ at, title, items, onPick, onClose }: MapMenuProps): JSX.Element {
+export function ContextMenu({ at, title, items, onPick, onClose }: ContextMenuProps): JSX.Element {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
 
   /* Escape is the stage's own router now (ADR-0068, #387): the menu is one
@@ -38,7 +38,7 @@ export function MapMenu({ at, title, items, onPick, onClose }: MapMenuProps): JS
     refs.current[openable === -1 ? 0 : openable]?.focus();
     const onDown = (event: PointerEvent): void => {
       const target = event.target as HTMLElement | null;
-      if (target?.closest('[data-map-menu]') === null) onClose();
+      if (target?.closest('[data-context-menu]') === null) onClose();
     };
     window.addEventListener('pointerdown', onDown, true);
     return () => window.removeEventListener('pointerdown', onDown, true);
@@ -84,7 +84,7 @@ export function MapMenu({ at, title, items, onPick, onClose }: MapMenuProps): JS
     <div
       role="menu"
       aria-label={title}
-      data-map-menu=""
+      data-context-menu=""
       /* The stage starts a pan on any pointer down it sees, and unmounts this
          menu doing so; a press on an item must not reach it. */
       onPointerDown={(event) => event.stopPropagation()}

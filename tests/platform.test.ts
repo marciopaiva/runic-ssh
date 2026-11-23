@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { isLinux } from '../src/features/map';
+import { isLinux } from '../src/lib/platform';
 
 describe('isLinux', () => {
   it('reads a Linux desktop webview as Linux', () => {

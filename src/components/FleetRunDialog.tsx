@@ -6,7 +6,7 @@ import { useTranslator } from '../features/settings';
 import { asIpcError, fleetRun } from '../ipc';
 import type { FleetResult, Macro } from '../ipc';
 import type { SessionHandle } from '../ipc/sessions';
-import type { VisionPreset } from '../features/fleet/visions';
+import type { GroupPreset } from '../features/fleet/groups';
 
 import { Button } from './ui/Button';
 import { Dialog } from './ui/Dialog';
@@ -22,8 +22,8 @@ interface FleetRunDialogProps {
   /** The script macro to run, or `null` while the dialog is closed. */
   readonly macro: Macro | null;
   readonly targets: readonly FleetTarget[];
-  /** Visions that can pre-pick the hosts. Empty when there are none. */
-  readonly visions?: readonly VisionPreset[];
+  /** Host groups that can pre-pick the hosts. Empty when there are none. */
+  readonly groups?: readonly GroupPreset[];
   readonly onClose: () => void;
 }
 
@@ -42,7 +42,7 @@ type Phase =
  * Output is host-supplied, so it is drawn as text with control characters
  * made visible, never as markup.
  */
-export function FleetRunDialog({ macro, targets, visions = [], onClose }: FleetRunDialogProps): JSX.Element {
+export function FleetRunDialog({ macro, targets, groups = [], onClose }: FleetRunDialogProps): JSX.Element {
   const i18n = useTranslator();
   return (
     <Dialog
@@ -51,7 +51,7 @@ export function FleetRunDialog({ macro, targets, visions = [], onClose }: FleetR
       size="full"
       title={macro === null ? '' : `${i18n.t('fleet.title')}: ${macro.name}`}
     >
-      {macro !== null && <FleetRunBody key={macro.id} macro={macro} targets={targets} visions={visions} onClose={onClose} />}
+      {macro !== null && <FleetRunBody key={macro.id} macro={macro} targets={targets} groups={groups} onClose={onClose} />}
     </Dialog>
   );
 }
@@ -59,18 +59,18 @@ export function FleetRunDialog({ macro, targets, visions = [], onClose }: FleetR
 function FleetRunBody({
   macro,
   targets,
-  visions,
+  groups,
   onClose,
 }: {
   macro: Macro;
   targets: readonly FleetTarget[];
-  visions: readonly VisionPreset[];
+  groups: readonly GroupPreset[];
   onClose: () => void;
 }): JSX.Element {
   const i18n = useTranslator();
   const [ticked, setTicked] = useState<ReadonlySet<SessionHandle>>(() => new Set(targets.map((t) => t.handle)));
   const [phase, setPhase] = useState<Phase>({ kind: 'confirm', error: null });
-  const [picked, setPicked] = useState<VisionPreset | null>(null);
+  const [picked, setPicked] = useState<GroupPreset | null>(null);
   const nameOf = useMemo(() => new Map(targets.map((t) => [t.handle, t.name])), [targets]);
 
   const toggle = (handle: SessionHandle): void => {
@@ -82,12 +82,12 @@ function FleetRunBody({
     });
   };
 
-  /* A vision pre-picks its connected members. Only hosts this dialog lists
+  /* A group pre-picks its connected members. Only hosts this dialog lists
      can be ticked, so a stale handle cannot be sent. */
-  const pickVision = (vision: VisionPreset): void => {
+  const pickGroup = (group: GroupPreset): void => {
     const reachable = new Set(targets.map((t) => t.handle));
-    setTicked(new Set(vision.handles.filter((handle) => reachable.has(handle))));
-    setPicked(vision);
+    setTicked(new Set(group.handles.filter((handle) => reachable.has(handle))));
+    setPicked(group);
   };
 
   const run = (): void => {
@@ -116,22 +116,22 @@ function FleetRunBody({
               {visibleText(macro.text)}
             </pre>
           </div>
-          {visions.length > 0 && (
+          {groups.length > 0 && (
             <div className="flex flex-col gap-1">
-              <span className="text-ink-faint text-[11px]">{i18n.t('fleet.visions')}</span>
+              <span className="text-ink-faint text-[11px]">{i18n.t('fleet.startFrom')}</span>
               <div className="flex flex-wrap gap-1.5">
-                {visions.map((vision) => (
+                {groups.map((group) => (
                   <Button
-                    key={vision.id}
-                    variant={picked?.id === vision.id ? 'secondary' : 'ghost'}
+                    key={group.id}
+                    variant={picked?.id === group.id ? 'secondary' : 'ghost'}
                     size="sm"
                     disabled={phase.kind === 'running'}
-                    onClick={() => pickVision(vision)}
+                    onClick={() => pickGroup(group)}
                   >
-                    {i18n.t('fleet.vision', {
-                      name: vision.name,
-                      connected: vision.handles.length,
-                      total: vision.handles.length + vision.skipped.length,
+                    {i18n.t('fleet.startFrom.item', {
+                      name: group.name,
+                      connected: group.handles.length,
+                      total: group.handles.length + group.skipped.length,
                     })}
                   </Button>
                 ))}

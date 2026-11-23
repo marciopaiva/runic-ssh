@@ -47,13 +47,13 @@ function ran(handle: number, stdout: string) {
 
 const roots: Array<ReturnType<typeof createRoot>> = [];
 
-async function mount(visions: readonly unknown[] = []) {
+async function mount(groups: readonly unknown[] = []) {
   const host = document.createElement('div');
   document.body.appendChild(host);
   const root = createRoot(host);
   roots.push(root);
   await act(async () => {
-    root.render(createElement(FleetRunDialog, { macro, targets, visions: visions as never, onClose: () => {} }));
+    root.render(createElement(FleetRunDialog, { macro, targets, groups: groups as never, onClose: () => {} }));
   });
   return () => document.body;
 }
@@ -144,9 +144,9 @@ describe('FleetRunDialog', () => {
     expect(document.body.textContent).toContain('uname -r');
   });
 
-  it('ticks only a vision\'s connected hosts and says which it leaves out', async () => {
+  it('ticks only a group\'s connected hosts and says which it leaves out', async () => {
     fleetRun.mockResolvedValue([ran(1, 'a\n')]);
-    const body = await mount([{ id: 'v1', name: 'prod', handles: [1], skipped: ['web-09'] }]);
+    const body = await mount([{ id: 'prod', name: 'prod', handles: [1], skipped: ['web-09'] }]);
 
     await click(/prod \(1 of 2 connected\)/);
 

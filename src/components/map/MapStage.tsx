@@ -37,9 +37,7 @@ import {
   resetPosition,
   setKey,
   switchState,
-  isLinux,
   terminalBox,
-  terminalMenu,
   terminalTreatment,
   toStage,
   visibleMidpoint,
@@ -65,8 +63,10 @@ import { MapTerminals } from './MapTerminals';
 import type { TerminalWiring } from './MapTerminals';
 import { ComponentWindow } from './ComponentWindow';
 import { HostPopup } from './HostPopup';
-import { MapMenu } from './MapMenu';
-import type { MapMenuItem } from './MapMenu';
+import { ContextMenu } from '../ContextMenu';
+import { terminalMenu } from '../../features/terminal/menu';
+import { isLinux } from '../../lib/platform';
+import type { ContextMenuItem } from '../ContextMenu';
 import { MapNode } from './MapNode';
 import { NameDialog } from './NameDialog';
 import { Radial } from './Radial';
@@ -310,9 +310,9 @@ export function MapStage({
 
   /* What a hold or a right click offers, built where the state is. */
   const actionsFor = useCallback(
-    (target: string | null): readonly (MapMenuItem & { readonly listOnly?: boolean })[] => {
+    (target: string | null): readonly (ContextMenuItem & { readonly listOnly?: boolean })[] => {
       if (target === null || target === HUB) {
-        const create: (MapMenuItem & { readonly listOnly?: boolean })[] = CREATE_KINDS.map((kind) => ({
+        const create: (ContextMenuItem & { readonly listOnly?: boolean })[] = CREATE_KINDS.map((kind) => ({
           id: `create:${kind}`,
           label: kindLabel(kind),
           detail: i18n.t('map.create.detail'),
@@ -346,7 +346,7 @@ export function MapStage({
       if (vision !== undefined) {
         /* ADR-0067. Connect all is the one action that starts sessions, and
            it is offered only while a member has none to start. */
-        const items: (MapMenuItem & { readonly listOnly?: boolean })[] = [
+        const items: (ContextMenuItem & { readonly listOnly?: boolean })[] = [
           vision.open
             ? { id: 'closeVision', label: i18n.t('map.vision.close'), detail: i18n.t('map.vision.close.detail'), color: 'var(--rs-accent)' }
             : { id: 'openVision', label: i18n.t('map.vision.open'), detail: i18n.t('map.vision.open.detail'), color: 'var(--rs-accent)' },
@@ -403,7 +403,7 @@ export function MapStage({
       }
       const component = componentById.get(target);
       if (component === undefined) return [];
-      const items: (MapMenuItem & { readonly listOnly?: boolean })[] = [
+      const items: (ContextMenuItem & { readonly listOnly?: boolean })[] = [
         openRef.current.has(target)
           ? { id: 'collapse', label: i18n.t('map.menu.collapse'), detail: i18n.t('map.menu.collapse.detail'), color: kindColor(component.kind) }
           : { id: 'open', label: i18n.t('map.menu.open'), detail: kindLabel(component.kind), color: kindColor(component.kind) },
@@ -1567,7 +1567,7 @@ export function MapStage({
         )}
 
         {stage.menu !== null && (
-          <MapMenu
+          <ContextMenu
             at={stage.menu.at}
             title={menuTitle(stage.menu.target)}
             items={actionsFor(stage.menu.target)}

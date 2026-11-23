@@ -3,7 +3,7 @@
 // Scoped to this file for the reason `map-stage-teardown.test.ts` gives.
 
 /**
- * Keyboard navigation on `MapMenu`: the list at the pointer that stands in
+ * Keyboard navigation on `ContextMenu`: the list at the pointer that stands in
  * for the radial when a screen reader or a keyboard drives it. Native Tab
  * order alone was the only way to move between items; this adds Arrow,
  * Home and End, skipping a disabled entry rather than landing on it, and
@@ -15,27 +15,27 @@ import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
-import { MapMenu } from '../src/components/map/MapMenu';
-import type { MapMenuItem } from '../src/components/map/MapMenu';
+import { ContextMenu } from '../src/components/ContextMenu';
+import type { ContextMenuItem } from '../src/components/ContextMenu';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean;
 }
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
-const ITEMS: readonly MapMenuItem[] = [
+const ITEMS: readonly ContextMenuItem[] = [
   { id: 'copy', label: 'Copy', disabled: true },
   { id: 'paste', label: 'Paste' },
   { id: 'broadcast', label: 'Broadcast' },
   { id: 'mute', label: 'Mute', disabled: true },
 ];
 
-async function mount(items: readonly MapMenuItem[], onPick = vi.fn(), onClose = vi.fn()) {
+async function mount(items: readonly ContextMenuItem[], onPick = vi.fn(), onClose = vi.fn()) {
   const rootEl = document.createElement('div');
   document.body.appendChild(rootEl);
   const root = createRoot(rootEl);
   await act(async () => {
-    root.render(createElement(MapMenu, { at: { x: 0, y: 0 }, title: 'Menu', items, onPick, onClose }));
+    root.render(createElement(ContextMenu, { at: { x: 0, y: 0 }, title: 'Menu', items, onPick, onClose }));
   });
   return {
     rootEl,
@@ -55,7 +55,7 @@ function key(target: HTMLElement, key: string): void {
   });
 }
 
-describe('MapMenu keyboard navigation', () => {
+describe('ContextMenu keyboard navigation', () => {
   it('opens focused on the first item that can actually be taken', async () => {
     const { buttons, unmount } = await mount(ITEMS);
     expect(document.activeElement).toBe(buttons()[1]);
