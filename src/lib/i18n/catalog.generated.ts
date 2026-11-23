@@ -558,4 +558,13 @@ export const SOURCE_CATALOG = {
   "spaces.host.label": "Space",
   "spaces.host.hint": "Where this host appears. Changing it moves nothing that is open.",
   "spaces.title": "Space",
+  "hall.label": "Hosts in this Space",
+  "hall.empty.title": "No hosts in this Space yet",
+  "hall.empty.add": "Add your first host",
+  "hall.empty.local": "Open a local shell",
+  "spaces.guard.title": "Send to production?",
+  "spaces.guard.body": "This reaches {count} hosts, {production} of them in production. Check the list, then hold the button.",
+  "spaces.guard.cancel": "Cancel",
+  "spaces.guard.hold": "Hold to send to {count} hosts",
+  "spaces.guard.hint": "This stops a slip. It is not a security control.",
 } as const;

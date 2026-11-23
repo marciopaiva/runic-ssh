@@ -6,9 +6,11 @@ import { useTranslator } from '../features/settings';
 import { asIpcError, fleetRun } from '../ipc';
 import type { FleetResult, Macro } from '../ipc';
 import type { SessionHandle } from '../ipc/sessions';
+import { initialSelection } from '../features/fleet/groups';
 import type { GroupPreset } from '../features/fleet/groups';
 
 import { Button } from './ui/Button';
+import { HoldButton } from './HoldButton';
 import { Dialog } from './ui/Dialog';
 
 /** A connected session a run may reach. */
@@ -27,6 +29,9 @@ interface FleetRunDialogProps {
   /** Handles to tick when the dialog opens, from the Bar's scope. Absent means
    * every target, as before. */
   readonly initial?: readonly SessionHandle[] | undefined;
+  /** Hosts in a production Space (ADR-0081). Running on two or more with any of
+   * these ticked has to be held to confirm. */
+  readonly production?: ReadonlySet<SessionHandle> | undefined;
   readonly onClose: () => void;
 }
 
@@ -45,7 +50,14 @@ type Phase =
  * Output is host-supplied, so it is drawn as text with control characters
  * made visible, never as markup.
  */
-export function FleetRunDialog({ macro, targets, groups = [], onClose }: FleetRunDialogProps): JSX.Element {
+export function FleetRunDialog({
+  macro,
+  targets,
+  groups = [],
+  initial,
+  production,
+  onClose,
+}: FleetRunDialogProps): JSX.Element {
   const i18n = useTranslator();
   return (
     <Dialog
@@ -54,7 +66,17 @@ export function FleetRunDialog({ macro, targets, groups = [], onClose }: FleetRu
       size="full"
       title={macro === null ? '' : `${i18n.t('fleet.title')}: ${macro.name}`}
     >
-      {macro !== null && <FleetRunBody key={macro.id} macro={macro} targets={targets} groups={groups} onClose={onClose} />}
+      {macro !== null && (
+        <FleetRunBody
+          key={macro.id}
+          macro={macro}
+          targets={targets}
+          groups={groups}
+          initial={initial}
+          production={production}
+          onClose={onClose}
+        />
+      )}
     </Dialog>
   );
 }
@@ -63,15 +85,19 @@ function FleetRunBody({
   macro,
   targets,
   groups,
+  initial,
+  production,
   onClose,
 }: {
   macro: Macro;
   targets: readonly FleetTarget[];
   groups: readonly GroupPreset[];
+  initial: readonly SessionHandle[] | undefined;
+  production: ReadonlySet<SessionHandle> | undefined;
   onClose: () => void;
 }): JSX.Element {
   const i18n = useTranslator();
-  const [ticked, setTicked] = useState<ReadonlySet<SessionHandle>>(() => new Set(targets.map((t) => t.handle)));
+  const [ticked, setTicked] = useState<ReadonlySet<SessionHandle>>(() => initialSelection(targets, initial));
   const [phase, setPhase] = useState<Phase>({ kind: 'confirm', error: null });
   const [picked, setPicked] = useState<GroupPreset | null>(null);
   const nameOf = useMemo(() => new Map(targets.map((t) => [t.handle, t.name])), [targets]);
@@ -92,6 +118,9 @@ function FleetRunBody({
     setTicked(new Set(group.handles.filter((handle) => reachable.has(handle))));
     setPicked(group);
   };
+
+  /* Two or more hosts with any in production: held, not clicked (ADR-0081). */
+  const holdToRun = ticked.size >= 2 && [...ticked].some((handle) => production?.has(handle) === true);
 
   const run = (): void => {
     const handles = targets.map((t) => t.handle).filter((handle) => ticked.has(handle));
@@ -178,14 +207,20 @@ function FleetRunBody({
             <Button variant="ghost" onClick={onClose}>
               {i18n.t('fleet.close')}
             </Button>
-            <Button
-              variant="primary"
-              onClick={run}
-              loading={phase.kind === 'running'}
-              disabled={ticked.size === 0 || phase.kind === 'running'}
-            >
-              {phase.kind === 'running' ? i18n.t('fleet.running') : i18n.t('fleet.run', { count: ticked.size })}
-            </Button>
+            {holdToRun ? (
+              <HoldButton onComplete={run} disabled={phase.kind === 'running'}>
+                {i18n.t('spaces.guard.hold', { count: String(ticked.size) })}
+              </HoldButton>
+            ) : (
+              <Button
+                variant="primary"
+                onClick={run}
+                loading={phase.kind === 'running'}
+                disabled={ticked.size === 0 || phase.kind === 'running'}
+              >
+                {phase.kind === 'running' ? i18n.t('fleet.running') : i18n.t('fleet.run', { count: ticked.size })}
+              </Button>
+            )}
           </div>
         </>
       )}
