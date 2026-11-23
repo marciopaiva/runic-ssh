@@ -2,10 +2,10 @@ import type { JSX } from 'react';
 
 import { useTranslator } from '../features/settings';
 
-import { FolderIcon, HomeIcon, MapIcon, TerminalIcon } from './ui/icons';
+import { FolderIcon, HomeIcon, TerminalIcon } from './ui/icons';
 
 /** Which main area the window is showing. */
-export type Workspace = 'home' | 'sessions' | 'sftp' | 'map';
+export type Workspace = 'home' | 'sessions' | 'sftp';
 
 interface WorkspacePillsProps {
   readonly workspace: Workspace;
@@ -15,16 +15,13 @@ interface WorkspacePillsProps {
 /**
  * The toolbar's own switch between the workspaces ADR-0072 folded out of the
  * rail: Home, SSH (the `sessions` workspace's new name on screen; the value
- * `Workspace` carries is unchanged), SFTP, and the map (ADR-0073, ADR-0075).
- * All four are always visible, the segmented-control shape rather than
- * `ShapeControl`'s fold-to-popover one: that pattern answers "pick 1 of a set
- * too large to show," and this is a fixed set the ADRs ask to read directly.
- * The map pill reflects selection like its siblings (ADR-0075): choosing it
- * either lands on the map workspace or opens the preview prompt when
- * `previewFeatures` is off, and the caller decides which by what it passes
- * as `workspace`. The Home pill is the one way in or out of that workspace
- * (ADR-0072 addendum): it has no rail slot of its own anymore, so this row
- * is the only door.
+ * `Workspace` carries is unchanged) and SFTP. All three are always visible,
+ * the segmented-control shape rather than `ShapeControl`'s fold-to-popover
+ * one: that pattern answers "pick 1 of a set too large to show," and this is
+ * a fixed set the ADRs ask to read directly. The Home pill is the one way in
+ * or out of that workspace (ADR-0072 addendum): it has no rail slot of its
+ * own anymore, so this row is the only door. The map pill was removed with
+ * the map (ADR-0080).
  */
 export function WorkspacePills({ workspace, onChoose }: WorkspacePillsProps): JSX.Element {
   const i18n = useTranslator();
@@ -66,18 +63,6 @@ export function WorkspacePills({ workspace, onChoose }: WorkspacePillsProps): JS
       >
         <FolderIcon className="h-3.5 w-3.5" />
         {i18n.t('toolbar.pills.sftp')}
-      </button>
-      <button
-        type="button"
-        role="tab"
-        aria-selected={workspace === 'map'}
-        onClick={() => onChoose('map')}
-        className={`flex h-6 items-center gap-1.5 rounded px-2 text-[11.5px] font-medium ${
-          workspace === 'map' ? 'bg-surface-base text-ink shadow-sm' : 'text-ink-muted hover:text-ink'
-        }`}
-      >
-        <MapIcon className="h-3.5 w-3.5" />
-        {i18n.t('toolbar.pills.map')}
       </button>
     </div>
   );

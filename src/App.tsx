@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties, DragEvent, JSX, MouseEvent as ReactMouseEvent, ReactNode } from 'react';
+import type { CSSProperties, DragEvent, JSX, MouseEvent as ReactMouseEvent } from 'react';
 
-import { MapCrumb } from './components/map/MapCrumb';
-import { MapToolbarControls } from './components/map/MapToolbarControls';
-import type { MapToolbarContent } from './components/map/MapStage';
 import { BroadcastButton } from './components/BroadcastButton';
 import { CommandPalette } from './components/CommandPalette';
 import { groupPresets } from './features/fleet/groups';
@@ -25,10 +22,6 @@ import { HostKeyRefused } from './components/HostKeyRefused';
 import { MacrosButton } from './components/MacrosButton';
 import { FleetRunDialog } from './components/FleetRunDialog';
 import { MacrosSidebar } from './components/MacrosSidebar';
-import { MapPreviewPrompt } from './components/MapPreviewPrompt';
-import { MapStage } from './components/map/MapStage';
-import type { HostPopupState } from './components/map/MapStage';
-import { MonitorBody } from './components/map/MonitorBody';
 import { PasteConfirm } from './components/PasteConfirm';
 import { SessionWizard } from './components/SessionWizard';
 import { ShapeControl } from './components/ShapeControl';
@@ -47,7 +40,6 @@ import { Toolbar } from './components/Toolbar';
 import { TransfersBar } from './components/TransfersBar';
 import { WorkspacePills } from './components/WorkspacePills';
 import type { Workspace } from './components/WorkspacePills';
-import { EyeOffIcon } from './components/ui/icons';
 import { hostBookCommands, localShellCommands, usePalette } from './features/commands';
 import type { CommandContext } from './features/commands';
 import { applyVariables, ensureTrailingNewline, useMacros, wrapScript } from './features/macros';
@@ -115,13 +107,10 @@ import {
   closeShell,
   deleteSession,
   disconnectSession,
-  EMPTY_WORKSPACE,
   forgetCredential,
   internalVaultStatus,
   listLocalShellKinds,
-  loadWorkspace,
   saveSession,
-  saveWorkspace,
   sendInput,
   sessionCredentialKept,
   stopForward,
@@ -139,11 +128,7 @@ import type {
   ShellSlot,
   SuggestedMethod,
 } from './ipc';
-import type { Component as MapComponent, ComponentKind as MapComponentKind, Workspace as MapWorkspaceModel } from './ipc';
-import type { MapPaneWiring } from './components/map/MapStage';
-import { addComponent, changeHost, mapTerminals, mountedOnce, placeSavedHost } from './features/map';
-import type { HostAsk } from './features/map';
-import { useLocale, usePreview, useTheme } from './features/settings';
+import { useLocale, useTheme } from './features/settings';
 import { visibleDestinationRows } from './features/sftp/browser';
 import { endpointKey } from './features/sftp/endpoint';
 import type { DraggedEndpoint, Endpoint, PaneEntry } from './features/sftp/endpoint';
@@ -285,34 +270,14 @@ export function App(): JSX.Element {
   const { chrome, maximized, act, refused } = useChrome();
   const { i18n, chosen, choose } = useLocale();
   const { theme, chooseTheme } = useTheme();
-  const { previewFeatures, choosePreviewFeatures } = usePreview();
   /* Which main area is showing. ADR-0029: Sessions keeps groups, splitting and
      the sync switch; Home holds the dashboard and the host editor, neither of
      which is terminal-shaped, in a strip of its own with neither. A fresh
      window lands on Home: it is the host book, the thing worth seeing before
      anything is open, and the SSH pill that connects one is one click away
-     either way (ADR-0072's addendum gave Home that pill back). The map is a
-     fourth peer value here (ADR-0075), reached through its own pill like
-     Sessions and SFTP are. */
+     either way (ADR-0072's addendum gave Home that pill back). */
   const [workspace, setWorkspace] = useState<Workspace>('home');
-  /* Turning the preview off while the map is in front leaves nowhere to
-     stand, since the pill that reached it stays visible but the workspace it
-     names is gated again; fall back to Sessions (ADR-0066, ADR-0075). */
-  useEffect(() => {
-    if (!previewFeatures && workspace === 'map') setWorkspace('sessions');
-  }, [previewFeatures, workspace]);
-  /* ADR-0073's pill is always visible; ADR-0075 made choosing it either land
-     on the map workspace directly or, while `previewFeatures` is off, open
-     this prompt instead. Neither `workspace` alone can represent "about to
-     show the map, but not yet": this is its own flag for that. */
-  const [mapPreviewPromptOpen, setMapPreviewPromptOpen] = useState(false);
-  const openWorkspace = (next: Workspace): void => {
-    if (next === 'map' && !previewFeatures) {
-      setMapPreviewPromptOpen(true);
-      return;
-    }
-    setWorkspace(next);
-  };
+  const openWorkspace = (next: Workspace): void => setWorkspace(next);
   /* Fetched once: what is running cannot change under a live process, so there
      is nothing to react to and nothing worth re-asking. `null` until the
      first paint after mount, which `StatusBar` already treats as "say
@@ -348,9 +313,6 @@ export function App(): JSX.Element {
      renders from this, `onOpened` only needs whatever it was most recently
      told. */
   const sftpConnectTargets = useRef<Map<string, SftpTarget>>(new Map());
-  /* ADR-0064: sessions the map asked for. Checked first in `onOpened`: a
-     map component wants its window filled, not a tab in Sessions. */
-  const mapConnectTargets = useRef<Set<string>>(new Set());
   /* Which sessions Sessions itself has actually asked a shell for, ADR-0053.
      A connection opened for SFTP shares its handle with Sessions (one SSH
      transport, multiplexed channels), which used to be read as "Sessions
@@ -548,73 +510,6 @@ export function App(): JSX.Element {
      (`dismissOpenedFor`) opts out of that retry too, on the same "cleared on
      the next action in that editor" lifecycle this already had. */
   const [editorOpenedFor, setEditorOpenedFor] = useState<ReadonlyMap<string, string>>(new Map());
-  /* #357: the editor the map opened over itself, held by the form's stable
-     id rather than its target, since a new host's target changes the moment
-     Save gives it an id; and what the map asked for, so the host lands
-     where it was asked once the editor concludes. */
-  const [mapEditor, setMapEditor] = useState<{ readonly formId: string; readonly ask: HostAsk } | null>(null);
-  /* Written by `finishWizard` when an editor concluded with its host on
-     disk, read by the effect beside the map's own state just below. */
-  const [mapEditorDone, setMapEditorDone] = useState<{ readonly formId: string; readonly sessionId: string } | null>(null);
-  /* Set while the map's own radial menu is waiting on the "+" palette to
-     resolve a host (`HostPicker`'s old job): the component kind it asked
-     for, the component being re-pointed rather than created, the layer it
-     was standing on, and which hosts to hide because they already carry one
-     of that kind (ADR-0064's duplicate rule, avoided here rather than shown
-     back as a refusal, since nothing in this app has a toast to show it in).
-     `null` everywhere else, so Sessions and SFTP's own "+" never sees it. */
-  const [mapPlacement, setMapPlacement] = useState<{
-    readonly kind: MapComponentKind;
-    readonly changing: string | null;
-    readonly layer: string | null;
-    readonly blockedHostIds: ReadonlySet<string>;
-  } | null>(null);
-  /* ADR-0064: the map's own state. Loaded once, held whole, written whole a
-     moment after the last change, so a drag is one write and not sixty.
-     Declared here, ahead of `context` below, so its two new map-placement
-     actions can read `mapWorkspace` and call `changeMap` directly instead of
-     through a ref: both are genuine dependencies of that memo, not a stale
-     snapshot it would otherwise have to guard against. */
-  const [mapWorkspace, setMapWorkspace] = useState<MapWorkspaceModel>(EMPTY_WORKSPACE);
-  useEffect(() => {
-    let live = true;
-    void loadWorkspace()
-      .then((loaded) => {
-        if (live) setMapWorkspace(loaded);
-      })
-      .catch(() => {
-        /* A malformed file is reported by the core the next time the map is
-           written, on the save that fails; until then the map starts empty
-           rather than the workspace refusing to open. */
-      });
-    return () => {
-      live = false;
-    };
-  }, []);
-  const mapSave = useRef<{ timer: ReturnType<typeof setTimeout> | null; pending: MapWorkspaceModel | null }>({
-    timer: null,
-    pending: null,
-  });
-  const changeMap = useCallback((next: MapWorkspaceModel): void => {
-    setMapWorkspace(next);
-    const state = mapSave.current;
-    state.pending = next;
-    if (state.timer !== null) clearTimeout(state.timer);
-    state.timer = setTimeout(() => {
-      state.timer = null;
-      const pending = state.pending;
-      state.pending = null;
-      if (pending !== null) void saveWorkspace(pending).catch(() => {});
-    }, 300);
-  }, []);
-  useEffect(
-    () => () => {
-      const state = mapSave.current;
-      if (state.timer !== null) clearTimeout(state.timer);
-      if (state.pending !== null) void saveWorkspace(state.pending).catch(() => {});
-    },
-    [],
-  );
   /* What the wizard's own settled row says happened, keyed by session id.
      `CredentialSaved`/`ConnectionFailure` already state the outcome once,
      the moment it happens; dismissing either clears `attempt` and lands on
@@ -677,9 +572,7 @@ export function App(): JSX.Element {
          work. Neither wants `wantTerminal`/`setFocus` below, since neither
          is asking for a tab in Sessions. */
       const sftpTarget = sftpConnectTargets.current.get(sessionId);
-      if (mapConnectTargets.current.has(sessionId)) {
-        mapConnectTargets.current.delete(sessionId);
-      } else if (sftpTarget !== undefined) {
+      if (sftpTarget !== undefined) {
         sftpConnectTargets.current.delete(sessionId);
         const endpoint: Endpoint = { kind: 'remote', sessionId, handle };
         if (sftpTarget.kind === 'source') fanout.setSource(endpoint);
@@ -709,7 +602,6 @@ export function App(): JSX.Element {
        user closed are three different things, and the marker says which. */
     onFailed: (sessionId, code) => {
       sftpConnectTargets.current.delete(sessionId);
-      mapConnectTargets.current.delete(sessionId);
       setState(sessionId, stateAfterFailure(code));
       setTestOutcome((current) => new Map(current).set(sessionId, 'failed'));
     },
@@ -720,7 +612,6 @@ export function App(): JSX.Element {
        *previous* attempt's result showing on this one. */
     onAbandoned: (sessionId, settled) => {
       sftpConnectTargets.current.delete(sessionId);
-      mapConnectTargets.current.delete(sessionId);
       /* Nothing is left to show a tab for once an attempt is walked away
          from, ADR-0053: no handle, no attempt, and (for one Sessions itself
          started) no failure surface left to keep a panel open for either. */
@@ -768,14 +659,7 @@ export function App(): JSX.Element {
       const target = credentialRedirectTarget(sessionId, hop, savedRef.current);
       if (target === null) return;
 
-      /* #357: a connection the map asked for is answered over the map, the
-         same editor in a popup, rather than by switching the workspace out
-         from under the click. */
-      if (mapConnectTargets.current.has(sessionId)) {
-        openEditorOnMap({ kind: 'existing', sessionId: target }, { kind: null, changing: null, layer: null });
-      } else {
-        openEditor({ kind: 'existing', sessionId: target });
-      }
+      openEditor({ kind: 'existing', sessionId: target });
       setEditorOpenedFor((current) =>
         new Map(current).set(editorKey({ kind: 'existing', sessionId: target }), sessionId),
       );
@@ -791,8 +675,7 @@ export function App(): JSX.Element {
     [sessions, attentionIds, terminalWanted],
   );
   /* Whether `sessionId` has an unresolved attempt still running. The guard
-     shared by `activate`, `openHere`, `assignSftpEndpoint` and
-     `connectFromMap`, all of which decline to start a second attempt over a
+     shared by `activate`, `openHere` and `assignSftpEndpoint`, all of which decline to start a second attempt over a
      first one already in flight for the same session (issue #306: attempts
      for *different* sessions now run concurrently, so this is scoped to one
      session rather than the single global attempt it used to be). */
@@ -822,11 +705,6 @@ export function App(): JSX.Element {
   const stats = useSessionStats(activeHandle);
   /* One terminal per open session, kept mounted across tab switches. */
   const mounted = useMemo(() => mountedTerminals(tabs), [tabs]);
-  /* The map's own mounted terminals, kept fresh for `sendEach` below without
-     forcing it to be declared after `mapMounted` exists: a session mounted
-     only through the map, never a classic tab, has no entry in `mounted`
-     on its own. */
-  const mapMountedRef = useRef<typeof mounted>([]);
   /* Every open session goes in a group; nothing else does any more
      (ADR-0029, ADR-0044). That is what makes rule 3 of ADR-0020 true within
      the Sessions workspace rather than across the whole window: a group's
@@ -902,29 +780,7 @@ export function App(): JSX.Element {
      without being looked at. Held here rather than derived in the bar because
      an announcement is about the change, and the bar only ever sees the state
      it is in now. See #154. */
-  /* The map has a switch of its own (ADR-0065) and reports what it reaches;
-     the bar shows whichever workspace is in front, since a keystroke goes
-     to the one showing. */
-  const [mapReceivingCount, setMapReceivingCount] = useState<number | null>(null);
-  /* The map's own row of the shared toolbar (ADR-0069), reported up by
-     `MapStage` rather than drawn in a second bar there. `null` for the one
-     frame before the map has mounted and said what it shows. */
-  const [mapToolbar, setMapToolbar] = useState<MapToolbarContent | null>(null);
-  /* The session behind the map's own focused terminal: what a macro run
-     from the map reaches, since the map has no tab strip of its own for
-     `activeId` to read. `null` off any SSH terminal, or off the map
-     entirely. */
-  const [mapFocusedSession, setMapFocusedSession] = useState<string | null>(null);
-  /* The map's own broadcast reach, reported up by `MapStage` the same way
-     `focusFns` is: a macro run from the map fans out to an armed set the
-     same way a typed keystroke does, instead of landing on the focused
-     terminal alone. A ref rather than state since nothing here needs to
-     re-render when it changes; `runMacro` only ever reads it at call time. */
-  const mapReachRef = useRef<(fromHost: string) => readonly string[]>(() => []);
-  const onMapReachChange = useCallback((reach: (fromHost: string) => readonly string[]): void => {
-    mapReachRef.current = reach;
-  }, []);
-  const hostsReceiving = workspace === 'map' ? mapReceivingCount : armed ? receiving.length : null;
+  const hostsReceiving = armed ? receiving.length : null;
   const lastReceiving = useRef<number | null>(null);
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
   useEffect(() => {
@@ -998,9 +854,8 @@ export function App(): JSX.Element {
      express. */
   const sendEach = useCallback(
     (entries: readonly { readonly sessionId: string; readonly bytes: Uint8Array }[]): void => {
-      const reachable = mountedOnce(mounted, mapMountedRef.current);
       for (const entry of entries) {
-        const target = reachable.find((candidate) => candidate.sessionId === entry.sessionId);
+        const target = mounted.find((candidate) => candidate.sessionId === entry.sessionId);
         if (target === undefined) continue;
         void sendInput(target.handle, entry.bytes).catch(() => {});
       }
@@ -1016,10 +871,7 @@ export function App(): JSX.Element {
     focusFns.current.get(sessionId)?.();
   }, []);
 
-  /* The map has no tab strip of its own, so `activeId` (the classic strip's
-     focus) means nothing there; the map's own focused terminal, reported up
-     by `MapStage`, stands in for it while that workspace is the one shown. */
-  const macroTargetId = workspace === 'map' ? mapFocusedSession : activeId;
+  const macroTargetId = activeId;
 
   /* A macro's own text, resolved separately against each host it is about to
      reach, so `$host`/`$port`/`$username` name that host rather than
@@ -1027,10 +879,7 @@ export function App(): JSX.Element {
      already is, with newlines turned into the carriage return a terminal
      expects (`preparePaste`). Runs immediately, on every host the target's
      own broadcast reaches: picking a macro is already the deliberate act,
-     the same way running any other saved command is. The classic strip and
-     the map each arm broadcast on their own state (`sync`/`groups` versus
-     `mapReachRef`), so which one is asked follows the workspace the target
-     came from, the same split `macroTargetId` itself already makes. */
+     the same way running any other saved command is. */
   /* ADR-0078: the script macro whose fleet run dialog is open. */
   const [fleetMacro, setFleetMacro] = useState<Macro | null>(null);
   const fleetTargets = useMemo(
@@ -1051,8 +900,7 @@ export function App(): JSX.Element {
       const session = sessions.find((live) => live.session.id === macroTargetId)?.session;
       if (session === undefined) return;
 
-      const targets =
-        workspace === 'map' ? mapReachRef.current(macroTargetId) : inputTargets(groups, macroTargetId, sync, muted);
+      const targets = inputTargets(groups, macroTargetId, sync, muted);
       const entries = targets.flatMap((sessionId) => {
         const target =
           sessionId === macroTargetId
@@ -1076,7 +924,7 @@ export function App(): JSX.Element {
          until this hands it back to the shell the macro just spoke to. */
       focusTerminal(macroTargetId);
     },
-    [macroTargetId, sessions, groups, sync, muted, sendEach, focusTerminal, workspace],
+    [macroTargetId, sessions, groups, sync, muted, sendEach, focusTerminal],
   );
 
   /* Which rectangle a session's surfaces belong in, or `null` when it is not
@@ -1311,18 +1159,6 @@ export function App(): JSX.Element {
     [homeEntries],
   );
 
-  /* #357: tell the map an editor concluded with its host on disk, whichever
-     door it left through. Read before the editor is removed: `finished`
-     needs `editorsRef` still holding the slot this `target` names. The
-     effect this feeds is itself a no-op when there is no map editor waiting
-     on the result, and `target` staying `new` means nothing was ever saved
-     to place. */
-  const notifyMapEditorDone = useCallback((target: EditorTarget): void => {
-    if (target.kind !== 'existing') return;
-    const finished = findEditor(editorsRef.current, target);
-    if (finished !== null) setMapEditorDone({ formId: finished.formId, sessionId: target.sessionId });
-  }, []);
-
   /* The form's own Cancel button. No tab to close since ADR-0029's follow-up
      put Hosts behind a list rather than a strip, so this is reached from
      inside the form instead of from an X beside its name. */
@@ -1343,15 +1179,10 @@ export function App(): JSX.Element {
         return;
       }
 
-      /* A host saved through the map's own "New host" but closed with
-         "Skip test" or a plain Escape/backdrop, rather than a passing test's
-         `onAutoFinish`, used to leave the session on disk without ever
-         reaching the component it was created for. */
-      notifyMapEditorDone(target);
       setEditors((current) => withoutEditor(current, target));
       forgetHome(focus);
     },
-    [forgetHome, notifyMapEditorDone],
+    [forgetHome],
   );
 
   /* Sending a tab to another rectangle by name. Sessions only: Home has one
@@ -1852,11 +1683,6 @@ export function App(): JSX.Element {
     (target: EditorTarget): void => {
       if (target.kind === 'existing') {
         provisional.current.delete(target.sessionId);
-        /* #357: whichever editor this was, the map is told; it acts only on
-           the one it opened. Read before the editor is removed below. */
-        const finished = findEditor(editorsRef.current, target);
-        if (finished !== null) setMapEditorDone({ formId: finished.formId, sessionId: target.sessionId });
-
         const key = editorKey(target);
         const redirectedFrom = editorOpenedFor.get(key);
         const resumeId = resumeTargetAfterEditor(redirectedFrom, testOutcome.get(target.sessionId));
@@ -1868,13 +1694,6 @@ export function App(): JSX.Element {
           });
         }
         if (resumeId !== null) {
-          /* #357: the editor the map opened resumes the map's own attempt.
-             `onAbandoned` cleared the mark when the wizard's proof was
-             walked away from, a moment ago, and without it the retry would
-             land as a Sessions tab beside the window (ADR-0053). */
-          if (finished !== null && mapEditor !== null && mapEditor.formId === finished.formId) {
-            mapConnectTargets.current.add(resumeId);
-          }
           void connect(resumeId);
         } else if (redirectedFrom !== undefined) {
           /* Abandoned or failed: no retry is coming, so an SFTP pane
@@ -1889,7 +1708,7 @@ export function App(): JSX.Element {
       forgetHome({ kind: 'editor', target });
       setEditors((current) => withoutEditor(current, target));
     },
-    [forgetHome, connect, editorOpenedFor, testOutcome, mapEditor],
+    [forgetHome, connect, editorOpenedFor, testOutcome],
   );
 
   /* ADR-0056: the check `wizardNext` used to run before the Host-to-Access
@@ -1985,21 +1804,6 @@ export function App(): JSX.Element {
     setHomeFocus({ kind: 'editor', target });
   }, []);
 
-  /* #357: the same editor, opened over the map instead of in Home. The
-     workspace stays; the popup follows the form by its id until it closes
-     through any of the editor's own doors. `name` is what the picker's
-     filter held when nothing matched it, typed in so it is not typed twice. */
-  const openEditorOnMap = useCallback((target: EditorTarget, ask: HostAsk, name?: string): void => {
-    const next = withEditor(editorsRef.current, target, savedRef.current);
-    const opened = findEditor(next, target);
-    if (opened === null) return;
-    const trimmed = name?.trim() ?? '';
-    setEditors(
-      trimmed === '' ? next : updateEditor(next, target, (editor) => typedInto(editor, 'name', trimmed)),
-    );
-    setMapEditor({ formId: opened.formId, ask });
-  }, []);
-
   /* Standalone so both the surviving palette action and `TabCycleControl`
      (A4) can call it without going through `CommandActions`. */
   const moveTab = useCallback(
@@ -2018,42 +1822,15 @@ export function App(): JSX.Element {
          window does. `hostBookCommands` reads this only to decide whether
          "this machine" belongs in the list, which needs `sftp` told apart
          from everything else. */
-      workspace: workspace === 'sftp' ? 'sftp' : workspace === 'map' ? 'map' : 'sessions',
+      workspace: workspace === 'sftp' ? 'sftp' : 'sessions',
       localShellKinds,
-      mapPlacement,
       actions: {
         openHostInto,
         openLocalInto,
         openLocalShellInto,
-        /* `HostPicker`'s old `pick()`: resolve the outcome the same way it
-           did, against whichever component `mapPlacement` named, then write
-           it and close the request. The palette has already excluded any
-           host `mapPlacement.blockedHostIds` names, so an `!outcome.ok`
-           result here is defensive rather than expected, and needs nothing
-           more than declining to write. */
-        placeHostOnMap: (sessionId: string) => {
-          if (mapPlacement === null) return;
-          const outcome =
-            mapPlacement.changing === null
-              ? addComponent(mapWorkspace, mapPlacement.kind, sessionId, saved, mapPlacement.layer)
-              : changeHost(mapWorkspace, mapPlacement.changing, sessionId, saved);
-          if (outcome.ok) changeMap(outcome.workspace);
-          setMapPlacement(null);
-        },
-        /* `HostPicker`'s old `onNewHost`: same `HostAsk` shape, carried
-           through to the shared host editor instead of a picker-local form. */
-        newHostForMap: () => {
-          if (mapPlacement === null) return;
-          openEditorOnMap({ kind: 'new' }, {
-            kind: mapPlacement.kind,
-            changing: mapPlacement.changing,
-            layer: mapPlacement.layer,
-          });
-          setMapPlacement(null);
-        },
       },
     }),
-    [i18n, sessions, workspace, openHostInto, openLocalInto, localShellKinds, openLocalShellInto, mapPlacement, mapWorkspace, saved, changeMap, openEditorOnMap],
+    [i18n, sessions, workspace, openHostInto, openLocalInto, localShellKinds, openLocalShellInto],
   );
 
   /* One palette for the whole app: the "+" beside the ADR-0072 pills is the
@@ -2068,35 +1845,8 @@ export function App(): JSX.Element {
   const palette = usePalette(sources);
 
   /* The sole way anything opens the "+" palette: `OpenHostButton`, Sessions'
-     and SFTP's empty-panel prompts, and the map's own trigger just below. */
+     and SFTP's empty-panel prompts. */
   const openHostPicker = palette.show;
-
-  /* The map's own trigger for that same palette (`HostPicker`'s old job):
-     works out which hosts already carry a component of the requested kind
-     (ADR-0064's duplicate rule), so `hostBookCommands` can leave them off the
-     list instead of the picker's old inline refusal, then opens the palette
-     over whichever `mapPlacement` names. */
-  const onRequestMapHost = useCallback(
-    (kind: MapComponentKind, changing: string | null, layer: string | null): void => {
-      const blockedHostIds = new Set(
-        mapWorkspace.components
-          .filter((component) => component.kind === kind && component.id !== changing && component.host !== undefined)
-          .map((component) => component.host as string),
-      );
-      setMapPlacement({ kind, changing, layer, blockedHostIds });
-      openHostPicker();
-    },
-    [mapWorkspace, openHostPicker],
-  );
-
-  /* Covers cancelling out of the palette (Escape, the backdrop click) and a
-     completed pick alike (`usePalette.run` always dismisses before running):
-     whatever closed it, any map placement it was standing in for resets too,
-     so a later, unrelated open from Sessions or SFTP never inherits it. */
-  useEffect(() => {
-    if (palette.open) return;
-    setMapPlacement(null);
-  }, [palette.open]);
 
   /* Built once per render rather than looked up per pane: the map is small,
      and four linear searches through the session list to draw four headers is
@@ -2241,111 +1991,6 @@ export function App(): JSX.Element {
     [sessions, i18n],
   );
 
-  /* #357: the popup lives exactly as long as its editor. Any door the
-     editor leaves through (finish, cancel, discard, delete) is seen here as
-     the form leaving `editors`, one place rather than one per door. */
-  useEffect(() => {
-    if (mapEditor === null) return;
-    if (editors.some((editor) => editor.formId === mapEditor.formId)) return;
-    setMapEditor(null);
-  }, [editors, mapEditor]);
-
-  /* #357: an editor that concluded with its host on disk. Only the one the
-     map opened is acted on, and what the map asked for is what happens:
-     a new component, a component re-aimed, or nothing. A refusal here is
-     the picker's own (the host already sits on the map in that kind) and
-     is left to the picker to say the next time it is opened. */
-  useEffect(() => {
-    if (mapEditorDone === null) return;
-    setMapEditorDone(null);
-    if (mapEditor === null || mapEditor.formId !== mapEditorDone.formId) return;
-    const placed = placeSavedHost(mapWorkspace, mapEditor.ask, mapEditorDone.sessionId, savedRef.current);
-    if (placed !== null && placed !== mapWorkspace) changeMap(placed);
-    setMapEditor(null);
-  }, [mapEditorDone, mapEditor, mapWorkspace, changeMap]);
-
-  const mapHandles = useMemo(() => {
-    const handles = new Map<string, SessionHandle>();
-    for (const live of sessions) if (live.handle !== null) handles.set(live.session.id, live.handle);
-    return handles;
-  }, [sessions]);
-
-  const connectFromMap = useCallback(
-    (sessionId: string): void => {
-      const live = sessions.find((entry) => entry.session.id === sessionId);
-      if (live === undefined || live.handle !== null) return;
-      mapConnectTargets.current.add(sessionId);
-      if (attemptInProgressFor(sessionId)) return;
-      void connect(sessionId);
-    },
-    [connect, sessions, attemptInProgressFor],
-  );
-
-  const mapAttemptSurface = useCallback(
-    (sessionId: string): JSX.Element | null => {
-      const attempt = attempts.get(sessionId);
-      return attempt === undefined ? null : attemptSurfaceFor(attempt);
-    },
-    [attempts, attemptSurfaceFor],
-  );
-
-  /* One terminal per SSH component whose host is connected. The stack itself
-     is `MapTerminals`, inside the map's own main (ADR-0014, ADR-0032); this
-     is what the shell wires into each of them, the same things Sessions'
-     stack gets. */
-  const mapMounted = useMemo(() => mapTerminals(mapWorkspace.components, mapHandles), [mapWorkspace, mapHandles]);
-  mapMountedRef.current = mapMounted;
-  const mapTerminalWiring = useMemo(
-    () => ({
-      mounted: mapMounted,
-      sessions: saved,
-      modifier: chrome?.commandModifier ?? 'control',
-      onSize: setSize,
-      onFocusHandle: (sessionId: string, focus: () => void) => focusFns.current.set(sessionId, focus),
-      onPasteNeedsConfirming: (sessionId: string, text: string) => setPendingPaste({ sessionId, text }),
-      onInput: (sessionId: string, bytes: Uint8Array) => {
-        const target = mapMounted.find((candidate) => candidate.sessionId === sessionId);
-        if (target === undefined) return;
-        void sendInput(target.handle, bytes).catch(() => {});
-      },
-    }),
-    [mapMounted, saved, chrome],
-  );
-
-  /* ADR-0065: a file browser in a map window, a saved host's or this
-     machine's. It sends through the lines, not through a bar of its own, so
-     `onSend` stays null; the pane reports where it is and what is selected
-     and the stage does the rest. */
-  const renderMapSftp = useCallback(
-    (_component: MapComponent, session: Session | null, handle: SessionHandle | null, pane: MapPaneWiring): ReactNode => {
-      const endpoint: Endpoint =
-        session === null || handle === null ? { kind: 'local' } : { kind: 'remote', sessionId: session.id, handle };
-      return (
-        <SftpPane
-          endpoint={endpoint}
-          paneId={pane.paneId}
-          label={session === null ? i18n.t('map.local.name') : session.name}
-          identity={sftpIdentity(endpoint)}
-          onReport={pane.onReport}
-          onSend={null}
-          onClear={pane.onClose}
-          receiving={null}
-          onToggleReceiving={null}
-          onDragEntriesStart={null}
-          onDragEntriesEnd={null}
-          onSelectionChange={pane.onSelectionChange}
-          embedded
-        />
-      );
-    },
-    [i18n, sftpIdentity],
-  );
-
-  const renderMapMonitor = useCallback(
-    (session: Session, handle: SessionHandle): ReactNode => <MonitorBody session={session} handle={handle} />,
-    [],
-  );
-
   /* Where a dragged tab lands: it moves to the group it was dropped on.
      Opening a saved host into a group goes through `openHostInto` instead,
      since ADR-0072 retired the sidebar a host used to be dragged from. */
@@ -2368,11 +2013,9 @@ export function App(): JSX.Element {
      (`layout === '1x1' || filled < 2`) for the exact same reason. */
   const broadcastAvailable = layout !== '1x1' && filled >= 2;
 
-  /* #357: the same wizard, wherever it is asked for. Home renders it in
-     `HostsSection`'s detail; the map renders it in a popup over the stage.
-     Everything it needs is derived from the target here, once, so the
-     two places cannot drift. */
-  const wizardFor = (target: EditorTarget, onMap: boolean): JSX.Element | null => {
+  /* The host wizard for a target. Everything it needs is derived from the
+     target here, once. */
+  const wizardFor = (target: EditorTarget): JSX.Element | null => {
     const open = findEditor(editors, target);
     const editingId = target?.kind === 'existing' ? target.sessionId : null;
     const attempt = editingId === null ? undefined : attempts.get(editingId);
@@ -2542,59 +2185,11 @@ export function App(): JSX.Element {
       onConfirmDiscard={() => discardIn(target, true)}
       onCancelDiscard={() => discardIn(target, false)}
       onCancel={() => cancelEditing(target)}
-      showGroup={!onMap}
     />
     );
   };
 
   const homeEditorTarget = resolvedHomeFocus?.kind === 'editor' ? resolvedHomeFocus.target : null;
-
-  /* #357: the editor the map opened, framed for the stage. The title says
-     which of the two things this is; the line under it says how far a
-     change reaches, since one host can sit on the map in three kinds. */
-  const mapEditorTarget =
-    mapEditor === null ? null : (editors.find((editor) => editor.formId === mapEditor.formId)?.target ?? null);
-  const mapHostPopup: HostPopupState | null = (() => {
-    if (mapEditor === null || mapEditorTarget === null) return null;
-    const element = wizardFor(mapEditorTarget, true);
-    if (element === null) return null;
-    const kindLabel = (kind: MapComponentKind): string =>
-      i18n.t(
-        kind === 'ssh'
-          ? 'map.create.ssh'
-          : kind === 'sftp'
-            ? 'map.create.sftp'
-            : kind === 'monitor'
-              ? 'map.create.monitor'
-              : 'map.create.local',
-      );
-    /* A host being registered for a component stays "New host" after Save
-       gives it an id: the popup is about the component it was asked for,
-       and it closes on its own once the proof settles. */
-    const creating = mapEditorTarget.kind === 'new' || mapEditor.ask.kind !== null;
-    let detail: string;
-    if (creating) {
-      detail =
-        mapEditor.ask.kind !== null
-          ? i18n.t('map.popup.new.detail', { kind: kindLabel(mapEditor.ask.kind) })
-          : i18n.t('map.popup.usedBy.one');
-    } else {
-      const usedBy = mapWorkspace.components.filter((component) => component.host === mapEditorTarget.sessionId).length;
-      detail =
-        usedBy === 0
-          ? i18n.t('map.popup.usedBy.none')
-          : usedBy === 1
-            ? i18n.t('map.popup.usedBy.one')
-            : i18n.t('map.popup.usedBy.other', { count: String(usedBy) });
-    }
-    const target = mapEditorTarget;
-    return {
-      title: i18n.t(creating ? 'map.popup.title.new' : 'map.popup.title.change'),
-      detail,
-      element,
-      onClose: () => cancelEditing(target),
-    };
-  })();
 
   /* ADR-0075: one Toolbar shared by every workspace, `leading`/`trailing`
      built per workspace below. Theme and language (ADR-0062) render in
@@ -2623,18 +2218,6 @@ export function App(): JSX.Element {
       <>
         <WorkspacePills workspace="sftp" onChoose={openWorkspace} />
         <OpenHostButton onClick={openHostPicker} />
-      </>
-    ) : workspace === 'map' ? (
-      <>
-        {/* The map's toolbar had no pills before ADR-0075, since it was its
-            own shell reached only through `ShellSelector`. Now that leaving
-            is as ordinary as arriving, it needs the same switch Sessions and
-            SFTP already carry, or there is no way back to either in one
-            click. */}
-        <WorkspacePills workspace="map" onChoose={openWorkspace} />
-        {mapToolbar !== null && (
-          <MapCrumb segments={mapToolbar.crumb} {...(mapToolbar.onBack === undefined ? {} : { onBack: mapToolbar.onBack })} />
-        )}
       </>
     ) : workspace === 'home' ? (
       <WorkspacePills workspace="home" onChoose={openWorkspace} />
@@ -2670,35 +2253,6 @@ export function App(): JSX.Element {
         <span className="bg-line-subtle h-4 w-px shrink-0" aria-hidden="true" />
         {persistentControls}
       </>
-    ) : workspace === 'map' ? (
-      <>
-        {mapToolbar !== null && (
-          <>
-            <MapToolbarControls
-              query={mapToolbar.query}
-              onQueryChange={mapToolbar.onQueryChange}
-              onQuerySubmit={mapToolbar.onQuerySubmit}
-              zoomPercent={mapToolbar.zoomPercent}
-              onRecenter={mapToolbar.onRecenter}
-              onFitAll={mapToolbar.onFitAll}
-            />
-            <span className="bg-line-subtle h-4 w-px shrink-0" aria-hidden="true" />
-          </>
-        )}
-        <button
-          type="button"
-          onClick={() => choosePreviewFeatures(false)}
-          aria-label={i18n.t('command.preview.hideMap')}
-          title={i18n.t('command.preview.hideMap')}
-          className="text-ink-muted hover:bg-surface-raised/50 hover:text-ink flex h-6 w-7 shrink-0 items-center justify-center rounded"
-        >
-          <EyeOffIcon className="h-3.5 w-3.5" />
-        </button>
-        <MacrosButton open={macrosOpen} onToggle={() => setMacrosOpen((open) => !open)} />
-        <HostsManagerButton open={hostsManagerOpen} onToggle={() => setHostsManagerOpen((open) => !open)} />
-        <span className="bg-line-subtle h-4 w-px shrink-0" aria-hidden="true" />
-        {persistentControls}
-      </>
     ) : workspace === 'home' ? (
       persistentControls
     ) : undefined;
@@ -2728,19 +2282,7 @@ export function App(): JSX.Element {
             palette (ADR-0072). */}
         <div className="relative flex min-h-0 min-w-0 flex-1">
 
-        {mapPreviewPromptOpen && (
-          <main className="bg-surface-base relative flex min-w-0 flex-1 flex-col overflow-hidden">
-            <MapPreviewPrompt
-              onAccept={() => {
-                setMapPreviewPromptOpen(false);
-                void choosePreviewFeatures(true).then(() => setWorkspace('map'));
-              }}
-              onCancel={() => setMapPreviewPromptOpen(false)}
-            />
-          </main>
-        )}
-
-        {workspace === 'sessions' && !mapPreviewPromptOpen && (
+        {workspace === 'sessions' && (
         /* `relative` is what every group and every surface is positioned
             against. Surfaces are stacked rather than swapped, one per
             session, only the ones a group is showing visible, so switching
@@ -3147,7 +2689,7 @@ export function App(): JSX.Element {
             visible at once, unlike ADR-0044's one tab at a time: fanning a
             file out needs every destination's own listing live
             simultaneously, not shown in turn. */}
-        {workspace === 'sftp' && !mapPreviewPromptOpen && (() => {
+        {workspace === 'sftp' && (() => {
           const occupied = fanout.destinations
             .map((endpoint, slot) => (endpoint === null ? null : { endpoint, slot }))
             .filter((entry): entry is { endpoint: Endpoint; slot: number } => entry !== null);
@@ -3399,69 +2941,6 @@ export function App(): JSX.Element {
           />
         )}
 
-        {workspace === 'map' && (
-          /* ADR-0064: the map's own main, `relative` for the same reason
-             Sessions' is: the terminals are stacked in it, one per connected
-             SSH component, and the stage says where each one goes. */
-          <main className="bg-surface-base relative flex min-w-0 flex-1 flex-col overflow-hidden">
-            <MapStage
-              workspace={mapWorkspace}
-              onChange={changeMap}
-              hosts={saved}
-              handles={mapHandles}
-              onConnect={connectFromMap}
-              onDisconnect={disconnect}
-              attemptSurface={mapAttemptSurface}
-              onEditHost={(sessionId) =>
-                openEditorOnMap({ kind: 'existing', sessionId }, { kind: null, changing: null, layer: null })
-              }
-              onRequestHost={onRequestMapHost}
-              pickingHost={mapPlacement !== null}
-              hostPopup={mapHostPopup}
-              terminals={mapTerminalWiring}
-              renderSftp={renderMapSftp}
-              renderMonitor={renderMapMonitor}
-              onSend={fanout.sendEntriesBetween}
-              onReceivingChange={setMapReceivingCount}
-              onToolbarChange={setMapToolbar}
-              onFocusedSessionChange={setMapFocusedSession}
-              onMapReachChange={onMapReachChange}
-            />
-            <TransfersBar
-              transfers={fanout.transfers}
-              onCancel={fanout.cancelTransfer}
-              onDismiss={fanout.dismissTransfer}
-              folderCopies={fanout.folderCopies}
-              onCancelFolder={fanout.cancelFolderCopy}
-              onDismissFolder={fanout.dismissFolderCopy}
-            />
-          </main>
-        )}
-
-        {/* Docked the same way as the classic strip's own (line 2786): a
-            flex sibling after the map's `flex-1` main, not an overlay, so it
-            takes space from the map rather than floating over it. */}
-        {workspace === 'map' && macrosOpen && (
-          <MacrosSidebar
-            macros={macros}
-            onRun={runMacro}
-            onRunOnHosts={setFleetMacro}
-            onSave={saveMacroDraft}
-            onDelete={removeMacro}
-            onClose={() => setMacrosOpen(false)}
-          />
-        )}
-
-        {workspace === 'map' && hostsManagerOpen && (
-          <HostsManagerSidebar
-            sessions={sessions}
-            onUse={openHostInto}
-            onNew={() => openEditor({ kind: 'new' })}
-            onEdit={(sessionId) => openEditor({ kind: 'existing', sessionId })}
-            onDelete={remove}
-            onClose={() => setHostsManagerOpen(false)}
-          />
-        )}
         </div>
       </div>
 
@@ -3538,7 +3017,7 @@ export function App(): JSX.Element {
           if (homeEditorTarget !== null) cancelEditing(homeEditorTarget);
         }}
       >
-        {homeEditorTarget === null ? null : wizardFor(homeEditorTarget, false)}
+        {homeEditorTarget === null ? null : wizardFor(homeEditorTarget)}
       </HostEditorDialog>
 
       {paneMenu !== null && (

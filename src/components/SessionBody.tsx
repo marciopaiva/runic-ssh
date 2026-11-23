@@ -4,7 +4,7 @@ import type { CSSProperties, JSX } from 'react';
 import type { ForwardStatus } from '../features/status';
 import type { Forward } from '../ipc';
 
-import { MonitorBody } from './map/MonitorBody';
+import { MonitorBody } from './MonitorBody';
 import { SessionFacets } from './SessionFacets';
 import type { SessionFacet } from './SessionFacets';
 import { TerminalView } from './TerminalView';

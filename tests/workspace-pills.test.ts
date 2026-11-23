@@ -4,11 +4,10 @@
 // `shape-control-teardown.test.ts` for why jsdom is opted in per file.
 
 /**
- * The map pill ADR-0073 added, always present next to SSH and SFTP, and
- * ADR-0075 made it reflect selection like its siblings once the map became
- * an ordinary workspace value. The Home pill (ADR-0072 addendum) is the same
- * shape: Home has no rail slot of its own, so this row is its only way in
- * or out.
+ * The toolbar's workspace pills: Home, SSH and SFTP, always present. The Home
+ * pill (ADR-0072 addendum) is the only way in or out of that workspace, since
+ * Home has no rail slot of its own. The map pill went with the map
+ * (ADR-0080).
  */
 
 import { readFileSync } from 'node:fs';
@@ -31,7 +30,7 @@ vi.mock('../src/features/settings', () => ({ useTranslator: () => translator }))
 const { WorkspacePills } = await import('../src/components/WorkspacePills');
 
 async function mount(
-  workspace: 'home' | 'sessions' | 'sftp' | 'map',
+  workspace: 'home' | 'sessions' | 'sftp',
   onChoose: (workspace: string) => void = () => {},
 ) {
   const rootEl = document.createElement('div');
@@ -57,46 +56,43 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('the map pill', () => {
-  it('renders alongside Home, SSH and SFTP', async () => {
+describe('the pills', () => {
+  it('render Home, SSH and SFTP, in that order', async () => {
     const probe = await mount('sessions');
 
     const tabs = Array.from(probe.rootEl.querySelectorAll('button[role="tab"]'));
-    expect(tabs.length).toBe(4);
+    expect(tabs.length).toBe(3);
 
     await probe.unmount();
   });
 
-  it('reflects selection like SSH and SFTP', async () => {
+  it('reflect selection', async () => {
     for (const [workspace, selected] of [
-      ['sessions', 'false'],
-      ['sftp', 'false'],
-      ['map', 'true'],
+      ['home', ['true', 'false', 'false']],
+      ['sessions', ['false', 'true', 'false']],
+      ['sftp', ['false', 'false', 'true']],
     ] as const) {
       const probe = await mount(workspace);
 
       const tabs = Array.from(probe.rootEl.querySelectorAll('button[role="tab"]'));
-      const mapTab = tabs[tabs.length - 1];
-      if (mapTab === undefined) throw new Error('expected a fourth tab');
-      expect(mapTab.getAttribute('aria-selected')).toBe(selected);
+      expect(tabs.map((tab) => tab.getAttribute('aria-selected'))).toEqual([...selected]);
 
       await probe.unmount();
     }
   });
 
-  it('calls onChoose with "map" when clicked', async () => {
+  it('call onChoose with the workspace they stand for', async () => {
     const onChoose = vi.fn();
-    const probe = await mount('sessions', onChoose);
+    const probe = await mount('home', onChoose);
 
     const tabs = Array.from(probe.rootEl.querySelectorAll('button[role="tab"]'));
-    const mapTab = tabs[tabs.length - 1];
-    if (mapTab === undefined) throw new Error('expected a fourth tab');
+    for (const tab of tabs) {
+      await act(async () => {
+        tab.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      });
+    }
 
-    await act(async () => {
-      mapTab.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
-    expect(onChoose).toHaveBeenCalledWith('map');
+    expect(onChoose.mock.calls.map((call) => call[0])).toEqual(['home', 'sessions', 'sftp']);
 
     await probe.unmount();
   });
@@ -137,33 +133,19 @@ describe('the Home pill', () => {
   });
 });
 
-describe("the map's own toolbar carries the same pills (ADR-0075)", () => {
-  /* Caught in manual verification, not by any automated test: folding the
-     map into `workspace` made it reachable from SSH and SFTP, but its own
-     `<Toolbar>` branch kept the pre-fold leading content (just `MapCrumb`),
-     which left no way back to either in one click. `WorkspacePills` renders
-     in every other workspace's own row; this pins that the map's does too,
-     so a later edit that drops it again fails here instead of only in a
-     screenshot. */
+describe('the toolbar carries the pills in every workspace (ADR-0075)', () => {
+  /* `WorkspacePills` renders in every workspace's own row, so there is always
+     a way to another workspace in one click. This pins that each branch of
+     `toolbarLeading` mounts it, so a later edit that drops one fails here
+     instead of only in a screenshot. */
   const source = readFileSync(path.join(process.cwd(), 'src', 'App.tsx'), 'utf8');
 
-  it("mounts WorkspacePills in the map's own toolbarLeading branch", () => {
-    const mapBranch = source.indexOf("workspace === 'map' ? (", source.indexOf('const toolbarLeading ='));
-    const nextBranch = source.indexOf(") : workspace === 'home' ? (", mapBranch);
-    expect(mapBranch, 'the map branch of toolbarLeading').toBeGreaterThan(-1);
-    expect(nextBranch, 'the end of toolbarLeading').toBeGreaterThan(mapBranch);
+  it.each(['sessions', 'sftp', 'home'])("mounts WorkspacePills in the %s branch of toolbarLeading", (name) => {
+    const start = source.indexOf('const toolbarLeading =');
+    const end = source.indexOf(') : undefined;', start);
+    expect(start, 'toolbarLeading').toBeGreaterThan(-1);
+    expect(end, 'the end of toolbarLeading').toBeGreaterThan(start);
 
-    const branchSource = source.slice(mapBranch, nextBranch);
-    expect(branchSource).toContain('<WorkspacePills workspace="map"');
-  });
-
-  it("mounts WorkspacePills in Home's own toolbarLeading branch", () => {
-    const homeBranch = source.indexOf("workspace === 'home' ? (", source.indexOf('const toolbarLeading ='));
-    const nextBranch = source.indexOf(') : undefined;', homeBranch);
-    expect(homeBranch, 'the home branch of toolbarLeading').toBeGreaterThan(-1);
-    expect(nextBranch, 'the end of toolbarLeading').toBeGreaterThan(homeBranch);
-
-    const branchSource = source.slice(homeBranch, nextBranch);
-    expect(branchSource).toContain('<WorkspacePills workspace="home"');
+    expect(source.slice(start, end)).toContain(`<WorkspacePills workspace="${name}"`);
   });
 });

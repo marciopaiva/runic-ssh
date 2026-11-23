@@ -62,7 +62,7 @@ describe('nothing renders remote output while Home is showing (ADR-0032)', () =>
        only `workspace === 'sessions'` gate left is the one around the
        `<main>` itself, which also waits out the map preview prompt
        (ADR-0075's `mapPreviewPromptOpen`) so the two never draw at once. */
-    const sessionsGate = source.indexOf("{workspace === 'sessions' && !mapPreviewPromptOpen && (\n");
+    const sessionsGate = source.indexOf("{workspace === 'sessions' && (\n");
     const homeGate = source.indexOf("        {workspace === 'home' && (");
     const sessionBody = source.indexOf('<SessionBody');
 
@@ -83,7 +83,7 @@ describe('nothing renders remote output while Home is showing (ADR-0032)', () =>
        one this file is about. Matched literally so a rename of either
        constant is caught here rather than by this test quietly checking
        nothing. */
-    const gate = "{workspace === 'sessions' && !mapPreviewPromptOpen && (\n";
+    const gate = "{workspace === 'sessions' && (\n";
     expect(source).toContain(gate);
   });
 });
@@ -96,7 +96,7 @@ describe('the map is the one other place a terminal mounts (ADR-0064)', () => {
     });
   }
 
-  it('mounts TerminalView in App.tsx, SessionBody.tsx and MapTerminals.tsx, nowhere else', () => {
+  it('mounts TerminalView in App.tsx and SessionBody.tsx, nowhere else', () => {
     const sites = walk(srcDir)
       .filter((file) => /\.tsx?$/.test(file) && !file.endsWith('TerminalView.tsx'))
       .filter((file) => /<TerminalView\b/.test(readFileSync(file, 'utf8')))
@@ -108,13 +108,13 @@ describe('the map is the one other place a terminal mounts (ADR-0064)', () => {
        `SessionBody`: it has no forwards or monitor facet of its own to
        switch to. It is App.tsx's own second mount site, checked below
        against the same Sessions-workspace gate as `SessionBody`'s, so this
-       allowlist growing to three is the sanctioned exception, not a widening
+       allowlist holding two files is the sanctioned exception, not a widening
        nobody noticed. */
-    expect(sites).toEqual(['App.tsx', 'components/SessionBody.tsx', 'components/map/MapTerminals.tsx']);
+    expect(sites).toEqual(['App.tsx', 'components/SessionBody.tsx']);
   });
 
   it('mounts its App.tsx TerminalView inside the same Sessions-workspace gate as SessionBody (ADR-0077)', () => {
-    const sessionsGate = source.indexOf("{workspace === 'sessions' && !mapPreviewPromptOpen && (\n");
+    const sessionsGate = source.indexOf("{workspace === 'sessions' && (\n");
     const homeGate = source.indexOf("        {workspace === 'home' && (");
     const secondaryTerminalView = source.indexOf('<TerminalView');
 
@@ -124,20 +124,5 @@ describe('the map is the one other place a terminal mounts (ADR-0064)', () => {
 
     expect(secondaryTerminalView).toBeGreaterThan(sessionsGate);
     expect(secondaryTerminalView).toBeLessThan(homeGate);
-  });
-
-  it('renders the map, and so its stack, only inside the map workspace branch', () => {
-    const mapGate = source.indexOf("        {workspace === 'map' && (");
-    const stage = source.indexOf('<MapStage');
-    const homeGate = source.indexOf("        {workspace === 'home' && (");
-    expect(mapGate, 'the Map workspace gate').toBeGreaterThan(-1);
-    expect(stage, 'the MapStage mount site').toBeGreaterThan(mapGate);
-    expect(source.indexOf('<MapStage', stage + 1)).toBe(-1);
-    /* Home's branch comes first in the file; the map's stack is not in it. */
-    expect(homeGate).toBeLessThan(mapGate);
-    const mapTerminals = readFileSync(path.join(srcDir, 'components', 'map', 'MapTerminals.tsx'), 'utf8');
-    const stageSource = readFileSync(path.join(srcDir, 'components', 'map', 'MapStage.tsx'), 'utf8');
-    expect([...mapTerminals.matchAll(/<TerminalView\b/g)]).toHaveLength(1);
-    expect([...stageSource.matchAll(/<MapTerminals\b/g)]).toHaveLength(1);
   });
 });

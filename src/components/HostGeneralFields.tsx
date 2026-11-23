@@ -26,8 +26,6 @@ interface HostGeneralFieldsProps {
    * saved host's group field by hand.
    */
   readonly groupNames: readonly string[];
-  /** The map draws no Group: layers and visions group there (ADR-0064). */
-  readonly showGroup?: boolean;
   /** Focused on mount, when the caller wants it. */
   readonly firstRef?: RefObject<HTMLInputElement | null>;
 }
@@ -48,7 +46,6 @@ export function HostGeneralFields({
   onChange,
   duplicate,
   groupNames,
-  showGroup = true,
   firstRef,
 }: HostGeneralFieldsProps): JSX.Element {
   const i18n = useTranslator();
@@ -140,55 +137,53 @@ export function HostGeneralFields({
         hint: i18n.t('session.editor.nameHint'),
       })}
 
-      {showGroup && (
-      <label ref={groupBox} className="relative flex flex-col gap-1">
-        <span className="text-ink-muted text-[11px]">{i18n.t('session.editor.group')}</span>
-        <input
-          value={values.group}
-          onChange={(event) => onChange('group', event.target.value.toUpperCase())}
-          onFocus={() => setGroupOpen(true)}
-          aria-invalid={groupInvalid}
-          aria-describedby={groupInvalid ? 'session-error-group' : undefined}
-          autoComplete="off"
-          spellCheck={false}
-          className={`bg-surface-input text-ink rounded border px-2.5 py-1.5 font-mono text-[12.5px] outline-none ${
-            groupInvalid ? 'border-danger' : 'border-line-subtle'
-          }`}
-        />
-        {groupInvalid && (
-          <span id="session-error-group" className="text-danger-text text-[11px]">
-            {i18n.t('session.editor.invalid')}
-          </span>
-        )}
-        {!groupInvalid && (
-          <span className="text-ink-faint text-[11px]">{i18n.t('session.editor.groupHint')}</span>
-        )}
-
-        {groupOpen && groupSuggestions.length > 0 && (
-          <div
-            role="listbox"
-            aria-label={i18n.t('session.editor.group')}
-            className="bg-surface-overlay border-line-strong absolute top-full left-0 z-10 mt-1 max-h-40 w-full overflow-y-auto rounded border shadow-2xl"
-          >
-            {groupSuggestions.map((name) => (
-              <button
-                key={name}
-                type="button"
-                role="option"
-                aria-selected={false}
-                onClick={() => {
-                  onChange('group', name);
-                  setGroupOpen(false);
-                }}
-                className="text-ink-secondary hover:bg-surface-raised/60 flex h-7 w-full items-center px-2.5 text-left font-mono text-[12.5px]"
-              >
-                {name}
-              </button>
-            ))}
-          </div>
-        )}
-      </label>
+    <label ref={groupBox} className="relative flex flex-col gap-1">
+      <span className="text-ink-muted text-[11px]">{i18n.t('session.editor.group')}</span>
+      <input
+        value={values.group}
+        onChange={(event) => onChange('group', event.target.value.toUpperCase())}
+        onFocus={() => setGroupOpen(true)}
+        aria-invalid={groupInvalid}
+        aria-describedby={groupInvalid ? 'session-error-group' : undefined}
+        autoComplete="off"
+        spellCheck={false}
+        className={`bg-surface-input text-ink rounded border px-2.5 py-1.5 font-mono text-[12.5px] outline-none ${
+          groupInvalid ? 'border-danger' : 'border-line-subtle'
+        }`}
+      />
+      {groupInvalid && (
+        <span id="session-error-group" className="text-danger-text text-[11px]">
+          {i18n.t('session.editor.invalid')}
+        </span>
       )}
+      {!groupInvalid && (
+        <span className="text-ink-faint text-[11px]">{i18n.t('session.editor.groupHint')}</span>
+      )}
+
+      {groupOpen && groupSuggestions.length > 0 && (
+        <div
+          role="listbox"
+          aria-label={i18n.t('session.editor.group')}
+          className="bg-surface-overlay border-line-strong absolute top-full left-0 z-10 mt-1 max-h-40 w-full overflow-y-auto rounded border shadow-2xl"
+        >
+          {groupSuggestions.map((name) => (
+            <button
+              key={name}
+              type="button"
+              role="option"
+              aria-selected={false}
+              onClick={() => {
+                onChange('group', name);
+                setGroupOpen(false);
+              }}
+              className="text-ink-secondary hover:bg-surface-raised/60 flex h-7 w-full items-center px-2.5 text-left font-mono text-[12.5px]"
+            >
+              {name}
+            </button>
+          ))}
+        </div>
+      )}
+    </label>
     </div>
   );
 }

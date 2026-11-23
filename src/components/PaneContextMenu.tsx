@@ -21,9 +21,8 @@ interface PaneContextMenuProps {
  * each with the key that does the same, in place of the webview's own menu
  * (a greyed Copy, and on some platforms Reload; see `chrome/context-menu.ts`).
  *
- * The same list the map's terminal windows get from `terminalMenu`, minus the
- * two entries that belong to the map's lines. Broadcast and sparing a pane
- * already have their own controls in this workspace's bar.
+ * Broadcast and sparing a pane already have their own controls in this
+ * workspace's bar, so the menu stays at copy and paste.
  */
 export function PaneContextMenu({ at, clipboard, modifier, onClose }: PaneContextMenuProps): JSX.Element {
   const i18n = useTranslator();
@@ -39,19 +38,17 @@ export function PaneContextMenu({ at, clipboard, modifier, onClose }: PaneContex
   }, [onClose]);
 
   const shortcut = (key: string): string =>
-    i18n.t(modifier === 'meta' ? 'map.terminal.shortcut.meta' : 'map.terminal.shortcut.control', { key });
+    i18n.t(modifier === 'meta' ? 'terminal.menu.shortcut.meta' : 'terminal.menu.shortcut.control', { key });
 
   const entries = terminalMenu({
     hasSelection: clipboard?.hasSelection() ?? false,
-    reachable: false,
-    broadcast: null,
     pasteAllowed: !isLinux(navigator.userAgent),
   });
 
   const items = entries.map((entry) =>
     entry.id === 'copy'
-      ? { id: 'copy', label: i18n.t('map.terminal.copy'), detail: shortcut('C'), disabled: entry.disabled }
-      : { id: 'paste', label: i18n.t('map.terminal.paste'), detail: shortcut('V'), disabled: entry.disabled },
+      ? { id: 'copy', label: i18n.t('terminal.menu.copy'), detail: shortcut('C'), disabled: entry.disabled }
+      : { id: 'paste', label: i18n.t('terminal.menu.paste'), detail: shortcut('V'), disabled: entry.disabled },
   );
 
   return (
