@@ -95,10 +95,14 @@ export function withEditor(
   editors: readonly OpenEditor[],
   target: EditorTarget,
   sessions: readonly Session[],
+  /** The Space a brand-new host starts in: the one in front (ADR-0081). Ignored
+   * for a host that already exists, which keeps its own. */
+  startingSpace = '',
 ): readonly OpenEditor[] {
   if (findEditor(editors, target) !== null) return editors;
 
-  const loaded = editorValues(targetSession(target, sessions));
+  const existing = targetSession(target, sessions);
+  const loaded = existing === null ? { ...editorValues(null), space: startingSpace } : editorValues(existing);
 
   return [
     ...editors,

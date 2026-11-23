@@ -60,6 +60,8 @@ function context(over: Partial<CommandContext> = {}): { ctx: CommandContext; cal
     goTo: (workspace) => calls.push(`go:${workspace}`),
     toggleMacros: () => calls.push('macros'),
     toggleHosts: () => calls.push('hosts'),
+    switchSpace: (id) => calls.push(`space:${id}`),
+    newSpace: () => calls.push('space:new'),
     openFilesOf: (id) => calls.push(`files:${id}`),
     runMacro: (m, scope) => calls.push(`run:${m.id}:${scope.join(',')}`),
   };
@@ -75,6 +77,8 @@ function context(over: Partial<CommandContext> = {}): { ctx: CommandContext; cal
       sessions,
       workspace: 'sessions',
       macros: [macro('s', 'script'), macro('q', 'sequential')],
+      spaces: [],
+      activeSpace: '',
       hasTarget: true,
       macrosOpen: false,
       hostsOpen: false,
@@ -169,6 +173,19 @@ describe('what the Bar offers', () => {
     expect(row?.hint).not.toContain('cred-1');
   });
 
+  it('reads a host the core sent without its unset fields', () => {
+    /* `skip_serializing_if` leaves a null out of the file, so the field is
+       absent rather than null by the time it reaches the Bar. */
+    const bare = JSON.parse(
+      '{"id":"a","name":"n","host":"h","port":22,"user":"u","kind":"direct","forwards":[]}',
+    ) as Session;
+    const { ctx } = context({ sessions: [{ session: bare, handle: null, kind: 'saved' }] });
+    const hint = hostBookCommands(ctx)[0]?.hint ?? '';
+    expect(hint).toContain('no login saved');
+    expect(hint).not.toContain('via');
+    expect(hint).not.toContain('{');
+  });
+
   it('lists every saved macro without a scope, and only scripts with one', () => {
     const { ctx } = context();
     expect(macroCommands(ctx, []).map((row) => row.id)).toEqual(['macro:s', 'macro:q']);
@@ -216,5 +233,30 @@ describe('what the Bar offers', () => {
     const rows = actionCommands(ctx);
     expect(rows.map((row) => row.id)).not.toContain('action:hosts');
     expect(rows.find((row) => row.id === 'action:macros')?.title).toBe('Hide macros');
+  });
+});
+
+describe('Spaces in the Bar', () => {
+  const spaces = [
+    { id: 'p', name: 'Production', weight: 'production' as const },
+    { id: 'l', name: 'Lab', weight: 'normal' as const },
+  ];
+
+  it('offers a Space switch only once a Space exists, and never to the one in front', () => {
+    expect(actionCommands(context().ctx).map((row) => row.id)).not.toContain('action:space:default');
+
+    const { ctx } = context({ spaces, activeSpace: 'p' });
+    const ids = actionCommands(ctx).map((row) => row.id);
+    expect(ids).toContain('action:space:default');
+    expect(ids).toContain('action:space:l');
+    expect(ids).not.toContain('action:space:p');
+  });
+
+  it('always offers a new Space, and runs the switch it names', () => {
+    const { ctx, calls } = context({ spaces, activeSpace: '' });
+    const rows = actionCommands(ctx);
+    rows.find((row) => row.id === 'action:space:p')?.run();
+    rows.find((row) => row.id === 'action:space:new')?.run();
+    expect(calls).toEqual(['space:p', 'space:new']);
   });
 });

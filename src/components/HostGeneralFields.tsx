@@ -4,7 +4,7 @@ import type { JSX } from 'react';
 
 import type { DraftField, DraftValues } from '../features/sessions';
 import { useTranslator } from '../features/settings';
-import type { Session } from '../ipc';
+import type { Session, Space } from '../ipc';
 
 interface HostGeneralFieldsProps {
   readonly values: DraftValues;
@@ -26,6 +26,8 @@ interface HostGeneralFieldsProps {
    * saved host's group field by hand.
    */
   readonly groupNames: readonly string[];
+  /** Saved Spaces. The field is not drawn while there are none. */
+  readonly spaces: readonly Space[];
   /** Focused on mount, when the caller wants it. */
   readonly firstRef?: RefObject<HTMLInputElement | null>;
 }
@@ -46,6 +48,7 @@ export function HostGeneralFields({
   onChange,
   duplicate,
   groupNames,
+  spaces,
   firstRef,
 }: HostGeneralFieldsProps): JSX.Element {
   const i18n = useTranslator();
@@ -184,6 +187,25 @@ export function HostGeneralFields({
         </div>
       )}
     </label>
+
+      {spaces.length > 0 && (
+        <label className="flex flex-col gap-1">
+          <span className="text-ink-muted text-[11px]">{i18n.t('spaces.host.label')}</span>
+          <select
+            value={spaces.some((space) => space.id === values.space) ? values.space : ''}
+            onChange={(event) => onChange('space', event.target.value)}
+            className="bg-surface-input text-ink border-line-subtle rounded border px-2.5 py-1.5 text-[12.5px] outline-none"
+          >
+            <option value="">{i18n.t('spaces.default')}</option>
+            {spaces.map((space) => (
+              <option key={space.id} value={space.id}>
+                {space.weight === 'production' ? `${space.name} · ${i18n.t('spaces.production')}` : space.name}
+              </option>
+            ))}
+          </select>
+          <span className="text-ink-faint text-[11px]">{i18n.t('spaces.host.hint')}</span>
+        </label>
+      )}
     </div>
   );
 }
