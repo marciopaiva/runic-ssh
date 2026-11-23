@@ -106,15 +106,60 @@ pub fn saved_session<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<Session
 }
 
 fn known_hosts<R: Runtime>(app: &AppHandle<R>) -> Result<KnownHosts, Error> {
-    let path = config_dir(app)?.join(KNOWN_HOSTS_FILE);
+    read_known_hosts(&config_dir(app)?.join(KNOWN_HOSTS_FILE))
+}
 
-    match std::fs::read_to_string(&path) {
+/// Reads the trusted keys, or none at all when there is no file yet.
+///
+/// Only a missing file means nothing is trusted yet. Any other failure is an
+/// error and not an empty list, because the answer is used in two places that
+/// need opposite things from it: a connection must not trust a host it cannot
+/// look up, and `trust_key` must not write back a file it could not read. An
+/// empty list in the second place replaces every trusted key with one, and a
+/// host that was trusted comes back as unknown instead of changed (rule 3).
+fn read_known_hosts(path: &std::path::Path) -> Result<KnownHosts, Error> {
+    match std::fs::read_to_string(path) {
         Ok(text) => Ok(KnownHosts::parse(&text)),
         /* No file yet means no host is trusted yet, which is the correct
         starting point rather than an error. */
         Err(source) if source.kind() == std::io::ErrorKind::NotFound => Ok(KnownHosts::default()),
-        Err(source) => Err(Error::SettingsUnreadable { path, source }),
+        Err(source) => Err(Error::SettingsUnreadable {
+            path: path.to_path_buf(),
+            source,
+        }),
     }
+}
+
+/// Serialises the read-modify-write of `known_hosts` inside this process. Two
+/// decisions answered at once would otherwise both read the old file and the
+/// later write would drop the earlier key, and they shared one temporary name.
+static KNOWN_HOSTS_WRITE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// Adds a key to the trusted list, replacing this host's key of that type when
+/// `replace` is set, and writes the file back.
+///
+/// Reads first and refuses to write if it could not read, so a failure to read
+/// never turns into a file that holds only the key just added.
+fn trust_key(
+    path: &std::path::Path,
+    host: &str,
+    port: u16,
+    key_type: &str,
+    key: &[u8],
+    replace: bool,
+) -> Result<(), Error> {
+    /* A poisoned lock means another thread panicked while holding it, and the
+    guard protects no data of its own, only the ordering, so it is still good. */
+    let _held = KNOWN_HOSTS_WRITE
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+
+    let mut known = read_known_hosts(path)?;
+    if replace {
+        known.remove_matching(host, port, key_type);
+    }
+    known.add(KnownHosts::entry_for(host, port, key_type, key.to_vec()));
+    write_known_hosts(path, &known.to_file())
 }
 
 /// What the host key screens need to render.
@@ -254,22 +299,14 @@ pub async fn trust_host_key<R: Runtime>(
 
     check_acceptance(&offered, confirmation.as_deref())?;
 
-    let path = config_dir(&app)?.join(KNOWN_HOSTS_FILE);
-    let text = std::fs::read_to_string(&path).unwrap_or_default();
-    let mut known = KnownHosts::parse(&text);
-
-    if matches!(offered.verdict, Trust::Changed { .. }) {
-        known.remove_matching(&offered.host, offered.port, &offered.key_type);
-    }
-
-    known.add(KnownHosts::entry_for(
+    trust_key(
+        &config_dir(&app)?.join(KNOWN_HOSTS_FILE),
         &offered.host,
         offered.port,
         &offered.key_type,
-        offered.key.clone(),
-    ));
-
-    write_known_hosts(&path, &known.to_file())?;
+        &offered.key,
+        matches!(offered.verdict, Trust::Changed { .. }),
+    )?;
 
     /* The key a person decided to trust is the thing a Logbook is for, above
     all when it replaced another. Filed under every saved host at that address:
@@ -1297,6 +1334,125 @@ mod tests {
     use super::*;
     use crate::ssh::known_hosts::KnownHosts;
     use crate::ssh::trust::decide;
+
+    fn known_entry(host: &str, port: u16) -> String {
+        let mut known = KnownHosts::default();
+        known.add(KnownHosts::entry_for(
+            host,
+            port,
+            "ssh-ed25519",
+            vec![1, 2, 3],
+        ));
+        known.to_file().trim_end().to_owned()
+    }
+
+    #[test]
+    fn trusting_a_key_keeps_every_key_already_trusted() {
+        let dir = tempfile::tempdir().expect("a temporary directory");
+        let path = dir.path().join(KNOWN_HOSTS_FILE);
+        trust_key(&path, "a.example", 22, "ssh-ed25519", &[1, 2, 3], false).expect("first");
+        trust_key(&path, "b.example", 22, "ssh-ed25519", &[4, 5, 6], false).expect("second");
+
+        let kept = read_known_hosts(&path).expect("readable");
+        assert!(kept.to_file().contains("a.example"));
+        assert!(kept.to_file().contains("b.example"));
+    }
+
+    #[test]
+    fn a_known_hosts_that_cannot_be_read_is_not_taken_for_an_empty_one() {
+        /* A directory where the file should be: the read fails with something
+        other than NotFound, which stands for any unreadable file (a permission
+        error, a lock on Windows, bytes that are not UTF-8). The old code read
+        that as no keys at all, added one, and replaced the file, so every other
+        trusted host came back as unknown instead of changed. */
+        let dir = tempfile::tempdir().expect("a temporary directory");
+        let path = dir.path().join(KNOWN_HOSTS_FILE);
+        std::fs::create_dir(&path).expect("a directory in the way");
+
+        let result = trust_key(&path, "a.example", 22, "ssh-ed25519", &[1], false);
+
+        assert!(matches!(result, Err(Error::SettingsUnreadable { .. })));
+        assert!(path.is_dir(), "the thing in the way was not replaced");
+    }
+
+    #[test]
+    fn invalid_utf8_is_refused_and_the_file_is_left_alone() {
+        let dir = tempfile::tempdir().expect("a temporary directory");
+        let path = dir.path().join(KNOWN_HOSTS_FILE);
+        std::fs::write(&path, [0xff, 0xfe, 0x00]).expect("write");
+
+        let result = trust_key(&path, "a.example", 22, "ssh-ed25519", &[1], false);
+
+        assert!(matches!(result, Err(Error::SettingsUnreadable { .. })));
+        assert_eq!(std::fs::read(&path).expect("read"), vec![0xff, 0xfe, 0x00]);
+    }
+
+    #[test]
+    fn no_file_yet_means_nothing_trusted_and_is_not_an_error() {
+        let dir = tempfile::tempdir().expect("a temporary directory");
+        let path = dir.path().join(KNOWN_HOSTS_FILE);
+        assert!(read_known_hosts(&path)
+            .expect("no file")
+            .to_file()
+            .is_empty());
+        trust_key(&path, "a.example", 22, "ssh-ed25519", &[1], false).expect("created");
+        assert!(path.is_file());
+    }
+
+    #[test]
+    fn replacing_swaps_the_key_for_that_host_and_leaves_the_others() {
+        let dir = tempfile::tempdir().expect("a temporary directory");
+        let path = dir.path().join(KNOWN_HOSTS_FILE);
+        std::fs::write(
+            &path,
+            format!(
+                "{}\n{}\n",
+                known_entry("a.example", 22),
+                known_entry("b.example", 22)
+            ),
+        )
+        .expect("write");
+
+        trust_key(&path, "a.example", 22, "ssh-ed25519", &[9, 9, 9], true).expect("replaced");
+
+        let after = read_known_hosts(&path).expect("read").to_file();
+        assert!(after.contains("b.example"));
+        assert_eq!(
+            after.matches("a.example").count(),
+            1,
+            "replaced, not added beside"
+        );
+    }
+
+    #[test]
+    fn trusting_from_many_threads_at_once_loses_nothing() {
+        let dir = tempfile::tempdir().expect("a temporary directory");
+        let path = std::sync::Arc::new(dir.path().join(KNOWN_HOSTS_FILE));
+
+        let threads: Vec<_> = (0..16_u8)
+            .map(|n| {
+                let path = std::sync::Arc::clone(&path);
+                std::thread::spawn(move || {
+                    trust_key(
+                        &path,
+                        &format!("h{n}.example"),
+                        22,
+                        "ssh-ed25519",
+                        &[n],
+                        false,
+                    )
+                })
+            })
+            .collect();
+        for thread in threads {
+            thread.join().expect("joined").expect("trusted");
+        }
+
+        let kept = read_known_hosts(&path).expect("read").to_file();
+        for n in 0..16 {
+            assert!(kept.contains(&format!("h{n}.example")), "h{n} was lost");
+        }
+    }
 
     fn saved(store: &SessionStore, name: &str) -> String {
         crate::config::sessions::save_session(
