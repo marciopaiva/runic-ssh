@@ -593,6 +593,7 @@ export const SOURCE_CATALOG = {
   "tabs.settings.close": "Close settings",
   "tabs.settings.unsaved": "Settings — unsaved changes",
   "terminal.connectionLost": "Connection lost.",
+  "terminal.menu.title": "Terminal",
   "terminal.reconnected": "Reconnected.",
   "terminal.reconnect.lost": "Connection lost.",
   "terminal.reconnect.trying": "Connection lost. Reconnecting, attempt {attempt} of {max}.",

@@ -13,6 +13,7 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 
 ### Added
 
+- Right-click a terminal pane in Sessions for Copy and Paste, each with its shortcut, in place of the webview's own menu (#460). Paste stays greyed on Linux, where a scripted paste does not work (`docs/measurements/terminal-menu-clipboard.md`), and the shortcut is the way in.
 - Run a saved script macro on several connected hosts and compare what they answered (ADR-0078, #467). Answers are grouped by identical output, the largest group first, and lines that differ from it are marked. Always asks first, showing the script and every host. Only script macros, only sessions that are already connected, stdout and stderr capped at 64 KiB per host with a 30 second deadline.
 - A fleet run can start from a vision (#469): the dialog offers each map vision as a preset that ticks its connected hosts and names the members that are not connected and so are left out.
 - Fleet run results: a tie no longer calls one answer the most common, the differing-line marker is a real line diff so one inserted line marks itself and not every line after it, and the dialog no longer draws an empty header strip above its heading (#471).
