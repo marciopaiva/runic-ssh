@@ -29,6 +29,10 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 - The tab of a session also carries its sigil, faint while the host is not connected and bright once it is, so the light belongs to what is alive.
 - The sigil also leads each host in the command palette and in both host lists (Home and the hosts manager), with the same rule: faint until connected.
 
+### Changed
+
+- Upgrade `russh` from 0.63 to 0.65 (#473). The client now enforces the negotiated host key algorithm against the key and signature the server sends, calls `kex_done` only after the host key is verified, and bounds several allocations a hostile server could grow. Host key verification in this application is unchanged. The one breaking change is on the server side of the library, which only the test server uses. The RUSTSEC-2026-0495 ignore is removed from `audit.toml`.
+
 ## [0.9.0] — 2026-09-24
 
 Cuts the Sessions, SFTP and Monitor workspaces as v0.8.0 already warned they

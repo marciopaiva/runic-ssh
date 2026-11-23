@@ -10,7 +10,9 @@
 use std::sync::Arc;
 
 use russh::keys::{encode_pkcs8_pem, encode_pkcs8_pem_encrypted, PrivateKey, PublicKey};
-use russh::server::{Auth, ChannelOpenHandle, Handler as ServerHandler, Msg, Server as _, Session};
+use russh::server::{
+    Auth, ChannelOpenHandle, Handler as ServerHandler, Msg, Server as _, Session, VerifiedPublicKey,
+};
 use russh::Channel;
 use russh::ChannelId;
 use russh::MethodKind;
@@ -93,9 +95,9 @@ impl ServerHandler for TestServer {
     async fn auth_publickey(
         &mut self,
         user: &str,
-        offered: &PublicKey,
+        offered: VerifiedPublicKey<'_>,
     ) -> Result<Auth, Self::Error> {
-        if user == USER && offered == self.authorized.as_ref() {
+        if user == USER && offered.public_key == self.authorized.as_ref() {
             Ok(Auth::Accept)
         } else {
             Ok(Auth::Reject {
