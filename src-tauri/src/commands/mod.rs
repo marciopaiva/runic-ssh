@@ -24,4 +24,3 @@ pub mod sysinfo;
 pub mod systemd;
 pub mod tail;
 pub mod terminal;
-pub mod workspace;

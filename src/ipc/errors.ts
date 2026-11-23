@@ -68,8 +68,6 @@ export type IpcError =
   | { readonly code: 'invalidMacro'; readonly field: string }
   /** ADR-0078. Only a script macro can run on several hosts at once. */
   | { readonly code: 'macroNotScript'; readonly id: string }
-  /** The map was rejected before being written; `field` names which part (ADR-0064). */
-  | { readonly code: 'invalidWorkspace'; readonly field: string }
   /**
    * The jump host a session names cannot be used.
    *
@@ -247,7 +245,6 @@ export const CODES: ReadonlySet<IpcErrorCode> = new Set<IpcErrorCode>([
   'unknownMacro',
   'invalidMacro',
   'macroNotScript',
-  'invalidWorkspace',
   'invalidProxyJump',
   'duplicateSession',
   'chainFailed',

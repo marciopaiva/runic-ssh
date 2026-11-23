@@ -1,8 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { JSX } from 'react';
 
-import type { Point } from '../ipc';
-
 export interface ContextMenuItem {
   readonly id: string;
   readonly label: string;
@@ -11,6 +9,12 @@ export interface ContextMenuItem {
   readonly danger?: boolean;
   /** Offered and not takeable: the entry says what the gesture is for. */
   readonly disabled?: boolean;
+}
+
+/** Where the pointer was, in the coordinates of the positioned ancestor. */
+interface Point {
+  readonly x: number;
+  readonly y: number;
 }
 
 interface ContextMenuProps {

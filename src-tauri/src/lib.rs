@@ -90,8 +90,6 @@ pub fn run() -> tauri::Result<()> {
             commands::macros::list_macros,
             commands::macros::save_macro,
             commands::macros::delete_macro,
-            commands::workspace::load_workspace,
-            commands::workspace::save_workspace,
             commands::sessions::connect_session,
             commands::sessions::trust_host_key,
             commands::sessions::dismiss_host_key,

@@ -5,8 +5,6 @@ export { fleetRun } from './fleet';
 export type { FleetResult } from './fleet';
 export { deleteMacro, listMacros, saveMacro } from './macros';
 export type { Macro, MacroDraft, MacroKind } from './macros';
-export { EMPTY_WORKSPACE, loadWorkspace, saveWorkspace } from './workspace';
-export type { Component, ComponentKind, Layer, Link, Point, Size, Vision, Workspace } from './workspace';
 export {
   credentialPrompt,
   dismissCredential,

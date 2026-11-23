@@ -15,7 +15,6 @@ use crate::error::Error;
 
 pub mod macros;
 pub mod sessions;
-pub mod workspace;
 
 pub const SETTINGS_FILE: &str = "settings.json";
 
