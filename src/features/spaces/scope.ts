@@ -52,3 +52,18 @@ export function spacePosition(
   const match = /^Digit([1-9])$/.exec(event.code);
   return match?.[1] === undefined ? null : Number(match[1]);
 }
+
+/**
+ * What the status bar says about the Space in front, or `null` while no Space
+ * has been made: with only the default one there is nothing to tell apart, and
+ * a cell that always says "Default" is chrome saying nothing.
+ */
+export function statusSpace(
+  spaces: readonly Space[],
+  active: string,
+  defaultName: string,
+): { readonly name: string; readonly production: boolean } | null {
+  if (spaces.length === 0) return null;
+  const current = spaces.find((space) => space.id === active);
+  return { name: current?.name ?? defaultName, production: current?.weight === 'production' };
+}

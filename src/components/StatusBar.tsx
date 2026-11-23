@@ -76,6 +76,12 @@ interface StatusBarProps {
    * already answer that question.
    */
   readonly buildVersion: string | null;
+  /**
+   * The Space in front (ADR-0081), or `null` while none has been made, when
+   * there is nothing to tell apart. A production Space is named with its word
+   * as well as its colour, the same rule the toolbar follows.
+   */
+  readonly space: { readonly name: string; readonly production: boolean } | null;
 }
 
 /** A cell, so every item on the bar has the same padding and no more. */
@@ -138,6 +144,7 @@ export function StatusBar({
   onDismissUnsaved,
   forwards,
   buildVersion,
+  space,
 }: StatusBarProps): JSX.Element {
   const i18n = useTranslator();
   const latency = gradeLatency(stats.latencyMs);
@@ -171,6 +178,16 @@ export function StatusBar({
           ? ''
           : i18n.t(announcement.key, { count: String(announcement.count) })}
       </p>
+
+      {space !== null && (
+        <Cell title={i18n.t('spaces.title')}>
+          <span className={space.production ? 'text-danger-text font-semibold' : 'text-ink-secondary'}>
+            {space.production && space.name.toLowerCase() !== i18n.t('spaces.production').toLowerCase()
+              ? `${space.name} · ${i18n.t('spaces.production')}`
+              : space.name}
+          </span>
+        </Cell>
+      )}
 
       <Cell title={i18n.t('status.state')}>
         <>

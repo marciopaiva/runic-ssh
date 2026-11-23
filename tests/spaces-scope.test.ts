@@ -15,6 +15,7 @@ import {
   spaceAtPosition,
   spaceOf,
   spacePosition,
+  statusSpace,
 } from '../src/features/spaces/scope';
 import type { Space } from '../src/ipc';
 
@@ -89,5 +90,21 @@ describe('the keyboard', () => {
     expect(spacePosition(key('Digit1', { metaKey: true }), false)).toBeNull();
     expect(spacePosition(key('Digit1', { ctrlKey: true }), true)).toBeNull();
     expect(spacePosition({ ...key('Digit1', { ctrlKey: true }), type: 'keyup' }, false)).toBeNull();
+  });
+});
+
+describe('what the status bar says', () => {
+  it('says nothing until a Space has been made', () => {
+    expect(statusSpace([], DEFAULT_SPACE, 'Default')).toBeNull();
+  });
+
+  it('names the Space in front, the default included, and flags production', () => {
+    expect(statusSpace(spaces, DEFAULT_SPACE, 'Default')).toEqual({ name: 'Default', production: false });
+    expect(statusSpace(spaces, 'lab', 'Default')).toEqual({ name: 'Lab', production: false });
+    expect(statusSpace(spaces, 'prod', 'Default')).toEqual({ name: 'Production', production: true });
+  });
+
+  it('falls back to the default for a Space that is gone', () => {
+    expect(statusSpace(spaces, 'gone', 'Default')).toEqual({ name: 'Default', production: false });
   });
 });
