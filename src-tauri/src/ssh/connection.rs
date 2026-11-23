@@ -214,9 +214,25 @@ fn append_capped(buffer: &mut Vec<u8>, incoming: &[u8], cap: usize) -> bool {
 pub struct CommandOutput {
     pub stdout: Vec<u8>,
     /// `None` when the channel closed without ever reporting one, which a
-    /// well-behaved server does not do for a command that actually ran.
+    /// well-behaved server does not do for a command that actually ran, and
+    /// when the run was cut off by `truncated` or `timed_out`.
     pub exit_status: Option<u32>,
+    /// The output passed its cap and the run was ended there. What is here is
+    /// the start of it, and a parser reads that as a short answer.
+    pub truncated: bool,
+    /// The deadline passed before the channel closed. What is here is whatever
+    /// arrived first.
+    pub timed_out: bool,
 }
+
+/// How much one of the application's own read-only commands may return before
+/// it is cut. A process list on a busy host is the largest legitimate answer,
+/// in the hundreds of kilobytes; this is an order of magnitude over it, and
+/// still a number a host cannot use to exhaust memory.
+pub const COMMAND_MAX_BYTES: usize = 4 * 1024 * 1024;
+
+/// How long one of those commands may take, channel open included.
+pub const COMMAND_DEADLINE: Duration = Duration::from_secs(30);
 
 /// Where a remote forward (ADR-0054, `-R`) sends what the server accepts, and
 /// the still-running pumps for connections already riding it.
@@ -770,34 +786,31 @@ impl Connection {
     /// exit status first and only proved that ordering assumption was never
     /// tested against something else's implementation.
     pub async fn run_command(&self, command: &str) -> Result<CommandOutput, ConnectionError> {
-        let mut channel = self
-            .handle
-            .channel_open_session()
+        self.run_command_within(command, COMMAND_MAX_BYTES, COMMAND_DEADLINE)
             .await
-            .map_err(|_| ConnectionError::Transport)?;
+    }
 
-        channel
-            .exec(true, command)
-            .await
-            .map_err(|_| ConnectionError::Transport)?;
-
-        let mut stdout = Vec::new();
-        let mut exit_status = None;
-
-        while let Some(message) = channel.wait().await {
-            match message {
-                ChannelMsg::Data { data } => stdout.extend_from_slice(&data),
-                ChannelMsg::ExitStatus {
-                    exit_status: status,
-                } => exit_status = Some(status),
-                ChannelMsg::Close => break,
-                _ => {}
-            }
-        }
-
+    /// [`run_command`](Self::run_command) with its two limits given.
+    ///
+    /// The host answering is adversary 1 (`docs/security-model.md`): one that
+    /// streams without end, or never closes the channel, must not exhaust the
+    /// memory of a process that is holding every other session open, nor hold
+    /// a poll forever. Both are the same limits `run_bounded` puts on a fleet
+    /// run, and a run that hits one is cut and says so in `truncated` or
+    /// `timed_out` and not as an error: the reading it feeds is already
+    /// tolerant of a short answer.
+    pub async fn run_command_within(
+        &self,
+        command: &str,
+        max_bytes: usize,
+        deadline: Duration,
+    ) -> Result<CommandOutput, ConnectionError> {
+        let bounded = self.run_bounded(command, max_bytes, deadline).await?;
         Ok(CommandOutput {
-            stdout,
-            exit_status,
+            stdout: bounded.stdout,
+            exit_status: bounded.exit_status,
+            truncated: bounded.truncated,
+            timed_out: bounded.timed_out,
         })
     }
 

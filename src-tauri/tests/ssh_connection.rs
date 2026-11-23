@@ -1741,3 +1741,85 @@ async fn a_live_connection_is_not_lost_and_a_taken_one_is() {
 
     assert!(is_lost(&shared).await, "a connection nobody holds is lost");
 }
+
+/// A monitor read has to be bounded, because the host answering it is
+/// adversary 1 (security model): one that never stops sending, or never closes
+/// the channel, must not take the application down with every other session.
+/// These ran unbounded before `run_command` was given limits.
+#[tokio::test]
+async fn a_monitor_read_stops_at_its_byte_cap() {
+    let key = PrivateKey::random(&mut rng(), russh::keys::Algorithm::Ed25519).expect("a key");
+    let (port, host_public) = start_server(key.public_key().clone()).await;
+    let mut connection = connect(endpoint(port), trusting(port, &host_public))
+        .await
+        .expect("connects");
+    connection
+        .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
+        .await
+        .expect("authenticates");
+
+    let output = connection
+        .run_command_within("fleet-flood", 1_000, std::time::Duration::from_secs(10))
+        .await
+        .expect("a flood is cut, not an error");
+
+    assert!(
+        output.stdout.len() <= 1_000,
+        "kept {} bytes",
+        output.stdout.len()
+    );
+    assert!(output.truncated, "the cut is reported, not hidden");
+    assert_eq!(
+        output.exit_status, None,
+        "a command that was cut off has none"
+    );
+}
+
+#[tokio::test]
+async fn a_monitor_read_stops_at_its_deadline_when_the_host_never_closes() {
+    let key = PrivateKey::random(&mut rng(), russh::keys::Algorithm::Ed25519).expect("a key");
+    let (port, host_public) = start_server(key.public_key().clone()).await;
+    let mut connection = connect(endpoint(port), trusting(port, &host_public))
+        .await
+        .expect("connects");
+    connection
+        .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
+        .await
+        .expect("authenticates");
+
+    let started = std::time::Instant::now();
+    let output = connection
+        .run_command_within(
+            "fleet-hang",
+            1_000_000,
+            std::time::Duration::from_millis(300),
+        )
+        .await
+        .expect("a hang ends, it does not fail");
+
+    assert!(output.timed_out);
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(5),
+        "{:?}",
+        started.elapsed()
+    );
+}
+
+#[tokio::test]
+async fn an_ordinary_monitor_read_is_unchanged_by_the_limits() {
+    let key = PrivateKey::random(&mut rng(), russh::keys::Algorithm::Ed25519).expect("a key");
+    let (port, host_public) = start_server(key.public_key().clone()).await;
+    let mut connection = connect(endpoint(port), trusting(port, &host_public))
+        .await
+        .expect("connects");
+    connection
+        .authenticate(USER, Credential::Password(Secret::new(PASSWORD.to_owned())))
+        .await
+        .expect("authenticates");
+
+    let output = connection.run_command("anything").await.expect("runs");
+
+    assert_eq!(output.stdout, b"runic-exec-ok\n");
+    assert_eq!(output.exit_status, Some(0));
+    assert!(!output.truncated && !output.timed_out);
+}
