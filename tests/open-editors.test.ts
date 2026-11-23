@@ -81,6 +81,15 @@ describe('opening a form', () => {
     expect(open?.values.host).toBe('');
   });
 
+  it('starts a new host in the Space in front, and leaves a saved host in its own', () => {
+    const [fresh] = withEditor([], NEW, SESSIONS, 'prod');
+    expect(fresh?.values.space).toBe('prod');
+    expect(fresh?.baseline.space).toBe('prod');
+
+    const [saved] = withEditor([], A, SESSIONS, 'prod');
+    expect(saved?.values.space).toBe('');
+  });
+
   it('gives every tab its own formId', () => {
     const editors = withEditor(withEditor([], A, SESSIONS), B, SESSIONS);
 

@@ -5,7 +5,7 @@ import { describeEditorFailure, describeFailure, topologyInUse } from '../featur
 import type { DraftField, DraftValues, EditorFailure, FailureCode, ForwardDraft } from '../features/sessions';
 import { useTranslator } from '../features/settings';
 import { credentialStoreStatus, internalVaultStatus } from '../ipc';
-import type { CredentialPrompt, Hop, Keep, Secret, Session, SuggestedMethod } from '../ipc';
+import type { CredentialPrompt, Hop, Keep, Secret, Session, Space, SuggestedMethod } from '../ipc';
 
 import { CredentialAccessFields } from './CredentialAccessFields';
 import { FormSection } from './FormSection';
@@ -38,6 +38,8 @@ interface SessionWizardProps {
   /** Every group name already saved, for `HostGeneralFields`' own suggestion
    * list (#221). */
   readonly groupNames: readonly string[];
+  /** Saved Spaces, for the host's Space field. Empty hides the field. */
+  readonly spaces: readonly Space[];
   /**
    * Whether this editor opened because Sessions sent someone here, rather
    * than because they opened it themselves. ADR-0039: the only thing left
@@ -201,6 +203,7 @@ export function SessionWizard({
   carried,
   duplicate,
   groupNames,
+  spaces,
   missingCredential,
   onDismissMissingCredential,
   storedCredential,
@@ -530,6 +533,7 @@ export function SessionWizard({
               onChange={onChange}
               duplicate={duplicate}
               groupNames={groupNames}
+              spaces={spaces}
               firstRef={first}
             />
           </FormSection>

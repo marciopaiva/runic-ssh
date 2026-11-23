@@ -3,6 +3,8 @@ import type { CSSProperties, DragEvent, JSX, MouseEvent as ReactMouseEvent } fro
 
 import { BroadcastButton } from './components/BroadcastButton';
 import { Bar } from './components/Bar';
+import { SpaceEditorDialog } from './components/SpaceEditorDialog';
+import { SpaceSwitcher } from './components/SpaceSwitcher';
 import { groupPresets } from './features/fleet/groups';
 import { ConnectingSurface } from './components/ConnectingSurface';
 import { EmptyPanel } from './components/EmptyPanel';
@@ -50,6 +52,8 @@ import {
 } from './features/commands';
 import type { CommandContext } from './features/commands';
 import { applyVariables, ensureTrailingNewline, useMacros, wrapScript } from './features/macros';
+import { inSpace, spaceAtPosition, spacePosition, useSpaces } from './features/spaces';
+import { isMac } from './lib/platform';
 import {
   focusAfter,
   focusAfterClosing,
@@ -130,6 +134,7 @@ import type {
   Macro,
   Secret,
   Session,
+  Space,
   SessionDraft,
   SessionHandle,
   ShellSlot,
@@ -274,6 +279,16 @@ function shownSession(group: Group): string | null {
 export function App(): JSX.Element {
   const { sessions, setState, attach, reload } = useSessions();
   const { macros, save: saveMacroDraft, remove: removeMacro } = useMacros();
+  const {
+    spaces,
+    active: activeSpace,
+    choose: chooseSpace,
+    save: saveSpaceDraft,
+    remove: removeSpace,
+  } = useSpaces();
+  /* The Space editor: `null` while closed, and a `space` of `null` while
+     creating one. */
+  const [spaceEditor, setSpaceEditor] = useState<{ readonly space: Space | null } | null>(null);
   const { chrome, maximized, act, refused } = useChrome();
   const { i18n, chosen, choose } = useLocale();
   const { theme, chooseTheme } = useTheme();
@@ -1810,9 +1825,9 @@ export function App(): JSX.Element {
      (`hostBookCommands`) opens a saved host; it has no edit command of its
      own. */
   const openEditor = useCallback((target: EditorTarget): void => {
-    setEditors((current) => withEditor(current, target, savedRef.current));
+    setEditors((current) => withEditor(current, target, savedRef.current, activeSpace));
     setHomeFocus({ kind: 'editor', target });
-  }, []);
+  }, [activeSpace]);
 
   /* Standalone so both the surviving palette action and `TabCycleControl`
      (A4) can call it without going through `CommandActions`. */
@@ -1823,10 +1838,38 @@ export function App(): JSX.Element {
     [focusOn, entries, resolvedFocus],
   );
 
+  /* Ctrl+1 to 9 (Cmd on a Mac) bring a Space in front, in the capture phase so
+     it works with a terminal focused. A position with no Space behind it is
+     left alone, so the key still reaches whatever would have had it. */
+  useEffect(() => {
+    const mac = isMac(navigator.userAgent);
+    const onKey = (event: KeyboardEvent): void => {
+      const position = spacePosition(event, mac);
+      if (position === null) return;
+      const target = spaceAtPosition(position, spaces);
+      if (target === undefined) return;
+      event.preventDefault();
+      event.stopPropagation();
+      chooseSpace(target);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [spaces, chooseSpace]);
+
+  /* The hosts of the Space in front. The rest stay saved and connected, and are
+     only not offered, so a Space is a filter on what you pick from and never on
+     what is already open (ADR-0081). */
+  const visibleSessions = useMemo(
+    () => inSpace(sessions, activeSpace, spaces),
+    [sessions, activeSpace, spaces],
+  );
+
   const context = useMemo<CommandContext>(
     () => ({
       i18n,
-      sessions,
+      sessions: visibleSessions,
+      spaces,
+      activeSpace,
       /* Narrowed from the wider `Workspace` union: `home` has no host book of
          its own to speak of, so it narrows to `sessions` like a fresh
          window does. `hostBookCommands` reads this only to decide whether
@@ -1845,6 +1888,8 @@ export function App(): JSX.Element {
         goTo: setWorkspace,
         toggleMacros: () => setMacrosOpen((open) => !open),
         toggleHosts: () => setHostsManagerOpen((open) => !open),
+        switchSpace: chooseSpace,
+        newSpace: () => setSpaceEditor({ space: null }),
         openFilesOf: (sessionId: string) => {
           assignSftpEndpoint({ kind: 'host', sessionId }, lastFocusedFanoutSlot);
           setWorkspace('sftp');
@@ -1868,6 +1913,10 @@ export function App(): JSX.Element {
     [
       i18n,
       sessions,
+      visibleSessions,
+      spaces,
+      activeSpace,
+      chooseSpace,
       workspace,
       openHostInto,
       openLocalInto,
@@ -2216,6 +2265,7 @@ export function App(): JSX.Element {
       carried={jump.carried}
       duplicate={duplicate}
       groupNames={availableGroups}
+      spaces={spaces}
       storedCredential={storedCredential}
       keptCredential={editingId !== null && (keptCredentials.get(editingId) ?? false)}
       skipTest={skipTest}
@@ -2276,15 +2326,38 @@ export function App(): JSX.Element {
     workspace === 'sessions' ? (
       <>
         <WorkspacePills workspace="sessions" onChoose={openWorkspace} />
+        <SpaceSwitcher
+          spaces={spaces}
+          active={activeSpace}
+          onChoose={chooseSpace}
+          onNew={() => setSpaceEditor({ space: null })}
+          onEdit={() => setSpaceEditor({ space: spaces.find((space) => space.id === activeSpace) ?? null })}
+        />
         <OpenHostButton onClick={openHostPicker} />
       </>
     ) : workspace === 'sftp' ? (
       <>
         <WorkspacePills workspace="sftp" onChoose={openWorkspace} />
+        <SpaceSwitcher
+          spaces={spaces}
+          active={activeSpace}
+          onChoose={chooseSpace}
+          onNew={() => setSpaceEditor({ space: null })}
+          onEdit={() => setSpaceEditor({ space: spaces.find((space) => space.id === activeSpace) ?? null })}
+        />
         <OpenHostButton onClick={openHostPicker} />
       </>
     ) : workspace === 'home' ? (
-      <WorkspacePills workspace="home" onChoose={openWorkspace} />
+      <>
+        <WorkspacePills workspace="home" onChoose={openWorkspace} />
+        <SpaceSwitcher
+          spaces={spaces}
+          active={activeSpace}
+          onChoose={chooseSpace}
+          onNew={() => setSpaceEditor({ space: null })}
+          onEdit={() => setSpaceEditor({ space: spaces.find((space) => space.id === activeSpace) ?? null })}
+        />
+      </>
     ) : undefined;
 
   const toolbarTrailing =
@@ -2738,7 +2811,7 @@ export function App(): JSX.Element {
 
         {workspace === 'sessions' && hostsManagerOpen && (
           <HostsManagerSidebar
-            sessions={sessions}
+            sessions={visibleSessions}
             onUse={openHostInto}
             onNew={() => openEditor({ kind: 'new' })}
             onEdit={(sessionId) => openEditor({ kind: 'existing', sessionId })}
@@ -2951,7 +3024,7 @@ export function App(): JSX.Element {
 
         {workspace === 'sftp' && hostsManagerOpen && (
           <HostsManagerSidebar
-            sessions={sessions}
+            sessions={visibleSessions}
             onUse={openHostInto}
             onNew={() => openEditor({ kind: 'new' })}
             onEdit={(sessionId) => openEditor({ kind: 'existing', sessionId })}
@@ -3065,6 +3138,19 @@ export function App(): JSX.Element {
           setFleetMacro(null);
           setFleetInitial(undefined);
         }}
+      />
+
+      <SpaceEditorDialog
+        open={spaceEditor !== null}
+        space={spaceEditor?.space ?? null}
+        onSave={async (draft) => {
+          const saved = await saveSpaceDraft(draft);
+          /* A Space just made is the one you wanted to be in. */
+          if (draft.id === undefined) chooseSpace(saved.id);
+          return saved;
+        }}
+        onDelete={removeSpace}
+        onClose={() => setSpaceEditor(null)}
       />
 
       <Bar

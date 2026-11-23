@@ -13,7 +13,7 @@
  */
 
 import type { Translator } from '../../lib/i18n';
-import type { LocalShellKind, Macro } from '../../ipc';
+import type { LocalShellKind, Macro, Space } from '../../ipc';
 import { groupSessions, hostRows } from '../sessions';
 import type { LiveSession } from '../sessions';
 import { localShellKindId, localShellLabel } from '../terminal';
@@ -35,6 +35,9 @@ export interface CommandActions {
   readonly goTo: (workspace: 'home' | 'sessions' | 'sftp') => void;
   readonly toggleMacros: () => void;
   readonly toggleHosts: () => void;
+  /** Brings a Space in front. The default Space is the empty string. */
+  readonly switchSpace: (id: string) => void;
+  readonly newSpace: () => void;
   /** Opens the host's files in SFTP, in the slot last used. */
   readonly openFilesOf: (sessionId: string) => void;
   /**
@@ -57,6 +60,9 @@ export interface CommandContext {
   readonly macros: readonly Macro[];
   /** Whether a session is in front for a macro to go to. */
   readonly hasTarget: boolean;
+  readonly spaces: readonly Space[];
+  /** The Space in front. */
+  readonly activeSpace: string;
   readonly macrosOpen: boolean;
   readonly hostsOpen: boolean;
   /** The shells this platform offers, detected once at startup (ADR-0074). */
@@ -171,9 +177,12 @@ export function localShellCommands(context: CommandContext): readonly Command[] 
 function hostHint(i18n: Translator, session: LiveSession['session']): string {
   const parts = [
     `${session.user}@${session.host}:${session.port}`,
-    i18n.t(session.credentialId === null ? 'bar.hint.login.none' : 'bar.hint.login.saved'),
+    i18n.t((session.credentialId ?? null) === null ? 'bar.hint.login.none' : 'bar.hint.login.saved'),
   ];
-  if (session.proxyJump !== null) parts.push(i18n.t('bar.hint.jump', { jump: session.proxyJump }));
+  /* The core leaves an unset field out of the file, so what arrives here is
+     `undefined` as often as `null`, whatever the type says. */
+  const jump = session.proxyJump ?? null;
+  if (jump !== null) parts.push(i18n.t('bar.hint.jump', { jump }));
   return parts.join(' · ');
 }
 
@@ -209,6 +218,32 @@ export function actionCommands(context: CommandContext): readonly Command[] {
     title: i18n.t(macrosOpen ? 'toolbar.macros.hide' : 'toolbar.macros.show'),
     keywords: ['macros', 'snippets'],
     run: actions.toggleMacros,
+  });
+
+  /* Only once there is something to switch between, and never to the Space
+     already in front. */
+  if (context.spaces.length > 0) {
+    const choices = [
+      { id: '', name: i18n.t('spaces.default') },
+      ...context.spaces.map((space) => ({ id: space.id, name: space.name })),
+    ].filter((choice) => choice.id !== context.activeSpace);
+
+    for (const choice of choices) {
+      commands.push({
+        id: `action:space:${choice.id || 'default'}`,
+        section: 'actions',
+        title: i18n.t('spaces.switch', { name: choice.name }),
+        keywords: ['space', choice.name],
+        run: () => actions.switchSpace(choice.id),
+      });
+    }
+  }
+  commands.push({
+    id: 'action:space:new',
+    section: 'actions',
+    title: i18n.t('spaces.new'),
+    keywords: ['space', 'environment'],
+    run: actions.newSpace,
   });
 
   if (workspace === 'sessions') {
