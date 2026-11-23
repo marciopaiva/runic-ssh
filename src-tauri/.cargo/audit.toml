@@ -54,15 +54,6 @@ ignore = [
   "RUSTSEC-2025-0098", # unic-ucd-version
   "RUSTSEC-2025-0100", # unic-ucd-ident
 
-  # RUSTSEC-2026-0495: russh's *agent server* signs with confirm-constrained
-  # keys without calling `Agent::confirm`. Runic SSH is a client and never
-  # starts an SSH agent server: nothing in `src/` or `tests/` references
-  # russh's agent module. The fix is in russh 0.65, a minor bump in 0.x that
-  # CLAUDE.md section 5 reserves for the maintainer, because a russh release
-  # can change what host key verification does. Remove this entry when russh
-  # is upgraded.
-  "RUSTSEC-2026-0495", # russh, agent server only, which we do not run
-
   # Unmaintained, with no patched version to move to. `chrono` arrives through
   # `russh-sftp`, which we depend on directly. `zbus_names`, `zvariant` and
   # `zvariant_derive` arrive through the keyring's Secret Service backend on

@@ -47,7 +47,7 @@ portable-pty = "0.9.0"
 # operation and is not what RUSTSEC-2023-0071 attacks. Signing with an RSA
 # private key is refused in ssh::connection instead.
 # See adr/0010-refuse-rsa-private-keys.md.
-russh = "0.63.0"
+russh = "0.65.4"
 # The SFTP subsystem, spoken over a channel `russh` already opened. Does not
 # depend on `russh` at runtime itself, only on any `AsyncRead + AsyncWrite`,
 # so there is no second copy of it or its dependencies to keep in step with
