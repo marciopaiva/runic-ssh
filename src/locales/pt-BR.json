@@ -587,5 +587,6 @@
   "logbook.event.macroRan": "Macro {name} executado, status de saída {status}",
   "logbook.event.macroRanNoStatus": "Macro {name} executado",
   "logbook.event.macroTimedOut": "Macro {name} esgotou o tempo",
-  "logbook.event.macroFailed": "Macro {name} não pôde ser executado"
+  "logbook.event.macroFailed": "Macro {name} não pôde ser executado",
+  "bar.hint.jumpMissing": "um host que não está mais salvo"
 }

@@ -112,7 +112,7 @@ export function hostBookCommands(context: CommandContext): readonly Command[] {
           group: heading,
           role: 'host' as const,
           subject: session.id,
-          hint: hostHint(i18n, session),
+          hint: hostHint(i18n, session, sessions),
           run: () => actions.openHostInto(session.id),
         };
       });
@@ -178,15 +178,25 @@ export function localShellCommands(context: CommandContext): readonly Command[] 
 
 /** What is saved about a host, in one line. Names a credential only as saved or
  * not: the Bar never reads one. */
-function hostHint(i18n: Translator, session: LiveSession['session']): string {
+function hostHint(
+  i18n: Translator,
+  session: LiveSession['session'],
+  all: readonly LiveSession[],
+): string {
   const parts = [
     `${session.user}@${session.host}:${session.port}`,
     i18n.t((session.credentialId ?? null) === null ? 'bar.hint.login.none' : 'bar.hint.login.saved'),
   ];
   /* The core leaves an unset field out of the file, so what arrives here is
      `undefined` as often as `null`, whatever the type says. */
-  const jump = session.proxyJump ?? null;
-  if (jump !== null) parts.push(i18n.t('bar.hint.jump', { jump }));
+  const jumpId = session.proxyJump ?? null;
+  if (jumpId !== null) {
+    /* `proxyJump` holds the bastion's id, which is no use to read. The name it
+       has in the host book is, and an id that names nothing saved says so
+       rather than printing the id. */
+    const jump = all.find((live) => live.session.id === jumpId)?.session.name;
+    parts.push(i18n.t('bar.hint.jump', { jump: jump ?? i18n.t('bar.hint.jumpMissing') }));
+  }
   return parts.join(' · ');
 }
 
@@ -318,7 +328,7 @@ export function fileCommands(context: CommandContext, scope: readonly string[]):
     keywords: [session.host, session.user],
     role: 'files' as const,
     subject: session.id,
-    hint: hostHint(i18n, session),
+    hint: hostHint(i18n, session, sessions),
     run: () => actions.openFilesOf(session.id),
   }));
 }

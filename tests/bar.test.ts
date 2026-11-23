@@ -165,14 +165,37 @@ describe('recents', () => {
 describe('what the Bar offers', () => {
   it('marks hosts so `@` can list them and carries a hint without secrets', () => {
     const { ctx } = context({
-      sessions: [{ session: session('a', { credentialId: 'cred-1', proxyJump: 'jump' }), handle: null, kind: 'saved' }],
+      sessions: [
+        { session: session('jump', { name: 'jump' }), handle: null, kind: 'saved' },
+        { session: session('a', { credentialId: 'cred-1', proxyJump: 'jump' }), handle: null, kind: 'saved' },
+      ],
     });
-    const [row] = hostBookCommands(ctx);
+    const row = hostBookCommands(ctx).find((candidate) => candidate.subject === 'a');
     expect(row?.role).toBe('host');
     expect(row?.subject).toBe('a');
     expect(row?.hint).toContain('login saved');
     expect(row?.hint).toContain('via jump');
     expect(row?.hint).not.toContain('cred-1');
+  });
+
+  it('names the jump host and not its id', () => {
+    const bastion = session('bastion-id', { name: 'the bastion' });
+    const behind = session('behind', { proxyJump: 'bastion-id' });
+    const { ctx } = context({
+      sessions: [bastion, behind].map((saved) => ({ session: saved, handle: null, kind: 'saved' as const })),
+    });
+    const hint = hostBookCommands(ctx).find((row) => row.subject === 'behind')?.hint ?? '';
+    expect(hint).toContain('via the bastion');
+    expect(hint).not.toContain('bastion-id');
+  });
+
+  it('says so when the jump host is no longer saved, not printing its id', () => {
+    const { ctx } = context({
+      sessions: [{ session: session('behind', { proxyJump: 'gone-id' }), handle: null, kind: 'saved' }],
+    });
+    const hint = hostBookCommands(ctx)[0]?.hint ?? '';
+    expect(hint).toContain('a host that is no longer saved');
+    expect(hint).not.toContain('gone-id');
   });
 
   it('reads a host the core sent without its unset fields', () => {
