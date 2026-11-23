@@ -12,6 +12,12 @@ import type { ReconnectView } from '../features/sessions/reconnect';
 import { Button } from './ui/Button';
 import { Card } from './ui/Card';
 
+/** Whether no control holds the keyboard, so claiming it takes nothing away. */
+function nothingHasFocus(): boolean {
+  const active = document.activeElement;
+  return active === null || active === document.body;
+}
+
 export interface TerminalViewProps {
   readonly handle: SessionHandle | null;
   /** Which of the connection's (at most two) shells this terminal is wired
@@ -150,6 +156,15 @@ export function TerminalView({
   useEffect(() => {
     onFocusHandle(focus);
   }, [onFocusHandle, focus]);
+
+  /* A new tab takes the keyboard (#501, the SSH half of #462). Only once there is a
+     connection, so this never lands on the host key prompt. It still yields to anything the person is typing into: a dialog
+     left open while a connection finished in the background keeps its focus. */
+  const mounted = size !== null;
+  const connected = handle !== null;
+  useEffect(() => {
+    if (mounted && connected && focused && visible && nothingHasFocus()) focus();
+  }, [mounted, connected, focused, visible, focus]);
 
   useEffect(() => {
     onClipboardHandle?.(clipboard);
