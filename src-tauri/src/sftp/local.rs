@@ -119,6 +119,9 @@ pub fn create_dir(dir: &Path, name: &str) -> Result<PathBuf, LocalError> {
 /// a different directory: this is the pane's "rename" action, not a
 /// general move.
 pub fn rename(dir: &Path, old_name: &str, new_name: &str) -> Result<PathBuf, LocalError> {
+    /* Both names, not only the one chosen. The old name is joined onto `dir`
+    the same way, and `..` joined onto a directory is its parent. */
+    check_name(old_name)?;
     check_name(new_name)?;
     let new_path = dir.join(new_name);
     fs::rename(dir.join(old_name), &new_path)?;
@@ -129,6 +132,10 @@ pub fn rename(dir: &Path, old_name: &str, new_name: &str) -> Result<PathBuf, Loc
 /// application gives a deleted entry nowhere to go on either side of a
 /// transfer, so there is no "trash" for `remove_dir` alone to defer to.
 pub fn remove(dir: &Path, name: &str, is_dir: bool) -> Result<(), LocalError> {
+    /* A name that is not one path segment would otherwise reach
+    `remove_dir_all`: `..` is the parent of `dir`, and a separator reaches
+    anywhere below or above it. The remote side already checks (`sftp/session.rs`). */
+    check_name(name)?;
     let path = dir.join(name);
     if is_dir {
         fs::remove_dir_all(&path)?;
@@ -211,6 +218,58 @@ mod tests {
 
     fn write(dir: &Path, name: &str, contents: &[u8]) {
         fs::write(dir.join(name), contents).expect("writes the fixture");
+    }
+
+    /// Red before the fix: neither function looked at the name it was given to
+    /// act on, only at the new name a rename chose. `..` joined onto a
+    /// directory is that directory's parent.
+    #[test]
+    fn remove_refuses_a_name_that_climbs_out_of_the_directory() {
+        let outer = tempfile::tempdir().expect("a scratch directory");
+        let inner = outer.path().join("inner");
+        fs::create_dir(&inner).expect("a subdirectory");
+        write(outer.path(), "precious.txt", b"keep");
+
+        for name in ["..", ".", "", "../precious.txt", "a/b", "a\\b", "c:x"] {
+            assert!(
+                remove(&inner, name, true).is_err(),
+                "{name:?} as a directory"
+            );
+            assert!(remove(&inner, name, false).is_err(), "{name:?} as a file");
+        }
+
+        assert!(
+            outer.path().join("precious.txt").exists(),
+            "nothing outside was touched"
+        );
+        assert!(inner.exists(), "nor the directory itself");
+    }
+
+    #[test]
+    fn rename_refuses_an_old_name_that_leaves_the_directory() {
+        let outer = tempfile::tempdir().expect("a scratch directory");
+        let inner = outer.path().join("inner");
+        fs::create_dir(&inner).expect("a subdirectory");
+        write(outer.path(), "precious.txt", b"keep");
+
+        assert!(rename(&inner, "../precious.txt", "taken.txt").is_err());
+        assert!(rename(&inner, "..", "taken").is_err());
+
+        assert!(outer.path().join("precious.txt").exists());
+        assert!(!inner.join("taken.txt").exists());
+    }
+
+    #[test]
+    fn remove_and_rename_still_work_on_an_ordinary_name() {
+        let dir = tempfile::tempdir().expect("a scratch directory");
+        write(dir.path(), "a.txt", b"x");
+        fs::create_dir(dir.path().join("d")).expect("a directory");
+
+        rename(dir.path(), "a.txt", "b.txt").expect("renames");
+        assert!(dir.path().join("b.txt").exists());
+        remove(dir.path(), "b.txt", false).expect("removes a file");
+        remove(dir.path(), "d", true).expect("removes a directory");
+        assert!(fs::read_dir(dir.path()).expect("reads").next().is_none());
     }
 
     #[test]

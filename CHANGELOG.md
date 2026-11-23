@@ -40,6 +40,7 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 ### Fixed
 
 - Trusting a host key could wipe every other trusted key. It read `known_hosts` with a default on any error, so a file that could not be read (a permission error, a lock on Windows, bytes that are not UTF-8) was taken for an empty one, one key was added and the file was replaced. Every other host then came back as unknown instead of changed. Only a missing file means nothing is trusted yet; any other read failure now stops the decision and leaves the file alone. Two decisions answered at once are also serialised, since they shared one temporary file name.
+- Removing or renaming a local file in the SFTP pane checks the name it acts on. Only the new name of a rename was checked, so `..` as the old name, or as the name to remove, reached `remove_dir_all` on the parent directory. The remote side already refused these. The pane never sends such a name, so this is defence in depth against a webview that does.
 
 ### Removed
 
