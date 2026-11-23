@@ -79,6 +79,16 @@ export function LocalShellView({
     onFocusHandle(focus);
   }, [onFocusHandle, focus]);
 
+  /* A new tab takes the keyboard (#462). Nothing else gave the terminal focus
+     when it was created, so the first keystrokes went to the document and
+     reopened the palette. `size` is set the moment xterm is mounted, which is
+     the first point `focus` has anything to focus. Only the focused, visible
+     pane asks, so a tab restored behind another one stays quiet. */
+  const mounted = size !== null;
+  useEffect(() => {
+    if (mounted && focused && visible) focus();
+  }, [mounted, focused, visible, focus]);
+
   useEffect(() => {
     onClipboardHandle?.(clipboard);
   }, [onClipboardHandle, clipboard]);
