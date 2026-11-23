@@ -1,6 +1,6 @@
 # ADR-0064: Keep the map in its own file beside the host book
 
-* **Status**: Accepted
+* **Status**: Superseded by ADR-0080 (the map is removed)
 * **Date**: 2026-09-10
 
 ## Context
