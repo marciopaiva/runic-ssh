@@ -37,10 +37,16 @@
       "icons/128x128.png",
       "icons/256x256.png",
       "icons/icon.png",
-      "icons/icon.ico"
+      "icons/icon.ico",
+      "icons/icon.icns"
     ],
     "category": "DeveloperTool",
     "shortDescription": "SSH and SFTP client",
-    "longDescription": "A modern, fast, and secure cross-platform SSH/SFTP client."
+    "longDescription": "A modern, fast, and secure cross-platform SSH/SFTP client.",
+    "publisher": "Marcio Paiva Barbosa",
+    "copyright": "Copyright (c) 2026 Marcio Paiva Barbosa",
+    "homepage": "https://github.com/marciopaiva/runic-ssh",
+    "license": "MIT",
+    "licenseFile": "../LICENSE"
   }
 }
