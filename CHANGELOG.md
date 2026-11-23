@@ -37,6 +37,10 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 - The fleet run starts from host groups instead of map visions (ADR-0080). Each group button ticks the group's connected hosts and names the ones it leaves out, as the vision buttons did. The group is the one set on a host in its editor.
 - Upgrade `russh` from 0.63 to 0.65 (#473). The client now enforces the negotiated host key algorithm against the key and signature the server sends, calls `kex_done` only after the host key is verified, and bounds several allocations a hostile server could grow. Host key verification in this application is unchanged. The one breaking change is on the server side of the library, which only the test server uses. The RUSTSEC-2026-0495 ignore is removed from `audit.toml`.
 
+### Fixed
+
+- Trusting a host key could wipe every other trusted key. It read `known_hosts` with a default on any error, so a file that could not be read (a permission error, a lock on Windows, bytes that are not UTF-8) was taken for an empty one, one key was added and the file was replaced. Every other host then came back as unknown instead of changed. Only a missing file means nothing is trusted yet; any other read failure now stops the decision and leaves the file alone. Two decisions answered at once are also serialised, since they shared one temporary file name.
+
 ### Removed
 
 - The map workspace (ADR-0080). The "Map" pill, the preview opt-in and its prompt, and the map's windows, lines, visions and layers are gone from the interface. The toolbar now switches between Home, SSH and SFTP. Your `workspace.json` stays on disk and is no longer read, so the visions and layouts you built there are not shown anywhere. Host groups are the closest replacement, and the fleet run already starts from them. The `previewFeatures` setting is kept for one release and does nothing. The `load_workspace` and `save_workspace` commands and the `invalidWorkspace` error are gone from the core.
