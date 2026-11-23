@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties, DragEvent, JSX, ReactNode } from 'react';
+import type { CSSProperties, DragEvent, JSX, MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 
 import { MapCrumb } from './components/map/MapCrumb';
 import { MapToolbarControls } from './components/map/MapToolbarControls';
@@ -36,6 +36,8 @@ import { SftpPane } from './components/SftpPane';
 import { SftpSelectAllButton } from './components/SftpSelectAllButton';
 import { SftpSplitControl } from './components/SftpSplitControl';
 import { StatusBar } from './components/StatusBar';
+import { PaneContextMenu } from './components/PaneContextMenu';
+import type { ClipboardApi } from './features/terminal/use-terminal';
 import { SessionBody } from './components/SessionBody';
 import { TabCycleControl } from './components/TabCycleControl';
 import { TerminalView } from './components/TerminalView';
@@ -442,6 +444,18 @@ export function App(): JSX.Element {
   /* A paste held back for an answer, and the session that asked. Held here
      rather than inside the terminal so it renders in that session's panel the
      way every other question does, per ADR-0015. */
+  /* The right-button menu over a terminal pane in Sessions (#460). Each pane
+     reports its clipboard here by session id, and the menu reads the one it
+     was opened over. */
+  const paneClipboards = useRef(new Map<string, ClipboardApi>());
+  const [paneMenu, setPaneMenu] = useState<{
+    readonly at: { readonly x: number; readonly y: number };
+    readonly sessionId: string;
+  } | null>(null);
+  const openPaneMenu = useCallback((sessionId: string, event: ReactMouseEvent): void => {
+    event.preventDefault();
+    setPaneMenu({ at: { x: event.clientX, y: event.clientY }, sessionId });
+  }, []);
   const [pendingPaste, setPendingPaste] = useState<{
     readonly sessionId: string;
     /** Which shell asked, ADR-0077. Absent for the primary, which is every
@@ -2906,6 +2920,8 @@ export function App(): JSX.Element {
                 onPasteNeedsConfirming={(text) =>
                   setPendingPaste({ sessionId: terminal.sessionId, text })
                 }
+                onClipboardHandle={(clipboard) => paneClipboards.current.set(terminal.sessionId, clipboard)}
+                onContextMenu={(event) => openPaneMenu(terminal.sessionId, event)}
                 onInput={(bytes) => broadcast(terminal.sessionId, bytes)}
                 broadcasting={armed && !muted.has(terminal.sessionId)}
                 forwards={forwardStatuses.get(terminal.sessionId) ?? []}
@@ -3000,6 +3016,8 @@ export function App(): JSX.Element {
                 onFocusHandle={(focus) => focusFns.current.set(tab.sessionId, focus)}
                 modifier={chrome?.commandModifier ?? 'control'}
                 onPasteNeedsConfirming={(text) => setPendingPaste({ sessionId: tab.sessionId, text })}
+                onClipboardHandle={(clipboard) => paneClipboards.current.set(tab.sessionId, clipboard)}
+                onContextMenu={(event) => openPaneMenu(tab.sessionId, event)}
               />
             );
           })}
@@ -3522,6 +3540,15 @@ export function App(): JSX.Element {
       >
         {homeEditorTarget === null ? null : wizardFor(homeEditorTarget, false)}
       </HostEditorDialog>
+
+      {paneMenu !== null && (
+        <PaneContextMenu
+          at={paneMenu.at}
+          clipboard={paneClipboards.current.get(paneMenu.sessionId) ?? null}
+          modifier={chrome?.commandModifier ?? 'control'}
+          onClose={() => setPaneMenu(null)}
+        />
+      )}
     </div>
   );
 }

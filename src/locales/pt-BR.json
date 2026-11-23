@@ -587,6 +587,7 @@
   "tabs.settings.close": "Fechar as configurações",
   "tabs.settings.unsaved": "Configurações — alterações não salvas",
   "terminal.connectionLost": "Conexão perdida.",
+  "terminal.menu.title": "Terminal",
   "terminal.reconnected": "Reconectado.",
   "terminal.reconnect.lost": "Conexão perdida.",
   "terminal.reconnect.trying": "Conexão perdida. Reconectando, tentativa {attempt} de {max}.",
