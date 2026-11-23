@@ -401,15 +401,17 @@ pub fn check_acceptance(offered: &OfferedKey, confirmation: Option<&str>) -> Res
 fn write_known_hosts(path: &std::path::Path, contents: &str) -> Result<(), Error> {
     let directory = path.parent().ok_or(Error::ConfigDirUnavailable)?;
 
-    std::fs::create_dir_all(directory).map_err(|source| Error::SettingsUnwritable {
+    crate::config::private::create_dir(directory).map_err(|source| Error::SettingsUnwritable {
         path: directory.to_path_buf(),
         source,
     })?;
 
     let temporary = directory.join("known_hosts.tmp");
-    std::fs::write(&temporary, contents).map_err(|source| Error::SettingsUnwritable {
-        path: temporary.clone(),
-        source,
+    crate::config::private::write(&temporary, contents).map_err(|source| {
+        Error::SettingsUnwritable {
+            path: temporary.clone(),
+            source,
+        }
     })?;
 
     std::fs::rename(&temporary, path).map_err(|source| Error::SettingsUnwritable {

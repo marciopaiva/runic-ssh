@@ -166,18 +166,22 @@ impl LogbookStore {
 
     fn write(&self, id: &str, events: &[Event]) -> Result<(), Error> {
         let path = self.path(id)?;
-        fs::create_dir_all(&self.directory).map_err(|source| Error::SettingsUnwritable {
-            path: self.directory.clone(),
-            source,
+        crate::config::private::create_dir(&self.directory).map_err(|source| {
+            Error::SettingsUnwritable {
+                path: self.directory.clone(),
+                source,
+            }
         })?;
         let json = serde_json::to_string(events).map_err(|source| Error::SettingsMalformed {
             path: path.clone(),
             source,
         })?;
         let temporary = self.directory.join(format!("{id}.json.tmp"));
-        fs::write(&temporary, json).map_err(|source| Error::SettingsUnwritable {
-            path: temporary.clone(),
-            source,
+        crate::config::private::write(&temporary, json).map_err(|source| {
+            Error::SettingsUnwritable {
+                path: temporary.clone(),
+                source,
+            }
         })?;
         fs::rename(&temporary, &path).map_err(|source| Error::SettingsUnwritable { path, source })
     }

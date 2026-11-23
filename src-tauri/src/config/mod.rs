@@ -15,6 +15,7 @@ use crate::error::Error;
 
 pub mod logbook;
 pub mod macros;
+pub mod private;
 pub mod sessions;
 pub mod spaces;
 
@@ -149,7 +150,7 @@ impl SettingsStore {
     pub fn save(&self, settings: &Settings) -> Result<(), Error> {
         let path = self.path();
 
-        fs::create_dir_all(&self.directory).map_err(|source| Error::SettingsUnwritable {
+        private::create_dir(&self.directory).map_err(|source| Error::SettingsUnwritable {
             path: self.directory.clone(),
             source,
         })?;
@@ -166,7 +167,7 @@ impl SettingsStore {
 }
 
 fn write_then_rename(temporary: &Path, final_path: &Path, contents: &str) -> Result<(), Error> {
-    fs::write(temporary, contents).map_err(|source| Error::SettingsUnwritable {
+    private::write(temporary, contents).map_err(|source| Error::SettingsUnwritable {
         path: temporary.to_path_buf(),
         source,
     })?;

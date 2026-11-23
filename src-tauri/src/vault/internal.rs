@@ -152,8 +152,10 @@ impl InternalVault {
     /// parse on the next read.
     fn write_file(&self, file: &VaultFile) -> Result<(), Error> {
         if let Some(parent) = self.path.parent() {
-            fs::create_dir_all(parent).map_err(|source| Error::VaultUnwritable {
-                reason: source.to_string(),
+            crate::config::private::create_dir(parent).map_err(|source| {
+                Error::VaultUnwritable {
+                    reason: source.to_string(),
+                }
             })?;
         }
 
@@ -162,8 +164,10 @@ impl InternalVault {
         })?;
 
         let temporary = self.path.with_extension("json.tmp");
-        fs::write(&temporary, json.as_bytes()).map_err(|source| Error::VaultUnwritable {
-            reason: source.to_string(),
+        crate::config::private::write(&temporary, json.as_bytes()).map_err(|source| {
+            Error::VaultUnwritable {
+                reason: source.to_string(),
+            }
         })?;
         fs::rename(&temporary, &self.path).map_err(|source| Error::VaultUnwritable {
             reason: source.to_string(),
