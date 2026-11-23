@@ -139,40 +139,6 @@ export function HostTopologyFields({
           </label>
         )
       )}
-
-      {/* ADR-0079. A choice about the shell this host opens, drawn like the
-          jump host picker beside it. */}
-      <label className="flex flex-col gap-1">
-        <span className="text-ink-muted text-[11px]">{i18n.t('session.editor.multiplexer')}</span>
-        <select
-          value={values.multiplexer}
-          onChange={(event) => onChange('multiplexer', event.target.value)}
-          className="bg-surface-input text-ink border-line-subtle w-full appearance-none rounded border px-2.5 py-1.5 text-[12.5px] outline-none"
-        >
-          <option value="">{i18n.t('session.editor.multiplexer.none')}</option>
-          <option value="tmux">tmux</option>
-          <option value="screen">screen</option>
-        </select>
-        <span className="text-ink-faint text-[11px] leading-snug">
-          {i18n.t('session.editor.multiplexer.hint')}
-        </span>
-      </label>
-
-      {/* ADR-0079. On unless turned off. */}
-      <label className="flex items-start gap-2">
-        <input
-          type="checkbox"
-          checked={values.keepalive !== 'off'}
-          onChange={(event) => onChange('keepalive', event.target.checked ? 'on' : 'off')}
-          className="mt-0.5"
-        />
-        <span className="flex flex-col gap-0.5">
-          <span className="text-ink-muted text-[11px]">{i18n.t('session.editor.keepalive')}</span>
-          <span className="text-ink-faint text-[11px] leading-snug">
-            {i18n.t('session.editor.keepalive.hint')}
-          </span>
-        </span>
-      </label>
     </div>
   );
 }
