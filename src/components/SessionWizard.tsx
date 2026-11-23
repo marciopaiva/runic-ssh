@@ -12,6 +12,7 @@ import { FormSection } from './FormSection';
 import { ForwardsFields } from './ForwardsFields';
 import { HostGeneralFields } from './HostGeneralFields';
 import { HOST_KIND_LABEL, HostKindIcon } from './HostKindIcon';
+import { HostConnectionFields } from './HostConnectionFields';
 import { HostTopologyFields } from './HostTopologyFields';
 import { InlineCredentialForm } from './InlineCredentialForm';
 import { InlineHostKeyChallenge } from './InlineHostKeyChallenge';
@@ -565,6 +566,9 @@ export function SessionWizard({
               </Button>
             </div>
           )}
+          <FormSection title={i18n.t('session.editor.section.connection')}>
+            <HostConnectionFields values={values} onChange={onChange} />
+          </FormSection>
         </div>
 
         <div className="flex min-w-0 flex-col gap-4 lg:flex-1">
