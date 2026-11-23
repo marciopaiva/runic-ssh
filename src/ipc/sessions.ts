@@ -94,6 +94,9 @@ export interface Session {
   readonly multiplexer?: Multiplexer | undefined;
   /** Whether the connection pings the host every 30 s. Absent means on. */
   readonly keepalive?: boolean | undefined;
+  /** The id of the Space this host belongs to (ADR-0081). Absent, or an id no
+   * longer saved, means the default Space. */
+  readonly space?: string | undefined;
 }
 
 /**
@@ -116,6 +119,7 @@ export interface SessionDraft {
   readonly forwards: readonly Forward[];
   readonly multiplexer?: Multiplexer | null;
   readonly keepalive?: boolean;
+  readonly space?: string | null;
 }
 
 export async function listSessions(): Promise<readonly Session[]> {

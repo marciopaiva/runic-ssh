@@ -130,6 +130,11 @@ pub struct Session {
     /// before this field keeps its behaviour.
     #[serde(default = "yes", skip_serializing_if = "is_yes")]
     pub keepalive: bool,
+    /// The id of the Space this host belongs to (ADR-0081). Absent means the
+    /// default Space, and so does an id that no longer names a saved one, which
+    /// is why deleting a Space needs no sweep through this file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub space: Option<String>,
 }
 
 fn yes() -> bool {
@@ -193,6 +198,8 @@ pub struct SessionDraft {
     pub multiplexer: Option<Multiplexer>,
     #[serde(default = "yes")]
     pub keepalive: bool,
+    #[serde(default)]
+    pub space: Option<String>,
 }
 
 /// Why a jump host reference cannot be used.
@@ -524,6 +531,10 @@ pub fn save_session(store: &SessionStore, draft: SessionDraft) -> Result<Session
                 forwards: draft.forwards,
                 multiplexer: draft.multiplexer,
                 keepalive: draft.keepalive,
+                space: draft
+                    .space
+                    .map(|s| s.trim().to_owned())
+                    .filter(|s| !s.is_empty()),
             };
             sessions.items[index] = session.clone();
             session
@@ -542,6 +553,10 @@ pub fn save_session(store: &SessionStore, draft: SessionDraft) -> Result<Session
                 forwards: draft.forwards,
                 multiplexer: draft.multiplexer,
                 keepalive: draft.keepalive,
+                space: draft
+                    .space
+                    .map(|s| s.trim().to_owned())
+                    .filter(|s| !s.is_empty()),
             };
             sessions.items.push(session.clone());
             session
@@ -586,6 +601,7 @@ mod tests {
             forwards: Vec::new(),
             multiplexer: None,
             keepalive: true,
+            space: None,
         }
     }
 
@@ -1168,6 +1184,7 @@ mod tests {
             forwards: Vec::new(),
             multiplexer: None,
             keepalive: true,
+            space: None,
         }
     }
 
@@ -1372,6 +1389,40 @@ mod tests {
 
         assert_eq!(sessions.find("b").map(|s| s.id.as_str()), Some("b"));
         assert!(sessions.find("missing").is_none());
+    }
+
+    #[test]
+    fn a_file_written_before_spaces_loads_in_the_default_space() {
+        let sessions: Sessions =
+            serde_json::from_str(r#"[{"id":"a","name":"n","host":"h","port":22,"user":"u"}]"#)
+                .expect("an older file");
+        assert_eq!(sessions.items[0].space, None);
+    }
+
+    #[test]
+    fn a_host_in_no_space_adds_nothing_to_the_file() {
+        let text = serde_json::to_string(&session("a")).expect("serialise");
+        assert!(!text.contains("space"));
+    }
+
+    #[test]
+    fn a_space_is_stored_by_id_and_survives_a_save() {
+        let (store, _dir) = store();
+        let mut wanted = draft("web");
+        wanted.space = Some("  prod-1  ".to_owned());
+        let saved = save_session(&store, wanted).expect("save");
+
+        assert_eq!(saved.space.as_deref(), Some("prod-1"));
+        let back = store.load().expect("load");
+        assert_eq!(back.items[0].space.as_deref(), Some("prod-1"));
+    }
+
+    #[test]
+    fn a_blank_space_means_no_space() {
+        let (store, _dir) = store();
+        let mut wanted = draft("web");
+        wanted.space = Some("   ".to_owned());
+        assert_eq!(save_session(&store, wanted).expect("save").space, None);
     }
 
     #[test]

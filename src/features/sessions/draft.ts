@@ -92,6 +92,9 @@ export interface DraftValues {
   /** ADR-0079. `'on'` or `'off'`: whether the connection pings the host. A
    * string like the other form fields, so one `onChange` serves them all. */
   readonly keepalive: string;
+  /** ADR-0081. `''` for the default Space, otherwise a Space id. Carried through
+   * every save so editing a host never drops the Space it was filed under. */
+  readonly space: string;
 }
 
 /** Whether a form value turns the keepalive on. Anything but `'off'` does. */
@@ -117,6 +120,7 @@ export const EMPTY_DRAFT: DraftValues = {
   forwards: [],
   multiplexer: '',
   keepalive: 'on',
+  space: '',
 };
 
 /**

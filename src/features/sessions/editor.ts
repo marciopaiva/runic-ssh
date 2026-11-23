@@ -46,6 +46,7 @@ export function editorValues(session: Session | null): DraftValues {
     forwards: session.forwards.map(forwardDraft),
     multiplexer: session.multiplexer ?? '',
     keepalive: session.keepalive === false ? 'off' : 'on',
+    space: session.space ?? '',
   };
 }
 
@@ -72,6 +73,7 @@ export function differs(values: DraftValues, baseline: DraftValues): boolean {
     values.kind !== baseline.kind ||
     values.multiplexer !== baseline.multiplexer ||
     values.keepalive !== baseline.keepalive ||
+    values.space !== baseline.space ||
     forwardsDiffer(values.forwards, baseline.forwards)
   );
 }
