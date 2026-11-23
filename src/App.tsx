@@ -6,6 +6,7 @@ import { Bar } from './components/Bar';
 import { CastGuardDialog } from './components/CastGuardDialog';
 import { GroupImportDialog } from './components/GroupImportDialog';
 import { Hall } from './components/Hall';
+import { LogbookDialog } from './components/LogbookDialog';
 import { SpaceEditorDialog } from './components/SpaceEditorDialog';
 import { SpaceSwitcher } from './components/SpaceSwitcher';
 import { groupPresets } from './features/fleet/groups';
@@ -127,6 +128,7 @@ import {
   appVersion,
   asIpcError,
   assignSpaces,
+  reportLogbook,
   closeShell,
   deleteSession,
   disconnectSession,
@@ -303,6 +305,8 @@ export function App(): JSX.Element {
      creating one. */
   /* The group import preview: `null` while closed (ADR-0081). */
   const [importOpen, setImportOpen] = useState(false);
+  /* The host whose Logbook is open, or `null` (ADR-0081). */
+  const [logbookHost, setLogbookHost] = useState<{ readonly id: string; readonly name: string } | null>(null);
   const [spaceEditor, setSpaceEditor] = useState<{ readonly space: Space | null } | null>(null);
   const { chrome, maximized, act, refused } = useChrome();
   const { i18n, chosen, choose } = useLocale();
@@ -1047,9 +1051,17 @@ export function App(): JSX.Element {
   /* ADR-0079: the retries of a session whose connection dropped. Stopped by
      whoever closes the session as well as by the person pressing Cancel, so a
      closed tab never goes on logging in. */
-  const reconnects = useReconnect({ reconnectQuietly, cancelQuiet }, (sessionId, _reason, code) => {
-    setState(sessionId, stateAfterFailure(code ?? 'sshTransport'));
-  });
+  const reconnects = useReconnect(
+    { reconnectQuietly, cancelQuiet },
+    (sessionId, _reason, code) => {
+      setState(sessionId, stateAfterFailure(code ?? 'sshTransport'));
+    },
+    /* The Logbook is told of a drop and each attempt, best effort: a record
+       that cannot be written never gets in the way of the reconnect. */
+    (sessionId, step) => {
+      void reportLogbook(sessionId, step).catch(() => undefined);
+    },
+  );
 
   const disconnect = useCallback(
     (sessionId: string): void => {
@@ -3159,6 +3171,10 @@ export function App(): JSX.Element {
                         assignSftpEndpoint({ kind: 'host', sessionId }, lastFocusedFanoutSlot);
                         setWorkspace('sftp');
                       }}
+                      onLogbook={(sessionId) => {
+                        const name = sessions.find((live) => live.session.id === sessionId)?.session.name;
+                        if (name !== undefined) setLogbookHost({ id: sessionId, name });
+                      }}
                       onNew={() => openEditor({ kind: 'new' })}
                       onLocalShell={
                         localShellKinds[0] === undefined
@@ -3250,6 +3266,8 @@ export function App(): JSX.Element {
           setFleetInitial(undefined);
         }}
       />
+
+      <LogbookDialog host={logbookHost} onClose={() => setLogbookHost(null)} />
 
       <GroupImportDialog
         plan={importOpen ? importPlan : null}

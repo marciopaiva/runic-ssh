@@ -30,10 +30,19 @@ interface Reconnects {
   readonly cancel: (sessionId: string) => void;
 }
 
+/** What the Logbook is told about a retry loop. */
+export type ReconnectStep =
+  | { readonly kind: 'dropped' }
+  | { readonly kind: 'reconnecting'; readonly attempt: number }
+  | { readonly kind: 'reconnected' };
+
 export function useReconnect(
   quiet: Quiet,
   /** Called once when retrying stops by itself, with the last failure. */
   onStopped: (sessionId: string, reason: StopReason, code: FailureCode | null) => void,
+  /** Told of each step, for the Logbook (ADR-0081). Carries a session id and a
+      kind, never a reason or a message. */
+  onStep: (sessionId: string, step: ReconnectStep) => void = () => undefined,
 ): Reconnects {
   const [views, setViews] = useState<ReadonlyMap<string, ReconnectView>>(new Map());
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
@@ -43,6 +52,8 @@ export function useReconnect(
   quietRef.current = quiet;
   const stoppedRef = useRef(onStopped);
   stoppedRef.current = onStopped;
+  const stepRef = useRef(onStep);
+  stepRef.current = onStep;
 
   const show = useCallback((sessionId: string, view: ReconnectView | null): void => {
     setViews((current) => {
@@ -60,10 +71,12 @@ export function useReconnect(
       const timer = setTimeout(() => {
         timers.current.delete(sessionId);
         show(sessionId, { phase: 'trying', attempt });
+        stepRef.current(sessionId, { kind: 'reconnecting', attempt });
 
         void quietRef.current.reconnectQuietly(sessionId).then((outcome) => {
           if (outcome.ok) {
             show(sessionId, null);
+            stepRef.current(sessionId, { kind: 'reconnected' });
             return;
           }
           if (outcome.cancelled) return;
@@ -100,6 +113,7 @@ export function useReconnect(
     (sessionId: string): void => {
       const view = views.get(sessionId);
       if (view !== undefined && view.phase !== 'stopped') return;
+      stepRef.current(sessionId, { kind: 'dropped' });
       schedule(sessionId, 1);
     },
     [schedule, views],

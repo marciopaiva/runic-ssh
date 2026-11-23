@@ -5,6 +5,13 @@ export { fleetRun } from './fleet';
 export type { FleetResult } from './fleet';
 export { deleteMacro, listMacros, saveMacro } from './macros';
 export type { Macro, MacroDraft, MacroKind } from './macros';
+export { clearLogbook, readLogbook, reportLogbook } from './logbook';
+export type {
+  LogbookEvent,
+  LogbookKind,
+  LogbookOutcome,
+  ReportedEvent,
+} from './logbook';
 export { assignSpaces, deleteSpace, listSpaces, reorderSpaces, saveSpace } from './spaces';
 export type { Space, SpaceAssignment, SpaceDraft, SpaceWeight } from './spaces';
 export {

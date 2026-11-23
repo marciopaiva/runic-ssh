@@ -169,6 +169,22 @@ Decided with the maintainer on 2026-11-23, after reading the palette:
   login is saved, a jump host). The last Logbook event waits for slice 4, and
   the per-row shortcut for the shortcuts that exist.
 
+## Slice 4, as built
+
+Taken on 2026-11-23 with the plan's suggestions, the maintainer not having
+answered the open questions: 500 events and 64 KiB per host, recorded by
+default, local only. Revisit if either bound or the default is wrong.
+
+* The core writes `connected` (at the login, not the connect), `hostKeyTrusted`
+  (with `replaced`) and `macroRun` (through the fleet run). The interface
+  reports a drop and each reconnect attempt, through a command that refuses
+  every other kind.
+* The connection event carries no fingerprint: a matched key is not surfaced by
+  the connection, and carrying it out would have meant touching host key
+  verification. The fingerprint is recorded when a key is trusted instead.
+* Not built: transfers, removal of a host's Logbook with the host, filters and a
+  search, and a Logbook line in the Bar's footer.
+
 ## Risks
 
 * **The Stage replaces what the group strip does.** Splits, broadcast per group
