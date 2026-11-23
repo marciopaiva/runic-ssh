@@ -118,7 +118,9 @@ them: it existed briefly and was pulled before v0.9.0, and returns here on
 purpose with a click that activates the session. Selecting a row shows its
 details on the right with Connect, Files, Edit and Run macro. With no hosts,
 one card: "Add your first host" and "Open a local shell", and the key to open
-the palette. The logo moves to the empty state and the About box.
+the palette. The logo moves to the empty state and the About box. This screen
+opens dozens of times a day, so it has no entrance animation, and changing the
+selection swaps the details at once.
 
 ### Session frame
 
@@ -129,8 +131,11 @@ banner stays under it, as today. The terminal takes everything else.
 
 ### The stem (Direction B)
 
-A column about 44px wide, expanding to about 220px on hover, focus or when
-pinned. Roving focus with the arrow keys, `Ctrl+1` to `9` to jump, drag to
+A column 44px wide that stays 44px in the layout. Hover or focus opens a
+panel about 220px wide above the terminal, never beside it: widening the column
+would resize the terminal, which refits xterm and resizes the remote pty on
+every pass of the mouse. Only "pinned" changes the layout, once, with no
+animation. Roving focus with the arrow keys, `Ctrl+1` to `9` to jump, drag to
 reorder or to drop a node onto another to split. Each node: the sigil (lit
 when connected, cut once when a connection comes up, struck when it dropped),
 and a state glyph beside it that does not rely on colour.
@@ -141,14 +146,15 @@ Left: the workspaces, text and icon. Centre: nothing. Right: one cluster of
 session actions with labels when the window is wide enough and icons with
 visible shortcuts when it is not, then one gear that opens settings (theme,
 language, window chrome, preview features). Theme and language leave the
-toolbar.
+toolbar. Tooltips wait before the first one and open at once on the next.
 
 ### SFTP
 
 Same two-pane structure and fan-out, with the empty state shared with the other
 screens. Transfers move to a bottom drawer that shows per-file state, speed and
-a cancel, and opens by itself while something is moving. Drop targets say what
-will happen before the drop ("Copy to the folder you are over").
+a cancel, and opens by itself while something is moving, without taking focus.
+Drop targets say what will happen before the drop ("Copy to the folder you are
+over").
 
 ### Monitor
 
@@ -163,7 +169,8 @@ empty table.
 Becomes a sheet with the script, the targets as host groups with a ticked list
 and the left-out hosts named, and the grouped results beside them, so a run is
 one surface and not three modal steps. Results keep the byte-for-byte grouping
-and the marked differing lines. Copy per group.
+and the marked differing lines. Copy per group. Results land in stable slots as
+they arrive and are reordered once, at the end.
 
 ### Command palette
 
@@ -197,13 +204,78 @@ shortcut visible. No tour.
 * **Surfaces and type.** Existing tokens only. A type scale of 11, 12.5, 14,
   18 and 24 for Manrope and 13 for the terminal, on a 4px spacing grid, with
   radii of 4, 6 and 10.
-* **Motion.** The existing durations (100, 200, 300ms) and easings. One
-  signature: the sigil is cut, once, when a connection comes up. Everything
-  else is a state change, not a show. Reduced motion removes the rest.
+* **Motion.** One signature: the sigil is cut, once, when a connection comes
+  up. Everything else is a state change, not a show. The rules and the numbers
+  are in the next section.
 * **Elevation.** A border and, for overlays only, one shadow. No blur panels.
 * **State.** Connected, connecting, reconnecting, dropped and idle each have a
   glyph and a word, defined once and used on Hosts, the stem, the session
   header and the status bar.
+
+## Motion
+
+Added after a review against Emil Kowalski's design-engineering rules. The app
+keeps its three duration tokens (100, 200 and 300ms) and adds two easing
+tokens. Where a number below is not on that scale it is set per component and
+named here.
+
+**Rules**
+
+1. **Frequency decides first.** Nothing triggered from the keyboard animates:
+   jumping to a session, focusing the search, the palette, switching a facet
+   with a key. Nothing a person sees dozens of times a day animates on entry:
+   the Hosts screen, the details after a selection change. Occasional things
+   (a drawer, a toast, a popover) animate. Rare ones (the sigil on connect) may
+   have a flourish.
+2. **Curves.** Entering and leaving: a strong ease-out,
+   `cubic-bezier(0.23, 1, 0.32, 1)`, the default. Drawers:
+   `cubic-bezier(0.32, 0.72, 0, 1)`. Movement on screen:
+   `cubic-bezier(0.77, 0, 0.175, 1)`. Hover and colour: `ease`. Constant motion
+   (a progress bar, a spinner): `linear`. No `ease-in` in the interface, and
+   `--rs-easing-emphasized` (an ease-in) is not used for UI.
+3. **Only compositor properties.** `transform`, `opacity`, `clip-path`, and
+   `filter: blur()` up to 2px where one glyph replaces another. Never `width`,
+   `height`, `top` or `left`, and no `transition: all`.
+4. **CSS, not layout animation.** The application streams terminal output, which
+   keeps the main thread busy, and animations that run on it drop frames.
+   `framer-motion` stays for components entering and leaving. It does not do
+   layout animations, which no code uses today.
+5. **A press is felt.** Every pressable thing scales to `0.97` on `:active`
+   in 120ms. Nothing grows on hover.
+6. **Enter slower than exit.** A system response is fast, and a person's choice
+   gets the slower beat.
+7. **Interruptible.** Anything that can be toggled quickly uses a transition,
+   not a keyframe animation, so it retargets from where it is.
+8. **Tooltips and menus.** The first tooltip waits, the next ones open at once
+   with no animation, and all of them scale from the trigger. A popover opens
+   from `scale(0.97)` with opacity, from its trigger. A context menu fades in
+   within 100ms and does nothing else.
+9. **Reduced motion means gentler, not none.** Movement and scale go. The
+   opacity and colour fades that explain a change stay.
+
+**Numbers**
+
+| Element | Enter | Exit | Notes |
+| --- | --- | --- | --- |
+| Press feedback | 120ms | 120ms | `scale(0.97)` |
+| Tooltip | 125ms | 100ms | 0ms for a neighbour |
+| Popover, settings menu | 150ms | 120ms | `scale(0.97)` and opacity, from the trigger |
+| Context menu | 100ms | 0ms | opacity only |
+| Facet indicator | 160ms | n/a | `transform`, never layout; none from the keyboard |
+| Stem panel | 200ms | 150ms | `clip-path` reveal; 150ms hover intent, 250ms before closing |
+| Transfers drawer | 250ms | 180ms | `translateY(100%)` to 0, drawer curve |
+| Progress bar | n/a | n/a | `clip-path: inset(0 X% 0 0)` over the whole gradient, linear |
+| Sigil cut | 240ms | instant | 30ms between strokes, on the focused session only |
+| State glyph swap | 150ms | 150ms | crossfade with `filter: blur(2px)` |
+| Reconnecting glyph | linear | n/a | one turn about every second; still, with the word, under reduced motion |
+| Fleet results reorder | 200ms | n/a | once, at the end of the run |
+| Toast | 250ms | 180ms | transitions, paused while the window is hidden |
+
+Dragging a stem node uses pointer capture and `transform` while it moves, shows
+the drop target at once, and returns in 200ms if it is dropped outside.
+
+Each phase checks its motion in slow motion in the application, and the next day,
+before it is called done.
 
 ## The quality bar
 
@@ -215,8 +287,9 @@ there:
 * **Keyboard.** The six core tasks (open a host, open a second session, split,
   run a macro, send a file, run on several hosts) complete with no pointer.
 * **Fit.** Every string fits in pt-BR at 900 by 560, with no clipping.
-* **Motion.** Nothing animates under reduced motion, and no animation blocks
-  input.
+* **Motion.** Under reduced motion, movement and scale are gone and the
+  explanatory fades stay. Nothing triggered by the keyboard animates, and no
+  animation blocks input. Each animation is checked in slow motion in the app.
 * **Speed.** The host book is usable within 300ms of the window being ready, on
   the maintainer's machine, measured.
 * **Honesty.** No unhandled rejection in the dev console while using any screen
