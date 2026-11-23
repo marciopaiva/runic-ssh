@@ -1,6 +1,6 @@
 # ADR-0067: Make the vision the successor of the group
 
-* **Status**: Accepted
+* **Status**: Superseded by ADR-0080 (the map is removed)
 * **Date**: 2026-09-11
 
 ## Context

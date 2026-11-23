@@ -1,8 +1,6 @@
 # ADR-0073: Promote the map to a fixed pill
 
-* **Status**: Accepted, amended by ADR-0075 (choosing the pill becomes a
-  workspace switch instead of a shell switch; the pill and the preview
-  prompt keep their behavior)
+* **Status**: Superseded by ADR-0080 (the map is removed). It was amended by ADR-0075
 * **Date**: 2026-09-19
 
 ## Context

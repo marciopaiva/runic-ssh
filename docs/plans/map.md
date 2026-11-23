@@ -1,5 +1,8 @@
 # Plan: the map, from v0.6.0 to v1.0.0
 
+> **Retired on 2026-11-23 by ADR-0080.** The map is being removed. This plan
+> stays as the record of what it intended and why it did not reach parity.
+
 Written on 2026-09-10. The maintainer's spatial interface, iterated in
 `runic-proposta-modelo.html` and recorded in the session memory, becomes the
 line to 1.0. The `v0.6.0` Import milestone loses its only issue (#128) to a

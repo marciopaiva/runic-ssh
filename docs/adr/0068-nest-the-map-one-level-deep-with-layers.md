@@ -1,6 +1,6 @@
 # ADR-0068: Nest the map one level deep with layers
 
-* **Status**: Accepted
+* **Status**: Superseded by ADR-0080 (the map is removed)
 * **Date**: 2026-09-11
 
 ## Context

@@ -1,6 +1,6 @@
 # ADR-0075: Fold the map into the workspace switch
 
-* **Status**: Accepted
+* **Status**: Superseded by ADR-0080 (the map is removed)
 * **Date**: 2026-09-20
 
 ## Context

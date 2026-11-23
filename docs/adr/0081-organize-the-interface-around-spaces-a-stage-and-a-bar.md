@@ -1,9 +1,9 @@
 # ADR-0081: Organize the interface around Spaces, a Stage and a Bar
 
-* **Status**: Proposed. It follows ADR-0080 (remove the map). Slices 1, 2 and 4
-  of `docs/plans/spaces.md` supersede nothing. Slice 3, the Stage, gets its
-  own ADR before any code, and that ADR is the one that supersedes parts of
-  ADR-0020, 0029, 0044, 0071, 0072 and 0073.
+* **Status**: Accepted on 2026-11-23. It follows ADR-0080. Slices 1, 2 and 4 of
+  `docs/plans/spaces.md` supersede nothing. Slice 3, the Stage, gets its own
+  ADR before any code, and that ADR is the one that supersedes parts of
+  ADR-0020, 0029, 0044, 0071, 0072 and 0073
 * **Date**: 2026-11-23
 
 ## Context

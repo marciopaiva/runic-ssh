@@ -1,8 +1,8 @@
 # ADR-0080: Remove the map
 
-* **Status**: Proposed. When accepted, ADR-0064, 0065, 0066, 0067, 0068, 0073
-  and 0075 become `Superseded by ADR-0080` (ADR-0069 was already superseded by
-  ADR-0075), and `docs/plans/map.md` is marked as retired.
+* **Status**: Accepted on 2026-11-23. ADR-0064, 0065, 0066, 0067, 0068, 0073 and 0075 are
+  superseded by it (ADR-0069 was already superseded by ADR-0075), and
+  `docs/plans/map.md` is retired
 * **Date**: 2026-11-23
 
 ## Context
