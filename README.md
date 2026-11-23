@@ -51,15 +51,6 @@ two sessions side by side, SFTP.
   <img src="assets/screenshot-grid-dark.png" alt="Four workspaces of Runic SSH in one grid: the Home host book with a bastion carrying a nested target host and its editor open; Monitor showing a host's own CPU, memory, swap, load, network and disk usage; two sessions open side by side in Sessions with the MOTD printed into a fresh shell; SFTP browsing a host's own files" width="880">
 </picture>
 
-The map (still a preview): two hosts wired with a line, its switch armed so
-either terminal reaches the other as it's typed into.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-map-dark.png">
-  <source media="(prefers-color-scheme: light)" srcset="assets/screenshot-map-light.png">
-  <img src="assets/screenshot-map-dark.png" alt="Runic SSH's map workspace: two SSH terminals, runic-web-01 and runic-web-02, wired by a line with its broadcast switch armed at the midpoint" width="880">
-</picture>
-
 ## What works today
 
 Each line is a feature that ships; the record behind it is one click away.
@@ -74,9 +65,8 @@ Each line is a feature that ships; the record behind it is one click away.
 - **Monitor**: CPU, memory, disk, network, processes and logs, read over the connection already open. No agent installed.
 - **Macros**: sequential, typed straight into the shell, or a script that runs isolated with `$host`/`$port`/`$username` as real variables ([ADR-0070](docs/adr/0070-split-macros-into-sequential-and-script-types.md)).
 - **SFTP beside the terminal**: one source, up to four destinations, folders copied recursively ([ADR-0041](docs/adr/0041-use-russh-sftp-instead-of-writing-the-protocol.md)).
-- **A map**: a saved host becomes a component you place, wired with lines that broadcast typing or transfer files, grouped into named visions, or nested in layers ([ADR-0064](docs/adr/0064-keep-the-map-in-its-own-file-beside-the-host-book.md), [ADR-0067](docs/adr/0067-make-the-vision-the-successor-of-the-group.md), [ADR-0068](docs/adr/0068-nest-the-map-one-level-deep-with-layers.md)). A fixed toolbar pill next to Home, SSH and SFTP, not a separate shell ([ADR-0073](docs/adr/0073-promote-the-map-to-a-fixed-pill.md), [ADR-0075](docs/adr/0075-fold-the-map-into-the-workspace-switch.md)); still a **preview** on a fresh install, off until you accept the prompt the pill opens.
 - **One "+" to open a saved host into a session or a fan-out slot**, searched and grouped by topology, replacing the separate command palette that used to do this ([ADR-0072](docs/adr/0072-fold-home-sessions-and-sftp-into-an-ssh-sftp-toolbar-switch.md)); Home keeps its own toolbar pill rather than folding into that "+"; hosts and macros each get their own docked manager sidebar ([ADR-0076](docs/adr/0076-give-hosts-a-manager-sidebar-like-macros.md)).
-- **A local shell**, a PTY with no SSH connection behind it, opened from the same palette as a saved host and living beside it in Sessions and on the map ([ADR-0074](docs/adr/0074-add-local-shell-sessions-over-a-native-pty.md)).
+- **A local shell**, a PTY with no SSH connection behind it, opened from the same palette as a saved host and living beside it in Sessions ([ADR-0074](docs/adr/0074-add-local-shell-sessions-over-a-native-pty.md)).
 - **A second shell on a connection already open**, multiplexed over the same transport, capped at exactly two ([ADR-0077](docs/adr/0077-allow-one-extra-shell-per-connected-session.md)).
 - **Light and dark** everywhere; **English, Brazilian Portuguese and Spanish**, security copy reviewed before a language ships ([ADR-0007](docs/adr/0007-localize-in-the-frontend-from-typed-error-codes.md)).
 
@@ -122,6 +112,8 @@ sha256sum -c SHA256SUMS --ignore-missing   # before installing anything
 - [x] **v0.7.0**: lines between components: broadcast between terminals, transfer between SFTP browsers; the map moves behind a preview. *2026-09-10*
 - [x] **v0.8.0**: visions, a named set of components that lays itself out and fills the screen; layers, maps inside the map; macros gain a script type, isolated with real variables. *2026-09-13*
 - [x] **v0.9.0**: the chrome collapses to a toolbar, opening a saved host becomes a "+" palette search instead of a panel toggle, the map becomes a fixed workspace pill instead of a separate shell, local shell sessions, a second shell per connection. *2026-09-24*
+- [x] **After v0.9.0**: the map was removed; it never reached parity with the workspaces it was meant to replace ([ADR-0080](docs/adr/0080-remove-the-map.md)).
+- [ ] **Next**: the interface is reorganized around Spaces, a Stage and a Bar, in slices that each ship on their own ([ADR-0081](docs/adr/0081-organize-the-interface-around-spaces-a-stage-and-a-bar.md)).
 - [ ] **v1.0.0**: production grade stability, and a signed installer on every platform.
 
 A direction, not a promise. What a tool like this should do next is better
