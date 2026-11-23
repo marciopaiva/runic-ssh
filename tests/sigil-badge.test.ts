@@ -45,4 +45,25 @@ describe('SigilBadge', () => {
     expect(classes.some((c) => c.includes('stroke-brand-rune'))).toBe(true);
     expect(classes.some((c) => c.includes('stroke-ink-disabled'))).toBe(false);
   });
+
+  it('is cut once when a connection comes up, not for a host already live', async () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    roots.push(root);
+    const cutCount = (): number => host.querySelectorAll('path.sigil-cut').length;
+
+    await act(async () => root.render(createElement(SigilBadge, { id: 'fx2', live: false })));
+    expect(cutCount()).toBe(0);
+
+    await act(async () => root.render(createElement(SigilBadge, { id: 'fx2', live: true })));
+    expect(cutCount()).toBeGreaterThan(4);
+
+    const alreadyLive = document.createElement('div');
+    document.body.appendChild(alreadyLive);
+    const second = createRoot(alreadyLive);
+    roots.push(second);
+    await act(async () => second.render(createElement(SigilBadge, { id: 'fx2', live: true })));
+    expect(alreadyLive.querySelectorAll('path.sigil-cut').length).toBe(0);
+  });
 });
