@@ -1616,6 +1616,7 @@ export function App(): JSX.Element {
         forwards: toForwards(filled.forwards),
         multiplexer: toMultiplexer(filled.multiplexer),
         keepalive: toKeepalive(filled.keepalive),
+        space: filled.space === '' ? null : filled.space,
       }).then((stored) => {
         /* Re-aimed at what was stored before `after` runs, for a host that did
            not exist a moment ago as much as for one that did: `settled` is

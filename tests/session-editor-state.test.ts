@@ -43,6 +43,7 @@ describe('what the form starts with', () => {
       forwards: [],
       multiplexer: '',
       keepalive: 'on',
+      space: '',
     });
   });
 
@@ -61,6 +62,15 @@ describe('what the form starts with', () => {
     expect(editorValues(off).keepalive).toBe('off');
     expect(isDirty({ ...editorValues(off), keepalive: 'on' }, off)).toBe(true);
     expect(isDirty(editorValues(off), off)).toBe(false);
+  });
+
+  it('carries the Space a host is filed under, and a change makes the form dirty', () => {
+    expect(editorValues(session({})).space).toBe('');
+    const filed = session({ space: 'prod' });
+
+    expect(editorValues(filed).space).toBe('prod');
+    expect(isDirty({ ...editorValues(filed), space: '' }, filed)).toBe(true);
+    expect(isDirty(editorValues(filed), filed)).toBe(false);
   });
 
   it('shows a blank form for a session that does not exist yet', () => {

@@ -126,6 +126,12 @@ pub enum Error {
     #[error("the macro is missing or malformed")]
     InvalidMacro { field: String },
 
+    #[error("no saved space has that id")]
+    UnknownSpace { id: String },
+
+    #[error("the space is missing or malformed")]
+    InvalidSpace { field: String },
+
     /// ADR-0078. Only a script macro can run on several hosts at once.
     #[error("only a script macro can run on several hosts")]
     MacroNotScript { id: String },
@@ -335,6 +341,14 @@ pub enum IpcError {
     InvalidMacro {
         field: String,
     },
+    /// The Space id does not name anything saved.
+    UnknownSpace {
+        id: String,
+    },
+    /// A saved Space was rejected; `field` names which part.
+    InvalidSpace {
+        field: String,
+    },
     /// ADR-0078. The macro is not a script macro, so it cannot be run on
     /// several hosts.
     MacroNotScript {
@@ -444,6 +458,8 @@ impl From<Error> for IpcError {
             Error::InvalidSession { field } => Self::InvalidSession { field },
             Error::UnknownMacro { id } => Self::UnknownMacro { id },
             Error::InvalidMacro { field } => Self::InvalidMacro { field },
+            Error::UnknownSpace { id } => Self::UnknownSpace { id },
+            Error::InvalidSpace { field } => Self::InvalidSpace { field },
             Error::MacroNotScript { id } => Self::MacroNotScript { id },
             Error::UnknownDecision => Self::UnknownDecision,
             Error::NotAwaitingDecision => Self::NotAwaitingDecision,

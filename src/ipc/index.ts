@@ -5,6 +5,8 @@ export { fleetRun } from './fleet';
 export type { FleetResult } from './fleet';
 export { deleteMacro, listMacros, saveMacro } from './macros';
 export type { Macro, MacroDraft, MacroKind } from './macros';
+export { deleteSpace, listSpaces, reorderSpaces, saveSpace } from './spaces';
+export type { Space, SpaceDraft, SpaceWeight } from './spaces';
 export {
   credentialPrompt,
   dismissCredential,

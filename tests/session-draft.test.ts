@@ -28,6 +28,7 @@ import {
 import type { DraftValues, ForwardDraft } from '../src/features/sessions/draft';
 
 const valid: DraftValues = {
+  space: '',
   name: 'web-01',
   host: '10.0.4.31',
   port: '22',
@@ -62,6 +63,7 @@ describe('a session draft', () => {
     expect(
       [
         ...invalidFields({
+          space: '',
           name: '',
           host: '',
           port: 'x',

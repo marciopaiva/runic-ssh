@@ -20,6 +20,7 @@ pub mod processes;
 pub mod sessions;
 pub mod settings;
 pub mod sftp;
+pub mod spaces;
 pub mod sysinfo;
 pub mod systemd;
 pub mod tail;

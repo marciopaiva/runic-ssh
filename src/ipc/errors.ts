@@ -66,6 +66,10 @@ export type IpcError =
   | { readonly code: 'unknownMacro'; readonly id: string }
   /** A saved macro was rejected; `field` names which part. */
   | { readonly code: 'invalidMacro'; readonly field: string }
+  /** The Space id does not name anything saved. */
+  | { readonly code: 'unknownSpace'; readonly id: string }
+  /** A saved Space was rejected; `field` names which part. */
+  | { readonly code: 'invalidSpace'; readonly field: string }
   /** ADR-0078. Only a script macro can run on several hosts at once. */
   | { readonly code: 'macroNotScript'; readonly id: string }
   /**
@@ -244,6 +248,8 @@ export const CODES: ReadonlySet<IpcErrorCode> = new Set<IpcErrorCode>([
   'invalidSession',
   'unknownMacro',
   'invalidMacro',
+  'unknownSpace',
+  'invalidSpace',
   'macroNotScript',
   'invalidProxyJump',
   'duplicateSession',
