@@ -538,11 +538,10 @@ Recording is best effort and never fails the connection, transfer or macro it
 describes.
 
 What a person can do. Read a host's Logbook from the Hall, and clear it. There
-is no export and no sharing. Deleting a host does not delete its file today;
-that is a known gap, tracked below.
+is no export and no sharing. Deleting a host deletes its Logbook with it, after
+the host itself is gone, so a refused delete keeps both.
 
-Known gaps. File transfers are not recorded yet. The Logbook is not removed with
-its host. The pt-BR and es wording of the promise on its screen is security copy
+Known gaps. File transfers are not recorded yet. The pt-BR and es wording of the promise on its screen is security copy
 and has not been reviewed by a native speaker.
 
 ## Reviewing a change

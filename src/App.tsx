@@ -63,6 +63,7 @@ import {
   productionHosts,
   spaceAtPosition,
   spacePosition,
+  statusSpace,
   useSpaces,
 } from './features/spaces';
 import { isMac } from './lib/platform';
@@ -3232,6 +3233,7 @@ export function App(): JSX.Element {
           activeId !== null ? [...(forwardStatuses.get(activeId) ?? []), ...(adHocForwards.get(activeId) ?? [])] : []
         }
         buildVersion={workspace === 'home' ? version : null}
+        space={statusSpace(spaces, activeSpace, i18n.t('spaces.default'))}
         onDismissUnsaved={() =>
           setUnsaved((current) => {
             if (activeId === null) return current;

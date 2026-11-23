@@ -182,7 +182,7 @@ default, local only. Revisit if either bound or the default is wrong.
 * The connection event carries no fingerprint: a matched key is not surfaced by
   the connection, and carrying it out would have meant touching host key
   verification. The fingerprint is recorded when a key is trusted instead.
-* Not built: transfers, removal of a host's Logbook with the host, filters and a
+* Not built: transfers, filters and a
   search, and a Logbook line in the Bar's footer.
 
 ## Risks

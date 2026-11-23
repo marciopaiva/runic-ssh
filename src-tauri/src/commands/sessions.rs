@@ -207,8 +207,29 @@ pub async fn delete_session<R: Runtime>(
     app: AppHandle<R>,
     session_id: String,
 ) -> Result<(), IpcError> {
-    let store = SessionStore::new(config_dir(&app)?);
-    remove_session(&store, &session_id)?;
+    let directory = config_dir(&app)?;
+    forget_session(
+        &SessionStore::new(directory.clone()),
+        &LogbookStore::new(directory),
+        &session_id,
+    )?;
+    Ok(())
+}
+
+/// Forgets a session and what the Logbook kept about it.
+///
+/// A host that is gone should not leave a record of what happened to it on the
+/// disk, least of all one the person can no longer open to clear. The Logbook
+/// goes only after the session did: a refused delete, an unknown id, keeps both.
+/// A Logbook that cannot be removed does not undo the delete, since the host is
+/// already gone and the file is unreachable from the interface either way.
+fn forget_session(
+    sessions: &SessionStore,
+    logbook: &LogbookStore,
+    session_id: &str,
+) -> Result<(), Error> {
+    remove_session(sessions, session_id)?;
+    let _ = logbook.clear(session_id);
     Ok(())
 }
 
@@ -1276,6 +1297,62 @@ mod tests {
     use super::*;
     use crate::ssh::known_hosts::KnownHosts;
     use crate::ssh::trust::decide;
+
+    fn saved(store: &SessionStore, name: &str) -> String {
+        crate::config::sessions::save_session(
+            store,
+            crate::config::sessions::SessionDraft {
+                id: None,
+                name: name.to_owned(),
+                host: format!("{name}.internal"),
+                port: 22,
+                user: "deploy".to_owned(),
+                group: None,
+                proxy_jump: None,
+                kind: crate::config::sessions::HostKind::Direct,
+                forwards: Vec::new(),
+                multiplexer: None,
+                keepalive: true,
+                space: None,
+            },
+        )
+        .expect("saves")
+        .id
+    }
+
+    #[test]
+    fn deleting_a_host_takes_its_logbook_with_it_and_leaves_the_others() {
+        use crate::config::logbook::{record, Kind};
+
+        let dir = tempfile::tempdir().expect("a temporary directory");
+        let sessions = SessionStore::new(dir.path());
+        let logbook = LogbookStore::new(dir.path());
+        let gone = saved(&sessions, "gone");
+        let kept = saved(&sessions, "kept");
+        record(&logbook, &gone, Kind::Connected);
+        record(&logbook, &kept, Kind::Connected);
+
+        forget_session(&sessions, &logbook, &gone).expect("forgets");
+
+        assert!(sessions.load().expect("load").find(&gone).is_none());
+        assert!(logbook.read(&gone).expect("read").is_empty());
+        assert_eq!(logbook.read(&kept).expect("read").len(), 1);
+    }
+
+    #[test]
+    fn a_delete_that_is_refused_keeps_the_logbook() {
+        use crate::config::logbook::{record, Kind};
+
+        let dir = tempfile::tempdir().expect("a temporary directory");
+        let sessions = SessionStore::new(dir.path());
+        let logbook = LogbookStore::new(dir.path());
+        record(&logbook, "ghost", Kind::Connected);
+
+        let result = forget_session(&sessions, &logbook, "ghost");
+
+        assert!(matches!(result, Err(Error::UnknownSession { .. })));
+        assert_eq!(logbook.read("ghost").expect("read").len(), 1);
+    }
 
     /// The frontend (`ipc/sessions.ts`, `onConnectStage`) matches on this exact
     /// event name and reads `sessionId` and `stage`. The emission itself needs
