@@ -1238,6 +1238,23 @@ mod tests {
     use crate::ssh::known_hosts::KnownHosts;
     use crate::ssh::trust::decide;
 
+    /// The frontend (`ipc/sessions.ts`, `onConnectStage`) matches on this exact
+    /// event name and reads `sessionId` and `stage`. The emission itself needs
+    /// a live chain, so what a test can pin without one is the contract.
+    #[test]
+    fn the_connect_stage_event_keeps_the_name_and_shape_the_frontend_reads() {
+        assert_eq!(CONNECT_STAGE_EVENT, "session://connect-stage");
+        let json = serde_json::to_value(ConnectStageEvent {
+            session_id: "t1".to_owned(),
+            stage: "bastionReady",
+        })
+        .expect("serializes");
+        assert_eq!(
+            json,
+            serde_json::json!({ "sessionId": "t1", "stage": "bastionReady" })
+        );
+    }
+
     #[test]
     fn a_password_becomes_a_password_credential() {
         let credential = build_credential(Some(Secret::new("hunter2")), None, None).expect("built");
