@@ -63,6 +63,8 @@ tokio = { version = "1.53.1", features = ["sync", "rt", "time"] }
 zeroize = "1.9.0"
 
 [dev-dependencies]
+# Tauri's mock runtime, for the tests that need an `AppHandle` to emit on.
+tauri = { version = "2", features = ["test"] }
 rand = "0.10.2"
 serde_json = "1"
 tempfile = "3.27.0"

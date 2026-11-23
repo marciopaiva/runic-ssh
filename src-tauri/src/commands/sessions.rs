@@ -77,6 +77,18 @@ struct ConnectStageEvent {
     stage: &'static str,
 }
 
+/// Tells the window the jump host of `session_id`'s chain is open. Best effort:
+/// a window that is gone has nobody to tell.
+fn announce_bastion_ready<R: Runtime>(app: &AppHandle<R>, session_id: &str) {
+    let _ = app.emit(
+        CONNECT_STAGE_EVENT,
+        ConnectStageEvent {
+            session_id: session_id.to_owned(),
+            stage: "bastionReady",
+        },
+    );
+}
+
 fn config_dir<R: Runtime>(app: &AppHandle<R>) -> Result<std::path::PathBuf, Error> {
     app.path()
         .app_config_dir()
@@ -791,13 +803,7 @@ async fn open_through<R: Runtime>(
 
     /* The jump host is ready, and nothing past it has been tried. Best effort:
     a window that is gone has nobody to tell. */
-    let _ = chain.app.emit(
-        CONNECT_STAGE_EVENT,
-        ConnectStageEvent {
-            session_id: target.id.clone(),
-            stage: "bastionReady",
-        },
-    );
+    announce_bastion_ready(chain.app, &target.id);
 
     match connect_via(Arc::clone(&carrier), endpoint_of(target), known).await {
         Ok(connection) => Ok((connection, keep_refused)),
@@ -1251,6 +1257,31 @@ mod tests {
         .expect("serializes");
         assert_eq!(
             json,
+            serde_json::json!({ "sessionId": "t1", "stage": "bastionReady" })
+        );
+    }
+
+    #[test]
+    fn announcing_the_bastion_reaches_a_listener_with_the_session_id() {
+        use std::sync::{Arc, Mutex};
+        use tauri::Listener;
+
+        let app = tauri::test::mock_app();
+        let seen = Arc::new(Mutex::new(Vec::<String>::new()));
+        let sink = Arc::clone(&seen);
+        app.handle().listen(CONNECT_STAGE_EVENT, move |event| {
+            if let Ok(mut all) = sink.lock() {
+                all.push(event.payload().to_owned());
+            }
+        });
+
+        announce_bastion_ready(app.handle(), "t1");
+
+        let all = seen.lock().expect("lock").clone();
+        assert_eq!(all.len(), 1, "exactly one event");
+        let payload: serde_json::Value = serde_json::from_str(&all[0]).expect("json");
+        assert_eq!(
+            payload,
             serde_json::json!({ "sessionId": "t1", "stage": "bastionReady" })
         );
     }
