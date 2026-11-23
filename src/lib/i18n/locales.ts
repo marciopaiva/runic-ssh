@@ -17,6 +17,13 @@
  * `keychain` with `chaveiro` throughout, which is the word somebody using the
  * application in Portuguese would actually reach for.
  *
+ * On **2026-11-22** the maintainer also confirmed six strings added since: the
+ * three reasons a dropped session's banner gives for not retrying (a host key
+ * decision, a credential needed again, a credential refused) and three of the
+ * fleet run's confirmation (whose user the script runs as, nothing connected to
+ * run on, and a start that failed with nothing sent). The Spanish copy of those
+ * is not covered.
+ *
  * That is written down here rather than left in the conversation it was said in,
  * because the rule this file enforces is about the claim: nobody says these
  * strings have been checked until somebody has, and a locale offered on nothing

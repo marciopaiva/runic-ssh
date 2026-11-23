@@ -80,11 +80,19 @@ export const SECURITY_COPY_KEYS: readonly MessageKey[] = [
   'connecting.step.throughBastion',
   'connecting.step.authenticating',
   // What a dropped session's banner says when retrying stopped for a host key
-  // decision or a credential (ADR-0079). The pt-BR and es copy was written by
-  // a model and has not been reviewed.
+  // decision or a credential (ADR-0079). The pt-BR copy was reviewed by the
+  // maintainer on 2026-11-22; the es copy was written by a model and has not
+  // been reviewed.
   'terminal.reconnect.stopped.credential',
   'terminal.reconnect.stopped.hostKey',
   'terminal.reconnect.stopped.rejected',
+  // The fleet run's confirmation (ADR-0078): what is about to run and as
+  // whom, that there is nothing to run on, and that a failed start sent
+  // nothing. The pt-BR copy was reviewed by the maintainer on 2026-11-22; the
+  // es copy was written by a model and has not been reviewed.
+  'fleet.error.generic',
+  'fleet.none',
+  'fleet.note',
   // The bastion's own inline credential form (ADR-0033). Every string is
   // either asking for a secret or saying where it is about to go.
   'credential.cancel',
@@ -292,8 +300,13 @@ export const REVIEWS: Readonly<
        `BroadcastButton`, which was already its route and never read from
        these two strings. Two fewer reviewed strings, not two unreviewed
        ones. */
-    date: '2026-09-03',
-    hash: 'bd580fa1a3ddffc9197e04a51df1b868359c7421d4d3abd86a8d39f740d5c2b5',
+    /* Date and hash moved 2026-11-22: the maintainer reviewed six more pt-BR
+       strings and approved them as written. The three `stopped` reasons a
+       dropped session's banner gives (ADR-0079), and the fleet run's note on
+       whose user it runs as, its empty state and its start failure (ADR-0078).
+       The es copy of all six is still unreviewed and is not tracked here. */
+    date: '2026-11-22',
+    hash: '954b69989a8c7966bd3aec05fee6f3de9ab9c36c1c1a0fc91eddf9d6bcf8db9f',
     keys: [
       'credential.cancel',
       'credential.hop.bastion',
@@ -387,6 +400,12 @@ export const REVIEWS: Readonly<
       'terminal.paste.more',
       'terminal.paste.title',
       'settings.language.hint',
+      'terminal.reconnect.stopped.credential',
+      'terminal.reconnect.stopped.hostKey',
+      'terminal.reconnect.stopped.rejected',
+      'fleet.error.generic',
+      'fleet.none',
+      'fleet.note',
     ],
   },
   es: {
