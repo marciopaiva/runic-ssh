@@ -20,6 +20,8 @@ interface SpacesState {
   /** The Space in front, already checked against what is saved. */
   readonly active: string;
   readonly failure: string | null;
+  /** Reads the Spaces again, after something else changed them. */
+  readonly reload: () => Promise<void>;
   readonly choose: (id: string) => void;
   readonly save: (draft: SpaceDraft) => Promise<Space>;
   readonly remove: (id: string) => Promise<void>;
@@ -64,5 +66,5 @@ export function useSpaces(): SpacesState {
      so there is no render in which the interface shows a Space that is gone. */
   const active = useMemo(() => resolveActive(chosen, spaces), [chosen, spaces]);
 
-  return { spaces, active, failure, choose: setChosen, save, remove };
+  return { spaces, active, failure, reload, choose: setChosen, save, remove };
 }

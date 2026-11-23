@@ -54,6 +54,7 @@ function actions(): CommandActions & { readonly calls: string[] } {
     toggleHosts: () => calls.push('hosts'),
     switchSpace: (id) => calls.push(`space:${id}`),
     newSpace: () => calls.push('space:new'),
+    importGroups: () => calls.push('space:import'),
     openFilesOf: (id) => calls.push(`files:${id}`),
     runMacro: (macro, scope) => calls.push(`macro:${macro.id}:${scope.join(',')}`),
   };
@@ -66,6 +67,7 @@ function context(overrides: Partial<CommandContext> = {}): CommandContext {
     workspace: 'sessions',
     macros: [],
     spaces: [],
+    importable: 0,
     activeSpace: '',
     hasTarget: true,
     macrosOpen: false,

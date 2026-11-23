@@ -4,6 +4,7 @@ import type { CSSProperties, DragEvent, JSX, MouseEvent as ReactMouseEvent } fro
 import { BroadcastButton } from './components/BroadcastButton';
 import { Bar } from './components/Bar';
 import { CastGuardDialog } from './components/CastGuardDialog';
+import { GroupImportDialog } from './components/GroupImportDialog';
 import { Hall } from './components/Hall';
 import { SpaceEditorDialog } from './components/SpaceEditorDialog';
 import { SpaceSwitcher } from './components/SpaceSwitcher';
@@ -57,6 +58,7 @@ import { applyVariables, ensureTrailingNewline, useMacros, wrapScript } from './
 import {
   inSpace,
   needsHold,
+  planGroupImport,
   productionHosts,
   spaceAtPosition,
   spacePosition,
@@ -124,6 +126,7 @@ import { isCursorPositionReport, preparePaste } from './features/terminal/clipbo
 import {
   appVersion,
   asIpcError,
+  assignSpaces,
   closeShell,
   deleteSession,
   disconnectSession,
@@ -294,9 +297,12 @@ export function App(): JSX.Element {
     choose: chooseSpace,
     save: saveSpaceDraft,
     remove: removeSpace,
+    reload: reloadSpaces,
   } = useSpaces();
   /* The Space editor: `null` while closed, and a `space` of `null` while
      creating one. */
+  /* The group import preview: `null` while closed (ADR-0081). */
+  const [importOpen, setImportOpen] = useState(false);
   const [spaceEditor, setSpaceEditor] = useState<{ readonly space: Space | null } | null>(null);
   const { chrome, maximized, act, refused } = useChrome();
   const { i18n, chosen, choose } = useLocale();
@@ -1907,6 +1913,12 @@ export function App(): JSX.Element {
     return () => window.removeEventListener('keydown', onKey, true);
   }, [spaces, chooseSpace]);
 
+  const importPlan = useMemo(
+    () => planGroupImport(sessions.map((live) => live.session), spaces),
+    [sessions, spaces],
+  );
+  const importable = importPlan.items.length;
+
   /* The hosts of the Space in front. The rest stay saved and connected, and are
      only not offered, so a Space is a filter on what you pick from and never on
      what is already open (ADR-0081). */
@@ -1919,6 +1931,7 @@ export function App(): JSX.Element {
     () => ({
       i18n,
       sessions: visibleSessions,
+      importable,
       spaces,
       activeSpace,
       /* Narrowed from the wider `Workspace` union: `home` has no host book of
@@ -1941,6 +1954,7 @@ export function App(): JSX.Element {
         toggleHosts: () => setHostsManagerOpen((open) => !open),
         switchSpace: chooseSpace,
         newSpace: () => setSpaceEditor({ space: null }),
+        importGroups: () => setImportOpen(true),
         openFilesOf: (sessionId: string) => {
           assignSftpEndpoint({ kind: 'host', sessionId }, lastFocusedFanoutSlot);
           setWorkspace('sftp');
@@ -1967,6 +1981,7 @@ export function App(): JSX.Element {
       visibleSessions,
       spaces,
       activeSpace,
+      importable,
       chooseSpace,
       workspace,
       openHostInto,
@@ -3234,6 +3249,23 @@ export function App(): JSX.Element {
           setFleetMacro(null);
           setFleetInitial(undefined);
         }}
+      />
+
+      <GroupImportDialog
+        plan={importOpen ? importPlan : null}
+        onApply={async () => {
+          /* Spaces first, one at a time so an id is in hand for each, then every
+             host in a single write. A run that stops half way is safe to repeat:
+             a group whose Space now exists is reused, not made again. */
+          const assignments: { sessionId: string; space: string | null }[] = [];
+          for (const item of importPlan.items) {
+            const space = item.existing ?? (await saveSpaceDraft({ name: item.name, weight: 'normal' })).id;
+            for (const sessionId of item.hostIds) assignments.push({ sessionId, space });
+          }
+          await assignSpaces(assignments);
+          await Promise.all([reload(), reloadSpaces()]);
+        }}
+        onClose={() => setImportOpen(false)}
       />
 
       <CastGuardDialog

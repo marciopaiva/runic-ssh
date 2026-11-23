@@ -560,5 +560,14 @@
   "spaces.guard.body": "Isto alcança {count} hosts, {production} deles em produção. Confira a lista e segure o botão.",
   "spaces.guard.cancel": "Cancelar",
   "spaces.guard.hold": "Segure para enviar a {count} hosts",
-  "spaces.guard.hint": "Isto evita um deslize. Não é um controle de segurança."
+  "spaces.guard.hint": "Isto evita um deslize. Não é um controle de segurança.",
+  "spaces.import.title": "Criar Spaces a partir dos grupos",
+  "spaces.import.body": "Cada grupo abaixo vira um Space, e os hosts dele passam para lá. Hosts que já estão num Space continuam onde estão.",
+  "spaces.import.new": "novo Space",
+  "spaces.import.existing": "Space existente",
+  "spaces.import.omitted": "Não criados, já há tantos Spaces quanto a lista comporta: {names}.",
+  "spaces.import.keeps": "Os grupos continuam como estão e nenhum host é excluído. Você pode devolver um host pelo editor dele.",
+  "spaces.import.apply": "Criar Spaces",
+  "spaces.import.failed": "Algo deu errado. Nada se perdeu: rode de novo e ele continua de onde parou.",
+  "spaces.import.action": "Criar Spaces a partir dos grupos..."
 }

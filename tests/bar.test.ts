@@ -62,6 +62,7 @@ function context(over: Partial<CommandContext> = {}): { ctx: CommandContext; cal
     toggleHosts: () => calls.push('hosts'),
     switchSpace: (id) => calls.push(`space:${id}`),
     newSpace: () => calls.push('space:new'),
+    importGroups: () => calls.push('space:import'),
     openFilesOf: (id) => calls.push(`files:${id}`),
     runMacro: (m, scope) => calls.push(`run:${m.id}:${scope.join(',')}`),
   };
@@ -78,6 +79,7 @@ function context(over: Partial<CommandContext> = {}): { ctx: CommandContext; cal
       workspace: 'sessions',
       macros: [macro('s', 'script'), macro('q', 'sequential')],
       spaces: [],
+      importable: 0,
       activeSpace: '',
       hasTarget: true,
       macrosOpen: false,

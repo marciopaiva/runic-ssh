@@ -567,6 +567,42 @@ pub fn save_session(store: &SessionStore, draft: SessionDraft) -> Result<Session
     Ok(session)
 }
 
+/// Files hosts under Spaces, or takes them out of one, and changes nothing else.
+///
+/// The group import (ADR-0081) has to rewrite many hosts. Doing that through
+/// `save_session` from the interface means rebuilding every field of every
+/// host, and a field the form does not carry would be dropped without a word.
+/// This sets `space` and leaves the rest of each host exactly as it was.
+///
+/// All or nothing: an id that names no host, or a Space that is not saved,
+/// refuses the whole batch before anything is written.
+pub fn assign_spaces(
+    store: &SessionStore,
+    spaces: &super::spaces::Spaces,
+    assignments: &[(String, Option<String>)],
+) -> Result<(), Error> {
+    let mut sessions = store.load()?;
+
+    for (id, space) in assignments {
+        if sessions.find(id).is_none() {
+            return Err(Error::UnknownSession { id: id.clone() });
+        }
+        if let Some(space) = space {
+            if spaces.find(space).is_none() {
+                return Err(Error::UnknownSpace { id: space.clone() });
+            }
+        }
+    }
+
+    for (id, space) in assignments {
+        if let Some(index) = sessions.position(id) {
+            sessions.items[index].space = space.clone();
+        }
+    }
+
+    store.save(&sessions)
+}
+
 /// Forgets a session.
 ///
 /// Does not touch the keychain: an entry whose session is gone is dealt with
@@ -1415,6 +1451,88 @@ mod tests {
         assert_eq!(saved.space.as_deref(), Some("prod-1"));
         let back = store.load().expect("load");
         assert_eq!(back.items[0].space.as_deref(), Some("prod-1"));
+    }
+
+    #[test]
+    fn filing_hosts_under_spaces_changes_nothing_else() {
+        let (store, _dir) = store();
+        let mut wanted = draft("web");
+        wanted.forwards = Vec::new();
+        wanted.keepalive = false;
+        let saved = save_session(&store, wanted).expect("save");
+        let other = save_session(&store, draft("db")).expect("save");
+
+        let spaces = super::super::spaces::Spaces {
+            items: vec![super::super::spaces::Space {
+                id: "prod".to_owned(),
+                name: "Production".to_owned(),
+                weight: super::super::spaces::SpaceWeight::Production,
+            }],
+        };
+        assign_spaces(
+            &store,
+            &spaces,
+            &[(saved.id.clone(), Some("prod".to_owned()))],
+        )
+        .expect("assign");
+
+        let after = store.load().expect("load");
+        let mut expected = saved.clone();
+        expected.space = Some("prod".to_owned());
+        assert_eq!(after.find(&saved.id), Some(&expected));
+        assert_eq!(
+            after.find(&other.id),
+            Some(&other),
+            "an untouched host stays as it was"
+        );
+    }
+
+    #[test]
+    fn a_batch_with_an_unknown_host_or_space_writes_nothing() {
+        let (store, _dir) = store();
+        let saved = save_session(&store, draft("web")).expect("save");
+        let spaces = super::super::spaces::Spaces::default();
+
+        assert!(matches!(
+            assign_spaces(
+                &store,
+                &spaces,
+                &[(saved.id.clone(), None), ("ghost".to_owned(), None)]
+            ),
+            Err(Error::UnknownSession { .. })
+        ));
+        assert!(matches!(
+            assign_spaces(
+                &store,
+                &spaces,
+                &[(saved.id.clone(), Some("nope".to_owned()))]
+            ),
+            Err(Error::UnknownSpace { .. })
+        ));
+        assert_eq!(store.load().expect("load").find(&saved.id), Some(&saved));
+    }
+
+    #[test]
+    fn a_none_takes_a_host_out_of_its_space() {
+        let (store, _dir) = store();
+        let mut wanted = draft("web");
+        wanted.space = Some("prod".to_owned());
+        let saved = save_session(&store, wanted).expect("save");
+
+        assign_spaces(
+            &store,
+            &super::super::spaces::Spaces::default(),
+            &[(saved.id.clone(), None)],
+        )
+        .expect("assign");
+        assert_eq!(
+            store
+                .load()
+                .expect("load")
+                .find(&saved.id)
+                .and_then(|s| s.space.clone()),
+            None
+        );
     }
 
     #[test]
