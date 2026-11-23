@@ -11,3 +11,8 @@
 export function isLinux(userAgent: string): boolean {
   return /\bLinux\b/.test(userAgent) && !/\bAndroid\b/.test(userAgent);
 }
+
+/** Whether this window is running on macOS, where the Bar opens on Cmd+K. */
+export function isMac(userAgent: string): boolean {
+  return /\bMacintosh\b|\bMac OS X\b/.test(userAgent);
+}

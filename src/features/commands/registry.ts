@@ -46,11 +46,22 @@ export interface Command {
    * built in one language survives switching to another.
    */
   readonly keywords?: readonly string[];
+  /** What the row is, for the Bar's `@`, `>` and `/` modes. Absent for an
+   * action, which only the unmarked mode lists. */
+  readonly role?: 'host' | 'macro' | 'files';
+  /** The saved host's id behind a `host` or `files` row. */
+  readonly subject?: string;
+  /** One line about the row, already translated, for the Bar's footer. Never
+   * a secret: what is saved about a host, not what it holds. */
+  readonly hint?: string;
   readonly run: () => void;
 }
 
-/** Asked for its commands each time the palette opens. */
-export type CommandSource = () => readonly Command[];
+/**
+ * Asked for its commands each time the Bar opens. The scope is the hosts the
+ * person has put in chips, so a macro row can say what it will reach.
+ */
+export type CommandSource = (scope: readonly string[]) => readonly Command[];
 
 /**
  * Collects every source, in the order sections should appear.
@@ -60,8 +71,11 @@ export type CommandSource = () => readonly Command[];
  */
 export const SECTION_ORDER: readonly CommandSection[] = ['sessions', 'actions', 'snippets'];
 
-export function collect(sources: readonly CommandSource[]): readonly Command[] {
-  const commands = sources.flatMap((source) => [...source()]);
+export function collect(
+  sources: readonly CommandSource[],
+  scope: readonly string[] = [],
+): readonly Command[] {
+  const commands = sources.flatMap((source) => [...source(scope)]);
 
   /* A duplicate id would make two rows share an `aria-activedescendant`, so
      the screen reader announces one row while Enter runs the other. */

@@ -2,19 +2,24 @@ import { useEffect, useRef } from 'react';
 import type { JSX, KeyboardEvent } from 'react';
 
 import { bySection } from '../features/commands';
-import type { Match } from '../features/commands';
+import type { BarMode, Match } from '../features/commands';
 import { useTranslator } from '../features/settings';
 import { SigilBadge } from './SigilMark';
 
-interface CommandPaletteProps {
+interface BarProps {
   readonly open: boolean;
   readonly query: string;
+  readonly mode: BarMode;
+  /** The hosts in the scope, as chips. */
+  readonly scope: readonly { readonly id: string; readonly name: string }[];
   readonly matches: readonly Match[];
   readonly selected: number;
   readonly onQuery: (query: string) => void;
   readonly onMove: (step: number) => void;
   readonly onSelect: (index: number) => void;
   readonly onRun: (index?: number) => void;
+  readonly onRemoveScope: (sessionId: string) => void;
+  readonly onPopScope: () => void;
   readonly onDismiss: () => void;
 }
 
@@ -55,7 +60,12 @@ function Highlighted({
 }
 
 /**
- * The command palette.
+ * The Bar: one field for hosts, actions and saved macros.
+ *
+ * `@` picks hosts into the scope, `>` chooses a saved macro, `/` opens a
+ * host's files. The scope is drawn as chips above the field, so what a macro
+ * will reach is on screen before Enter. It does not animate: it is opened
+ * dozens of times a day.
  *
  * A combobox over a listbox, which is what a screen reader needs to announce
  * "3 of 12" while the user types — focus never leaves the input, so the active
@@ -65,17 +75,21 @@ function Highlighted({
  * Presentational: it draws what it is handed and reports what was pressed.
  * Ranking, selection and what a command does live in the feature slice.
  */
-export function CommandPalette({
+export function Bar({
   open,
   query,
+  mode,
+  scope,
   matches,
   selected,
   onQuery,
   onMove,
   onSelect,
   onRun,
+  onRemoveScope,
+  onPopScope,
   onDismiss,
-}: CommandPaletteProps): JSX.Element | null {
+}: BarProps): JSX.Element | null {
   const i18n = useTranslator();
   const input = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLDivElement>(null);
@@ -118,6 +132,14 @@ export function CommandPalette({
         event.preventDefault();
         onRun();
         return;
+      case 'Backspace':
+        /* On an empty field, takes the last chip back out, which is what the
+           key does in every field that holds chips. */
+        if (query === '' && scope.length > 0) {
+          event.preventDefault();
+          onPopScope();
+        }
+        return;
       case 'Escape':
         event.preventDefault();
         onDismiss();
@@ -144,6 +166,31 @@ export function CommandPalette({
         aria-label={i18n.t('palette.title')}
         className="bg-surface-overlay border-line-strong flex max-h-[60vh] w-[560px] max-w-[92vw] flex-col overflow-hidden rounded-lg border shadow-2xl"
       >
+        {scope.length > 0 && (
+          <ul
+            aria-label={i18n.t('bar.scope.label')}
+            className="border-line-subtle flex shrink-0 flex-wrap gap-1.5 border-b px-4 py-2"
+          >
+            {scope.map((chip) => (
+              <li
+                key={chip.id}
+                className="bg-accent-soft text-ink flex items-center gap-1 rounded px-2 py-0.5 text-[11.5px]"
+              >
+                <span className="text-ink-faint">@</span>
+                {chip.name}
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  aria-label={i18n.t('bar.scope.remove', { name: chip.name })}
+                  onClick={() => onRemoveScope(chip.id)}
+                  className="text-ink-faint hover:text-ink ml-0.5 leading-none"
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
         <input
           ref={input}
           type="text"
@@ -164,7 +211,14 @@ export function CommandPalette({
         <div ref={list} id="command-results" role="listbox" className="min-h-0 flex-1 overflow-y-auto py-1.5">
           {matches.length === 0 ? (
             <p className="text-ink-faint px-4 py-6 text-center text-[12.5px]">
-              {i18n.t('palette.empty', { query })}
+              {i18n.t(
+                mode === 'macros'
+                  ? 'bar.empty.macros'
+                  : (mode === 'hosts' || mode === 'files') && query.length <= 1
+                    ? 'bar.empty.hosts'
+                    : 'palette.empty',
+                { query },
+              )}
             </p>
           ) : (
             groups.map((group) => {
@@ -225,6 +279,11 @@ export function CommandPalette({
             })
           )}
         </div>
+
+        <p className="text-ink-faint border-line-subtle shrink-0 truncate border-t px-4 py-1.5 font-mono text-[10.5px]">
+          {active?.command.hint ??
+            (mode === 'macros' && scope.length > 0 ? i18n.t('bar.note.scoped') : i18n.t('bar.tokens'))}
+        </p>
       </div>
     </div>
   );

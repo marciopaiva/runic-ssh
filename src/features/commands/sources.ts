@@ -13,7 +13,7 @@
  */
 
 import type { Translator } from '../../lib/i18n';
-import type { LocalShellKind } from '../../ipc';
+import type { LocalShellKind, Macro } from '../../ipc';
 import { groupSessions, hostRows } from '../sessions';
 import type { LiveSession } from '../sessions';
 import { localShellKindId, localShellLabel } from '../terminal';
@@ -31,6 +31,18 @@ export interface CommandActions {
   readonly openLocalInto: () => void;
   /** Opens a native shell of the given kind into the same slot (ADR-0074). */
   readonly openLocalShellInto: (kind: LocalShellKind) => void;
+  /** Switches workspace pill. */
+  readonly goTo: (workspace: 'home' | 'sessions' | 'sftp') => void;
+  readonly toggleMacros: () => void;
+  readonly toggleHosts: () => void;
+  /** Opens the host's files in SFTP, in the slot last used. */
+  readonly openFilesOf: (sessionId: string) => void;
+  /**
+   * Runs a saved macro. With an empty scope it goes to the session in front,
+   * as the macros sidebar does. With hosts in the scope it opens the fleet run
+   * dialog on them, which lists the targets before anything is sent.
+   */
+  readonly runMacro: (macro: Macro, scope: readonly string[]) => void;
 }
 
 export interface CommandContext {
@@ -41,7 +53,12 @@ export interface CommandContext {
    * Which workspace pill is showing, for `hostBookCommands`: it decides
    * whether "this machine" belongs in the list at all.
    */
-  readonly workspace: 'sessions' | 'sftp';
+  readonly workspace: 'home' | 'sessions' | 'sftp';
+  readonly macros: readonly Macro[];
+  /** Whether a session is in front for a macro to go to. */
+  readonly hasTarget: boolean;
+  readonly macrosOpen: boolean;
+  readonly hostsOpen: boolean;
   /** The shells this platform offers, detected once at startup (ADR-0074). */
   readonly localShellKinds: readonly LocalShellKind[];
 }
@@ -83,6 +100,9 @@ export function hostBookCommands(context: CommandContext): readonly Command[] {
           sigil: { id: session.id, live: live.kind === 'connected' },
           keywords: [session.host, session.user, session.group ?? ''].filter((word) => word !== ''),
           group: heading,
+          role: 'host' as const,
+          subject: session.id,
+          hint: hostHint(i18n, session),
           run: () => actions.openHostInto(session.id),
         };
       });
@@ -143,5 +163,114 @@ export function localShellCommands(context: CommandContext): readonly Command[] 
     keywords: ['local', 'shell', 'terminal'],
     ...(grouped ? { group: i18n.t('local.group') } : {}),
     run: () => actions.openLocalShellInto(kind),
+  }));
+}
+
+/** What is saved about a host, in one line. Names a credential only as saved or
+ * not: the Bar never reads one. */
+function hostHint(i18n: Translator, session: LiveSession['session']): string {
+  const parts = [
+    `${session.user}@${session.host}:${session.port}`,
+    i18n.t(session.credentialId === null ? 'bar.hint.login.none' : 'bar.hint.login.saved'),
+  ];
+  if (session.proxyJump !== null) parts.push(i18n.t('bar.hint.jump', { jump: session.proxyJump }));
+  return parts.join(' · ');
+}
+
+/**
+ * What the Bar can do besides opening a host.
+ *
+ * Only what runs without a question: switching workspace and the two side
+ * panels. Each row is offered only when it would change something, in the
+ * spirit of the rest of this file.
+ */
+export function actionCommands(context: CommandContext): readonly Command[] {
+  const { i18n, workspace, actions, macrosOpen, hostsOpen } = context;
+
+  const pills = [
+    { id: 'home', label: i18n.t('toolbar.pills.home') },
+    { id: 'sessions', label: i18n.t('toolbar.pills.ssh') },
+    { id: 'sftp', label: i18n.t('toolbar.pills.sftp') },
+  ] as const;
+
+  const commands: Command[] = pills
+    .filter((pill) => pill.id !== workspace)
+    .map((pill) => ({
+      id: `action:go:${pill.id}`,
+      section: 'actions' as const,
+      title: i18n.t('bar.action.go', { name: pill.label }),
+      keywords: [pill.id],
+      run: () => actions.goTo(pill.id),
+    }));
+
+  commands.push({
+    id: 'action:macros',
+    section: 'actions',
+    title: i18n.t(macrosOpen ? 'toolbar.macros.hide' : 'toolbar.macros.show'),
+    keywords: ['macros', 'snippets'],
+    run: actions.toggleMacros,
+  });
+
+  if (workspace === 'sessions') {
+    commands.push({
+      id: 'action:hosts',
+      section: 'actions',
+      title: i18n.t(hostsOpen ? 'toolbar.hosts.hide' : 'toolbar.hosts.show'),
+      keywords: ['hosts', 'servers'],
+      run: actions.toggleHosts,
+    });
+  }
+
+  return commands;
+}
+
+/**
+ * Saved macros, for `>`.
+ *
+ * Saved macros only, never free text: the Bar does not send a string it
+ * composed (ADR-0078). With hosts in the scope only script macros are listed,
+ * because those are the ones the fleet run accepts, and the run opens the
+ * target list before sending anything.
+ */
+export function macroCommands(context: CommandContext, scope: readonly string[]): readonly Command[] {
+  const { i18n, macros, actions, hasTarget } = context;
+
+  /* Without hosts in the scope a macro goes to the session in front, so with
+     none in front there is nowhere for it to go and it is not offered. */
+  if (scope.length === 0 && !hasTarget) return [];
+
+  return macros
+    .filter((macro) => scope.length === 0 || macro.kind === 'script')
+    .map((macro) => ({
+      id: `macro:${macro.id}`,
+      section: 'snippets' as const,
+      title: macro.name,
+      detail: i18n.t(macro.kind === 'script' ? 'bar.macro.script' : 'bar.macro.sequential'),
+      role: 'macro' as const,
+      run: () => actions.runMacro(macro, scope),
+    }));
+}
+
+/**
+ * Hosts whose files can be opened, for `/`. Hosts already in the scope come
+ * first, since that is what the chips are for.
+ */
+export function fileCommands(context: CommandContext, scope: readonly string[]): readonly Command[] {
+  const { i18n, sessions, actions } = context;
+  const scoped = new Set(scope);
+  const ordered = [...sessions].sort(
+    (a, b) => Number(scoped.has(b.session.id)) - Number(scoped.has(a.session.id)),
+  );
+
+  return ordered.map(({ session }) => ({
+    id: `files:${session.id}`,
+    section: 'sessions' as const,
+    title: session.name,
+    detail: `${session.user}@${session.host}`,
+    keywords: [session.host, session.user],
+    role: 'files' as const,
+    subject: session.id,
+    hint: hostHint(i18n, session),
+    run: () => actions.openFilesOf(session.id),
   }));
 }
