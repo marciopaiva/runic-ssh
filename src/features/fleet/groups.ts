@@ -47,3 +47,21 @@ export function groupPresets(sessions: readonly LiveSession[]): readonly GroupPr
     return { id: group, name: group, handles, skipped };
   });
 }
+
+/**
+ * The hosts ticked when the dialog opens.
+ *
+ * Every target when nothing was asked for, which is how it always opened. With
+ * a list from the Bar's scope, only those of them that are still targets: a
+ * handle that is no longer connected cannot be sent to, and ticking it would
+ * only make the count lie.
+ */
+export function initialSelection(
+  targets: readonly { readonly handle: SessionHandle }[],
+  initial: readonly SessionHandle[] | undefined,
+): ReadonlySet<SessionHandle> {
+  const reachable = targets.map((target) => target.handle);
+  if (initial === undefined) return new Set(reachable);
+  const wanted = new Set(initial);
+  return new Set(reachable.filter((handle) => wanted.has(handle)));
+}

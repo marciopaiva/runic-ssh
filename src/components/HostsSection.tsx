@@ -40,6 +40,8 @@ interface HostsSectionProps {
   /** The form itself, assembled by the caller: its wiring is `App.tsx`'s, not
    * this component's, the way `SessionsSidebar` never assembled a terminal. */
   readonly detail: ReactNode;
+  /** What fills the screen while no host is open. The logo when absent. */
+  readonly idle?: ReactNode;
 }
 
 /**
@@ -75,6 +77,7 @@ export function HostsSection({
   onNew,
   onCloseSidebar,
   detail,
+  idle,
 }: HostsSectionProps): JSX.Element {
   const i18n = useTranslator();
   const [query, setQuery] = useState('');
@@ -201,7 +204,9 @@ export function HostsSection({
       </SidebarOverlay>
 
       <div className="min-w-0 flex-1 overflow-y-auto">
-        {selectedId === null && !creatingNew ? (
+        {selectedId === null && !creatingNew && idle !== undefined ? (
+          idle
+        ) : selectedId === null && !creatingNew ? (
           <div className="flex h-full flex-col items-center justify-center" aria-hidden="true">
             <img src={logoDark} alt="" className="rs-logo-dark h-32 w-auto" />
             <img src={logoLight} alt="" className="rs-logo-light h-32 w-auto" />

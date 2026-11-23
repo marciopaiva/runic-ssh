@@ -3,6 +3,8 @@ import type { CSSProperties, DragEvent, JSX, MouseEvent as ReactMouseEvent } fro
 
 import { BroadcastButton } from './components/BroadcastButton';
 import { Bar } from './components/Bar';
+import { CastGuardDialog } from './components/CastGuardDialog';
+import { Hall } from './components/Hall';
 import { SpaceEditorDialog } from './components/SpaceEditorDialog';
 import { SpaceSwitcher } from './components/SpaceSwitcher';
 import { groupPresets } from './features/fleet/groups';
@@ -52,7 +54,14 @@ import {
 } from './features/commands';
 import type { CommandContext } from './features/commands';
 import { applyVariables, ensureTrailingNewline, useMacros, wrapScript } from './features/macros';
-import { inSpace, spaceAtPosition, spacePosition, useSpaces } from './features/spaces';
+import {
+  inSpace,
+  needsHold,
+  productionHosts,
+  spaceAtPosition,
+  spacePosition,
+  useSpaces,
+} from './features/spaces';
 import { isMac } from './lib/platform';
 import {
   focusAfter,
@@ -917,6 +926,41 @@ export function App(): JSX.Element {
   );
 
   const fleetGroups = useMemo(() => groupPresets(sessions), [sessions]);
+  /* The connected hosts that sit in a production Space, so the dialog can ask
+     for a hold when a run reaches two or more of them. */
+  const fleetProduction = useMemo(() => {
+    const ids = new Set(
+      productionHosts(
+        sessions.map((live) => live.session.id),
+        sessions.map((live) => live.session),
+        spaces,
+      ),
+    );
+    return new Set(
+      sessions.flatMap((live) => (live.handle !== null && ids.has(live.session.id) ? [live.handle] : [])),
+    );
+  }, [sessions, spaces]);
+
+  /* The cast guard (ADR-0081). `proceed` runs at once unless the command
+     reaches two or more hosts and any is in a production Space, in which case
+     the hosts are listed and the button has to be held. */
+  const [castGuard, setCastGuard] = useState<{
+    readonly names: readonly string[];
+    readonly production: number;
+    readonly proceed: () => void;
+  } | null>(null);
+  const requestCast = useCallback(
+    (ids: readonly string[], proceed: () => void): void => {
+      const saved = sessions.map((live) => live.session);
+      if (!needsHold(ids, saved, spaces)) {
+        proceed();
+        return;
+      }
+      const names = [...new Set(ids)].map((id) => saved.find((session) => session.id === id)?.name ?? id);
+      setCastGuard({ names, production: productionHosts(ids, saved, spaces).length, proceed });
+    },
+    [sessions, spaces],
+  );
 
   const runMacro = useCallback(
     (macro: Macro): void => {
@@ -938,17 +982,24 @@ export function App(): JSX.Element {
         return [{ sessionId, text }];
       });
 
-      sendEach(
-        entries.map((entry) => ({
-          sessionId: entry.sessionId,
-          bytes: new TextEncoder().encode(preparePaste(entry.text)),
-        })),
+      /* Several hosts with any in production is held to confirm; one host, or
+         several outside production, goes straight out (ADR-0081). */
+      requestCast(
+        entries.map((entry) => entry.sessionId),
+        () => {
+          sendEach(
+            entries.map((entry) => ({
+              sessionId: entry.sessionId,
+              bytes: new TextEncoder().encode(preparePaste(entry.text)),
+            })),
+          );
+          /* Run from the sidebar, so the keyboard is sitting on a button there
+             until this hands it back to the shell the macro just spoke to. */
+          focusTerminal(macroTargetId);
+        },
       );
-      /* Run from the sidebar, so the keyboard is sitting on a button there
-         until this hands it back to the shell the macro just spoke to. */
-      focusTerminal(macroTargetId);
     },
-    [macroTargetId, sessions, groups, sync, muted, sendEach, focusTerminal],
+    [macroTargetId, sessions, groups, sync, muted, sendEach, focusTerminal, requestCast],
   );
 
   /* Which rectangle a session's surfaces belong in, or `null` when it is not
@@ -2368,8 +2419,16 @@ export function App(): JSX.Element {
           available={broadcastAvailable}
           count={receiving.length}
           onToggle={() => {
-            setMuted(new Set());
-            setSync((on) => !on);
+            if (sync) {
+              setMuted(new Set());
+              setSync(false);
+              return;
+            }
+            /* Arming reaches every group's active session. */
+            requestCast(receivingSessions(groups, new Set()), () => {
+              setMuted(new Set());
+              setSync(true);
+            });
           }}
         />
         <MacrosButton open={macrosOpen} onToggle={() => setMacrosOpen((open) => !open)} />
@@ -2408,6 +2467,18 @@ export function App(): JSX.Element {
           Titlebar and the sidebar/body below. ADR-0075: one `<Toolbar>` for
           every workspace, its content chosen above rather than one JSX block
           per workspace. */}
+      {spaces.find((space) => space.id === activeSpace)?.weight === 'production' && (
+        /* A state, not a show: it reveals once and stays (ADR-0081). Colour and
+           the word, so it does not depend on seeing red. */
+        <div
+          role="status"
+          className="rs-band bg-danger-soft text-danger-text border-danger flex h-[18px] shrink-0 items-center justify-center gap-1.5 border-b text-[10px] font-bold tracking-[0.12em] uppercase"
+        >
+          <span aria-hidden>⛨</span>
+          {i18n.t('spaces.production')}
+        </div>
+      )}
+
       <Toolbar leading={toolbarLeading} trailing={toolbarTrailing} />
 
       <div className="flex min-h-0 flex-1">
@@ -2505,8 +2576,10 @@ export function App(): JSX.Element {
                        every rectangle receiving. Pressing one while armed
                        takes that rectangle out, or puts it back. */
                     if (!sync) {
-                      setMuted(new Set());
-                      setSync(true);
+                      requestCast(receivingSessions(groups, new Set()), () => {
+                        setMuted(new Set());
+                        setSync(true);
+                      });
                       return;
                     }
 
@@ -3060,6 +3133,28 @@ export function App(): JSX.Element {
                      drawing it here too, whenever this screen also happens
                      to be showing, mounted the same form twice. */
                   detail={null}
+                  idle={
+                    <Hall
+                      hosts={visibleSessions}
+                      onOpen={(sessionId) => {
+                        setWorkspace('sessions');
+                        openHere(sessionId, activeGroup);
+                      }}
+                      onFiles={(sessionId) => {
+                        assignSftpEndpoint({ kind: 'host', sessionId }, lastFocusedFanoutSlot);
+                        setWorkspace('sftp');
+                      }}
+                      onNew={() => openEditor({ kind: 'new' })}
+                      onLocalShell={
+                        localShellKinds[0] === undefined
+                          ? null
+                          : () => {
+                              setWorkspace('sessions');
+                              openLocalShellInto(localShellKinds[0] as LocalShellKind);
+                            }
+                      }
+                    />
+                  }
                 />
               );
             })()}
@@ -3134,10 +3229,22 @@ export function App(): JSX.Element {
         targets={fleetTargets}
         groups={fleetGroups}
         initial={fleetInitial}
+        production={fleetProduction}
         onClose={() => {
           setFleetMacro(null);
           setFleetInitial(undefined);
         }}
+      />
+
+      <CastGuardDialog
+        hosts={castGuard?.names ?? null}
+        production={castGuard?.production ?? 0}
+        onConfirm={() => {
+          const confirmed = castGuard;
+          setCastGuard(null);
+          confirmed?.proceed();
+        }}
+        onCancel={() => setCastGuard(null)}
       />
 
       <SpaceEditorDialog

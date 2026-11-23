@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { groupPresets } from '../src/features/fleet/groups';
+import { groupPresets, initialSelection } from '../src/features/fleet/groups';
 
 const live = (id: string, name: string, group: string | null | undefined, handle: number | null) => ({
   session: {
@@ -56,5 +56,22 @@ describe('groupPresets', () => {
     const presets = groupPresets([live('a', 'web-01', 'lab', null), live('b', 'web-02', 'lab', null)]);
 
     expect(presets).toEqual([{ id: 'lab', name: 'lab', handles: [], skipped: ['web-01', 'web-02'] }]);
+  });
+});
+
+describe('what a fleet run opens with ticked', () => {
+  const targets = [{ handle: 1 }, { handle: 2 }, { handle: 3 }];
+
+  it('is every target when nothing was asked for', () => {
+    expect([...initialSelection(targets, undefined)]).toEqual([1, 2, 3]);
+  });
+
+  it('is the scope the Bar passed, and nothing else', () => {
+    expect([...initialSelection(targets, [3, 1])]).toEqual([1, 3]);
+  });
+
+  it('drops a handle that is no longer a target and ticks nothing for an empty scope', () => {
+    expect([...initialSelection(targets, [2, 99])]).toEqual([2]);
+    expect(initialSelection(targets, []).size).toBe(0);
   });
 });
