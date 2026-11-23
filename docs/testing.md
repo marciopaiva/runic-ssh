@@ -791,9 +791,9 @@ the two fixtures are driven back to back.
 
 ### Macros
 
-One saved host connected, in Sessions or on the Map: the toolbar icon
-beside Broadcast and the docked sidebar it opens work from either
-workspace, targeting whichever terminal is focused there. The same list is
+One saved host connected in Sessions: the toolbar icon
+beside Broadcast and the docked sidebar it opens work there,
+targeting whichever terminal is focused. The same list is
 under **Snippets** in the command palette.
 
 | Do this | Expect |
@@ -802,7 +802,6 @@ under **Snippets** in the command palette.
 | `+` | a popup, "New macro", Sequential/Script pick (Sequential selected), the cursor already in the Name field |
 | Type `where am i`, click into the text editor below, type `echo target=`, click the `$host` chip, type `:`, click `$port`, type ` as `, click `$username`, Save | the list shows `where am i`; `macros.json` in the config dir holds `"kind":"sequential"` and text `"echo target=$host:$port as $username\n"` |
 | Click the macro's name, a Sessions terminal focused | it runs `echo target=127.0.0.1:2227 as ansible` in that terminal and prints it; the cursor is back in the terminal, no click needed |
-| Switch to the Map, focus a different terminal there, click the same macro in the map's own Macros sidebar | it runs in the map terminal, not the one left open in Sessions |
 | Edit the macro, pick Script, replace the text with `echo "$host running as $username"`, Save, run it again | a fresh `sh` prints the line; typing into the terminal right after shows no `$host`/`$port`/`$username` left over in the shell's own environment |
 | Split into two columns in Sessions, drag the second session's tab into the empty group, arm Broadcast, click the sequential macro again | both terminals run it at once, each with its own values: `127.0.0.1:2227 as ansible` on one, `127.0.0.1:2222 as deploy` on the other; no confirmation in between |
 | Close the sidebar, `Ctrl+Shift+P`, type `where` | the palette opens with `where am i` under Snippets |
@@ -942,127 +941,6 @@ and expand the instant it is.
 Confirmed on Linux on 2026-09-04 in the packaged v0.4.0 build: a plain
 host folded both sections; the same host, after the Local forward above
 was added and saved, opened Forwarding automatically on the next visit.
-
-### Reaching the map (ADR-0073, ADR-0075)
-
-The map is a preview, off by default, but its pill (MAPA) is always in
-`WorkspacePills`, alongside Home, SSH and SFTP: there is no rail slot to
-appear or disappear, because the rail itself retired with ADR-0075. With a
-fresh `XDG_CONFIG_HOME`, clicking the MAPA pill shows `MapPreviewPrompt` in
-the main area instead of the map, explaining that it is a preview; accepting
-it sets `"previewFeatures": true` in `settings.json` and switches to the map
-workspace in the same action, cancelling leaves the workspace wherever it
-was. Once accepted, an eye-off icon in the map's own toolbar turns the
-preview back off and falls back to Sessions. The drives below assume the
-preview is on.
-
-### The map (ADR-0064)
-
-Two saved hosts in the book, one of them (`web-01`, port 2222) with a
-password the keychain holds, the other not yet registered. The map is its own
-workspace, chosen from the MAPA pill.
-
-| Do this | Expect |
-| --- | --- |
-| Right-click the floor, pick "SSH terminal", pick `web-01` in the picker | an icon in the ring around the rune, joined to it by a wire; `workspace.json` in the config dir holds one component with the host's id and `"ssh"`, and nothing else yet: the position and the size are written when the window is first moved or resized |
-| Click the icon | it expands into a window where it stands; the window connects, the shell opens with the MOTD, typing reaches it |
-| Drag the window by its strip, in real steps; then drag its right edge, pressing 2px inside the border | it moves, and it resizes with the terminal refitting (the columns in the status bar change); `workspace.json` now carries the position and the size. The handle is the 4px ring just inside the border: the terminal starts 4px in, and outside the border is the floor, which pans |
-| Double-click the strip, away from its buttons; then double-click it again | maximized to the stage, then restored where it was, with the zoom untouched; the strip's maximize and restore buttons do the same. Double-click on the floor is what fits the view |
-| Wheel down over the floor until the window reads below 75% | the terminal is drawn as a thumbnail, scaled with the window; wheel back up and it refits 1:1 |
-| Click the window's minimize | back to the icon; click the icon, the same shell, still open |
-| Right-click the floor, "SFTP browser", type `lb-01` in the picker, click the "Register lb-01" row | the host editor opens in a glass popup over the map, titled "New host", with no Group field; fill port 2224 and a password, Save |
-| The unknown host key is asked inside the popup; check the fingerprint, confirm | the popup closes and an SFTP icon for `lb-01` sits in the ring |
-| Right-click the SSH icon, "Change host details" | the popup opens on `web-01`, detail "Used by 1 component"; Cancel |
-| Forget `web-01`'s password from its editor in Home, return to the map, click its icon | the window asks nothing; the popup opens on `web-01` with the "needs to authenticate" note (#358, #357); enter the password, Save |
-| | the connection resumes into the window, the shell opens there, and Sessions gains no tab for it (ADR-0040, ADR-0053) |
-
-Confirmed on Linux on 2026-09-10, headlessly on a private `Xvfb` display
-with `openbox`, in the dev build against `runic-test-sshd` on 2222 and 2224,
-in both themes; the first six rows again the same day in the packaged
-0.6.0 build installed from the release page, which is where the maximize
-row was corrected and #363 and #364 were found. Both were fixed for 0.7.0
-and the double-click row, the strip drag and the zoomed-out strip were
-driven again in the dev build the same day. The drags were the multi-step form
-"What synthetic input can and cannot drive" below requires; a single jump
-left the window in place. Two things the rows depend on, found on the way:
-
-* A menu item's `pointerdown` reached the stage, which started a pan and
-  unmounted the menu before its `click` fired; the picker never appeared.
-  The menu stops propagation now. Anything drawn over the stage has to.
-* A terminal rendered inside a window covered the window's resize handles,
-  and a press inside it panned the map. The terminal is inset from the
-  handles by four pixels and stops the press from reaching the stage.
-
-Snapping a window to an edge, and keeping its scrollback across minimize,
-are in the code and not in this table: nobody has driven them yet. The
-last six rows have been driven only in the dev build so far; see
-`docs/installing.md` for what the packaged build has had.
-
-### Lines on the map (ADR-0065)
-
-A line joins two terminals and carries ADR-0019's switch: off by default,
-disarmed when the set changes, a window able to spare itself, one receiving
-window treated as none. Two hosts on the map, `web-01` on 2222 and `db-01`
-on 2223, both as SSH components.
-
-| Do this | Expect |
-| --- | --- |
-| Right-click `web-01`'s icon | the menu has "Broadcast", with "draw a line to another terminal" beside it; a map with one terminal has no such entry |
-| Pick it, move the pointer | a dashed line follows the pointer from the icon; a bar under the toolbar says to click another terminal, with Esc to cancel at its end; the icon it started from and everything that cannot be joined, icon or window, are dimmed; a press on the floor or Esc ends it with no line |
-| Click `db-01`'s icon | a solid line between the two icons' borders with a switch at its midpoint, off; `workspace.json` holds `{"a": …, "b": …}` under `links` |
-| Open both windows | the line now runs between the two windows' borders, and moves with them when one is dragged |
-| Click the switch | it turns on in the warning colour, both windows take the warning edge and a broadcast glyph in their strips, the status bar's top edge goes warning with `SYNC 2` |
-| Type `echo hi` Enter into `web-01` | both shells run it |
-| Click `db-01`'s glyph in its strip | its glyph is struck through, its edge and `web-01`'s go back to normal and the status bar clears: one receiving window is no broadcast; typing into `web-01` reaches only it. The switch stays on its "on" side but goes hollow, and the line to the rest stroke: the set is armed with nobody to reach |
-| Right-click the switch | a menu titled with both names offers "Remove the line"; pick it and the line and the glyphs are gone, `links` is empty, both sessions stay |
-| Collapse a window on an armed line | it is spared while collapsed, the way a tab behind another is |
-
-Confirmed on Linux on 2026-09-10, headlessly on a private `Xvfb` display
-with `openbox`, in the dev build against `runic-test-sshd` on 2222 and 2223:
-the first eight rows in that order, with screenshots between steps. The last
-row is in the code and its test (`tests/map-lines.test.ts`) and nobody has
-driven it yet. A hold on the icon offers the same "Broadcast" segment in the
-radial; only the right-click path was driven.
-
-A line between two file browsers is directed and carries a transfer; the
-machine Runic runs on is a component of its own, "This machine", so an
-upload is a line from it and a download a line to it (ADR-0065). Two SFTP
-components on the map, `lb-01` on 2224 and `db-01` on 2223, and a small
-file in the home directory of the machine Runic runs on.
-
-| Do this | Expect |
-| --- | --- |
-| Right-click the floor | the menu's last entry is "This machine", "the files on this computer"; pick it and a laptop icon joins the ring, and `workspace.json` holds `{"kind": "local"}` with no `host`. Right-click the floor again: the entry is gone, there is one per map |
-| Right-click the laptop | "Open", "Transfer to" with "draw a line to another file browser", "Remove": no "Change host", nothing to edit |
-| Pick "Transfer to", click `lb-01`; again, click `db-01` | two lines with an arrowhead at the far end and a small knot on each; `links` holds `{"a": <this machine>, "b": …}` twice, one per destination |
-| Open "This machine", click a file's row | its strip has a send arrow, greyed until now; the row highlights and the arrow lights up with a `1` badge |
-| Open `lb-01`, click the arrow in "This machine"'s strip | the file lands in the folder `lb-01`'s window is showing, the transfers bar under the map reports it done, and `lb-01`'s listing shows it; `db-01`, not open, was skipped |
-| Open `db-01` too, click the arrow again | a question first: "Send to 2 destinations?", naming the item count, the origin and both destinations; "Send" lands the file in both |
-| Click or right-click a knot | the same menu a terminal line has, "Remove the line"; the sessions stay |
-| Drag `lb-01`'s window over "This machine"'s until they overlap | the knot and the line between them are gone with nothing to draw them on; the arrow in the strip still sends. Drag it away and they are back |
-
-Confirmed on Linux on 2026-09-10, headlessly the same way, in the dev
-build against `runic-test-sshd` on 2223 and 2224, with the file checked on
-both fixtures with `podman exec … ls`. The local pane's path is not typed;
-it is walked by clicking folders, or scrolled. A download (a line from a
-host to this machine) and a folder are in the code and nobody has driven
-them on the map yet.
-
-The terminal window's own menu (#115). Right-click inside a terminal on
-the map; Sessions' panes still keep the webview's own menu, tracked
-separately as #460.
-
-| Do this | Expect |
-| --- | --- |
-| Right-click inside a terminal window with nothing selected | a menu titled with the host: "Copy" greyed with its shortcut beside it, "Paste" with its shortcut; "Broadcast" when another terminal is free to join; "Spare this window" or "Include this window again" only on an armed line |
-| Drag over some text, right-click | "Copy" is live. Pick it: on a desktop the selection is in the clipboard; on the headless display nothing can read it back, see the measurement |
-| Put text in the clipboard, right-click, "Paste" | on Linux nothing happens: WebKitGTK refuses a paste asked by a script, even from a click (`docs/measurements/terminal-menu-clipboard.md`). Ctrl-Shift-V pastes it. The entry is where a person learns that key exists |
-| Right-click, "Broadcast" | the same line in hand as the icon's menu gives |
-
-Confirmed on Linux on 2026-09-10, headlessly the same way, in the dev
-build against `runic-test-sshd` on 2222: the menu, its entries per state,
-the paste result above; the Broadcast entry was seen and not taken from
-this menu. Nothing on WebView2.
 
 ### SFTP
 
