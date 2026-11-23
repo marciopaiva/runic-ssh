@@ -302,7 +302,12 @@ export function useTerminal(
         fit.fit();
         const current = handleRef.current;
         if (current !== null) {
-          void resizeTerminal(current, built.cols, built.rows, slotRef.current);
+          /* The observer fires as soon as it starts watching, which can be
+             before the core has the shell open, and again after it closed.
+             Either answers `unknownHandle`, which is not a failure: the real
+             size travels with `openTerminal`. Left uncaught it surfaced as an
+             unhandled rejection on every connect. */
+          resizeTerminal(current, built.cols, built.rows, slotRef.current).catch(() => undefined);
         }
         setState((now) => ({
           ...now,

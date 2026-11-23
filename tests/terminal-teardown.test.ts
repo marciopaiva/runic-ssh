@@ -91,6 +91,7 @@ const { useTerminal } = await import('../src/features/terminal/use-terminal');
 class FakeResizeObserver {
   observe = vi.fn();
   disconnect = vi.fn();
+  constructor(readonly trigger: () => void = () => {}) {}
 }
 
 function Probe(props: {
@@ -157,8 +158,8 @@ beforeEach(() => {
   resizeObserverInstances = [];
   vi.stubGlobal(
     'ResizeObserver',
-    vi.fn().mockImplementation(function fake() {
-      const instance = new FakeResizeObserver();
+    vi.fn().mockImplementation(function fake(callback: () => void) {
+      const instance = new FakeResizeObserver(callback);
       resizeObserverInstances.push(instance);
       return instance;
     }),
@@ -181,6 +182,32 @@ afterEach(() => {
   ipc.resizeTerminal.mockClear();
   ipc.watchTerminal.mockClear();
   xterm.instances.length = 0;
+});
+
+describe('a resize the core cannot place', () => {
+  it('is caught, because the core answers unknownHandle before the shell is open', async () => {
+    /* The observer fires as soon as it starts watching, which can be before
+       the core has the shell open. A promise from `vi.fn` cannot show whether
+       its rejection was handled, since the mock attaches its own handler to
+       record the result, so the call hands back one that says so itself. */
+    let caught = false;
+    ipc.resizeTerminal.mockImplementationOnce(
+      () =>
+        ({
+          catch: () => {
+            caught = true;
+            return Promise.resolve();
+          },
+        }) as unknown as Promise<void>,
+    );
+    const container = document.createElement('div');
+    const probe = await mountProbe(container, 9);
+
+    probe.resizeObserver.trigger();
+
+    expect(caught).toBe(true);
+    await probe.unmount();
+  });
 });
 
 describe('what unmounting a terminal releases', () => {
