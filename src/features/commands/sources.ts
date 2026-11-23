@@ -38,6 +38,8 @@ export interface CommandActions {
   /** Brings a Space in front. The default Space is the empty string. */
   readonly switchSpace: (id: string) => void;
   readonly newSpace: () => void;
+  /** Opens the preview that offers the groups as Spaces. */
+  readonly importGroups: () => void;
   /** Opens the host's files in SFTP, in the slot last used. */
   readonly openFilesOf: (sessionId: string) => void;
   /**
@@ -60,6 +62,8 @@ export interface CommandContext {
   readonly macros: readonly Macro[];
   /** Whether a session is in front for a macro to go to. */
   readonly hasTarget: boolean;
+  /** How many groups the import would turn into Spaces. Zero hides the row. */
+  readonly importable: number;
   readonly spaces: readonly Space[];
   /** The Space in front. */
   readonly activeSpace: string;
@@ -237,6 +241,15 @@ export function actionCommands(context: CommandContext): readonly Command[] {
         run: () => actions.switchSpace(choice.id),
       });
     }
+  }
+  if (context.importable > 0) {
+    commands.push({
+      id: 'action:space:import',
+      section: 'actions',
+      title: i18n.t('spaces.import.action'),
+      keywords: ['space', 'group', 'import'],
+      run: actions.importGroups,
+    });
   }
   commands.push({
     id: 'action:space:new',

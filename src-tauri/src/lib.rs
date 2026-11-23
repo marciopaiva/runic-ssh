@@ -94,6 +94,7 @@ pub fn run() -> tauri::Result<()> {
             commands::spaces::save_space,
             commands::spaces::delete_space,
             commands::spaces::reorder_spaces,
+            commands::spaces::assign_spaces,
             commands::sessions::connect_session,
             commands::sessions::trust_host_key,
             commands::sessions::dismiss_host_key,

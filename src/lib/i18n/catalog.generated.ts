@@ -567,4 +567,13 @@ export const SOURCE_CATALOG = {
   "spaces.guard.cancel": "Cancel",
   "spaces.guard.hold": "Hold to send to {count} hosts",
   "spaces.guard.hint": "This stops a slip. It is not a security control.",
+  "spaces.import.title": "Make Spaces from groups",
+  "spaces.import.body": "Each group below becomes a Space, and its hosts move into it. Hosts already in a Space stay where they are.",
+  "spaces.import.new": "new Space",
+  "spaces.import.existing": "existing Space",
+  "spaces.import.omitted": "Not made, there are as many Spaces as the list holds: {names}.",
+  "spaces.import.keeps": "Groups are kept as they are, and no host is deleted. You can move a host back from its editor.",
+  "spaces.import.apply": "Make Spaces",
+  "spaces.import.failed": "Something went wrong. Nothing was lost: run it again and it picks up where it stopped.",
+  "spaces.import.action": "Make Spaces from groups...",
 } as const;

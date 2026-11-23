@@ -45,3 +45,18 @@ export async function deleteSpace(id: string): Promise<void> {
 export async function reorderSpaces(order: readonly string[]): Promise<readonly Space[]> {
   return invoke<Space[]>('reorder_spaces', { order });
 }
+
+/** One host and the Space to file it under, or `null` to take it out of one. */
+export interface SpaceAssignment {
+  readonly sessionId: string;
+  readonly space: string | null;
+}
+
+/**
+ * Files many hosts under Spaces in one write. The core sets `space` and leaves
+ * every other field of every host as it was, which is why the group import goes
+ * through this and not through `saveSession`.
+ */
+export async function assignSpaces(assignments: readonly SpaceAssignment[]): Promise<void> {
+  return invoke<void>('assign_spaces', { assignments });
+}

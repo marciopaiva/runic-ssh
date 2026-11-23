@@ -48,3 +48,34 @@ pub async fn reorder_spaces<R: Runtime>(
 ) -> Result<Vec<Space>, IpcError> {
     Ok(order_spaces(&store(&app)?, &order)?)
 }
+
+/// One host and the Space to file it under, or `None` to take it out of one.
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpaceAssignment {
+    pub session_id: String,
+    pub space: Option<String>,
+}
+
+/// Files many hosts under Spaces in one write, touching nothing but `space`.
+#[tauri::command]
+pub async fn assign_spaces<R: Runtime>(
+    app: AppHandle<R>,
+    assignments: Vec<SpaceAssignment>,
+) -> Result<(), IpcError> {
+    let directory = app
+        .path()
+        .app_config_dir()
+        .map_err(|_| Error::ConfigDirUnavailable)?;
+    let spaces = SpaceStore::new(directory.clone()).load()?;
+    let pairs: Vec<(String, Option<String>)> = assignments
+        .into_iter()
+        .map(|assignment| (assignment.session_id, assignment.space))
+        .collect();
+    crate::config::sessions::assign_spaces(
+        &crate::config::sessions::SessionStore::new(directory),
+        &spaces,
+        &pairs,
+    )?;
+    Ok(())
+}
