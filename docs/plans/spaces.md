@@ -144,7 +144,7 @@ confirmation. Nothing converts silently.
 | 0 | Remove the map (ADR-0080), in three pull requests | ADR-0080 accepted and merged |
 | 1 | **The Bar.** The palette becomes the Bar: scope chips, `@`, `>`, `/`, shortcuts shown, recents first. No layout change | the six core tasks complete with no pointer |
 | 2 | **Spaces and the Hall.** `space` and `spaces.json`, the switcher, the Hall in place of Home, the production weight and the cast guard, the one-time offer to turn groups into Spaces. No last line yet | a person can tell Production from Lab at a glance, and a broadcast to two hosts in Production asks |
-| 3 | **The Stage.** Its own ADR first. Tiling, the shelf, casting, the credential step, replacing the tab strip, groups and the SSH and SFTP split | the maintainer has used slices 1 and 2 for a week and says go |
+| 3 | **The Stage.** Its own ADR first (ADR-0082, Proposed, with three options and a recommendation, waiting for the maintainer). Tiling, the shelf, casting, the credential step, replacing the tab strip, groups and the SSH and SFTP split | the maintainer has used slices 1 and 2 for a week and says go |
 | 4 | **The Logbook.** Store, recorder in the core, IPC to read and clear, the view. Can ship before slice 3 | the golden test pins the fields, and a drop and reconnect show up in the view |
 
 Each slice has its own tests, a screenshot of each screen in both themes in the
