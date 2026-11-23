@@ -65,9 +65,10 @@ same thing without the history attached.
 | --- | --- | --- |
 | `commands/` | Input validation, delegation, error mapping | Business logic |
 | `ssh/` | Connection lifecycle, auth, channels, port forwards (ADR-0054); and Monitor's readings: one fixed, read-only command per poll (`/proc`, `ps`, `ss`, `systemctl list-units`, `journalctl`, `tail`, `find`) run over the connection already open and parsed here, never on the host | Talk to the webview; start, stop or signal anything Monitor shows |
+| `local_shell/` | A native shell on a PTY with no SSH connection behind it (ADR-0074) | Run anything the user did not open |
 | `sftp/` | Directory listing, upload, download, remote-to-remote transfer, recursive folder copy (ADR-0041, ADR-0045, ADR-0049) | Talk to the webview; resume an interrupted transfer, which nothing here does yet |
 | `vault/` | Credential storage: the OS keychain, and the run-lifetime store beside it | Return plaintext across IPC |
-| `config/` | Session, macro and app settings persistence | Store secrets |
+| `config/` | Hosts, macros, Spaces, the Logbook and app settings, all written through `private.rs` (0600 files in a 0700 directory) | Store secrets |
 
 `commands/` is the only module that knows Tauri exists. Everything else is a
 plain Rust library that can be unit tested with no webview and no app handle.
@@ -78,7 +79,7 @@ That constraint is what keeps the test suite fast and the logic reviewable.
 | Directory | Owns |
 | --- | --- |
 | `ipc/` | Typed wrappers over commands. The only place `invoke` appears. |
-| `features/` | State and effects per feature slice: sessions, terminal, chrome, commands, settings, status, sftp, monitor, macros |
+| `features/` | State and effects per feature slice: sessions, terminal, chrome, commands (the Bar), spaces, settings, status, sftp, monitor, macros, fleet, sigil |
 | `components/` | Presentational components. Props in, markup out. |
 | `lib/` | Framework-free helpers |
 
@@ -147,7 +148,11 @@ a time.
 
 | Data | Location | Format |
 | --- | --- | --- |
-| Sessions, settings | Platform config dir | JSON, no secrets |
+| Sessions, settings | Platform config dir | JSON, no secrets. A host may name a Space with an optional `space` |
+| Spaces | Platform config dir, `spaces.json` | JSON: a name and a weight per Space, the order being the position in the list (ADR-0081) |
+| The Logbook | Platform config dir, `logbook/<host id>.json` | JSON, one bounded file per host: a time and a closed kind of event, never input or output (ADR-0081) |
+| The internal vault | Platform config dir, `internal_vault.json` | A password-encrypted file of credentials, for machines with no keychain (ADR-0035) |
+| A leftover `workspace.json` | Platform config dir | Written by versions with the map (ADR-0080). Nothing reads or deletes it |
 | Credentials | OS keychain | Opaque, keyed by session id |
 | Credentials kept for the run | Core process memory only | Written nowhere, gone on exit (ADR-0025) |
 | Known hosts | Platform config dir | OpenSSH `known_hosts` format |

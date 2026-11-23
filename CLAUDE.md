@@ -5,10 +5,9 @@ inside Tauri 2.0; the frontend is React with TypeScript. This file is the
 contract for any Claude session working in this repository. Read it before
 touching code.
 
-The project is at the scaffolding stage: `README.md`, licensing, docs, and this
-agreement exist; the application source tree does not yet. Treat the layout
-below as the target, and create directories only when a task actually needs
-them.
+The application is built and in use: the layout below is the real tree, and
+`docs/architecture.md` says how the pieces fit. Create a directory only when a
+task actually needs one.
 
 ---
 
@@ -41,8 +40,9 @@ blocked shipping on a reviewer who did not exist, which is a way of never
 shipping rather than a way of being careful. What the rule is actually
 protecting is the claim: nobody says these strings have been checked until
 somebody has checked them, and a locale nobody has reviewed is offered with that
-known rather than hidden. Spanish is already held out of the selector on exactly
-this basis (ADR-0007, #4).
+known rather than hidden. Spanish was held out of the selector on exactly this
+basis until its security copy was verified (ADR-0007, #4), and the strings added
+since are not covered by that verification.
 
 A pass by a model is not that review, and not only because it lacks
 accountability: it will have written some of the strings it is checking, and it
@@ -98,32 +98,44 @@ decision in a project whose entire pitch is being small and auditable.
 
 ---
 
-## 3. Target layout
+## 3. Layout
 
 ```
 runic-ssh/
 ├── CLAUDE.md              This agreement
 ├── README.md              Public-facing description
-├── assets/                Logo and static brand assets
+├── CHANGELOG.md           What each release did, and did not do
+├── assets/                Logo and screenshots
 ├── docs/
 │   ├── architecture.md    How the pieces fit together
 │   ├── security-model.md  Threat model and non-negotiable rules
-│   └── adr/               Architecture Decision Records
+│   ├── testing.md         What the tests assert, and the manual checks
+│   ├── adr/               Architecture Decision Records
+│   ├── plans/             Plans that outlive a conversation
+│   └── measurements/      Numbers a decision rested on
+├── scripts/               gate, prose check, catalog type generation
+├── tests/                 Frontend tests (Vitest)
+├── .github/workflows/     gate, audit, package
 ├── src/                   React frontend
 │   ├── components/        Presentational components
-│   ├── features/          Feature slices (sessions, terminal, sftp, vault)
+│   ├── features/          Feature slices (sessions, terminal, sftp, commands,
+│   │                      spaces, fleet, macros, monitor, ...)
 │   ├── ipc/               Typed wrappers over Tauri commands
+│   ├── locales/           One flat catalog per language
 │   └── lib/               Framework-free helpers
 └── src-tauri/
     ├── Cargo.toml
     ├── tauri.conf.json
+    ├── tests/             Core integration tests
     └── src/
         ├── main.rs        Entry point, wires the command handlers
         ├── commands/      One module per IPC surface, thin
-        ├── ssh/           Connection, auth, channels, port forwarding
+        ├── ssh/           Connection, auth, channels, port forwarding, fleet
         ├── sftp/          File transfer and directory listing
+        ├── local_shell/   A PTY with no SSH connection behind it
         ├── vault/         Credential storage on top of `keyring`
-        └── config/        Session persistence and app settings
+        └── config/        Hosts, macros, Spaces, the Logbook and settings,
+                           written through `private.rs`
 ```
 
 The `commands/` modules stay thin. They validate input, call into a domain
@@ -266,8 +278,9 @@ whose cause you have demonstrated, documentation.
   carries weight; do not trade it for a result type with nowhere to put it.
 * Components stay presentational. State and effects live in the feature slice.
 * No secret ever enters React state, `localStorage`, or a component prop.
-* Nothing under `src/` logs, and `pnpm prose` checks it. `src/credential/` holds
-  a typed password in the clear because somewhere has to, so one logging
+* Nothing under `src/` logs, and `pnpm prose` checks it. The credential fields
+  (`src/components/InlineCredentialForm.tsx` and `CredentialAccessFields.tsx`)
+  hold a typed password in the clear because somewhere has to, so one logging
   statement there is exactly the leak security rule 2 describes.
 
 ### Anything that outlives the call that started it

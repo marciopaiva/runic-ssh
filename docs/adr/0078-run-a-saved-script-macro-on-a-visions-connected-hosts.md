@@ -1,6 +1,6 @@
 # ADR-0078: Run a saved script macro on a vision's connected hosts
 
-* **Status**: Accepted
+* **Status**: Accepted; amended by ADR-0080, which removed visions, so the fleet run starts from host groups instead
 * **Date**: 2026-11-22
 
 ## Context

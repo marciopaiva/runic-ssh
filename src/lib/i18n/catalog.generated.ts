@@ -594,4 +594,5 @@ export const SOURCE_CATALOG = {
   "logbook.event.macroRanNoStatus": "Macro {name} ran",
   "logbook.event.macroTimedOut": "Macro {name} timed out",
   "logbook.event.macroFailed": "Macro {name} could not run",
+  "bar.hint.jumpMissing": "a host that is no longer saved",
 } as const;

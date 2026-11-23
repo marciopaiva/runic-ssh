@@ -129,7 +129,7 @@ Connect a session, then:
 | `Ctrl-C` while `yes` is flooding | interrupted. A flood leaves nothing selected |
 | `Ctrl-V` with one line on the clipboard | it arrives |
 | `Ctrl-Shift-C` and `Ctrl-Shift-V` | always the clipboard, selection or not |
-| `Ctrl-Shift-P` | still opens the palette |
+| `Ctrl-Shift-P` | still opens the Bar, with the terminal focused |
 
 **The paste confirmation needs bracketed paste switched off**, and `bash` keeps
 it on, so it will not appear there and that is correct. Run `cat` or `sh` on the
@@ -185,8 +185,7 @@ actually land. Filling an empty rectangle with a host that is not open yet is
 a click instead (ADR-0072): the "+" beside the workspace pills, or the docked
 hosts-manager sidebar's own row, not a drag.
 
-Divide the area from the shape control in the top strip, or from the palette
-(`Ctrl-Shift-P`, then "Split"). One open session is enough: dividing first and
+Divide the area from the shape control in the top strip. One open session is enough: dividing first and
 connecting into the empty rectangle is the ordinary way round. With nothing
 connected at all the commands are absent, because there is no area to divide.
 
@@ -237,7 +236,7 @@ Windows, with the terminal focused:
 
 | Do this | Expect |
 | --- | --- |
-| Arm the switch from the palette | it says synchronised typing is on, and how many hosts |
+| Arm the Broadcast switch in the toolbar | it says synchronised typing is on, and how many hosts |
 | Spare one group | it says the new count |
 | Leave one receiving | it says one host, not `1 hosts` |
 | Turn the switch off | it says it is off, which no marker used to do |
@@ -794,7 +793,7 @@ the two fixtures are driven back to back.
 One saved host connected in Sessions: the toolbar icon
 beside Broadcast and the docked sidebar it opens work there,
 targeting whichever terminal is focused. The same list is
-under **Snippets** in the command palette.
+in the Bar: `Ctrl+Shift+P`, then `>`.
 
 | Do this | Expect |
 | --- | --- |
@@ -804,7 +803,7 @@ under **Snippets** in the command palette.
 | Click the macro's name, a Sessions terminal focused | it runs `echo target=127.0.0.1:2227 as ansible` in that terminal and prints it; the cursor is back in the terminal, no click needed |
 | Edit the macro, pick Script, replace the text with `echo "$host running as $username"`, Save, run it again | a fresh `sh` prints the line; typing into the terminal right after shows no `$host`/`$port`/`$username` left over in the shell's own environment |
 | Split into two columns in Sessions, drag the second session's tab into the empty group, arm Broadcast, click the sequential macro again | both terminals run it at once, each with its own values: `127.0.0.1:2227 as ansible` on one, `127.0.0.1:2222 as deploy` on the other; no confirmation in between |
-| Close the sidebar, `Ctrl+Shift+P`, type `where` | the palette opens with `where am i` under Snippets |
+| Close the sidebar, `Ctrl+Shift+P`, type `>where` | the Bar lists `where am i` and nothing else, under Snippets |
 
 Confirmed on Linux on 2026-09-13, headlessly on a private `Xvfb` display,
 against `runic-test-sshd` and a second fixture on port 2223, every row as
@@ -844,6 +843,67 @@ a single-jump attempt left the tab where it was and the row looked like a
 webview ignoring the gesture. Clicking a host in the sidebar with the empty
 group selected opens it in the focused group, not the selected one, so the
 drag is the only scripted way to fill a second group.
+
+### The Bar (ADR-0081)
+
+`Ctrl+Shift+P` (`Cmd+K` on a Mac), from anywhere, including with a terminal
+focused. Plain `Ctrl+K` must still reach the shell: it is kill-line.
+
+| Do this | Expect |
+| --- | --- |
+| `Ctrl+Shift+P` | the Bar opens with the field focused and its last line listing `@ hosts > macros / files` |
+| In a terminal, `Ctrl+K` after typing a few characters | the characters after the cursor are erased, and the Bar does not open |
+| Type `@`, `Enter` on two hosts | each becomes a chip above the field, and the field empties |
+| `Backspace` on the empty field | the last chip goes |
+| With two chips, type `>` | only script macros are listed, and the last line says so |
+| `Enter` on a script macro | the fleet run dialog opens with **only those hosts** ticked, and the target list shown before anything is sent |
+| `Escape`, reopen the Bar | no chips are left over |
+| Type `/`, `Enter` on a host | the SFTP workspace opens with that host in the slot last used |
+| Run a host from the Bar, close it, reopen it with the field empty | that host is first, under "Recent". Restart the application: the list is back to its ordinary order, since recents are kept in memory only |
+| The last line while a host is highlighted | its address, "login saved" or "no login saved", and "via X" only when it has a jump host |
+
+### Spaces and the Hall (ADR-0081)
+
+| Do this | Expect |
+| --- | --- |
+| Home with no Space made | a plate per saved host, and the status bar names no Space |
+| The toolbar's Space chip, "New Space...", name it `Production`, tick Production, Save | the Space is created and in front, the chip is red with the word "production", a band reads PRODUCTION under the title bar, the status bar names it, and `spaces.json` holds `"weight": "production"` |
+| `Ctrl+1` | the Default Space, the band gone |
+| `Ctrl+2` | Production again |
+| Edit a host, the Space field now exists, choose Production, Save | the host leaves the Default Hall and appears in Production's. It stays connected if it was |
+| `Ctrl+Shift+P`, type `@` in Production | only Production's hosts |
+| Create a new host while Production is in front | its Space field already says Production |
+| Delete the Production Space | its hosts are in the Default Space and none is deleted |
+| On the Hall, arrow keys, then `Enter` | the terminal of that host opens. `F` opens its files, `L` its Logbook |
+| An empty Space | "Add your first host" and "Open a local shell" |
+| Bar: "Make Spaces from groups..." (only when a host has a group and is in no Space) | a preview lists each group, whether its Space is new or existing, and how many hosts move. Nothing changes until "Make Spaces". Afterwards `sessions.json` differs only in `space`, the groups are still there, and running it again offers nothing new |
+
+**The production guard.** Two hosts in a production Space, both connected, then:
+
+| Do this | Expect |
+| --- | --- |
+| Arm Broadcast in the toolbar | a dialog lists both hosts, says how many are in production, and offers a button to hold |
+| Press and release the button before about 800ms | nothing is sent, and the fill drains |
+| Hold it the whole time | the broadcast arms |
+| Arm Broadcast with only one host connected, or with two outside production | no dialog |
+| Run a macro on a focused group with two production hosts | the same dialog, then the macro runs on both |
+| Fleet run with both ticked | the Run button is the hold button. With one ticked it is an ordinary button |
+| Hold with `Space` or `Enter` on the keyboard | the same. Releasing the key cancels |
+
+### The Logbook (ADR-0081)
+
+Opened from a plate in the Hall: the "Logbook" corner button, or `L`.
+
+| Do this | Expect |
+| --- | --- |
+| Open a host that was never connected | "Nothing recorded for this host yet", and the line saying what is never kept |
+| Connect it, then open its Logbook | "Connected" with the time |
+| Connect a host whose key is new and trust it | "Server key accepted" with its fingerprint. After replacing a changed key: "Server key replaced by", in the warning colour |
+| Run a script macro on two hosts from the fleet run | each host's Logbook has "Macro X ran, exit status N", a non-zero status in the warning colour |
+| `podman stop` a fixture, wait for the reconnect, `podman start` it | "Connection lost", each "Reconnecting, attempt N", then "Reconnected" |
+| "Clear this Logbook", "Clear it" | the list is empty, and `logbook/<id>.json` is gone from the configuration directory |
+| Delete the host | its `logbook/<id>.json` is gone too |
+| Look at `logbook/<id>.json` | times and kinds only: no command text, no output, no address |
 
 ### Port forwarding (ADR-0054)
 
