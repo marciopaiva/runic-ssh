@@ -86,7 +86,8 @@ export function LocalShellView({
      pane asks, so a tab restored behind another one stays quiet. */
   const mounted = size !== null;
   useEffect(() => {
-    if (mounted && focused && visible) focus();
+    const active = document.activeElement;
+    if (mounted && focused && visible && (active === null || active === document.body)) focus();
   }, [mounted, focused, visible, focus]);
 
   useEffect(() => {
