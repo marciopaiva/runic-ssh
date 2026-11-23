@@ -544,6 +544,25 @@ the host itself is gone, so a refused delete keeps both.
 Known gaps. File transfers are not recorded yet. The pt-BR and es wording of the promise on its screen is security copy
 and has not been reviewed by a native speaker.
 
+## Who can read what the application keeps
+
+Everything the core writes to its configuration directory goes through
+`config/private.rs`: the saved hosts, the Logbook, macros, Spaces, settings,
+`known_hosts` and the internal vault file. On Linux and macOS the directory is
+0700 and each file 0600, so another account on the machine, which is adversary 3
+without root, cannot read which hosts you reach and as whom, when you reached
+them, a token pasted into a macro, or the vault file to attack its password
+offline. A directory from an install before this was tightened is brought back
+to 0700 the next time anything is written to it, and an existing file is
+tightened on its next save, so a file that is rarely written stays as it was
+inside a directory no one else can enter.
+
+Windows files inherit the permissions of the user's profile, which already
+excludes other accounts, and nothing is set there. Root, and a process running
+as you, are not stopped by any of this: the first can read anything, and the
+second can ask the application for everything it holds. This narrows who can
+read the files, it does not hide them from the account that owns them.
+
 ## Reviewing a change
 
 Any change touching `vault/`, host key verification, logging, local process

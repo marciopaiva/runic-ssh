@@ -158,9 +158,11 @@ impl MacroStore {
     pub fn save(&self, macros: &Macros) -> Result<(), Error> {
         let path = self.path();
 
-        fs::create_dir_all(&self.directory).map_err(|source| Error::SettingsUnwritable {
-            path: self.directory.clone(),
-            source,
+        crate::config::private::create_dir(&self.directory).map_err(|source| {
+            Error::SettingsUnwritable {
+                path: self.directory.clone(),
+                source,
+            }
         })?;
 
         let json =
@@ -170,9 +172,11 @@ impl MacroStore {
             })?;
 
         let temporary = self.directory.join(format!("{MACROS_FILE}.tmp"));
-        fs::write(&temporary, json).map_err(|source| Error::SettingsUnwritable {
-            path: temporary.clone(),
-            source,
+        crate::config::private::write(&temporary, json).map_err(|source| {
+            Error::SettingsUnwritable {
+                path: temporary.clone(),
+                source,
+            }
         })?;
 
         fs::rename(&temporary, &path).map_err(|source| Error::SettingsUnwritable { path, source })
