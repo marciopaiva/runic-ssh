@@ -1,5 +1,10 @@
 # Plan: the interface review, after the map
 
+> **Direction chosen on 2026-11-23: Spaces, a Stage and a Bar**
+> (`docs/plans/spaces.md`, ADR-0081). The three directions below stay as the
+> record of what was compared. The rules, the motion rules and the quality bar
+> in this document still apply to every slice.
+
 Written on 2026-11-23, with ADR-0080 (remove the map) as its first step. This
 is a plan and a proposal, not a decision record. Each phase below gets its own
 ADR where the decision is architectural, and every screen change is built in
