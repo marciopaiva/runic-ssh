@@ -24,6 +24,10 @@ targets = [
     "x86_64-pc-windows-msvc",
     "aarch64-apple-darwin",
 ]
+# The application's own crate is not a third party, and its licence is the
+# LICENSE file the installers already carry. Listing it would also put the app's
+# version in the generated file, so every version bump would make it stale.
+private = { ignore = true }
 ignore-build-dependencies = true
 ignore-dev-dependencies = true
 workarounds = ["ring"]

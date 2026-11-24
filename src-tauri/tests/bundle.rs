@@ -153,6 +153,23 @@ fn the_installers_carry_the_notices_of_what_is_inside_them() {
 }
 
 #[test]
+fn a_msi_version_override_exists_only_while_the_app_version_has_a_suffix() {
+    /* WiX accepts only a numeric pre-release identifier, so `1.0.0-rc.1` cannot
+    name an .msi and `bundle.windows.wix.version` stands in for it while a
+    release candidate is being built. Left in place at `1.0.0` it would name the
+    final installer `0.99.1`, and nothing else would say so. Remove the override
+    in the commit that drops the suffix. */
+    let config = config();
+    let app_version = config["version"].as_str().unwrap_or_default();
+    let msi_override = config["bundle"]["windows"]["wix"]["version"].as_str();
+    assert_eq!(
+        msi_override.is_some(),
+        app_version.contains('-'),
+        "bundle.windows.wix.version is {msi_override:?} while the app version is {app_version}"
+    );
+}
+
+#[test]
 fn the_macos_bundle_has_its_own_icon_format() {
     /* macOS reads an .icns. Without one the bundle gets a generic icon, and
     nothing fails to tell anyone, since no platform other than macOS looks. */
