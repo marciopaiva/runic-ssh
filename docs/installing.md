@@ -30,6 +30,20 @@ right amount of friction for a build nobody has tried. Each platform's artifact
 carries its own `SHA256SUMS`; the release concatenates the three and re-checks
 them against the bytes after they leave the build machines.
 
+A release also carries a **build provenance attestation** for every file. It
+says which workflow run, from which commit, produced the file, signed by
+GitHub's identity and kept in a public log. A checksum cannot say that, since
+whoever can replace a file can replace the sum beside it. Check a download
+with the GitHub CLI:
+
+```sh
+gh attestation verify "Runic-SSH_<version>_amd64.deb" --repo marciopaiva/runic-ssh
+```
+
+It proves where a file was built and not that the code is good, and it is not
+a code signature: the installers stay unsigned. The runs of `package` from the
+Actions tab are not attested, only a tag's release.
+
 Nothing is built on an ordinary push. Twenty minutes of runner time for an
 artifact nobody asked for is worth avoiding.
 

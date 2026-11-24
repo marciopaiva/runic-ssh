@@ -501,11 +501,15 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
 
-    # The only elevated permission in this file, on the only job that needs it.
-    # The three build jobs stay at the workflow-level `contents: read`, so a
-    # compromised build step cannot publish.
+    # The only elevated permissions in this file, on the only job that needs
+    # them. The three build jobs stay at the workflow-level `contents: read`, so
+    # a compromised build step cannot publish. `id-token` is what lets this job
+    # ask GitHub for a short-lived signing identity, and `attestations` is what
+    # lets it store the result. Neither is a secret held by the repository.
     permissions:
       contents: write
+      id-token: write
+      attestations: write
 
     steps:
       # Named, not everything. This used to take every artifact the run
@@ -549,6 +553,21 @@ jobs:
           fi
           echo "every attached file is covered: $(echo "$attached" | wc -l) of them"
 
+      # Says which workflow run, from which commit, produced each file, signed
+      # by GitHub's own identity and recorded in a public log. A checksum next
+      # to a file cannot say that: whoever can replace the file can replace the
+      # checksum. Anyone can check a download with
+      # `gh attestation verify <file> --repo marciopaiva/runic-ssh`. This is not
+      # a code signature, and the installers stay unsigned.
+      #
+      # It runs after the check above and before the release exists, so a file
+      # that is not covered is never attested, and a failure here creates no
+      # page, the same rule the smoke job has.
+      - name: Attest where the files came from
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: release/*
+
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
@@ -576,6 +595,13 @@ jobs:
 
           ```sh
           sha256sum -c SHA256SUMS --ignore-missing
+          ```
+
+          Each file also carries a build provenance attestation: which workflow
+          run and which commit produced it. With the GitHub CLI:
+
+          ```sh
+          gh attestation verify <file> --repo ${{ github.repository }}
           ```
           EOF
           )
