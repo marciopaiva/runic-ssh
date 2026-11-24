@@ -4,6 +4,7 @@ version = "1.0.0-rc.1"
 description = "A modern, fast, and secure cross-platform SSH/SFTP client"
 authors = ["Marcio Paiva Barbosa"]
 license = "MIT"
+publish = false
 repository = "https://github.com/marciopaiva/runic-ssh"
 edition = "2021"
 
