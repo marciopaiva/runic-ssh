@@ -73,8 +73,9 @@ git push origin vX.Y.Z
 ```
 
 `.github/workflows/package.yml` fires on `tags: ['v*']`, builds on all three
-platforms, verifies the per-platform hashes, and creates the release. It passes
-`--prerelease` unconditionally.
+platforms, verifies the per-platform hashes, and creates the release. A tag
+below 1.0 or with a suffix (`-rc.1`) is listed as a pre-release, and a plain
+version from `v1.0.0` up is a release. The step prints the flags it chose.
 
 **The release body links to the docs at the tag.** Documentation corrected after
 the tag never reaches anybody who downloads that version. Worth knowing before

@@ -409,9 +409,9 @@ decision that lives only there is already lost.
   `Known limitations` section is not optional. It is the part a person reads
   before installing.
 * **Publishing is pushing a `v*` tag.** `.github/workflows/package.yml` builds
-  every installer, verifies the hashes and creates the release. It passes
-  `--prerelease` unconditionally, so every tag lands as a pre-release until
-  somebody changes that on purpose.
+  every installer, verifies the hashes and creates the release. A tag below
+  1.0, or with a suffix such as `-rc.1`, is listed as a pre-release; a plain
+  version from `v1.0.0` up is a release.
 
 ## 11. Project skills
 
