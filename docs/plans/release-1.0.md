@@ -21,10 +21,11 @@ do without anyone's certificate:
 * each platform says what it will warn about, in `docs/installing.md`, and says
   not to click through blindly.
 
-Not decided, and cheap if wanted: a build provenance attestation for the
-installers (GitHub's own attestation action, no key to hold, no cost). It lets
-someone verify that a file was produced by this repository's workflow from this
-commit, which a checksum beside the file cannot say.
+Decided on 2026-11-24 and done in `package.yml`: a build provenance attestation
+for every file on a release (GitHub's own attestation action, no key to hold, no
+cost). It lets someone verify that a file was produced by this repository's
+workflow from this commit, which a checksum beside the file cannot say. It
+runs on a tag's release only.
 
 ## What 1.0 means now
 
