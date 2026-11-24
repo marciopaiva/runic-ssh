@@ -42,13 +42,14 @@ distances. A rune fits in the hand. So should the tool that carries your keys.
 ## What it looks like
 
 The running application, connected to this project's own SSH fixtures. Not a
-mockup, not the design canvas. Clockwise from top left: the host book, Monitor,
-two sessions side by side, SFTP.
+mockup, not the design canvas. Left to right, top to bottom: the Hall of a
+Production Space, the Bar scoping two hosts to run a saved macro, two sessions
+side by side, Monitor, SFTP, and a host's Logbook.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-grid-dark.png">
   <source media="(prefers-color-scheme: light)" srcset="assets/screenshot-grid-light.png">
-  <img src="assets/screenshot-grid-dark.png" alt="Four workspaces of Runic SSH in one grid: the Home host book with a bastion carrying a nested target host and its editor open; Monitor showing a host's own CPU, memory, swap, load, network and disk usage; two sessions open side by side in Sessions with the MOTD printed into a fresh shell; SFTP browsing a host's own files" width="880">
+  <img src="assets/screenshot-grid-dark.png" alt="Six screens of Runic SSH in one grid: the Hall of a Production Space, with a red band and a plate per host; the Bar with two hosts as scope chips listing saved script macros; two terminals side by side; Monitor showing a host's CPU, memory, swap, load, network and disk; SFTP with one host as source and another as destination; a host's Logbook" width="880">
 </picture>
 
 ## What works today
