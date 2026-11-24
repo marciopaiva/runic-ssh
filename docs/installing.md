@@ -315,6 +315,15 @@ downloaded file rather than a locally built one, and everything about macOS.
 Gatekeeper quarantine and the `.app` bundle are described below from
 documentation rather than from having been seen.
 
+## Licences of what is inside
+
+Each installer carries the licence text of every library in it, in two files
+under a `licenses` folder next to the application's resources:
+`THIRD-PARTY-LICENSES.html` for the Rust crates and `THIRD-PARTY-NOTICES.md`
+for the frontend packages and the two fonts. The same files are at the root of
+the repository. Both are generated and checked in CI, so a dependency change
+that leaves them out of date fails the audit workflow.
+
 ## Windows
 
 `.msi` (WiX) and `.exe` (NSIS) are both produced. Either works; the `.exe` is

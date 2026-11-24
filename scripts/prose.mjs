@@ -46,7 +46,14 @@ const CONSOLE = /\bconsole\s*\.\s*[a-zA-Z]/;
 const ALLOWED_PREFIXES = ['feat', 'fix', 'refactor', 'docs', 'test', 'chore', 'ci', 'design'];
 const SUBJECT_LIMIT = 72;
 
-const EXCLUDED = [':(exclude)src/locales', ':(exclude)src/lib/i18n/catalog.generated.ts'];
+// The two third-party notice files are other people's licence text, generated
+// and not written here.
+const EXCLUDED = [
+  ':(exclude)src/locales',
+  ':(exclude)src/lib/i18n/catalog.generated.ts',
+  ':(exclude)THIRD-PARTY-LICENSES.html',
+  ':(exclude)THIRD-PARTY-NOTICES.md',
+];
 
 /** Runs git and returns stdout, or exits saying which call failed. */
 function git(args) {
