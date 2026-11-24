@@ -95,8 +95,10 @@ The release skill's sweep applies, and a few things only 1.0 needs:
   MIT, Apache-2.0, MPL-2.0 and the fonts under OFL, several of which ask for the
   notice to travel with the binary. Adding a tool for it is a decision under
   section 4 of `CLAUDE.md`.
-* Decide that the identifier `com.runicssh.client` is final. Changing it after
-  1.0 orphans every user's configuration directory and keychain entries.
+* Done, decided by the maintainer on 2026-11-24: the identifier
+  `com.runicssh.client` is final. Changing it after 1.0 would orphan every
+  user's configuration directory and keychain entries, so it is not to be
+  changed.
 * Decide whether `core:webview:allow-internal-toggle-devtools` stays. It is
   inert in a release build unless the `devtools` feature is on, which it is not.
 
