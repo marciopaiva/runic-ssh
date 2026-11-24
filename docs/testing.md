@@ -1253,7 +1253,7 @@ answer and the flat-out ones as the margin.
 `capabilities/default.json` names one command per line (ADR-0013), and three of
 those lines have no caller in this repository. They are invoked by scripts
 Tauri injects into the page. No test here covers them, so after a Tauri upgrade
-or an edit to that file, drive the five checks below.
+or an edit to that file, drive the four checks below.
 
 | Grant | What proves it survived |
 | --- | --- |
@@ -1261,7 +1261,6 @@ or an edit to that file, drive the five checks below.
 | `core:window:allow-internal-toggle-maximize` | double-clicking the title bar maximises and restores |
 | `core:window:allow-is-maximized` | the middle control switches between the maximise and restore glyphs |
 | `core:event:allow-listen` | a connected terminal shows output from the host |
-| `core:webview:allow-internal-toggle-devtools` | Ctrl+Shift+I opens the inspector |
 
 **Two of them cannot be driven by `xdotool`.** The double click and the hotkey
 never reach their handlers under synthetic input, on Xvfb or on WSLg. That is

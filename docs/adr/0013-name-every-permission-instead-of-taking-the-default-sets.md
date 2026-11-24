@@ -80,7 +80,7 @@ second place for permissions to enter, which is the thing worth not having.
 
 ## Decision
 
-Option B. `capabilities/default.json` names six commands and no sets.
+Option B. `capabilities/default.json` names six commands and no sets (five since 2026-11-24, see the update below).
 
 The tradeoff accepted is the coupling: this file now has to be maintained
 against Tauri's command names.
@@ -128,7 +128,13 @@ repository has been trying to stop relying on. They are kept rather than dropped
 because dropping them breaks a real user's double click and the dev loop's
 inspector, and neither failure would be visible to us.
 
-**Follow-up**: on a Tauri upgrade, re-run the five checks in `docs/testing.md`
+**Update, 2026-11-24**: `allow-internal-toggle-devtools` was removed before 1.0,
+on the maintainer's decision. It was inert in a release build and the shipped
+grant list is now five. Ctrl+Shift+I no longer opens the inspector through
+Tauri's injected script; that was the dev loop's only use of it. The paragraph
+above and Option C describe the state before this change.
+
+**Follow-up**: on a Tauri upgrade, re-run the four checks in `docs/testing.md`
 under "Verifying the capability set", because no test in this repository covers
 the three commands that Tauri's own scripts invoke. Revisit this decision if
 Tauri ever publishes minimal sets alongside the `default` ones.
