@@ -31,11 +31,16 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 - Behind a jump host the connecting screen shows a step for each hop (#481). The core emits `session://connect-stage` (`bastionReady`) once the jump host is open and authenticated, and a failure marks the hop it stopped at. Direct hosts are unchanged.
 - The tab of a session also carries its sigil, faint while the host is not connected and bright once it is, so the light belongs to what is alive.
 - The sigil also leads each host in the Bar and in both host lists (Home and the hosts manager), with the same rule: faint until connected.
+- Every installer carries the licence text of what is inside it, under a `licenses` folder: `THIRD-PARTY-LICENSES.html` for the Rust crates and `THIRD-PARTY-NOTICES.md` for the 44 frontend packages and the two fonts. Both are generated and checked in CI, so a changed dependency cannot leave them stale.
+- Each file on a release has a build provenance attestation, which says which workflow run and which commit built it. Check a download with `gh attestation verify <file> --repo marciopaiva/runic-ssh`. It is not a code signature and the installers stay unsigned. Only a tag's release is attested.
+- `SECURITY.md` says how to report a vulnerability privately, through GitHub's private reporting, and what is and is not in scope. The installers also carry a macOS icon and their publisher, copyright, homepage and licence, so they no longer show empty fields.
 
 ### Changed
 
 - The fleet run starts from host groups instead of map visions (ADR-0080). Each group button ticks the group's connected hosts and names the ones it leaves out, as the vision buttons did. The group is the one set on a host in its editor.
 - Upgrade `russh` from 0.63 to 0.65 (#473). The client now enforces the negotiated host key algorithm against the key and signature the server sends, calls `kex_done` only after the host key is verified, and bounds several allocations a hostile server could grow. Host key verification in this application is unchanged. The one breaking change is on the server side of the library, which only the test server uses. The RUSTSEC-2026-0495 ignore is removed from `audit.toml`.
+- The webview no longer holds `core:webview:allow-internal-toggle-devtools`. It called a command that a release build does not contain, so it did nothing once packaged. In `pnpm tauri dev`, Ctrl+Shift+I no longer opens the inspector. The capability file now names five commands.
+- A tag below 1.0, or with a suffix such as `-rc.1`, is still listed as a pre-release. A plain version from 1.0.0 up is listed as a release.
 
 ### Fixed
 
