@@ -1,0 +1,29 @@
+# Input to `cargo about`, which writes the Rust half of
+# `THIRD-PARTY-LICENSES.html`. The list below is the one `deny.toml` allows, so
+# a licence one tool accepts is never one the other rejects.
+#
+# Only the three platforms that ship are walked, so a crate that exists only for
+# an installer nobody gets does not put its notice in this one.
+accepted = [
+    "0BSD",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-1-Clause",
+    "BSD-3-Clause",
+    "CC0-1.0",
+    "ISC",
+    "MIT",
+    "MIT-0",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+]
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+    "aarch64-apple-darwin",
+]
+ignore-build-dependencies = true
+ignore-dev-dependencies = true
+workarounds = ["ring"]

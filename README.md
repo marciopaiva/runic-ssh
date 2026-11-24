@@ -170,7 +170,10 @@ design is in [`docs/security-model.md`](docs/security-model.md).
 
 Distributed under the **MIT** license. See `LICENSE`. Bundled typefaces
 (Manrope, JetBrains Mono) ship under the SIL Open Font License 1.1; see
-[`src/styles/fonts/`](src/styles/fonts/).
+[`src/styles/fonts/`](src/styles/fonts/). The licence text of every dependency
+is in [`THIRD-PARTY-LICENSES.html`](THIRD-PARTY-LICENSES.html) (Rust) and
+[`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) (npm and fonts), and both
+travel inside each installer.
 
 ---
 *Made with ❤️ and Rust.*

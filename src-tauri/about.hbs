@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Runic SSH: third-party licences</title>
+<style>
+body { font: 14px/1.5 system-ui, sans-serif; max-width: 60rem; margin: 2rem auto; padding: 0 1rem; }
+pre { white-space: pre-wrap; background: #f4f4f4; padding: 1rem; overflow-x: auto; }
+@media (prefers-color-scheme: dark) { body { background: #16161a; color: #ddd; } pre { background: #222228; } }
+</style>
+</head>
+<body>
+<h1>Third-party licences</h1>
+<p>Runic SSH is MIT licensed (see <code>LICENSE</code>). It is built from the Rust crates below, the npm packages and fonts listed in <code>THIRD-PARTY-NOTICES.md</code>, and Tauri's runtime. Each is used under the licence shown.</p>
+<h2>Licences used</h2>
+<ul>
+{{#each overview}}
+<li><a href="#{{id}}">{{name}}</a> ({{count}})</li>
+{{/each}}
+</ul>
+{{#each licenses}}
+<h2 id="{{id}}">{{name}}</h2>
+<p>Used by:</p>
+<ul>
+{{#each used_by}}
+<li>{{crate.name}} {{crate.version}}{{#if crate.repository}} (<a href="{{crate.repository}}">{{crate.repository}}</a>){{/if}}</li>
+{{/each}}
+</ul>
+<pre>{{text}}</pre>
+{{/each}}
+</body>
+</html>

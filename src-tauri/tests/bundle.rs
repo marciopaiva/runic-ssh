@@ -129,6 +129,30 @@ fn the_installers_say_who_made_them_and_under_what_licence() {
 }
 
 #[test]
+fn the_installers_carry_the_notices_of_what_is_inside_them() {
+    /* MIT, Apache-2.0, BSD and the OFL ask for the notice to travel with the
+    binary. Both files are generated (`cargo about` and
+    `scripts/third-party-notices.mjs`) and checked for staleness in CI; this
+    only makes sure the bundle still lists them and they exist. */
+    let config = config();
+    let resources = config["bundle"]["resources"]
+        .as_object()
+        .expect("bundle.resources is missing, so no third-party notice ships");
+    for file in ["THIRD-PARTY-LICENSES.html", "THIRD-PARTY-NOTICES.md"] {
+        let source = resources
+            .keys()
+            .find(|k| k.ends_with(file))
+            .unwrap_or_else(|| panic!("{file} is not in bundle.resources"));
+        assert!(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join(source)
+                .is_file(),
+            "{source} does not name a file, relative to src-tauri"
+        );
+    }
+}
+
+#[test]
 fn the_macos_bundle_has_its_own_icon_format() {
     /* macOS reads an .icns. Without one the bundle gets a generic icon, and
     nothing fails to tell anyone, since no platform other than macOS looks. */

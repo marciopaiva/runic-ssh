@@ -41,6 +41,7 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_AUDIT_VERSION: 0.22.2
   CARGO_DENY_VERSION: 0.20.2
+  CARGO_ABOUT_VERSION: 0.9.3
 
 jobs:
   audit:
@@ -109,6 +110,27 @@ jobs:
         working-directory: src-tauri
         run: cargo deny check bans licenses sources
 
+      # The installers carry the licence text of every crate in them. The file
+      # is committed, so this fails when a dependency changed and the file did
+      # not. Regenerate with:
+      #   cd src-tauri && cargo about generate --locked about.hbs -o ../THIRD-PARTY-LICENSES.html
+      - name: Cache cargo-about
+        id: cache-about
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-about
+          key: cargo-about-${{ runner.os }}-${{ env.CARGO_ABOUT_VERSION }}-${{ hashFiles('rust-toolchain.toml') }}
+
+      - name: Install cargo-about
+        if: steps.cache-about.outputs.cache-hit != 'true'
+        run: cargo install cargo-about --locked --features cli --version ${{ env.CARGO_ABOUT_VERSION }}
+
+      - name: Rust licence notices are current
+        working-directory: src-tauri
+        run: |
+          cargo about generate --locked about.hbs -o "$RUNNER_TEMP/licenses.html"
+          diff -q --strip-trailing-cr "$RUNNER_TEMP/licenses.html" ../THIRD-PARTY-LICENSES.html
+
   pnpm-audit:
     name: audit / npm advisories
     runs-on: ubuntu-latest
@@ -148,3 +170,6 @@ jobs:
       # its entries.
       - name: pnpm audit
         run: pnpm audit --audit-level=low
+
+      - name: npm licence notices are current
+        run: node scripts/third-party-notices.mjs --check
