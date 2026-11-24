@@ -14,16 +14,17 @@ use std::collections::BTreeSet;
 /// is every command a plugin exposes, not the minimum it needs, and taking four
 /// of them granted this window 45 commands to reach five.
 ///
-/// Three of these are called by scripts Tauri injects into the page, so they
+/// Two of these are called by scripts Tauri injects into the page, so they
 /// have no caller anywhere in this repository and `grep` will not find one.
 /// This comment is the only place that records what they are for:
 ///
 /// * `allow-start-dragging` and `allow-internal-toggle-maximize` are what
 ///   `drag.js` calls on a drag and on a double click. ADR-0005 made the title
 ///   bar ours, so without the second one a double click on it stops maximising.
-/// * `allow-internal-toggle-devtools` is what `toggle-devtools.js` calls on
-///   Ctrl+Shift+I. The command behind it is compiled out of a release build, so
-///   this grant is inert once packaged and exists for the dev loop only.
+///
+/// Ctrl+Shift+I is not granted. `toggle-devtools.js` would call
+/// `allow-internal-toggle-devtools`, a command compiled out of a release build,
+/// so the grant was inert once packaged and was removed before 1.0.
 ///
 /// `allow-is-maximized` is ours, from `ipc/chrome.ts`. `allow-listen` and
 /// `allow-unlisten` are ours too; `allow-emit` is deliberately absent, because
@@ -39,7 +40,6 @@ use std::collections::BTreeSet;
 const ALLOWED: &[&str] = &[
     "core:event:allow-listen",
     "core:event:allow-unlisten",
-    "core:webview:allow-internal-toggle-devtools",
     "core:window:allow-internal-toggle-maximize",
     "core:window:allow-is-maximized",
     "core:window:allow-start-dragging",

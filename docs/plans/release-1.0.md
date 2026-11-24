@@ -99,8 +99,9 @@ The release skill's sweep applies, and a few things only 1.0 needs:
   `com.runicssh.client` is final. Changing it after 1.0 would orphan every
   user's configuration directory and keychain entries, so it is not to be
   changed.
-* Decide whether `core:webview:allow-internal-toggle-devtools` stays. It is
-  inert in a release build unless the `devtools` feature is on, which it is not.
+* Done, decided by the maintainer on 2026-11-24: `core:webview:allow-internal-toggle-devtools`
+  is removed. It was inert in a release build, and the capability file now
+  names five commands.
 
 ## After 1.0
 

@@ -10,7 +10,6 @@
     "core:event:allow-unlisten",
     "core:window:allow-is-maximized",
     "core:window:allow-internal-toggle-maximize",
-    "core:window:allow-start-dragging",
-    "core:webview:allow-internal-toggle-devtools"
+    "core:window:allow-start-dragging"
   ]
 }
