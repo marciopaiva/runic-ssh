@@ -89,7 +89,9 @@ The release skill's sweep applies, and a few things only 1.0 needs:
 * `SECURITY.md`, with a way to report a vulnerability privately. The repository
   has none, and for an SSH client it is the most important file it lacks. GitHub's
   private vulnerability reporting is the channel that needs no address of anyone's.
-* Drop `--prerelease` from the release step on purpose, for this tag only.
+* Done on 2026-11-24: `package.yml` lists a tag as a pre-release only when it is
+  below 1.0 or carries a suffix, so `v1.0.0` publishes as a release and
+  `v1.0.0-rc.1` would not.
 * `icon.icns` and the bundle metadata (publisher, copyright, homepage, license),
   so the installers do not show empty fields.
 * Third-party licence notices in the installers. The dependencies are under

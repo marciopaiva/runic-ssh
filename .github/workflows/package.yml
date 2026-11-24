@@ -571,7 +571,20 @@ jobs:
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
         run: |
+          # Below 1.0 anything may break, and a tag with a suffix (`v1.1.0-rc.1`)
+          # says it is not final, so both are listed as pre-releases. Only a
+          # plain version from 1.0.0 up is a release. This used to be an
+          # unconditional `--prerelease`, which meant 1.0.0 could not have been
+          # published as itself without editing this file on the day.
+          version="${TAG#v}"
+          prerelease=()
+          if [[ "$version" == 0.* || "$version" == *-* ]]; then
+            prerelease=(--prerelease)
+          fi
+          echo "tag $TAG, flags: ${prerelease[*]:-none}"
+
           # Short on purpose, and a pointer rather than a second copy. Which
           # platforms have actually been installed changes between releases,
           # and docs/installing.md is where that is tracked; duplicating it
@@ -609,5 +622,5 @@ jobs:
             --repo "${{ github.repository }}" \
             --title "${{ github.ref_name }}" \
             --notes "$notes" \
-            --prerelease \
+            "${prerelease[@]}" \
             --verify-tag
