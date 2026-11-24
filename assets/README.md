@@ -50,29 +50,47 @@ choosing Dark, then Light, rather than signalling the desktop through
 `GTK_THEME`. Both paths land on the same `data-theme` attribute; the picker
 is simply the more direct one now that it is there.
 
-### `screenshot-grid-*.png` (v0.5.0)
+### `screenshot-grid-*.png` (v0.9.0)
 
-One 1448x908 image, four 720x450 captures tiled 2x2 by ImageMagick's
-`montage` with a 2px gutter: the host book, Monitor, Sessions and SFTP, in
-that reading order. Each quadrant is a full 1440x900 window capture scaled
-by half, so every one carries its own title bar and toolbar; that is the
-cost of four real windows rather than one composed picture, and it was
+One 1444x1356 image, six 720x450 captures tiled 2x3 by ImageMagick's
+`montage` with a 1px gutter: the Hall, the Bar, Sessions, Monitor, SFTP and a
+Logbook, in that reading order. Each quadrant is a 1438x873 window capture
+scaled to 720x450, so every one carries its own title bar and toolbar; that is
+the cost of six real windows rather than one composed picture, and it was
 taken on purpose.
 
-Taken on 2026-09-08 on `:95` from `pnpm tauri dev`, on a fresh
-`XDG_CONFIG_HOME` seeded with three saved hosts, all of them this project's
-own fixtures from `docs/testing.md`, named for what they are:
-`runic-bastion` (`jump@127.0.0.1:2226`), `runic-target-a` reached through
-it (`deploy@target.internal:2222`), and `runic-web-01`
-(`deploy@127.0.0.1:2222`). Two of the three were connected live, each
-through its own unknown-host-key prompt and its own credential typed into
-the editor's Access column, before the Sessions and Monitor quadrants were
-captured; SFTP browses `runic-web-01`'s home. The MOTD in the Sessions
-quadrant is the plain-dash art from #350.
+Taken on 2026-11-24 on `:91` from `pnpm tauri dev`, on a fresh
+`XDG_CONFIG_HOME` seeded with four saved hosts and two Spaces (`Lab`, and
+`Production`, which carries the red band). All four hosts are in Production:
+`runic-bastion` (`jump@127.0.0.1:2226`), `runic-target-a` reached through it
+(`deploy@target.internal:2222`), `runic-web-01` (`deploy@127.0.0.1:2222`) and
+`runic-web-02` (`deploy@127.0.0.1:2223`), all of them this project's own
+fixtures from `docs/testing.md`. Two were connected live, each through its own
+unknown-host-key prompt and its own credential typed into the editor's Access
+column. The three macros in the Bar are script macros written into the scratch
+`macros.json` for the picture. The Logbook is what the two connections wrote,
+with nothing added by hand.
 
-The eight source captures are not kept: the grid is the artifact, and the
-recipe above regenerates it. To retake one quadrant, retake all four, since
-a grid mixing two sessions of the application shows two clocks in its
-status bars.
+The window was captured with `import -window root` and cropped to the window,
+because the virtual screen is larger than the window. Two things to know when
+repeating it:
+
+* The theme picker's third option sits under the tooltip of the one you hover
+  last. Move to another option first, then onto it, or the click lands on the
+  tooltip.
+* A terminal that was mounted again (a switch of workspace or of layout) did
+  not paint its last line, the prompt, until something redrew it, on this
+  software-rendered display. Pressing Enter in each pane before the capture is
+  what is in the Sessions quadrant. This was seen once, headless, without a
+  window manager's compositor or a GPU, and has not been confirmed on a real
+  desktop, so it is a note here and not an issue.
+
+The monitor charts are flat because the fixtures are idle. The CPU model and the
+kernel string in the Monitor quadrant are those of the machine the containers
+ran on, since a container reports its host's.
+
+The source captures are not kept: the grid is the artifact, and the recipe
+above regenerates it. To retake one quadrant, retake all six, since a grid
+mixing two sessions of the application shows two clocks in its status bars.
 
 Nothing in frame is a real address, a real host name or a real key of anyone's.
