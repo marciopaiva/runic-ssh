@@ -159,6 +159,12 @@ credentials, host key verification, logging or the Tauri capability set needs
 a decision record before the code. [CLAUDE.md](CLAUDE.md) is the contract;
 read it before the code.
 
+## Security
+
+Found a vulnerability? Please report it privately, not in a public issue: see
+[`SECURITY.md`](SECURITY.md). What the project promises and what it accepts by
+design is in [`docs/security-model.md`](docs/security-model.md).
+
 ## License
 
 Distributed under the **MIT** license. See `LICENSE`. Bundled typefaces

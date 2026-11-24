@@ -86,6 +86,61 @@ fn the_bundle_still_ships_the_icons_windows_needs_to_build() {
 }
 
 #[test]
+fn the_installers_say_who_made_them_and_under_what_licence() {
+    /* Without these an installer shows empty publisher and copyright fields,
+    which on Windows is what an unsigned and anonymous binary looks like, and
+    the licence text does not travel with the thing that was installed. The
+    licence is read from the manifest too, so the two cannot name different
+    ones. */
+    let config = config();
+    let bundle = &config["bundle"];
+
+    for key in [
+        "publisher",
+        "copyright",
+        "homepage",
+        "license",
+        "licenseFile",
+    ] {
+        assert!(
+            bundle[key].as_str().is_some_and(|v| !v.trim().is_empty()),
+            "bundle.{key} is missing or empty in tauri.conf.json"
+        );
+    }
+
+    let manifest = std::fs::read_to_string(format!("{}/Cargo.toml", env!("CARGO_MANIFEST_DIR")))
+        .expect("reads Cargo.toml");
+    let declared = format!(
+        "license = \"{}\"",
+        bundle["license"].as_str().unwrap_or_default()
+    );
+    assert!(
+        manifest.contains(&declared),
+        "bundle.license and Cargo.toml's license have drifted apart"
+    );
+
+    let licence_file = bundle["licenseFile"].as_str().unwrap_or_default();
+    assert!(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join(licence_file)
+            .is_file(),
+        "{licence_file} does not name a file, relative to src-tauri"
+    );
+}
+
+#[test]
+fn the_macos_bundle_has_its_own_icon_format() {
+    /* macOS reads an .icns. Without one the bundle gets a generic icon, and
+    nothing fails to tell anyone, since no platform other than macOS looks. */
+    let listed = config()["bundle"]["icon"]
+        .as_array()
+        .expect("the bundle lists no icons")
+        .iter()
+        .any(|icon| icon.as_str().is_some_and(|path| path.ends_with(".icns")));
+    assert!(listed, "no .icns in bundle.icon");
+}
+
+#[test]
 fn the_version_is_the_same_in_all_three_places() {
     /* `package.json`, `Cargo.toml` and `tauri.conf.json` each carry a version,
     and only the last one names the installer. They drift silently: nothing
