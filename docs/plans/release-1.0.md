@@ -6,6 +6,11 @@ and a read of every finding that mattered against the code. The roadmap used to
 define 1.0 as "production grade stability, and a signed installer on every
 platform". This document records what changed and what is left.
 
+> **Done on 2026-11-25.** 1.0.0 went out from the `1.0.0-rc.3` build. What was
+> left for a person is in `docs/installing.md`: the `.exe` was installed and
+> used on Windows, and macOS and the `.msi` were not. This file stays as the
+> record of what the bar was and why.
+
 ## The decision: no signing
 
 The maintainer decided on 2026-11-23 not to buy a Windows signing identity or an

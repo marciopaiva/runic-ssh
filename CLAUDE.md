@@ -391,16 +391,17 @@ actually hits.
 
 ## 10. Versioning and releases
 
-Pre-1.0, so the rules are looser than semver and the looseness is the point:
-anything below 1.0 may break, and this project intends to. What follows is what
-we actually do, written down because it was decided in a conversation and a
-decision that lives only there is already lost.
+From 1.0.0 the versions follow semantic versioning: a patch fixes, a minor adds
+without breaking, a major may break. Before it the rules were looser and the
+looseness was the point. What follows is what we actually do, written down
+because it was decided in a conversation and a decision that lives only there
+is already lost.
 
 * **A patch release** finishes something an earlier release claimed. v0.1.0 said
   it gave you a working terminal and shipped one you could not copy out of, so
   copy and paste went out as v0.1.1 rather than waiting for the next minor.
-* **A minor release** opens ground the roadmap named: SFTP, port forwarding,
-  session import. These are what the milestones track.
+* **A minor release** adds something new without breaking what was there. The
+  milestones track them.
 * **Three files carry the version and move together**: `package.json`,
   `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`, plus `Cargo.lock`
   which follows from the last. A release where they disagree is a release whose
