@@ -11,10 +11,28 @@ from 1.0.0. Releases before it could break, and some did.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-11-25
+
+A fix to the way out of a window that cannot be moved or resized. Nothing else
+changes since 1.0.0.
+
 ### Fixed
 
 - The switch between the application's title bar and the system's is a Bar action again ("Use the system title bar" and its opposite). Its button left Home's toolbar in 0.9.0 and nothing replaced it, so the way out for a window that cannot be moved or resized, which `docs/installing.md` describes, was reachable only by editing `settings.json`. It is not offered on macOS, where the traffic lights are the platform's own.
 
+### Known limitations
+
+- **The installers are not code-signed.** Windows shows SmartScreen and macOS refuses an unsigned application until it is allowed by hand. Each release carries a `SHA256SUMS` file, and `docs/installing.md` says what to expect on each platform. This is a decision, not an oversight: no Windows or Apple signing identity is being bought.
+- **The `.msi` has not been installed by anyone.** The `.exe` was, on Windows. Both install the same application.
+- **A release candidate sorts above its release for `dpkg`**, so `apt` will not upgrade a `1.0.0-rc` package to 1.0.0. `docs/installing.md` says how to get past it.
+- **macOS has never been opened by anyone**, so the Keychain-backed vault, the Cmd clipboard shortcuts and the window chrome there are unexercised. Only Apple Silicon is built.
+- **A Space is a guard, not a boundary.** Holding the button for about 800ms before a command reaches two or more hosts in a production Space stops a slip. It does not stop anyone who wants to send the command, and the core enforces nothing with it.
+- **A host is in one Space.** There is no way yet to reorder Spaces or to move several hosts at once from the interface, and the Space chip does not show how many hosts it holds.
+- **The Logbook does not record file transfers**, has no filters or search, and is read when it opens, not kept current. It keeps 500 events and 64 KiB per host, oldest dropped first. A host that is deleted takes its Logbook with it.
+- **The Bar is a window over the application, not a field in the title row**, and what it remembers as recent lasts until the window closes.
+- **The Hall shows state, not output.** A host's last line is not shown on its plate: that is host output outside a terminal, and ADR-0032 needs its own review first.
+- **`workspace.json` from a version with the map stays on disk**, unread and never deleted. The `previewFeatures` setting is still written and does nothing.
+- **The Spanish copy of the strings added since v0.2.1 has not been reviewed by a native speaker.** English is normative where they disagree.
 
 ## [1.0.0] - 2026-11-25
 
@@ -1278,7 +1296,8 @@ deliberately labelled one.
 - A connection gives up after twenty seconds (ADR-0016). That number is a
   choice, not a measurement, and there is no setting for it yet.
 
-[Unreleased]: https://github.com/marciopaiva/runic-ssh/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/marciopaiva/runic-ssh/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/marciopaiva/runic-ssh/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/marciopaiva/runic-ssh/compare/v0.9.0...v1.0.0
 [0.9.0]: https://github.com/marciopaiva/runic-ssh/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/marciopaiva/runic-ssh/compare/v0.7.0...v0.8.0

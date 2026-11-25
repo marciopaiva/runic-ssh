@@ -1,6 +1,6 @@
 {
   "name": "runic-ssh",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A modern, fast, and secure cross-platform SSH/SFTP client",
   "license": "MIT",
   "private": true,
