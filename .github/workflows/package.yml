@@ -619,7 +619,8 @@ jobs:
           ```
 
           Each file also carries a build provenance attestation: which workflow
-          run and which commit produced it. With the GitHub CLI:
+          run and which commit produced it. With the GitHub CLI, version 2.49 or
+          later:
 
           ```sh
           gh attestation verify <file> --repo ${{ github.repository }}

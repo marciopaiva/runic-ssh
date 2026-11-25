@@ -101,7 +101,7 @@ macOS is on neither list yet.
 
 ```sh
 sha256sum -c SHA256SUMS --ignore-missing   # before installing anything
-gh attestation verify <file> --repo marciopaiva/runic-ssh   # which run built it
+gh attestation verify <file> --repo marciopaiva/runic-ssh   # which run built it (gh 2.49 or later)
 ```
 
 ## Roadmap
