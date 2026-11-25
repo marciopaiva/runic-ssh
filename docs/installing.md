@@ -142,7 +142,7 @@ can it tell you the file was not modified in transit. Compare the SHA-256
 against the workflow run before you do it:
 
 ```powershell
-Get-FileHash .\Runic-SSH_1.0.0_x64_en-US.msi -Algorithm SHA256
+Get-FileHash .\Runic-SSH_1.0.1_x64_en-US.msi -Algorithm SHA256
 ```
 
 ## macOS
@@ -169,7 +169,7 @@ as of anything else.
 
 ```sh
 sha256sum -c SHA256SUMS --ignore-missing
-sudo apt install ./Runic-SSH_1.0.0_amd64.deb
+sudo apt install ./Runic-SSH_1.0.1_amd64.deb
 ```
 
 The file is `Runic-SSH_...`, capitalised, because the product name is; the
@@ -181,13 +181,13 @@ bundled browser engine. The webview is the system's, which is why the download
 is three megabytes rather than a hundred.
 
 **Installing a second build of the same version does nothing.** `apt` compares
-version numbers, so a rebuild of `1.0.0` over an installed `1.0.0` exits
+version numbers, so a rebuild of `1.0.1` over an installed `1.0.1` exits
 successfully without replacing anything: no error, no warning, and the old
-binary still on disk. A real bump does upgrade normally, so `1.0.0` over `0.9.0`
+binary still on disk. A real bump does upgrade normally, so `1.0.1` over `1.0.0`
 needs none of this. For a rebuild of the same version, force it:
 
 ```sh
-sudo dpkg -i ./Runic-SSH_1.0.0_amd64.deb
+sudo dpkg -i ./Runic-SSH_1.0.1_amd64.deb
 ```
 
 **A release candidate sorts above its release.** `dpkg` compares `1.0.0-rc.3`
