@@ -309,7 +309,7 @@ export function App(): JSX.Element {
   /* The host whose Logbook is open, or `null` (ADR-0081). */
   const [logbookHost, setLogbookHost] = useState<{ readonly id: string; readonly name: string } | null>(null);
   const [spaceEditor, setSpaceEditor] = useState<{ readonly space: Space | null } | null>(null);
-  const { chrome, maximized, act, refused } = useChrome();
+  const { chrome, maximized, act, refused, nativeDecorations, useNativeDecorations } = useChrome();
   const { i18n, chosen, choose } = useLocale();
   const { theme, chooseTheme } = useTheme();
   /* Which main area is showing. ADR-0029: Sessions keeps groups, splitting and
@@ -1958,6 +1958,7 @@ export function App(): JSX.Element {
       hasTarget: macroTargetId !== null,
       macrosOpen,
       hostsOpen: hostsManagerOpen,
+      titleBar: chrome === null || chrome.commandModifier === 'meta' ? null : nativeDecorations ? 'native' : 'drawn',
       actions: {
         openHostInto,
         openLocalInto,
@@ -1965,6 +1966,7 @@ export function App(): JSX.Element {
         goTo: setWorkspace,
         toggleMacros: () => setMacrosOpen((open) => !open),
         toggleHosts: () => setHostsManagerOpen((open) => !open),
+        toggleTitleBar: () => useNativeDecorations(!nativeDecorations),
         switchSpace: chooseSpace,
         newSpace: () => setSpaceEditor({ space: null }),
         importGroups: () => setImportOpen(true),

@@ -35,6 +35,8 @@ export interface CommandActions {
   readonly goTo: (workspace: 'home' | 'sessions' | 'sftp') => void;
   readonly toggleMacros: () => void;
   readonly toggleHosts: () => void;
+  /** Hands the title bar to the window manager, or takes it back (ADR-0005). */
+  readonly toggleTitleBar: () => void;
   /** Brings a Space in front. The default Space is the empty string. */
   readonly switchSpace: (id: string) => void;
   readonly newSpace: () => void;
@@ -68,6 +70,12 @@ export interface CommandContext {
   /** The Space in front. */
   readonly activeSpace: string;
   readonly macrosOpen: boolean;
+  /**
+   * Whose title bar is showing, or `null` where the switch is not offered:
+   * on a Mac the traffic lights are the platform's own already, and until the
+   * core has answered there is nothing to switch.
+   */
+  readonly titleBar: 'drawn' | 'native' | null;
   readonly hostsOpen: boolean;
   /** The shells this platform offers, detected once at startup (ADR-0074). */
   readonly localShellKinds: readonly LocalShellKind[];
@@ -276,6 +284,20 @@ export function actionCommands(context: CommandContext): readonly Command[] {
       title: i18n.t(hostsOpen ? 'toolbar.hosts.hide' : 'toolbar.hosts.show'),
       keywords: ['hosts', 'servers'],
       run: actions.toggleHosts,
+    });
+  }
+
+  if (context.titleBar !== null) {
+    /* The escape hatch for a window that cannot be moved or resized, so it has
+       to be reachable from the Bar and not only from `settings.json`. */
+    commands.push({
+      id: 'action:title-bar',
+      section: 'actions',
+      title: i18n.t(
+        context.titleBar === 'native' ? 'command.window.drawnDecorations' : 'command.window.nativeDecorations',
+      ),
+      keywords: ['title bar', 'titlebar', 'decorations', 'window'],
+      run: actions.toggleTitleBar,
     });
   }
 

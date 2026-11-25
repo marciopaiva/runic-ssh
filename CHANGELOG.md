@@ -11,6 +11,11 @@ from 1.0.0. Releases before it could break, and some did.
 
 ## [Unreleased]
 
+### Fixed
+
+- The switch between the application's title bar and the system's is a Bar action again ("Use the system title bar" and its opposite). Its button left Home's toolbar in 0.9.0 and nothing replaced it, so the way out for a window that cannot be moved or resized, which `docs/installing.md` describes, was reachable only by editing `settings.json`. It is not offered on macOS, where the traffic lights are the platform's own.
+
+
 ## [1.0.0] - 2026-11-25
 
 The first release that makes no promise about being unfinished. It is not signed
