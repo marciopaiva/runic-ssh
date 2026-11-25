@@ -84,11 +84,11 @@ Installers for Windows, macOS (Apple Silicon) and Linux are attached to each
 `SHA256SUMS` covering every file. Currently
 [v1.0.0](https://github.com/marciopaiva/runic-ssh/releases/tag/v1.0.0):
 
-| Platform | Download |
-| --- | --- |
-| Windows | [`.msi`](https://github.com/marciopaiva/runic-ssh/releases/download/v1.0.0/Runic-SSH_1.0.0_x64_en-US.msi) (WiX) or [`.exe`](https://github.com/marciopaiva/runic-ssh/releases/download/v1.0.0/Runic-SSH_1.0.0_x64-setup.exe) (NSIS) |
-| macOS | [`.dmg`](https://github.com/marciopaiva/runic-ssh/releases/download/v1.0.0/Runic-SSH_1.0.0_aarch64.dmg), Apple Silicon only |
-| Linux | [`.deb`](https://github.com/marciopaiva/runic-ssh/releases/download/v1.0.0/Runic-SSH_1.0.0_amd64.deb), [`.rpm`](https://github.com/marciopaiva/runic-ssh/releases/download/v1.0.0/Runic-SSH-1.0.0-1.x86_64.rpm), [`.AppImage`](https://github.com/marciopaiva/runic-ssh/releases/download/v1.0.0/Runic-SSH_1.0.0_amd64.AppImage) |
+| Platform | Recommended | Also |
+| --- | --- | --- |
+| **Windows**, x64 | [Installer `.exe`](https://github.com/marciopaiva/runic-ssh/releases/download/v1.0.0/Runic-SSH_1.0.0_x64-setup.exe) | [`.msi`](https://github.com/marciopaiva/runic-ssh/releases/download/v1.0.0/Runic-SSH_1.0.0_x64_en-US.msi) |
+| **macOS**, Apple Silicon | [Disk image `.dmg`](https://github.com/marciopaiva/runic-ssh/releases/download/v1.0.0/Runic-SSH_1.0.0_aarch64.dmg) | |
+| **Linux**, x86-64 | [`.deb`](https://github.com/marciopaiva/runic-ssh/releases/download/v1.0.0/Runic-SSH_1.0.0_amd64.deb) for Debian and Ubuntu | [`.rpm`](https://github.com/marciopaiva/runic-ssh/releases/download/v1.0.0/Runic-SSH-1.0.0-1.x86_64.rpm) for Fedora, [`.AppImage`](https://github.com/marciopaiva/runic-ssh/releases/download/v1.0.0/Runic-SSH_1.0.0_amd64.AppImage) for the rest |
 
 **Nothing is code-signed.** Windows shows SmartScreen and macOS says the
 application is damaged; both are what an operating system says about a binary
