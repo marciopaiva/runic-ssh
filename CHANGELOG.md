@@ -7,9 +7,16 @@ different list and a much shorter one.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 versions follow [semantic versioning](https://semver.org/spec/v2.0.0.html),
-with the caveat that anything below 1.0 may break, and this project intends to.
+from 1.0.0. Releases before it could break, and some did.
 
 ## [Unreleased]
+
+## [1.0.0] - 2026-11-25
+
+The first release that makes no promise about being unfinished. It is not signed
+(see Known limitations), and what it adds since 0.9.0 is below: Spaces, the Bar
+and the Logbook, the end of the map, and the fixes a review of the whole
+repository found.
 
 ### Added
 
@@ -57,6 +64,8 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 ### Known limitations
 
 - **The installers are not code-signed.** Windows shows SmartScreen and macOS refuses an unsigned application until it is allowed by hand. Each release carries a `SHA256SUMS` file, and `docs/installing.md` says what to expect on each platform. This is a decision, not an oversight: no Windows or Apple signing identity is being bought.
+- **The `.msi` has not been installed by anyone.** The `.exe` was, over 0.9.0, on Windows. Both install the same application.
+- **A release candidate sorts above its release for `dpkg`**, so `apt` will not upgrade a `1.0.0-rc` package to 1.0.0. `docs/installing.md` says how to get past it.
 - **macOS has never been opened by anyone**, so the Keychain-backed vault, the Cmd clipboard shortcuts and the window chrome there are unexercised. Only Apple Silicon is built.
 - **A Space is a guard, not a boundary.** Holding the button for about 800ms before a command reaches two or more hosts in a production Space stops a slip. It does not stop anyone who wants to send the command, and the core enforces nothing with it.
 - **A host is in one Space.** There is no way yet to reorder Spaces or to move several hosts at once from the interface, and the Space chip does not show how many hosts it holds.
@@ -1264,7 +1273,10 @@ deliberately labelled one.
 - A connection gives up after twenty seconds (ADR-0016). That number is a
   choice, not a measurement, and there is no setting for it yet.
 
-[Unreleased]: https://github.com/marciopaiva/runic-ssh/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/marciopaiva/runic-ssh/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/marciopaiva/runic-ssh/compare/v0.9.0...v1.0.0
+[0.9.0]: https://github.com/marciopaiva/runic-ssh/compare/v0.8.0...v0.9.0
+[0.8.0]: https://github.com/marciopaiva/runic-ssh/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/marciopaiva/runic-ssh/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/marciopaiva/runic-ssh/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/marciopaiva/runic-ssh/compare/v0.4.0...v0.5.0
