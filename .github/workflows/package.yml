@@ -456,7 +456,15 @@ jobs:
         shell: bash
         run: |
           dmg=$(ls installers/*.dmg)
-          hdiutil attach -nobrowse -readonly "$dmg" -mountpoint /Volumes/runic
+
+          # `bundle.licenseFile` becomes the disk image's licence agreement, so
+          # attaching it asks for an answer and, with no terminal to give one,
+          # reports `attach canceled` and mounts nothing. Answering on stdin
+          # accepts it. A here-string and not `yes |`: `yes` takes the broken
+          # pipe when `hdiutil` stops reading, and `pipefail` turns that into a
+          # failed step. The text it prints is the MIT licence, so it is dropped.
+          hdiutil attach -nobrowse -readonly "$dmg" -mountpoint /Volumes/runic \
+            <<< "Y" > /dev/null
           trap 'hdiutil detach /Volumes/runic >/dev/null 2>&1 || true' EXIT
 
           app=$(ls -d /Volumes/runic/*.app)
