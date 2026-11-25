@@ -32,7 +32,7 @@ with the caveat that anything below 1.0 may break, and this project intends to.
 - The tab of a session also carries its sigil, faint while the host is not connected and bright once it is, so the light belongs to what is alive.
 - The sigil also leads each host in the Bar and in both host lists (Home and the hosts manager), with the same rule: faint until connected.
 - Every installer carries the licence text of what is inside it, under a `licenses` folder: `THIRD-PARTY-LICENSES.html` for the Rust crates and `THIRD-PARTY-NOTICES.md` for the 44 frontend packages and the two fonts. Both are generated and checked in CI, so a changed dependency cannot leave them stale.
-- Each file on a release has a build provenance attestation, which says which workflow run and which commit built it. Check a download with `gh attestation verify <file> --repo marciopaiva/runic-ssh`. It is not a code signature and the installers stay unsigned. Only a tag's release is attested.
+- Each file on a release has a build provenance attestation, which says which workflow run and which commit built it. Check a download with `gh attestation verify <file> --repo marciopaiva/runic-ssh`, which needs the GitHub CLI 2.49 or later. It is not a code signature and the installers stay unsigned. Only a tag's release is attested.
 - `SECURITY.md` says how to report a vulnerability privately, through GitHub's private reporting, and what is and is not in scope. The installers also carry a macOS icon and their publisher, copyright, homepage and licence, so they no longer show empty fields.
 
 ### Changed

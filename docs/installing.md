@@ -34,7 +34,8 @@ A release also carries a **build provenance attestation** for every file. It
 says which workflow run, from which commit, produced the file, signed by
 GitHub's identity and kept in a public log. A checksum cannot say that, since
 whoever can replace a file can replace the sum beside it. Check a download
-with the GitHub CLI:
+with the GitHub CLI, version 2.49 or later (`gh --version`; an older one
+answers `unknown command "attestation"`):
 
 ```sh
 gh attestation verify "Runic-SSH_<version>_amd64.deb" --repo marciopaiva/runic-ssh
