@@ -21,6 +21,31 @@ Each screen has a `-dark` and a `-light` file, and the pair **must be the same
 size**: the README serves them through `<picture>` with `prefers-color-scheme`,
 and a mismatch shifts the page when a reader's theme changes.
 
+### `hold-to-confirm-*.gif` (v0.9.0)
+
+One 940x350 clip, 4.9 seconds at 20 frames a second, looping: the fleet dialog
+for the saved macro `uptime` on two connected hosts of a Production Space, the
+pointer pressing "Hold to send to 2 hosts", the fill crossing the button in
+800ms, then the grouped answer. It is the one thing in the README a still image
+cannot show. Dark and light are the same size and come from two takes with the
+same script, the theme switched in the toolbar between them.
+
+Taken on 2026-11-25 on `:93`, from the packaged build (`src-tauri/target/release/runic-ssh`),
+on a fresh `XDG_CONFIG_HOME` seeded with one Production Space, two hosts
+(`deploy@127.0.0.1:2222` and `:2223`, the fixtures) and two script macros.
+Each host was connected once through its own host key prompt, with its password
+typed into the editor's Access column. The recording is `ffmpeg -f x11grab`
+over the dialog's rectangle, with the pointer drawn, and the script ran
+`xdotool mousedown 1`, a one second wait and `mouseup 1`. The palette is made
+per clip (`palettegen`, 128 colours) and the file stays under 250 KB.
+
+Two things to know when repeating it:
+
+* The fleet dialog is reached from the Bar, by the arrow-to-many icon on a macro
+  row. It lists only hosts that are connected, so connect both first.
+* Do not match `pkill -f` on the display name from a command line that also
+  contains it: the pattern matches the shell that runs it. Kill by pid.
+
 ### They go stale, and that is the point of this note
 
 A screenshot is a promise about what somebody sees when they open the
