@@ -12,9 +12,7 @@
 </p>
 
 <p align="center">
-  <!-- Tags below 1.0 and tags with a suffix are pre-releases, so
-       include_prereleases stays: without it the badge reads "no releases"
-       until the first stable tag, and it keeps working for a later rc. -->
+  <!-- include_prereleases stays so a later rc is shown too. -->
   <a href="https://github.com/marciopaiva/runic-ssh/releases"><img src="https://img.shields.io/github/v/release/marciopaiva/runic-ssh?include_prereleases&label=version&color=blue" alt="Latest version"></a>
   <a href="https://github.com/marciopaiva/runic-ssh/actions/workflows/gate.yml"><img src="https://github.com/marciopaiva/runic-ssh/actions/workflows/gate.yml/badge.svg" alt="Gate"></a>
   <a href="https://github.com/marciopaiva/runic-ssh/actions/workflows/audit.yml"><img src="https://github.com/marciopaiva/runic-ssh/actions/workflows/audit.yml/badge.svg" alt="Advisories"></a>
@@ -51,80 +49,58 @@ Logbook.
   <img src="assets/tour-dark.gif" alt="A tour of Runic SSH: the Hall of a Production Space with two connected hosts; the Bar scoping both as chips and choosing the saved macro uptime, then the held press that sends it and the grouped answer; two terminals side by side; Monitor with a host's CPU rising; a 286 MB file sent from one host to the other with a progress bar; and a host's Logbook listing what happened to it" width="880">
 </picture>
 
-## What works today
+## What it does
 
-Each line is a feature that ships; the record behind it is one click away.
+- **Hosts and sessions.** A host book organized by how hosts connect, with
+  bastions nesting the hosts behind them. Spaces (Production, Staging, Lab)
+  group hosts, and the Bar (`Ctrl+Shift+P`, `Cmd+K` on a Mac) opens hosts,
+  actions and saved macros from one field.
+- **Terminals.** One per session, with a second shell on an open connection, a
+  local shell with no SSH behind it, and reconnection that keeps the history.
+- **SFTP beside the terminal**, from one source to up to four destinations.
+- **Monitor.** CPU, memory, disk, network, processes and logs, read over the
+  connection already open. No agent is installed on the host.
+- **Macros**, typed into the shell or run as isolated scripts, and a saved
+  script run on several hosts at once with the answers grouped. Reaching two or
+  more hosts with any in production takes a press held for about 800 ms. It
+  stops a slip and is not a security control.
+- **Port forwarding**, local, remote and dynamic (SOCKS), saved per host.
+- **A Logbook per host**, on this machine only: connections, host keys trusted
+  or replaced, and macro runs. Never keystrokes, host output or passwords.
+- **Host keys verified, always, and credentials kept in the OS keychain**,
+  resolved at the moment of use and never shown to the interface
+  ([security model](docs/security-model.md)).
+- **Light and dark; English, Brazilian Portuguese and Spanish.**
 
-- **Host keys verified, always.** An unknown key needs a fingerprint check before you can trust it; a changed key blocks outright ([ADR-0009](docs/adr/0009-parse-known-hosts-ourselves.md)).
-- **Credentials never reach the interface in plain text.** Resolved from the OS keychain at the moment of use, kept for a run or for good ([ADR-0004](docs/adr/0004-store-credentials-in-the-os-keychain.md)).
-- **A host book organized by how hosts connect.** A bastion nests the hosts behind it ([ADR-0060](docs/adr/0060-organize-the-host-book-by-topology-not-a-free-text-group.md)).
-- **Hosts reached through a bastion**, both hops verified, the bastion never seeing the far host's credential ([ADR-0023](docs/adr/0023-carry-a-session-on-a-channel-through-a-bastion.md)).
-- **Port forwarding**, local, remote and dynamic (SOCKS), saved per host ([ADR-0054](docs/adr/0054-forward-ports-local-remote-and-dynamic.md)).
-- **Groups of tabs, and typing into all of them at once**, off by default ([ADR-0020](docs/adr/0020-put-the-tabs-in-groups-and-the-activities-in-a-rail.md)).
-- **A terminal per session** (xterm.js), with a multi-line paste shown to you before a shell runs it ([ADR-0018](docs/adr/0018-copy-and-paste-through-the-browsers-own-clipboard-events.md)).
-- **Monitor**: CPU, memory, disk, network, processes and logs, read over the connection already open. No agent installed.
-- **Macros**: sequential, typed straight into the shell, or a script that runs isolated with `$host`/`$port`/`$username` as real variables ([ADR-0070](docs/adr/0070-split-macros-into-sequential-and-script-types.md)).
-- **SFTP beside the terminal**: one source, up to four destinations, folders copied recursively ([ADR-0041](docs/adr/0041-use-russh-sftp-instead-of-writing-the-protocol.md)).
-- **The Bar**: `Ctrl+Shift+P` (`Cmd+K` on a Mac), or the "+" in the toolbar. One field for hosts, actions and saved macros. `@` puts hosts in a scope shown as chips, `>` picks a saved macro, `/` opens a host's files ([ADR-0081](docs/adr/0081-organize-the-interface-around-spaces-a-stage-and-a-bar.md)). Hosts and macros each also get a docked manager sidebar ([ADR-0076](docs/adr/0076-give-hosts-a-manager-sidebar-like-macros.md)).
-- **A local shell**, a PTY with no SSH connection behind it, opened from the Bar like a saved host and living beside it in Sessions ([ADR-0074](docs/adr/0074-add-local-shell-sessions-over-a-native-pty.md)).
-- **A second shell on a connection already open**, multiplexed over the same transport, capped at exactly two ([ADR-0077](docs/adr/0077-allow-one-extra-shell-per-connected-session.md)).
-- **Spaces**: an environment (Production, Staging, Lab) holds hosts. `Ctrl+1` to `9` switch between them, and the Home screen is a Hall with a plate per host. A production Space shows a band, and a command that reaches two or more hosts with any in production has to be held for about 800ms to confirm. It stops a slip, it is not a security control ([ADR-0081](docs/adr/0081-organize-the-interface-around-spaces-a-stage-and-a-bar.md)).
-- **A Logbook per host**, on this machine only: connections made, lost and restored, a server key trusted or replaced, and macro runs. Never keystrokes, host output or passwords, and bounded in size ([security model](docs/security-model.md#what-the-logbook-records)).
-- **A saved script macro on several hosts at once**, with the target list shown first and the answers grouped by identical output ([ADR-0078](docs/adr/0078-run-a-saved-script-macro-on-a-visions-connected-hosts.md)).
-- **A dropped connection reconnects by itself**, the terminal keeping its history, and a host can open its shell inside tmux or screen so the session survives ([ADR-0079](docs/adr/0079-reconnect-a-dropped-session-through-the-normal-connect-flow.md)).
-- **Light and dark** everywhere; **English, Brazilian Portuguese and Spanish**, security copy reviewed before a language ships ([ADR-0007](docs/adr/0007-localize-in-the-frontend-from-typed-error-codes.md)).
-
-Installers are not code-signed: they are attached to each GitHub release with a `SHA256SUMS` file, and
-[`docs/installing.md`](docs/installing.md) says what each platform will warn about.
-Session import from OpenSSH and PuTTY was considered and dropped ([#128](https://github.com/marciopaiva/runic-ssh/issues/128)):
-it will not be implemented. What each release still does not do is in
-[`CHANGELOG.md`](CHANGELOG.md), under *Known limitations*, on purpose.
+Every choice behind these has a [decision record](docs/adr/). What a release
+does not do yet is in [`CHANGELOG.md`](CHANGELOG.md), under *Known limitations*,
+on purpose. Importing sessions from OpenSSH and PuTTY was considered and
+dropped ([#128](https://github.com/marciopaiva/runic-ssh/issues/128)).
 
 ## Downloads
 
-Installers for all three platforms are attached to each
+Installers for Windows, macOS (Apple Silicon) and Linux are attached to each
 [release](https://github.com/marciopaiva/runic-ssh/releases), with a
 `SHA256SUMS` covering every file. Currently
-[v0.9.0](https://github.com/marciopaiva/runic-ssh/releases/tag/v0.9.0):
+[v1.0.0](https://github.com/marciopaiva/runic-ssh/releases/tag/v1.0.0):
 
 | Platform | Download |
 | --- | --- |
-| Windows | [`.msi`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.9.0/Runic-SSH_0.9.0_x64_en-US.msi) (WiX) or [`.exe`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.9.0/Runic-SSH_0.9.0_x64-setup.exe) (NSIS) |
-| macOS | [`.dmg`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.9.0/Runic-SSH_0.9.0_aarch64.dmg), Apple Silicon only |
-| Linux | [`.deb`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.9.0/Runic-SSH_0.9.0_amd64.deb), [`.rpm`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.9.0/Runic-SSH-0.9.0-1.x86_64.rpm), [`.AppImage`](https://github.com/marciopaiva/runic-ssh/releases/download/v0.9.0/Runic-SSH_0.9.0_amd64.AppImage) |
+| Windows | [`.msi`](https://github.com/marciopaiva/runic-ssh/releases/download/v1.0.0/Runic-SSH_1.0.0_x64_en-US.msi) (WiX) or [`.exe`](https://github.com/marciopaiva/runic-ssh/releases/download/v1.0.0/Runic-SSH_1.0.0_x64-setup.exe) (NSIS) |
+| macOS | [`.dmg`](https://github.com/marciopaiva/runic-ssh/releases/download/v1.0.0/Runic-SSH_1.0.0_aarch64.dmg), Apple Silicon only |
+| Linux | [`.deb`](https://github.com/marciopaiva/runic-ssh/releases/download/v1.0.0/Runic-SSH_1.0.0_amd64.deb), [`.rpm`](https://github.com/marciopaiva/runic-ssh/releases/download/v1.0.0/Runic-SSH-1.0.0-1.x86_64.rpm), [`.AppImage`](https://github.com/marciopaiva/runic-ssh/releases/download/v1.0.0/Runic-SSH_1.0.0_amd64.AppImage) |
 
-**Nothing is code-signed.** Windows shows SmartScreen, macOS says the
+**Nothing is code-signed.** Windows shows SmartScreen and macOS says the
 application is damaged; both are what an operating system says about a binary
 whose author it cannot verify. [`docs/installing.md`](docs/installing.md) has
-the exact commands per platform, and tracks **which packages a human has
-actually installed**, which is a shorter list than the one the build produces.
-macOS is on neither list yet.
+the exact commands per platform and tracks **which packages a person has
+actually run**, which is a shorter list than the one the build produces. macOS
+is not on it yet.
 
 ```sh
 sha256sum -c SHA256SUMS --ignore-missing   # before installing anything
 gh attestation verify <file> --repo marciopaiva/runic-ssh   # which run built it (gh 2.49 or later)
 ```
-
-## Roadmap
-
-- [x] **v0.1.0**: SSH with host key verification, saved sessions, a working terminal. *2026-08-23*
-- [x] **v0.1.1**: copy and paste. *2026-08-23*
-- [x] **v0.2.0**: bastions, groups, typing into all of them at once. *2026-08-26*
-- [x] **v0.2.1**: finishing what v0.2.0 claimed. *2026-08-26*
-- [x] **v0.3.0**: SFTP. *2026-09-01*
-- [x] **v0.4.0**: port forwarding, the host book by topology, theme and language everywhere. *2026-09-04*
-- [x] **v0.5.0**: Monitor, no agent installed, and macros. *2026-09-08*
-- [x] **v0.6.0**: the map, first layer: a component is one host in one kind, and its icon opens in place. *2026-09-10*
-- [x] **v0.7.0**: lines between components: broadcast between terminals, transfer between SFTP browsers; the map moves behind a preview. *2026-09-10*
-- [x] **v0.8.0**: visions, a named set of components that lays itself out and fills the screen; layers, maps inside the map; macros gain a script type, isolated with real variables. *2026-09-13*
-- [x] **v0.9.0**: the chrome collapses to a toolbar, opening a saved host becomes a "+" palette search instead of a panel toggle, the map becomes a fixed workspace pill instead of a separate shell, local shell sessions, a second shell per connection. *2026-09-24*
-- [x] **After v0.9.0**: the map was removed; it never reached parity with the workspaces it was meant to replace ([ADR-0080](docs/adr/0080-remove-the-map.md)).
-- [ ] **Next**: the interface is reorganized around Spaces, a Stage and a Bar, in slices that each ship on their own ([ADR-0081](docs/adr/0081-organize-the-interface-around-spaces-a-stage-and-a-bar.md)).
-- [ ] **v1.0.0**: production grade stability. Installers are distributed from GitHub Releases with checksums and stay unsigned: the maintainer decided on 2026-11-23 not to buy a Windows or Apple signing identity, so the earlier "signed installer on every platform" is no longer the bar. What is ([`docs/plans/release-1.0.md`](docs/plans/release-1.0.md)).
-
-A direction, not a promise. What a tool like this should do next is better
-decided by the people running it fifty times a day than by whoever wrote the
-roadmap: [open an issue](https://github.com/marciopaiva/runic-ssh/issues/new).
 
 ## Building it
 

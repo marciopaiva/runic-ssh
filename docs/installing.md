@@ -59,276 +59,67 @@ artifact predated the fix by two commits.
 ## What has actually been installed
 
 Building is not installing. This table is what someone has run, not what the
-workflow produced, and it is the answer to "is this usable yet".
+workflow produced, and it is the answer to "is this usable yet". A row moves
+when somebody runs the file, not when the tag is pushed, so silence in it is
+not coverage. The history of earlier runs is in the commits that touched this
+file.
 
 | Platform | Installed and driven | Version | Where the file came from |
 | --- | --- | --- | --- |
+| Windows, `.exe` (NSIS) | **yes**, 2026-11-25 | 1.0.0-rc.3 | **downloaded from the release, upgraded in place over 0.9.0** |
+| Windows, `.msi` (WiX) | no | | per-machine, needs administrator rights |
+| Linux, `.AppImage` | **yes**, 2026-09-24 | 0.9.0 | **downloaded from the release, extracted rather than run through FUSE** |
 | Linux, `.deb` | **yes**, 2026-09-13 | 0.8.0 | **downloaded from the release** |
 | Linux, `.rpm` | no | | no RPM distribution to hand |
-| Linux, `.AppImage` | **yes**, 2026-09-24 | 0.9.0 | **downloaded from the release, extracted rather than run through FUSE** |
-| Windows, `.exe` (NSIS) | **yes**, 2026-09-24 | 0.9.0 | **the maintainer's own install, upgraded in place** |
-| Windows, `.msi` (WiX) | built, not installed | | the NSIS package was the one exercised |
 | macOS, `.dmg` | **no** | | needs an Apple Silicon Mac |
 
-**All six 0.9.0 assets were downloaded from the release**: their sizes match
-`gh api repos/marciopaiva/runic-ssh/releases/tags/v0.9.0` byte for byte, every
-one is covered by `SHA256SUMS`, and `sha256sum -c SHA256SUMS --ignore-missing`
-reported `OK` on all six. `apt install` was skipped on purpose: it would have
-overwritten the maintainer's own dpkg-managed 0.8.0 install, so the
-`.AppImage` was extracted (`--appimage-extract`) and run as
-`squashfs-root/usr/bin/runic-ssh` instead, on an isolated display and a fresh
-`XDG_CONFIG_HOME` seeded with `previewFeatures: true` and one saved host
-(`127.0.0.1:2222`, the WSL2 fixture). It launched and the status bar read
-`v0.9.0`. Driven: an unknown host key trusted and a session connected; a
-second shell opened on that connection (ADR-0077), its own tab with a fresh
-login banner, typed into independently of the first; SFTP against the same
-host, browsing a real remote listing; a local shell (ADR-0074) running the
-host's own `bash` as the logged-in user, not a sandboxed stand-in. Home
-showed only its logo and wordmark with two sessions and a local shell open,
-which is correct: `HomeSummaryPanel` and its "Connected now" list were built
-mid-cycle and pulled again before release (`design: reduce Home to its logo
-and version`, 2026-09-22), a fact the changelog got wrong until this pass
-caught it. Visions, layers, port forwarding and macros were not re-driven on
-the package this time; earlier paragraphs in this file and `docs/testing.md`
-stand for them.
+**macOS has never been opened by anyone.** The `.dmg` is built and its version
+is read out of the bundle in CI, and that is all. Gatekeeper's behaviour below
+is described from documentation, not from having been seen.
 
-**A second pass the same day, on a headless Xvfb display with no window
-manager and no GPU, twice found the toolbar missing the Home pill** (`SSH |
-SFTP | Map` only, screenshotted with ImageMagick's `import -window root`).
-Source review ruled out a code cause: `WorkspacePills.tsx` renders all four
-pills unconditionally, is byte-identical between the `v0.9.0` tag and this
-repository's `HEAD`, and ADR-0072's addendum plus this changelog both say
-Home keeps its own pill on purpose. The maintainer then navigated Home > SSH
-> Home on the same downloaded AppImage in a real desktop session and the
-pill worked as expected, which the headless result cannot explain away.
-`app3.log` from that pass logged repeated `libEGL`/DRI3/DRI2 failures, a
-software-rendering fallback; a stale or partial composite of just the
-toolbar under that degraded path, with no compositor to force a correct
-repaint, is the likely cause, in the same family as this project's earlier
-wedged-GPU EGL crash under WSL2. Filed and closed as not reproducible outside
-that rig, #463.
+**The Windows run on 2026-11-25** used all six files of the `v1.0.0-rc.3`
+release. `sha256sum -c SHA256SUMS` reported `OK` on every one. The NSIS
+installer ran silently over the maintainer's own 0.9.0 and exited 0; the
+uninstall entry then read `1.0.0-rc.3`, the executable carried that version,
+its publisher and copyright, and `licenses` sat beside it. The application
+opened, answered, and left every file in `%APPDATA%\com.runicssh.client`
+untouched. The maintainer then used it on screen and found nothing wrong. The
+file was copied through WSL, so it carried no Mark of the Web and SmartScreen
+was not consulted.
 
-**The same 0.9.0 `.exe` (NSIS) was installed on the maintainer's own Windows
-machine**, upgraded in place from 0.8.0 with their explicit approval, through
-WSL interop rather than a display of its own. `HKCU:\...\Uninstall` confirms
-`DisplayVersion 0.9.0` and the status bar agreed. Driven against the same
-WSL2 fixture, reached at its `eth0` address rather than `127.0.0.1` since
-Windows and the fixture are not on the same network namespace: a second
-shell (ADR-0077), its duplicate tab independent of the first; SFTP browsing,
-a real remote listing; a local shell (ADR-0074, PowerShell), after finding
-that a freshly opened local-shell tab does not hold keyboard focus and a
-click inside the terminal body is needed before typing reaches it rather
-than the quick-open palette. Home matched Linux: logo only, no session list,
-confirming the behavior above is not a Linux-only quirk. macOS was not
-touched; nobody here has the hardware.
+**Earlier runs established what has not needed repeating**, and the lasting
+parts are these:
 
-**The 0.8.0 `.deb` was downloaded from the release**, every file on the
-page (six installers plus `SHA256SUMS`) accounted for in the sums list, and
-`Runic-SSH_0.8.0_amd64.deb`'s own line checked with `sha256sum -c
---ignore-missing` (`OK`). Installed over the 0.7.0 package already on this
-machine with `apt install ./Runic-SSH_0.8.0_amd64.deb`, an upgrade rather
-than a fresh install. Driven as the installed `/usr/bin/runic-ssh`, which
-serves the bundled frontend, on an isolated display with a fresh
-`XDG_CONFIG_HOME`: it launched and the status bar read `v0.8.0`. Connected
-to a fresh host, opened Macros, created a script macro (`echo
-target=$host:$port as $username`) through the new popup, confirming the
-Name field already had focus on open, and ran it: the terminal showed the
-`sh <<'RUNIC_MACRO_...'` heredoc with `$host`, `$port` and `$username`
-exported as real variables ahead of the echo, and the correct line printed
-back. Visions, layers and the five #398 findings were driven on the
-development build during the same release, not re-driven on the package;
-`docs/testing.md`'s own rows stand for them.
+* The NSIS installer puts the application in `%LOCALAPPDATA%` for the current
+  user without administrator rights, registers an uninstall entry, and upgrades
+  an earlier version in place.
+* Minimise, maximise and close work on Windows. They cannot be checked under
+  WSLg, which does not iconify, so a working minimise and a broken one look the
+  same there. See `docs/testing.md`.
+* On Windows the host key path, the credential window and a shell held exactly
+  one session open on the server, which is what ADR-0014 is for.
+* **ADR-0025 was exercised on DPAPI.** A credential kept for the run only wrote
+  nothing to `%APPDATA%\Microsoft\Credentials` and left `credentialId` null in
+  `sessions.json`, so a restarted process had no path to it. Saving it to the
+  keyring afterwards wrote both halves, the store entry and the session pointer.
+  The keep modes have run on both credential stores that exist.
+* On Linux the packaged binary read the real config directory, took the
+  unknown-host-key path with a fingerprint that matched `ssh-keyscan`, wrote the
+  key to `known_hosts` on trust, authenticated and ran a command in a shell.
+* A script can drive typing and pasting on a display with a window manager and
+  cannot drive a drag or a selection. What a person has to do is the table
+  under "What synthetic input can and cannot drive" in `docs/testing.md`.
 
-**The 0.7.0 `.deb` was downloaded from the release**, its line in
-`SHA256SUMS` checked with `sha256sum -c --ignore-missing` (`OK`), and installed
-over the 0.6.0 package already on this machine with `apt install
-./Runic-SSH_0.7.0_amd64.deb`. The page was not listed against the sums by hand
-this pass; the workflow refuses to publish a file no hash covers, which is the
-guard #204 put where it runs before the page exists. Driven as the installed
-`/usr/bin/runic-ssh`, which serves the bundled frontend, on an isolated display
-and the same seeded `XDG_CONFIG_HOME`: it launched and the status bar read
-`v0.7.0`; the rail showed the classic navigation and no map, since the seeded
-`settings.json` predates the preview and the map is off by default (ADR-0066);
-the title bar's close button was drawn like the other two at rest. The command
-palette's "Show the map (preview)" added the map's rail slot and wrote
-`"previewFeatures": true`; the map opened on the two saved hosts with the line
-between them and its switch at the midpoint. Arming the broadcast, the
-transfers and the terminal menu were driven on the development build earlier
-the same day, not re-driven on the package; the "Lines on the map" rows in
-`docs/testing.md` stand for them.
+**Three claims stay separate**: the build is green, somebody ran it, and
+somebody ran the file a stranger would download. The `smoke` job in
+`package.yml` adds a fourth: it installs the `.deb` and the NSIS package on
+their own platforms, opens the Linux one on a virtual display and checks that
+the window drew something, and mounts the `.dmg` to read its version. It runs
+before `release`, so a tag with a broken installer publishes no page. It
+connects to nothing and touches no keyboard, so it does not move a row above.
 
-**The 0.6.0 `.deb` was downloaded from the release**, checked against
-`SHA256SUMS` (six lines, one per file on the page, every one covered), and
-installed over the 0.5.0 package already on this machine with `apt install
-./Runic-SSH_0.6.0_amd64.deb`. Driven as the installed `/usr/bin/runic-ssh`
-on an isolated display, on an `XDG_CONFIG_HOME` seeded with three saved
-hosts, one of them with its password already in the keychain, and no map:
-the first six rows of "The map (ADR-0064)" in `docs/testing.md`, as they
-now read. A component created from the floor's menu and the picker,
-`workspace.json` written beside `sessions.json`; the icon opened into its
-window and the shell answered `echo` with the host's own name; the window
-dragged by its strip and resized by its east edge, both saved to the file;
-maximized and restored from the strip's buttons; a thumbnail at 60% and a
-refit at 117%; minimized to the icon and reopened on the same shell. Two
-things found on the way, neither of which stops the rows: double-click on
-the strip fits the view instead of maximizing (#363, a defect in the
-release, cause known), and the window's name wraps in the strip at 60%
-(#364). Sessions, SFTP, Monitor, macros and port forwarding were not
-re-driven this pass; the paragraphs below still stand for them.
-
-**The 0.5.0 `.deb` was downloaded from the release**, checked against
-`SHA256SUMS` (six lines, one per file on the page, every one covered), and
-installed over the 0.4.0 package already on this machine with `apt install
-./Runic-SSH_0.5.0_amd64.deb`, an upgrade rather than a fresh install. Driven
-as the installed `/usr/bin/runic-ssh` on an isolated display, on a fresh
-`XDG_CONFIG_HOME` seeded with two saved hosts and no `known_hosts`: an
-unknown host key on `runic-test-sshd`, its fingerprint matching
-`ssh-keyscan` character for character, trusted; the credential typed into
-the editor's Access column and saved by testing it; a shell opened with the
-plain-dash MOTD (#350) printing into it and `uname -a` run with its output
-read back; Monitor's Home tab on the same host, every card populated and
-disk I/O moving (`↑41.0 KB/s`); a macro created from the sidebar with the
-three variable chips, `macros.json` written beside `sessions.json`, and run,
-`$host:$port as $username` resolving to `127.0.0.1:2222 as deploy` in the
-shell. This is the first time this table records Monitor or macros being
-driven on a packaged build at all. Port forwarding and SFTP were not
-re-driven this pass; the 0.4.0 and 0.3.0 paragraphs below still stand for
-them.
-
-**The 0.4.0 `.deb` was downloaded from the release**, checked against
-`SHA256SUMS`, and installed over the 0.3.0 package already on this machine
-with `apt install ./Runic-SSH_0.4.0_amd64.deb`, an upgrade rather than a
-fresh install. Driven against `runic-test-sshd` on an isolated display, on a
-fresh `XDG_CONFIG_HOME` seeded with one saved host carrying a saved local
-forward: an unknown host key on a port never connected to before, its
-fingerprint checked by eye against `ssh-keyscan`, the credential typed into
-the one-screen editor's own Access column and saved by testing it, a shell
-opened with the MOTD printing into it (ADR-0051) and a command run with the
-output checked. The forward itself was then checked from outside the
-application: `ss -tln` showed its bind port listening the instant the
-session reported connected, and `ssh-keyscan` through that port returned the
-exact fingerprint `ssh-keyscan` against the real target returns directly,
-confirming it genuinely tunnels rather than only accepting connections. This
-is the first time this table records port forwarding being driven on a
-packaged build at all; SFTP was not re-driven this pass, and the 0.3.0
-paragraph below still stands for it.
-
-**The 0.3.0 `.deb` was downloaded from the release**, checked against
-`SHA256SUMS`, and installed over the 0.2.1 package already on this machine
-with `apt install ./Runic-SSH_0.3.0_amd64.deb`, an upgrade rather than a
-fresh install. Driven against `runic-test-sshd` on an isolated display, on a
-fresh `XDG_CONFIG_HOME` (no saved sessions carried over from the machine's
-own): a host added through the wizard, an unknown host key on a port never
-connected to before, its fingerprint checked by eye against `ssh-keyscan`,
-the credential typed on the wizard's own inline field rather than the window
-ADR-0039 retired, saved to the system keychain, a shell opened and a command
-run in it with the output checked, and SFTP opened and the same host's home
-directory browsed. This is the first time this table records SFTP being
-driven on a packaged build at all.
-
-The 0.2.1 `.deb` was downloaded from the release, checked against
-`SHA256SUMS`, and installed over the 0.2.0 package already on this machine
-with `apt install ./Runic-SSH_0.2.1_amd64.deb`, an upgrade rather than a fresh
-install. Driven against `src-tauri/tests/fixtures/sshd` on an isolated
-display: an unknown host key on a port never connected to before, its
-fingerprint checked by eye against `ssh-keyscan`, the credential window
-answered twice, once discarding the password and once keeping it in memory
-for the run, a shell opened, three commands run in it with the output
-checked, and the session closed from its tab.
-
-**The Windows and macOS rows are still what they were.** The newest Windows
-file anyone has run is the 0.1.1 NSIS build, off a developer's machine rather
-than a release, and macOS has never been opened by anyone. A row here moves
-when somebody runs the file, not when the tag is pushed, and this paragraph is
-what stops the table's silence being read as coverage.
-
-**The Linux row is now a release download, and that is a different claim.** The
-files attached to a release come off the CI runners: same commit, different
-machine, and a different set of things that can go wrong along the way, from a
-runner's toolchain to the archive that carries the artifact between jobs to a
-bundler behaving differently outside a developer's box. That path has now been
-walked once, on one platform.
-
-What it covered: `sha256sum -c SHA256SUMS` against the downloaded bytes,
-`apt install` of the `.deb` over an installed `0.1.0`, the window opening on the
-packaged frontend rather than the Vite dev server, and copy and paste driven in
-a real session. The Windows row is still a locally built package, and macOS
-still has nobody.
-
-**The 0.2.0 run, on 2026-08-26, was driven by a script rather than by hand.**
-The release it downloaded from also went out carrying four installers from the
-previous version, which were removed from the page the same day and are the
-subject of #182.
-Same path otherwise: downloaded from the release, checked against
-`SHA256SUMS`, `apt install` over the installed `0.1.1`, then the installed
-`/usr/bin/runic-ssh` on a virtual display, taking the unknown host key path
-against the container on 2222 with a fingerprint that matched `ssh-keyscan`,
-answering the credential window and running commands in the shell it opened.
-What a script cannot reach is in the table under "What synthetic input can and
-cannot drive" in `docs/testing.md`: the selection, and therefore copy, is not
-part of this run. A person drove that at 0.1.1 and nobody has driven it since.
-
-That distinction is the whole point of this table. It exists so that "the build
-is green", "somebody ran it", and "somebody ran the file a stranger would
-download" stay three separate claims.
-
-**CI now installs what it built, and that does not make a row here true.** The
-`smoke` job in `package.yml` installs the `.deb` and the NSIS package on their
-own platforms, opens the Linux one on a virtual display and checks that the
-window rendered something rather than a flat colour, and mounts the `.dmg` to
-read the version out of the bundle. It runs before `release`, so a tag with a
-broken installer publishes no page at all. What it does not do is connect to
-anything, or touch a keyboard, or open the application on macOS at all, and this
-table is about what a person has run. A fourth claim was added; none of the
-three it sits beside moved.
-
-What the Linux run covered, end to end on the packaged binary: it read the real
-config directory, listed saved sessions, took the unknown-host-key path,
-displayed a fingerprint that matched `ssh-keyscan` exactly, wrote the correct
-key to `known_hosts` on trust, opened its credential window, authenticated with
-a password and ran a command in a real shell.
-
-What the Windows run covered, on the packaged binary: the NSIS installer put
-the application in `%LOCALAPPDATA%` for the current user without asking for
-administrator rights, registered an uninstall entry, and launched. It picked up
-the system dark theme and the `pt-BR` locale, drew its own title bar, took the
-unknown-host-key path against a fingerprint checked out of band, opened its
-credential window, authenticated and ran a shell. It held exactly one session
-open on the server, which is what ADR-0014 is for.
-
-Minimise, maximise and close were all exercised there, which matters because
-they cannot be checked under WSLg at all: that compositor does not iconify, so a
-working minimise and a broken one look identical. See `docs/testing.md`.
-
-The 0.1.1 run, on 2026-08-26, was the artifact from a `workflow_dispatch` of
-`package.yml` at `cb23f2d` rather than a local build: the checksum was checked
-against the run's own `SHA256SUMS` on Linux and again with `Get-FileHash` after
-the file crossed `/mnt/c`, and the silent install went over the installed 0.1.0
-in place without administrator rights. It covered what 0.1.0 could not, because
-none of it existed then: split panes with the empty-pane state, a live session
-against a container reached from Windows into WSL, the status bar's latency and
-byte counters, and the chain glyphs in the sidebar.
-
-**It did not cover SmartScreen, and could not.** A file copied through WSL to
-`/mnt/c` carries no Mark of the Web, so Windows treats it as local and never
-consults the service. Getting that check means setting the zone marker
-deliberately, or downloading through a browser.
-
-**ADR-0025 was exercised here, on DPAPI, and it is the part of that run worth
-keeping.** A new host kept its credential for the run only: nothing was written
-to `%APPDATA%\Microsoft\Credentials`, and `credentialId` stayed null in
-`sessions.json`, so a restarted process had no path to that secret even if it
-had wanted one. Reconnecting inside the run did not ask; closing and reopening
-did. Saving the same credential to the keyring afterwards wrote both halves, the
-store entry and the session pointer, which is the invariant `persist_credential`
-exists to hold. The keep modes have now run on both credential stores that
-exist.
-
-Still unchecked: the `.msi` (a different installer with a different code path,
-and per-machine, so it needs administrator rights), Windows SmartScreen on a
-downloaded file rather than a locally built one, and everything about macOS.
-Gatekeeper quarantine and the `.app` bundle are described below from
-documentation rather than from having been seen.
+Not covered by anyone: the `.msi`, Windows SmartScreen on a file downloaded
+through a browser, and everything about macOS.
 
 ## Licences of what is inside
 
@@ -351,7 +142,7 @@ can it tell you the file was not modified in transit. Compare the SHA-256
 against the workflow run before you do it:
 
 ```powershell
-Get-FileHash .\Runic-SSH_0.8.0_x64_en-US.msi -Algorithm SHA256
+Get-FileHash .\Runic-SSH_1.0.0_x64_en-US.msi -Algorithm SHA256
 ```
 
 ## macOS
@@ -378,7 +169,7 @@ as of anything else.
 
 ```sh
 sha256sum -c SHA256SUMS --ignore-missing
-sudo apt install ./Runic-SSH_0.8.0_amd64.deb
+sudo apt install ./Runic-SSH_1.0.0_amd64.deb
 ```
 
 The file is `Runic-SSH_...`, capitalised, because the product name is; the
@@ -390,14 +181,20 @@ bundled browser engine. The webview is the system's, which is why the download
 is three megabytes rather than a hundred.
 
 **Installing a second build of the same version does nothing.** `apt` compares
-version numbers, so a rebuild of `0.8.0` over an installed `0.8.0` exits
+version numbers, so a rebuild of `1.0.0` over an installed `1.0.0` exits
 successfully without replacing anything: no error, no warning, and the old
-binary still on disk. A real bump does upgrade normally, so `0.8.0` over `0.7.0`
+binary still on disk. A real bump does upgrade normally, so `1.0.0` over `0.9.0`
 needs none of this. For a rebuild of the same version, force it:
 
 ```sh
-sudo dpkg -i ./Runic-SSH_0.8.0_amd64.deb
+sudo dpkg -i ./Runic-SSH_1.0.0_amd64.deb
 ```
+
+**A release candidate sorts above its release.** `dpkg` compares `1.0.0-rc.3`
+as later than `1.0.0`, so `apt` will not upgrade from a candidate to the
+release. Remove the candidate first (`sudo apt remove runic-ssh`; your
+configuration is not touched) or install with `dpkg -i` as above. Nobody has
+checked how `rpm` orders them.
 
 ### If the window cannot be moved or resized
 
