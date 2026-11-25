@@ -51,25 +51,6 @@ Logbook.
   <img src="assets/tour-dark.gif" alt="A tour of Runic SSH: the Hall of a Production Space with two connected hosts; the Bar scoping both as chips and choosing the saved macro uptime, then the held press that sends it and the grouped answer; two terminals side by side; Monitor with a host's CPU rising; a 286 MB file sent from one host to the other with a progress bar; and a host's Logbook listing what happened to it" width="880">
 </picture>
 
-The same screens as stills, left to right, top to bottom:
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-grid-dark.png">
-  <source media="(prefers-color-scheme: light)" srcset="assets/screenshot-grid-light.png">
-  <img src="assets/screenshot-grid-dark.png" alt="Six screens of Runic SSH in one grid: the Hall of a Production Space, with a red band and a plate per host; the Bar with two hosts as scope chips listing saved script macros; two terminals side by side; Monitor showing a host's CPU, memory, swap, load, network and disk; SFTP with one host as source and another as destination; a host's Logbook" width="880">
-</picture>
-
-Running a script on several hosts of a Production Space takes a held press, not
-a click. The button fills over 800ms and the script goes only if you keep it
-down to the end; letting go, or leaving the button, cancels
-([ADR-0081](docs/adr/0081-organize-the-interface-around-spaces-a-stage-and-a-bar.md)).
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/hold-to-confirm-dark.gif">
-  <source media="(prefers-color-scheme: light)" srcset="assets/hold-to-confirm-light.gif">
-  <img src="assets/hold-to-confirm-dark.gif" alt="The dialog to run the saved script uptime on runic-web-01 and runic-web-02: the pointer presses the red button Hold to send to 2 hosts, a lighter fill sweeps across it left to right, and when it is full the dialog shows one most common answer, the uptime line, for 2 of 2 hosts with exit 0" width="880">
-</picture>
-
 ## What works today
 
 Each line is a feature that ships; the record behind it is one click away.
