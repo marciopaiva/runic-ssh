@@ -84,11 +84,14 @@ Installers for Windows, macOS (Apple Silicon) and Linux are attached to each
 `SHA256SUMS` covering every file. Currently
 [v1.0.0](https://github.com/marciopaiva/runic-ssh/releases/tag/v1.0.0):
 
-| Platform | Recommended | Also |
+| | File | What it is |
 | --- | --- | --- |
-| **Windows**, x64 | [Installer `.exe`](https://github.com/marciopaiva/runic-ssh/releases/download/v1.0.0/Runic-SSH_1.0.0_x64-setup.exe) | [`.msi`](https://github.com/marciopaiva/runic-ssh/releases/download/v1.0.0/Runic-SSH_1.0.0_x64_en-US.msi) |
-| **macOS**, Apple Silicon | [Disk image `.dmg`](https://github.com/marciopaiva/runic-ssh/releases/download/v1.0.0/Runic-SSH_1.0.0_aarch64.dmg) | |
-| **Linux**, x86-64 | [`.deb`](https://github.com/marciopaiva/runic-ssh/releases/download/v1.0.0/Runic-SSH_1.0.0_amd64.deb) for Debian and Ubuntu | [`.rpm`](https://github.com/marciopaiva/runic-ssh/releases/download/v1.0.0/Runic-SSH-1.0.0-1.x86_64.rpm) for Fedora, [`.AppImage`](https://github.com/marciopaiva/runic-ssh/releases/download/v1.0.0/Runic-SSH_1.0.0_amd64.AppImage) for the rest |
+| <img src="https://img.shields.io/badge/-Windows-0078D4?logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI%2BPHBhdGggZmlsbD0iI2ZmZiIgZD0iTTIgMy42IDEwLjIgMi41djguMUgyek0xMS4yIDIuNCAyMiAuOXY5LjdIMTEuMnpNMiAxMS42aDguMnY4LjFMMiAxOC42ek0xMS4yIDExLjZIMjJ2MTAuNWwtMTAuOC0xLjV6Ii8%2BPC9zdmc%2B&style=flat-square" alt="Windows" height="22"> | [`Runic-SSH_1.0.0_x64-setup.exe`](https://github.com/marciopaiva/runic-ssh/releases/download/v1.0.0/Runic-SSH_1.0.0_x64-setup.exe) | Installer, x64 (NSIS) |
+|  | [`Runic-SSH_1.0.0_x64_en-US.msi`](https://github.com/marciopaiva/runic-ssh/releases/download/v1.0.0/Runic-SSH_1.0.0_x64_en-US.msi) | Installer, x64 (WiX) |
+| <img src="https://img.shields.io/badge/-macOS-000000?logo=apple&logoColor=white&style=flat-square" alt="macOS" height="22"> | [`Runic-SSH_1.0.0_aarch64.dmg`](https://github.com/marciopaiva/runic-ssh/releases/download/v1.0.0/Runic-SSH_1.0.0_aarch64.dmg) | Disk image, Apple Silicon only |
+| <img src="https://img.shields.io/badge/-Linux-FCC624?logo=linux&logoColor=black&style=flat-square" alt="Linux" height="22"> | [`Runic-SSH_1.0.0_amd64.deb`](https://github.com/marciopaiva/runic-ssh/releases/download/v1.0.0/Runic-SSH_1.0.0_amd64.deb) | Debian and Ubuntu (x86-64) |
+|  | [`Runic-SSH-1.0.0-1.x86_64.rpm`](https://github.com/marciopaiva/runic-ssh/releases/download/v1.0.0/Runic-SSH-1.0.0-1.x86_64.rpm) | Fedora and other RPM distributions (x86-64) |
+|  | [`Runic-SSH_1.0.0_amd64.AppImage`](https://github.com/marciopaiva/runic-ssh/releases/download/v1.0.0/Runic-SSH_1.0.0_amd64.AppImage) | Any distribution (x86-64) |
 
 **Nothing is code-signed.** Windows shows SmartScreen and macOS says the
 application is damaged; both are what an operating system says about a binary
