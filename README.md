@@ -40,9 +40,18 @@ distances. A rune fits in the hand. So should the tool that carries your keys.
 ## What it looks like
 
 The running application, connected to this project's own SSH fixtures. Not a
-mockup, not the design canvas. Left to right, top to bottom: the Hall of a
+mockup, not the design canvas. A 45 second tour, in this order: the Hall of a
 Production Space, the Bar scoping two hosts to run a saved macro, two sessions
-side by side, Monitor, SFTP, and a host's Logbook.
+side by side, Monitor, a file sent between two hosts over SFTP, and a host's
+Logbook.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/tour-dark.gif">
+  <source media="(prefers-color-scheme: light)" srcset="assets/tour-light.gif">
+  <img src="assets/tour-dark.gif" alt="A tour of Runic SSH: the Hall of a Production Space with two connected hosts; the Bar scoping both as chips and choosing the saved macro uptime, then the held press that sends it and the grouped answer; two terminals side by side; Monitor with a host's CPU rising; a 286 MB file sent from one host to the other with a progress bar; and a host's Logbook listing what happened to it" width="880">
+</picture>
+
+The same screens as stills, left to right, top to bottom:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-grid-dark.png">
