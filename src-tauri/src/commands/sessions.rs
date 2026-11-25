@@ -1529,6 +1529,15 @@ mod tests {
         );
     }
 
+    /// Not run on Windows. `tauri::test::mock_app` pulls Tauri's windowing code into
+    /// the library's test executable, which then imports `TaskDialogIndirect` and
+    /// `SetWindowSubclass` from the common controls DLL. Those exist only in
+    /// version 6, which a process gets from a manifest, and Cargo cannot link one
+    /// into a library's own unit tests (`rustc-link-arg-tests` reaches integration
+    /// tests only). Without it the executable exits with `STATUS_ENTRYPOINT_NOT_FOUND`
+    /// before any test runs, and takes every other test in the crate with it. The
+    /// event it checks is the same on every platform.
+    #[cfg(not(windows))]
     #[test]
     fn announcing_the_bastion_reaches_a_listener_with_the_session_id() {
         use std::sync::{Arc, Mutex};
