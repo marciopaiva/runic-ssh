@@ -60,6 +60,7 @@ function context(over: Partial<CommandContext> = {}): { ctx: CommandContext; cal
     goTo: (workspace) => calls.push(`go:${workspace}`),
     toggleMacros: () => calls.push('macros'),
     toggleHosts: () => calls.push('hosts'),
+    toggleTitleBar: () => calls.push('title-bar'),
     switchSpace: (id) => calls.push(`space:${id}`),
     newSpace: () => calls.push('space:new'),
     importGroups: () => calls.push('space:import'),
@@ -84,6 +85,7 @@ function context(over: Partial<CommandContext> = {}): { ctx: CommandContext; cal
       hasTarget: true,
       macrosOpen: false,
       hostsOpen: false,
+      titleBar: null,
       localShellKinds: [],
       actions,
       ...over,
@@ -258,6 +260,24 @@ describe('what the Bar offers', () => {
     const rows = actionCommands(ctx);
     expect(rows.map((row) => row.id)).not.toContain('action:hosts');
     expect(rows.find((row) => row.id === 'action:macros')?.title).toBe('Hide macros');
+  });
+});
+
+describe('the title bar switch in the Bar', () => {
+  it('offers the opposite of what is showing, and not at all where it does not apply', () => {
+    const drawn = actionCommands(context({ titleBar: 'drawn' }).ctx).find((row) => row.id === 'action:title-bar');
+    expect(drawn?.title).toBe('Use the system title bar');
+    const native = actionCommands(context({ titleBar: 'native' }).ctx).find((row) => row.id === 'action:title-bar');
+    expect(native?.title).toBe("Use the app's title bar");
+    expect(actionCommands(context({ titleBar: null }).ctx).map((row) => row.id)).not.toContain('action:title-bar');
+  });
+
+  it('runs the toggle, and is found by "title bar"', () => {
+    const { ctx, calls } = context({ titleBar: 'drawn' });
+    const row = actionCommands(ctx).find((r) => r.id === 'action:title-bar');
+    row?.run();
+    expect(calls).toEqual(['title-bar']);
+    expect(row?.keywords).toContain('title bar');
   });
 });
 
