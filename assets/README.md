@@ -21,6 +21,42 @@ Each screen has a `-dark` and a `-light` file, and the pair **must be the same
 size**: the README serves them through `<picture>` with `prefers-color-scheme`,
 and a mismatch shifts the page when a reader's theme changes.
 
+### `tour-*.gif` (v0.9.0)
+
+One 880x548 clip of 534 frames at 12 a second, 45 seconds, looping, about 1.1 MB
+in the light take and 1.4 MB in the dark one. It walks the screens the grid
+shows, in the same order, in one continuous recording of one window: the Hall,
+the Bar (`@` twice for two hosts, `>` for the macro, then the held press and the
+grouped answer), two sessions side by side, Monitor under load, SFTP with a
+file in flight, and the Logbook. The pair must stay the same size.
+
+Taken on 2026-11-25 on `:94` from the packaged build, on the same kind of
+fresh `XDG_CONFIG_HOME` as the hold clip (one Production Space, the two
+fixtures, two script macros). The window is 1400x873 and the whole of it is
+recorded with `ffmpeg -f x11grab` at 15 frames a second, then cut to 12 and
+scaled with a per-clip palette (`palettegen` at 128 colours,
+`stats_mode=diff`, `paletteuse` with `diff_mode=rectangle`), which is what keeps
+a mostly still clip small.
+
+It is scripted, because a take that is not will not match its pair. Two
+scripts did it: one prepared a clean state, and one ran the gestures with
+fixed waits and recorded. The preparation removed the Logbook directory so the
+clip shows only what the take wrote, connected both hosts, moved the second tab
+to a second group, and opened both SFTP panes. Things that were not obvious:
+
+* The Bar adds a host to the scope with Return and keeps the `@` row list for
+  the next one; Tab leaves the field and the next Return does nothing.
+* SFTP drag between the panes never fired with `xdotool`. Selecting the file
+  and pressing Send does the same job and shows the transfer bar.
+* For something to send, one 300 MB file of zeros was written in the home
+  directory of the first fixture, and removed from both after the takes.
+* Monitor reports a host's counters, and a fixture container reports its
+  host's, so twelve busy loops started in a third fixture with a 12 second
+  timeout moved the CPU ring of the first. Nothing ran on the developer's
+  machine outside the containers.
+* A stale recording is worse than none. Retake the whole clip when any screen
+  in it changes, and both themes together.
+
 ### `hold-to-confirm-*.gif` (v0.9.0)
 
 One 940x350 clip, 4.9 seconds at 20 frames a second, looping: the fleet dialog
